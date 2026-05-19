@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.*?>
+
+<VBox fx:id="settingsRoot"
+      xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.mst.matt.tradingplatformapp.controller.ProfileSettingsController"
+      styleClass="scene-root" spacing="0">
+
+    <HBox styleClass="card" alignment="CENTER_LEFT" spacing="12"
+          style="-fx-background-radius:0; -fx-border-width:0 0 1 0;">
+        <padding>
+            <Insets top="12" right="16" bottom="12" left="16"/>
+        </padding>
+        <Label text="⚙ Profile &amp; Data Providers" styleClass="label-title"/>
+    </HBox>
+
+    <VBox spacing="20" alignment="TOP_LEFT" style="-fx-max-width:560px;">
+        <padding>
+            <Insets top="24" right="24" bottom="24" left="24"/>
+        </padding>
+
+        <VBox styleClass="card" spacing="16">
+            <padding>
+                <Insets top="24" right="24" bottom="24" left="24"/>
+            </padding>
+            <Label text="Active profile" styleClass="label-muted"/>
+            <Label fx:id="profileNameLabel" text="—" styleClass="label-title"/>
+
+            <Separator/>
+
+            <Label text="Asset focus" styleClass="label-subtitle"/>
+            <ComboBox fx:id="assetFocusCombo" prefWidth="280" onAction="#onAssetFocusChanged"/>
+
+            <Label text="Default symbol" styleClass="label-subtitle"/>
+            <TextField fx:id="defaultSymbolField" promptText="e.g. AAPL, BTCUSDT, EURUSD"/>
+
+            <Separator/>
+
+            <Label text="Chart data provider" styleClass="label-subtitle"/>
+            <ComboBox fx:id="chartProviderCombo" prefWidth="320"/>
+            <Label fx:id="chartProvidersHint" styleClass="label-muted" style="-fx-wrap-text:true;"/>
+
+            <Label text="Fundamentals provider" styleClass="label-subtitle"/>
+            <ComboBox fx:id="fundamentalProviderCombo" prefWidth="320"/>
+
+            <HBox spacing="12" alignment="CENTER_LEFT">
+                <Button text="Save preferences" styleClass="btn-primary" onAction="#onSave"/>
+                <Label fx:id="savedLabel" style="-fx-text-fill:#3fb950;"/>
+            </HBox>
+        </VBox>
+
+        <Label text="AUTO picks the best enabled API for each symbol. If a source fails, the next provider in the chain is used automatically."
+               styleClass="label-muted" style="-fx-wrap-text:true;"/>
+    </VBox>
+</VBox>

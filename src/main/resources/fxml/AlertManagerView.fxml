@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.*?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.mst.matt.tradingplatformapp.controller.AlertManagerController"
+      styleClass="scene-root" spacing="0">
+
+    <HBox styleClass="card" alignment="CENTER_LEFT" spacing="12"
+          style="-fx-background-radius:0; -fx-border-radius:0; -fx-border-width:0 0 1 0;">
+        <Label text="🔔 Alert Manager" styleClass="label-title"/>
+    </HBox>
+
+    <!-- Create new alert form -->
+    <VBox styleClass="card" spacing="12"
+          style="-fx-background-radius:0; -fx-border-radius:0;
+                 -fx-border-width:0 0 1 0;">
+        <padding>
+            <Insets top="16" right="24" bottom="16" left="24"/>
+        </padding>
+        <Label text="Create New Alert" styleClass="label-subtitle"/>
+        <HBox spacing="12" alignment="CENTER_LEFT">
+            <TextField fx:id="newSymbolField" promptText="Symbol"  prefWidth="140"/>
+            <ComboBox  fx:id="alertTypeCombo" prefWidth="200"/>
+            <TextField fx:id="targetPriceField" promptText="Target Price / %" prefWidth="140"/>
+            <CheckBox  fx:id="emailCheck"    text="📧 Email"/>
+            <CheckBox  fx:id="telegramCheck" text="✈ Telegram"/>
+            <CheckBox  fx:id="desktopCheck"  text="🖥 Desktop" selected="true"/>
+            <CheckBox  fx:id="repeatingCheck" text="↩ Repeat"/>
+            <TextField fx:id="customMessageField" promptText="Custom message (optional)"
+                       HBox.hgrow="ALWAYS"/>
+            <Button text="+ Add Alert" styleClass="btn-primary" onAction="#onAddAlert"/>
+        </HBox>
+    </VBox>
+
+    <!-- Alerts table -->
+    <TableView fx:id="alertsTable" VBox.vgrow="ALWAYS">
+        <columns>
+            <TableColumn fx:id="colSymbol"    text="SYMBOL"    prefWidth="100"/>
+            <TableColumn fx:id="colType"      text="TYPE"      prefWidth="180"/>
+            <TableColumn fx:id="colTarget"    text="TARGET"    prefWidth="100"/>
+            <TableColumn fx:id="colStatus"    text="STATUS"    prefWidth="90"/>
+            <TableColumn fx:id="colNotify"    text="NOTIFY"    prefWidth="90"/>
+            <TableColumn fx:id="colTriggered" text="TRIGGERED" prefWidth="130"/>
+            <TableColumn fx:id="colActions"   text="ACTIONS"   prefWidth="100"/>
+        </columns>
+    </TableView>
+</VBox>

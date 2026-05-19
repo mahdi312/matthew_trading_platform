@@ -1,0 +1,4062 @@
+{
+  "info": {
+    "name": "Free Trading APIs — Complete Collection",
+    "description": "Complete Postman collection for all free trading APIs covering Stocks, Crypto, Forex, and Multi-Asset data. Set your API keys in the collection Variables tab before use.\n\nAPIs included:\n• Stocks: Alpha Vantage, Polygon.io, IEX Cloud, Marketstack, Finnhub, Yahoo Finance (unofficial), FRED, Alpaca Markets\n• Crypto: Binance, CoinGecko, CoinMarketCap, CryptoCompare, Kraken, Coinbase Advanced Trade, Glassnode, Messari\n• Forex: Open Exchange Rates, ExchangeRate-API, Frankfurter, FreeCurrencyAPI, CurrencyLayer, Fixer.io, Alpha Vantage FX\n• Multi-Asset: Twelve Data, CoinAPI, NASDAQ Data Link\n• Alternative Data: SEC EDGAR, NewsAPI, Reddit (unofficial)\n\nVersion: May 2026 — verify limits and availability at each provider's documentation.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "alphavantage_key", "value": "212U0IS75JUF8FMT", "type": "string" },
+    { "key": "coin_gecko_key", "value": "CG-YnaKVM4fMNAaCmEghonkXfuv", "type": "string" },
+    { "key": "polygon_key", "value": "5K95cHGbto2iSt2vXDzpFViKPTKX10mq", "type": "string" },
+    { "key": "iexcloud_key", "value": "", "type": "string" },
+    { "key": "marketstack_key", "value": "4863ec234bc3f651f3697f5add803008", "type": "string" },
+    { "key": "finnhub_key", "value": "d85hbthr01qitd920mpgd85hbthr01qitd920mq0", "type": "string" },
+    { "key": "fred_key", "value": "662667ee2393267dcc6adde043429ebd", "type": "string" },
+    { "key": "alpaca_key", "value": "", "type": "string" },
+    { "key": "alpaca_secret", "value": "", "type": "string" },
+    { "key": "coinmarketcap_key", "value": "1b73ba0d98e84fa58cd1e4b9c2916d47", "type": "string" },
+    { "key": "cryptocompare_key", "value": "", "type": "string" },
+    { "key": "glassnode_key", "value": "", "type": "string" },
+    { "key": "openexchangerates_key", "value": "193980e7bef541be935525e10fb1f014", "type": "string" },
+    { "key": "exchangerateapi_key", "value": "6e385385e0689dd5f01650ac", "type": "string" },
+    { "key": "freecurrencyapi_key", "value": "fca_live_LRjvXPFdEI0qYYsuJ8p6suoJgajdKjJNclAXAQJ5", "type": "string" },
+    { "key": "currencylayer_key", "value": "eb746d176e3b421eb19d5013a7c48338", "type": "string" },
+    { "key": "fixerio_key", "value": "40759364637082c01e078aa0ba23a3fb", "type": "string" },
+    { "key": "twelvedata_key", "value": "8ad70045da3f4ed2b10011c48491e977", "type": "string" },
+    { "key": "coinapi_key", "value": "", "type": "string" },
+    { "key": "nasdaq_datalink_key", "value": "", "type": "string" },
+    { "key": "newsapi_key", "value": "", "type": "string" },
+    { "key": "stock_symbol", "value": "AAPL", "type": "string" },
+    { "key": "crypto_symbol", "value": "SOLUSDT", "type": "string" },
+    { "key": "forex_base", "value": "USD", "type": "string" },
+    { "key": "forex_quote", "value": "EUR", "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "📈 Stocks",
+      "description": "Stock market data APIs: Alpha Vantage, Polygon.io, IEX Cloud, Marketstack, Finnhub, Yahoo Finance, FRED, Alpaca Markets",
+      "item": [
+
+        {
+          "name": "Alpha Vantage",
+          "description": "Free Tier: 25–500 req/day. Auth: API key (?apikey=). Covers stocks, ETFs, fundamentals, 50+ technical indicators, forex, crypto.",
+          "item": [
+            {
+              "name": "Time Series — Daily OHLCV",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={{stock_symbol}}&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "TIME_SERIES_DAILY" },
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "outputsize", "value": "compact", "description": "compact (100 data points) or full (20+ years)" },
+                    { "key": "datatype", "value": "json", "description": "json or csv" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                },
+                "description": "Daily OHLCV (Open, High, Low, Close, Volume) for any equity."
+              }
+            },
+            {
+              "name": "Time Series — Intraday OHLCV",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={{stock_symbol}}&interval=5min&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "TIME_SERIES_INTRADAY" },
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "interval", "value": "5min", "description": "1min, 5min, 15min, 30min, 60min" },
+                    { "key": "outputsize", "value": "compact" },
+                    { "key": "extended_hours", "value": "true", "description": "Include pre/post market data" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                },
+                "description": "Intraday OHLCV bars at 1/5/15/30/60 minute intervals."
+              }
+            },
+            {
+              "name": "Time Series — Weekly OHLCV",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol={{stock_symbol}}&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "TIME_SERIES_WEEKLY" },
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Global Quote (Real-time, 15min delay)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={{stock_symbol}}&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "GLOBAL_QUOTE" },
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                },
+                "description": "Latest price, open, high, low, volume, and change for a symbol."
+              }
+            },
+            {
+              "name": "Symbol Search",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=Tesla&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "SYMBOL_SEARCH" },
+                    { "key": "keywords", "value": "Tesla" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Company Overview (Fundamentals)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=OVERVIEW&symbol={{stock_symbol}}&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "OVERVIEW" },
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                },
+                "description": "P/E ratio, market cap, EPS, dividend yield, 52-week high/low, sector, and more."
+              }
+            },
+            {
+              "name": "Income Statement",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol={{stock_symbol}}&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "INCOME_STATEMENT" },
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Balance Sheet",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol={{stock_symbol}}&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "BALANCE_SHEET" },
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Cash Flow Statement",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=CASH_FLOW&symbol={{stock_symbol}}&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "CASH_FLOW" },
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Earnings (EPS)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=EARNINGS&symbol={{stock_symbol}}&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "EARNINGS" },
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Technical — SMA (Simple Moving Average)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=SMA&symbol={{stock_symbol}}&interval=daily&time_period=20&series_type=close&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "SMA" },
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "interval", "value": "daily", "description": "1min, 5min, 15min, 30min, 60min, daily, weekly, monthly" },
+                    { "key": "time_period", "value": "20" },
+                    { "key": "series_type", "value": "close", "description": "close, open, high, low" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Technical — RSI (Relative Strength Index)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=RSI&symbol={{stock_symbol}}&interval=daily&time_period=14&series_type=close&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "RSI" },
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "interval", "value": "daily" },
+                    { "key": "time_period", "value": "14" },
+                    { "key": "series_type", "value": "close" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Technical — MACD",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=MACD&symbol={{stock_symbol}}&interval=daily&series_type=close&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "MACD" },
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "interval", "value": "daily" },
+                    { "key": "series_type", "value": "close" },
+                    { "key": "fastperiod", "value": "12" },
+                    { "key": "slowperiod", "value": "26" },
+                    { "key": "signalperiod", "value": "9" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Technical — Bollinger Bands",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=BBANDS&symbol={{stock_symbol}}&interval=daily&time_period=20&series_type=close&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "BBANDS" },
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "interval", "value": "daily" },
+                    { "key": "time_period", "value": "20" },
+                    { "key": "series_type", "value": "close" },
+                    { "key": "nbdevup", "value": "2" },
+                    { "key": "nbdevdn", "value": "2" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "News & Sentiment",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={{stock_symbol}}&limit=50&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "NEWS_SENTIMENT" },
+                    { "key": "tickers", "value": "{{stock_symbol}}" },
+                    { "key": "topics", "value": "financial_markets", "disabled": true, "description": "Optional topic filter" },
+                    { "key": "time_from", "value": "20240101T0000", "disabled": true },
+                    { "key": "limit", "value": "50" },
+                    { "key": "sort", "value": "LATEST", "description": "LATEST, EARLIEST, or RELEVANCE" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Polygon.io",
+          "description": "Free Tier: 5 req/min, unlimited total, EOD data only. Auth: API key in query param ?apiKey=. US markets.",
+          "item": [
+            {
+              "name": "Aggregate Bars (OHLCV)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.polygon.io/v2/aggs/ticker/{{stock_symbol}}/range/1/day/2024-01-01/2024-12-31?adjusted=true&sort=asc&limit=120&apiKey={{polygon_key}}",
+                  "protocol": "https",
+                  "host": ["api", "polygon", "io"],
+                  "path": ["v2", "aggs", "ticker", "{{stock_symbol}}", "range", "1", "day", "2024-01-01", "2024-12-31"],
+                  "query": [
+                    { "key": "adjusted", "value": "true" },
+                    { "key": "sort", "value": "asc" },
+                    { "key": "limit", "value": "120" },
+                    { "key": "apiKey", "value": "{{polygon_key}}" }
+                  ]
+                },
+                "description": "OHLCV aggregate bars. Path: /v2/aggs/ticker/{ticker}/range/{multiplier}/{timespan}/{from}/{to}\nTimespans: second, minute, hour, day, week, month, quarter, year"
+              }
+            },
+            {
+              "name": "Last Trade",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.polygon.io/v2/last/trade/{{stock_symbol}}?apiKey={{polygon_key}}",
+                  "protocol": "https",
+                  "host": ["api", "polygon", "io"],
+                  "path": ["v2", "last", "trade", "{{stock_symbol}}"],
+                  "query": [{ "key": "apiKey", "value": "{{polygon_key}}" }]
+                }
+              }
+            },
+            {
+              "name": "Daily Open/Close",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.polygon.io/v1/open-close/{{stock_symbol}}/2024-01-15?adjusted=true&apiKey={{polygon_key}}",
+                  "protocol": "https",
+                  "host": ["api", "polygon", "io"],
+                  "path": ["v1", "open-close", "{{stock_symbol}}", "2024-01-15"],
+                  "query": [
+                    { "key": "adjusted", "value": "true" },
+                    { "key": "apiKey", "value": "{{polygon_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Reference — All Tickers",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.polygon.io/v3/reference/tickers?market=stocks&exchange=XNAS&active=true&limit=100&apiKey={{polygon_key}}",
+                  "protocol": "https",
+                  "host": ["api", "polygon", "io"],
+                  "path": ["v3", "reference", "tickers"],
+                  "query": [
+                    { "key": "market", "value": "stocks", "description": "stocks, crypto, fx, otc" },
+                    { "key": "exchange", "value": "XNAS", "description": "XNAS=NASDAQ, XNYS=NYSE" },
+                    { "key": "active", "value": "true" },
+                    { "key": "limit", "value": "100" },
+                    { "key": "apiKey", "value": "{{polygon_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Reference — Ticker Details",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.polygon.io/v3/reference/tickers/{{stock_symbol}}?apiKey={{polygon_key}}",
+                  "protocol": "https",
+                  "host": ["api", "polygon", "io"],
+                  "path": ["v3", "reference", "tickers", "{{stock_symbol}}"],
+                  "query": [{ "key": "apiKey", "value": "{{polygon_key}}" }]
+                }
+              }
+            },
+            {
+              "name": "Snapshot — Full Market",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers?tickers=AAPL,MSFT,TSLA&apiKey={{polygon_key}}",
+                  "protocol": "https",
+                  "host": ["api", "polygon", "io"],
+                  "path": ["v2", "snapshot", "locale", "us", "markets", "stocks", "tickers"],
+                  "query": [
+                    { "key": "tickers", "value": "AAPL,MSFT,TSLA", "description": "Comma-separated list (optional)" },
+                    { "key": "apiKey", "value": "{{polygon_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Snapshot — Top Gainers",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/gainers?apiKey={{polygon_key}}",
+                  "protocol": "https",
+                  "host": ["api", "polygon", "io"],
+                  "path": ["v2", "snapshot", "locale", "us", "markets", "stocks", "gainers"],
+                  "query": [{ "key": "apiKey", "value": "{{polygon_key}}" }]
+                }
+              }
+            },
+            {
+              "name": "Snapshot — Top Losers",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/losers?apiKey={{polygon_key}}",
+                  "protocol": "https",
+                  "host": ["api", "polygon", "io"],
+                  "path": ["v2", "snapshot", "locale", "us", "markets", "stocks", "losers"],
+                  "query": [{ "key": "apiKey", "value": "{{polygon_key}}" }]
+                }
+              }
+            },
+            {
+              "name": "Market News",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.polygon.io/v2/reference/news?ticker={{stock_symbol}}&limit=20&order=desc&apiKey={{polygon_key}}",
+                  "protocol": "https",
+                  "host": ["api", "polygon", "io"],
+                  "path": ["v2", "reference", "news"],
+                  "query": [
+                    { "key": "ticker", "value": "{{stock_symbol}}" },
+                    { "key": "limit", "value": "20" },
+                    { "key": "order", "value": "desc" },
+                    { "key": "apiKey", "value": "{{polygon_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Technical Indicator — SMA",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.polygon.io/v1/indicators/sma/{{stock_symbol}}?timespan=day&adjusted=true&window=20&series_type=close&limit=50&apiKey={{polygon_key}}",
+                  "protocol": "https",
+                  "host": ["api", "polygon", "io"],
+                  "path": ["v1", "indicators", "sma", "{{stock_symbol}}"],
+                  "query": [
+                    { "key": "timespan", "value": "day" },
+                    { "key": "adjusted", "value": "true" },
+                    { "key": "window", "value": "20" },
+                    { "key": "series_type", "value": "close" },
+                    { "key": "limit", "value": "50" },
+                    { "key": "apiKey", "value": "{{polygon_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Technical Indicator — EMA",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.polygon.io/v1/indicators/ema/{{stock_symbol}}?timespan=day&adjusted=true&window=20&series_type=close&limit=50&apiKey={{polygon_key}}",
+                  "protocol": "https",
+                  "host": ["api", "polygon", "io"],
+                  "path": ["v1", "indicators", "ema", "{{stock_symbol}}"],
+                  "query": [
+                    { "key": "timespan", "value": "day" },
+                    { "key": "adjusted", "value": "true" },
+                    { "key": "window", "value": "20" },
+                    { "key": "series_type", "value": "close" },
+                    { "key": "limit", "value": "50" },
+                    { "key": "apiKey", "value": "{{polygon_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Technical Indicator — RSI",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.polygon.io/v1/indicators/rsi/{{stock_symbol}}?timespan=day&adjusted=true&window=14&series_type=close&limit=50&apiKey={{polygon_key}}",
+                  "protocol": "https",
+                  "host": ["api", "polygon", "io"],
+                  "path": ["v1", "indicators", "rsi", "{{stock_symbol}}"],
+                  "query": [
+                    { "key": "timespan", "value": "day" },
+                    { "key": "adjusted", "value": "true" },
+                    { "key": "window", "value": "14" },
+                    { "key": "series_type", "value": "close" },
+                    { "key": "limit", "value": "50" },
+                    { "key": "apiKey", "value": "{{polygon_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Technical Indicator — MACD",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.polygon.io/v1/indicators/macd/{{stock_symbol}}?timespan=day&adjusted=true&short_window=12&long_window=26&signal_window=9&series_type=close&limit=50&apiKey={{polygon_key}}",
+                  "protocol": "https",
+                  "host": ["api", "polygon", "io"],
+                  "path": ["v1", "indicators", "macd", "{{stock_symbol}}"],
+                  "query": [
+                    { "key": "timespan", "value": "day" },
+                    { "key": "adjusted", "value": "true" },
+                    { "key": "short_window", "value": "12" },
+                    { "key": "long_window", "value": "26" },
+                    { "key": "signal_window", "value": "9" },
+                    { "key": "series_type", "value": "close" },
+                    { "key": "limit", "value": "50" },
+                    { "key": "apiKey", "value": "{{polygon_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Company Financials",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.polygon.io/vX/reference/financials?ticker={{stock_symbol}}&timeframe=annual&limit=4&apiKey={{polygon_key}}",
+                  "protocol": "https",
+                  "host": ["api", "polygon", "io"],
+                  "path": ["vX", "reference", "financials"],
+                  "query": [
+                    { "key": "ticker", "value": "{{stock_symbol}}" },
+                    { "key": "timeframe", "value": "annual", "description": "annual or quarterly" },
+                    { "key": "limit", "value": "4" },
+                    { "key": "apiKey", "value": "{{polygon_key}}" }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "IEX Cloud",
+          "description": "Free Tier: 50,000 messages/month. Auth: token in query string. US equities. Note: each endpoint consumes variable message counts.",
+          "item": [
+            {
+              "name": "Real-time Quote",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://cloud.iexapis.com/stable/stock/{{stock_symbol}}/quote?token={{iexcloud_key}}",
+                  "protocol": "https",
+                  "host": ["cloud", "iexapis", "com"],
+                  "path": ["stable", "stock", "{{stock_symbol}}", "quote"],
+                  "query": [{ "key": "token", "value": "{{iexcloud_key}}" }]
+                },
+                "description": "Real-time quote. Costs 1 message."
+              }
+            },
+            {
+              "name": "Historical Chart",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://cloud.iexapis.com/stable/stock/{{stock_symbol}}/chart/1m?token={{iexcloud_key}}",
+                  "protocol": "https",
+                  "host": ["cloud", "iexapis", "com"],
+                  "path": ["stable", "stock", "{{stock_symbol}}", "chart", "1m"],
+                  "query": [
+                    { "key": "chartCloseOnly", "value": "false" },
+                    { "key": "token", "value": "{{iexcloud_key}}" }
+                  ]
+                },
+                "description": "Historical OHLCV. Range: 1m, 3m, 6m, ytd, 1y, 2y, 5y, max. Costs ~1 message per trading day."
+              }
+            },
+            {
+              "name": "Previous Day OHLCV",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://cloud.iexapis.com/stable/stock/{{stock_symbol}}/previous?token={{iexcloud_key}}",
+                  "protocol": "https",
+                  "host": ["cloud", "iexapis", "com"],
+                  "path": ["stable", "stock", "{{stock_symbol}}", "previous"],
+                  "query": [{ "key": "token", "value": "{{iexcloud_key}}" }]
+                }
+              }
+            },
+            {
+              "name": "Company Info",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://cloud.iexapis.com/stable/stock/{{stock_symbol}}/company?token={{iexcloud_key}}",
+                  "protocol": "https",
+                  "host": ["cloud", "iexapis", "com"],
+                  "path": ["stable", "stock", "{{stock_symbol}}", "company"],
+                  "query": [{ "key": "token", "value": "{{iexcloud_key}}" }]
+                }
+              }
+            },
+            {
+              "name": "Key Stats",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://cloud.iexapis.com/stable/stock/{{stock_symbol}}/stats?token={{iexcloud_key}}",
+                  "protocol": "https",
+                  "host": ["cloud", "iexapis", "com"],
+                  "path": ["stable", "stock", "{{stock_symbol}}", "stats"],
+                  "query": [{ "key": "token", "value": "{{iexcloud_key}}" }]
+                },
+                "description": "Costs 5 messages. Returns beta, 52wk high/low, avg volume, market cap, P/E, etc."
+              }
+            },
+            {
+              "name": "Latest News",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://cloud.iexapis.com/stable/stock/{{stock_symbol}}/news/last/10?token={{iexcloud_key}}",
+                  "protocol": "https",
+                  "host": ["cloud", "iexapis", "com"],
+                  "path": ["stable", "stock", "{{stock_symbol}}", "news", "last", "10"],
+                  "query": [{ "key": "token", "value": "{{iexcloud_key}}" }]
+                }
+              }
+            },
+            {
+              "name": "Earnings",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://cloud.iexapis.com/stable/stock/{{stock_symbol}}/earnings?last=4&token={{iexcloud_key}}",
+                  "protocol": "https",
+                  "host": ["cloud", "iexapis", "com"],
+                  "path": ["stable", "stock", "{{stock_symbol}}", "earnings"],
+                  "query": [
+                    { "key": "last", "value": "4" },
+                    { "key": "token", "value": "{{iexcloud_key}}" }
+                  ]
+                },
+                "description": "⚠️ Costs 1000 messages per call."
+              }
+            },
+            {
+              "name": "Financials",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://cloud.iexapis.com/stable/stock/{{stock_symbol}}/financials?period=quarterly&last=4&token={{iexcloud_key}}",
+                  "protocol": "https",
+                  "host": ["cloud", "iexapis", "com"],
+                  "path": ["stable", "stock", "{{stock_symbol}}", "financials"],
+                  "query": [
+                    { "key": "period", "value": "quarterly", "description": "annual or quarterly" },
+                    { "key": "last", "value": "4" },
+                    { "key": "token", "value": "{{iexcloud_key}}" }
+                  ]
+                },
+                "description": "⚠️ Costs 5000 messages per call."
+              }
+            },
+            {
+              "name": "Stock Splits",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://cloud.iexapis.com/stable/stock/{{stock_symbol}}/splits/5y?token={{iexcloud_key}}",
+                  "protocol": "https",
+                  "host": ["cloud", "iexapis", "com"],
+                  "path": ["stable", "stock", "{{stock_symbol}}", "splits", "5y"],
+                  "query": [{ "key": "token", "value": "{{iexcloud_key}}" }]
+                }
+              }
+            },
+            {
+              "name": "Next Earnings Date",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://cloud.iexapis.com/stable/data-points/{{stock_symbol}}/NEXTEARNINGSDATE?token={{iexcloud_key}}",
+                  "protocol": "https",
+                  "host": ["cloud", "iexapis", "com"],
+                  "path": ["stable", "data-points", "{{stock_symbol}}", "NEXTEARNINGSDATE"],
+                  "query": [{ "key": "token", "value": "{{iexcloud_key}}" }]
+                }
+              }
+            },
+            {
+              "name": "Batch Request (Multiple Symbols)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://cloud.iexapis.com/stable/stock/market/batch?symbols=AAPL,MSFT,TSLA&types=quote,stats&token={{iexcloud_key}}",
+                  "protocol": "https",
+                  "host": ["cloud", "iexapis", "com"],
+                  "path": ["stable", "stock", "market", "batch"],
+                  "query": [
+                    { "key": "symbols", "value": "AAPL,MSFT,TSLA" },
+                    { "key": "types", "value": "quote,stats", "description": "quote, news, chart, company, stats, earnings, financials, etc." },
+                    { "key": "token", "value": "{{iexcloud_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Reference — All US Symbols",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://cloud.iexapis.com/stable/ref-data/symbols?token={{iexcloud_key}}",
+                  "protocol": "https",
+                  "host": ["cloud", "iexapis", "com"],
+                  "path": ["stable", "ref-data", "symbols"],
+                  "query": [{ "key": "token", "value": "{{iexcloud_key}}" }]
+                },
+                "description": "Costs 100 messages."
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Marketstack",
+          "description": "Free Tier: 1,000 req/month, EOD only, HTTP only (no HTTPS on free plan). Auth: access_key query param.",
+          "item": [
+            {
+              "name": "EOD Data (Date Range)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://api.marketstack.com/v1/eod?access_key={{marketstack_key}}&symbols={{stock_symbol}}&date_from=2024-01-01&date_to=2024-12-31",
+                  "protocol": "http",
+                  "host": ["api", "marketstack", "com"],
+                  "path": ["v1", "eod"],
+                  "query": [
+                    { "key": "access_key", "value": "{{marketstack_key}}" },
+                    { "key": "symbols", "value": "{{stock_symbol}}", "description": "Comma-separated symbols, e.g. AAPL,MSFT" },
+                    { "key": "date_from", "value": "2024-01-01" },
+                    { "key": "date_to", "value": "2024-12-31" },
+                    { "key": "limit", "value": "100" },
+                    { "key": "offset", "value": "0" }
+                  ]
+                },
+                "description": "⚠️ HTTP only on free plan. End-of-day OHLCV for any symbol from 70+ exchanges."
+              }
+            },
+            {
+              "name": "Latest EOD Data",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://api.marketstack.com/v1/eod/latest?access_key={{marketstack_key}}&symbols={{stock_symbol}}",
+                  "protocol": "http",
+                  "host": ["api", "marketstack", "com"],
+                  "path": ["v1", "eod", "latest"],
+                  "query": [
+                    { "key": "access_key", "value": "{{marketstack_key}}" },
+                    { "key": "symbols", "value": "{{stock_symbol}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Tickers List",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://api.marketstack.com/v1/tickers?access_key={{marketstack_key}}&exchange=XNAS&limit=100",
+                  "protocol": "http",
+                  "host": ["api", "marketstack", "com"],
+                  "path": ["v1", "tickers"],
+                  "query": [
+                    { "key": "access_key", "value": "{{marketstack_key}}" },
+                    { "key": "exchange", "value": "XNAS", "description": "Exchange MIC code. XNAS=NASDAQ, XNYS=NYSE" },
+                    { "key": "limit", "value": "100" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Ticker Details",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://api.marketstack.com/v1/tickers/{{stock_symbol}}?access_key={{marketstack_key}}",
+                  "protocol": "http",
+                  "host": ["api", "marketstack", "com"],
+                  "path": ["v1", "tickers", "{{stock_symbol}}"],
+                  "query": [{ "key": "access_key", "value": "{{marketstack_key}}" }]
+                }
+              }
+            },
+            {
+              "name": "Exchanges List",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://api.marketstack.com/v1/exchanges?access_key={{marketstack_key}}&limit=50",
+                  "protocol": "http",
+                  "host": ["api", "marketstack", "com"],
+                  "path": ["v1", "exchanges"],
+                  "query": [
+                    { "key": "access_key", "value": "{{marketstack_key}}" },
+                    { "key": "limit", "value": "50" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Currencies",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://api.marketstack.com/v1/currencies?access_key={{marketstack_key}}",
+                  "protocol": "http",
+                  "host": ["api", "marketstack", "com"],
+                  "path": ["v1", "currencies"],
+                  "query": [{ "key": "access_key", "value": "{{marketstack_key}}" }]
+                }
+              }
+            },
+            {
+              "name": "Timezones",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://api.marketstack.com/v1/timezones?access_key={{marketstack_key}}",
+                  "protocol": "http",
+                  "host": ["api", "marketstack", "com"],
+                  "path": ["v1", "timezones"],
+                  "query": [{ "key": "access_key", "value": "{{marketstack_key}}" }]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Finnhub (Stocks & Fundamentals)",
+          "description": "Free Tier: 60 req/min. Auth: token query param or X-Finnhub-Token header. Covers global equities, crypto, forex.",
+          "item": [
+            {
+              "name": "Real-time Quote",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Finnhub-Token", "value": "{{finnhub_key}}" }],
+                "url": {
+                  "raw": "https://finnhub.io/api/v1/quote?symbol={{stock_symbol}}",
+                  "protocol": "https",
+                  "host": ["finnhub", "io"],
+                  "path": ["api", "v1", "quote"],
+                  "query": [{ "key": "symbol", "value": "{{stock_symbol}}" }]
+                },
+                "description": "Returns current price, open, high, low, previous close, and % change."
+              }
+            },
+            {
+              "name": "Historical Candlesticks (OHLCV)",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Finnhub-Token", "value": "{{finnhub_key}}" }],
+                "url": {
+                  "raw": "https://finnhub.io/api/v1/stock/candle?symbol={{stock_symbol}}&resolution=D&from=1704067200&to=1735689600",
+                  "protocol": "https",
+                  "host": ["finnhub", "io"],
+                  "path": ["api", "v1", "stock", "candle"],
+                  "query": [
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "resolution", "value": "D", "description": "1, 5, 15, 30, 60, D, W, M" },
+                    { "key": "from", "value": "1704067200", "description": "Unix timestamp (2024-01-01)" },
+                    { "key": "to", "value": "1735689600", "description": "Unix timestamp (2024-12-31)" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Company Profile",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Finnhub-Token", "value": "{{finnhub_key}}" }],
+                "url": {
+                  "raw": "https://finnhub.io/api/v1/stock/profile2?symbol={{stock_symbol}}",
+                  "protocol": "https",
+                  "host": ["finnhub", "io"],
+                  "path": ["api", "v1", "stock", "profile2"],
+                  "query": [{ "key": "symbol", "value": "{{stock_symbol}}" }]
+                }
+              }
+            },
+            {
+              "name": "Analyst Recommendations",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Finnhub-Token", "value": "{{finnhub_key}}" }],
+                "url": {
+                  "raw": "https://finnhub.io/api/v1/stock/recommendation?symbol={{stock_symbol}}",
+                  "protocol": "https",
+                  "host": ["finnhub", "io"],
+                  "path": ["api", "v1", "stock", "recommendation"],
+                  "query": [{ "key": "symbol", "value": "{{stock_symbol}}" }]
+                }
+              }
+            },
+            {
+              "name": "Analyst Price Target",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Finnhub-Token", "value": "{{finnhub_key}}" }],
+                "url": {
+                  "raw": "https://finnhub.io/api/v1/stock/price-target?symbol={{stock_symbol}}",
+                  "protocol": "https",
+                  "host": ["finnhub", "io"],
+                  "path": ["api", "v1", "stock", "price-target"],
+                  "query": [{ "key": "symbol", "value": "{{stock_symbol}}" }]
+                }
+              }
+            },
+            {
+              "name": "Earnings Surprises",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Finnhub-Token", "value": "{{finnhub_key}}" }],
+                "url": {
+                  "raw": "https://finnhub.io/api/v1/stock/earnings?symbol={{stock_symbol}}",
+                  "protocol": "https",
+                  "host": ["finnhub", "io"],
+                  "path": ["api", "v1", "stock", "earnings"],
+                  "query": [{ "key": "symbol", "value": "{{stock_symbol}}" }]
+                }
+              }
+            },
+            {
+              "name": "Earnings Calendar",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Finnhub-Token", "value": "{{finnhub_key}}" }],
+                "url": {
+                  "raw": "https://finnhub.io/api/v1/calendar/earnings?from=2024-01-01&to=2024-01-31&symbol={{stock_symbol}}",
+                  "protocol": "https",
+                  "host": ["finnhub", "io"],
+                  "path": ["api", "v1", "calendar", "earnings"],
+                  "query": [
+                    { "key": "from", "value": "2024-01-01" },
+                    { "key": "to", "value": "2024-01-31" },
+                    { "key": "symbol", "value": "{{stock_symbol}}", "disabled": true }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Company News",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Finnhub-Token", "value": "{{finnhub_key}}" }],
+                "url": {
+                  "raw": "https://finnhub.io/api/v1/company-news?symbol={{stock_symbol}}&from=2024-01-01&to=2024-01-31",
+                  "protocol": "https",
+                  "host": ["finnhub", "io"],
+                  "path": ["api", "v1", "company-news"],
+                  "query": [
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "from", "value": "2024-01-01" },
+                    { "key": "to", "value": "2024-01-31" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "General Market News",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Finnhub-Token", "value": "{{finnhub_key}}" }],
+                "url": {
+                  "raw": "https://finnhub.io/api/v1/news?category=general",
+                  "protocol": "https",
+                  "host": ["finnhub", "io"],
+                  "path": ["api", "v1", "news"],
+                  "query": [{ "key": "category", "value": "general", "description": "general, forex, crypto, merger" }]
+                }
+              }
+            },
+            {
+              "name": "Insider Transactions",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Finnhub-Token", "value": "{{finnhub_key}}" }],
+                "url": {
+                  "raw": "https://finnhub.io/api/v1/stock/insider-transactions?symbol={{stock_symbol}}",
+                  "protocol": "https",
+                  "host": ["finnhub", "io"],
+                  "path": ["api", "v1", "stock", "insider-transactions"],
+                  "query": [{ "key": "symbol", "value": "{{stock_symbol}}" }]
+                }
+              }
+            },
+            {
+              "name": "Insider Sentiment",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Finnhub-Token", "value": "{{finnhub_key}}" }],
+                "url": {
+                  "raw": "https://finnhub.io/api/v1/stock/insider-sentiment?symbol={{stock_symbol}}&from=2024-01-01&to=2024-12-31",
+                  "protocol": "https",
+                  "host": ["finnhub", "io"],
+                  "path": ["api", "v1", "stock", "insider-sentiment"],
+                  "query": [
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "from", "value": "2024-01-01" },
+                    { "key": "to", "value": "2024-12-31" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Stock Peers / Competitors",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Finnhub-Token", "value": "{{finnhub_key}}" }],
+                "url": {
+                  "raw": "https://finnhub.io/api/v1/stock/peers?symbol={{stock_symbol}}",
+                  "protocol": "https",
+                  "host": ["finnhub", "io"],
+                  "path": ["api", "v1", "stock", "peers"],
+                  "query": [{ "key": "symbol", "value": "{{stock_symbol}}" }]
+                }
+              }
+            },
+            {
+              "name": "Stock Splits",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Finnhub-Token", "value": "{{finnhub_key}}" }],
+                "url": {
+                  "raw": "https://finnhub.io/api/v1/stock/split?symbol={{stock_symbol}}&from=2020-01-01&to=2024-12-31",
+                  "protocol": "https",
+                  "host": ["finnhub", "io"],
+                  "path": ["api", "v1", "stock", "split"],
+                  "query": [
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "from", "value": "2020-01-01" },
+                    { "key": "to", "value": "2024-12-31" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Dividend History",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Finnhub-Token", "value": "{{finnhub_key}}" }],
+                "url": {
+                  "raw": "https://finnhub.io/api/v1/stock/dividend?symbol={{stock_symbol}}&from=2020-01-01&to=2024-12-31",
+                  "protocol": "https",
+                  "host": ["finnhub", "io"],
+                  "path": ["api", "v1", "stock", "dividend"],
+                  "query": [
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "from", "value": "2020-01-01" },
+                    { "key": "to", "value": "2024-12-31" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Reported Financials",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Finnhub-Token", "value": "{{finnhub_key}}" }],
+                "url": {
+                  "raw": "https://finnhub.io/api/v1/stock/financials-reported?symbol={{stock_symbol}}&freq=quarterly",
+                  "protocol": "https",
+                  "host": ["finnhub", "io"],
+                  "path": ["api", "v1", "stock", "financials-reported"],
+                  "query": [
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "freq", "value": "quarterly", "description": "quarterly or annual" }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Yahoo Finance (Unofficial)",
+          "description": "⚠️ Unofficial API — no SLA, no key needed, may break without notice. Not for production use.",
+          "item": [
+            {
+              "name": "Historical Price Data",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://query1.finance.yahoo.com/v8/finance/chart/{{stock_symbol}}?interval=1d&range=1y",
+                  "protocol": "https",
+                  "host": ["query1", "finance", "yahoo", "com"],
+                  "path": ["v8", "finance", "chart", "{{stock_symbol}}"],
+                  "query": [
+                    { "key": "interval", "value": "1d", "description": "1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo" },
+                    { "key": "range", "value": "1y", "description": "1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Real-time Quote",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://query1.finance.yahoo.com/v8/finance/quote?symbols={{stock_symbol}}",
+                  "protocol": "https",
+                  "host": ["query1", "finance", "yahoo", "com"],
+                  "path": ["v8", "finance", "quote"],
+                  "query": [{ "key": "symbols", "value": "{{stock_symbol}}", "description": "Comma-separated: AAPL,MSFT,BTC-USD" }]
+                }
+              }
+            },
+            {
+              "name": "Symbol Search",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://query1.finance.yahoo.com/v8/finance/search?q=Apple&quotesCount=10&newsCount=0",
+                  "protocol": "https",
+                  "host": ["query1", "finance", "yahoo", "com"],
+                  "path": ["v8", "finance", "search"],
+                  "query": [
+                    { "key": "q", "value": "Apple" },
+                    { "key": "quotesCount", "value": "10" },
+                    { "key": "newsCount", "value": "0" }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "FRED (Federal Reserve Economic Data)",
+          "description": "Free Tier: 120 req/min, no daily cap. Auth: api_key query param. Macro/economic data only (not tick prices).",
+          "item": [
+            {
+              "name": "S&P 500 Index",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.stlouisfed.org/fred/series/observations?series_id=SP500&api_key={{fred_key}}&file_type=json",
+                  "protocol": "https",
+                  "host": ["api", "stlouisfed", "org"],
+                  "path": ["fred", "series", "observations"],
+                  "query": [
+                    { "key": "series_id", "value": "SP500" },
+                    { "key": "api_key", "value": "{{fred_key}}" },
+                    { "key": "file_type", "value": "json" },
+                    { "key": "observation_start", "value": "2020-01-01", "disabled": true },
+                    { "key": "observation_end", "value": "2024-12-31", "disabled": true }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Federal Funds Rate",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.stlouisfed.org/fred/series/observations?series_id=FEDFUNDS&api_key={{fred_key}}&file_type=json",
+                  "protocol": "https",
+                  "host": ["api", "stlouisfed", "org"],
+                  "path": ["fred", "series", "observations"],
+                  "query": [
+                    { "key": "series_id", "value": "FEDFUNDS" },
+                    { "key": "api_key", "value": "{{fred_key}}" },
+                    { "key": "file_type", "value": "json" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "10-Year Treasury Yield",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.stlouisfed.org/fred/series/observations?series_id=DGS10&api_key={{fred_key}}&file_type=json",
+                  "protocol": "https",
+                  "host": ["api", "stlouisfed", "org"],
+                  "path": ["fred", "series", "observations"],
+                  "query": [
+                    { "key": "series_id", "value": "DGS10" },
+                    { "key": "api_key", "value": "{{fred_key}}" },
+                    { "key": "file_type", "value": "json" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "CPI — Inflation",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.stlouisfed.org/fred/series/observations?series_id=CPIAUCSL&api_key={{fred_key}}&file_type=json",
+                  "protocol": "https",
+                  "host": ["api", "stlouisfed", "org"],
+                  "path": ["fred", "series", "observations"],
+                  "query": [
+                    { "key": "series_id", "value": "CPIAUCSL" },
+                    { "key": "api_key", "value": "{{fred_key}}" },
+                    { "key": "file_type", "value": "json" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Unemployment Rate",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.stlouisfed.org/fred/series/observations?series_id=UNRATE&api_key={{fred_key}}&file_type=json",
+                  "protocol": "https",
+                  "host": ["api", "stlouisfed", "org"],
+                  "path": ["fred", "series", "observations"],
+                  "query": [
+                    { "key": "series_id", "value": "UNRATE" },
+                    { "key": "api_key", "value": "{{fred_key}}" },
+                    { "key": "file_type", "value": "json" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "GDP",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.stlouisfed.org/fred/series/observations?series_id=GDP&api_key={{fred_key}}&file_type=json",
+                  "protocol": "https",
+                  "host": ["api", "stlouisfed", "org"],
+                  "path": ["fred", "series", "observations"],
+                  "query": [
+                    { "key": "series_id", "value": "GDP" },
+                    { "key": "api_key", "value": "{{fred_key}}" },
+                    { "key": "file_type", "value": "json" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "USD/EUR Exchange Rate",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.stlouisfed.org/fred/series/observations?series_id=DEXUSEU&api_key={{fred_key}}&file_type=json",
+                  "protocol": "https",
+                  "host": ["api", "stlouisfed", "org"],
+                  "path": ["fred", "series", "observations"],
+                  "query": [
+                    { "key": "series_id", "value": "DEXUSEU" },
+                    { "key": "api_key", "value": "{{fred_key}}" },
+                    { "key": "file_type", "value": "json" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "JPY/USD Exchange Rate",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.stlouisfed.org/fred/series/observations?series_id=DEXJPUS&api_key={{fred_key}}&file_type=json",
+                  "protocol": "https",
+                  "host": ["api", "stlouisfed", "org"],
+                  "path": ["fred", "series", "observations"],
+                  "query": [
+                    { "key": "series_id", "value": "DEXJPUS" },
+                    { "key": "api_key", "value": "{{fred_key}}" },
+                    { "key": "file_type", "value": "json" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Search Series",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.stlouisfed.org/fred/series/search?search_text=gold+price&api_key={{fred_key}}&file_type=json&limit=20",
+                  "protocol": "https",
+                  "host": ["api", "stlouisfed", "org"],
+                  "path": ["fred", "series", "search"],
+                  "query": [
+                    { "key": "search_text", "value": "gold+price" },
+                    { "key": "api_key", "value": "{{fred_key}}" },
+                    { "key": "file_type", "value": "json" },
+                    { "key": "limit", "value": "20" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Economic Release Dates",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.stlouisfed.org/fred/release/dates?release_id=21&api_key={{fred_key}}&file_type=json",
+                  "protocol": "https",
+                  "host": ["api", "stlouisfed", "org"],
+                  "path": ["fred", "release", "dates"],
+                  "query": [
+                    { "key": "release_id", "value": "21", "description": "21 = H.6 (Money Stock). See FRED docs for all release IDs." },
+                    { "key": "api_key", "value": "{{fred_key}}" },
+                    { "key": "file_type", "value": "json" }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Alpaca Markets",
+          "description": "Free Tier: Paper trading free. Live trading free account. IEX data feed free (15min delay). Auth: APCA-API-KEY-ID and APCA-API-SECRET-KEY headers.",
+          "item": [
+            {
+              "name": "Latest Trade",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "APCA-API-KEY-ID", "value": "{{alpaca_key}}" },
+                  { "key": "APCA-API-SECRET-KEY", "value": "{{alpaca_secret}}" }
+                ],
+                "url": {
+                  "raw": "https://data.alpaca.markets/v2/stocks/{{stock_symbol}}/trades/latest?feed=iex",
+                  "protocol": "https",
+                  "host": ["data", "alpaca", "markets"],
+                  "path": ["v2", "stocks", "{{stock_symbol}}", "trades", "latest"],
+                  "query": [{ "key": "feed", "value": "iex", "description": "iex (free, 15min delay) or sip (paid)" }]
+                }
+              }
+            },
+            {
+              "name": "Latest Quote",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "APCA-API-KEY-ID", "value": "{{alpaca_key}}" },
+                  { "key": "APCA-API-SECRET-KEY", "value": "{{alpaca_secret}}" }
+                ],
+                "url": {
+                  "raw": "https://data.alpaca.markets/v2/stocks/{{stock_symbol}}/quotes/latest?feed=iex",
+                  "protocol": "https",
+                  "host": ["data", "alpaca", "markets"],
+                  "path": ["v2", "stocks", "{{stock_symbol}}", "quotes", "latest"],
+                  "query": [{ "key": "feed", "value": "iex" }]
+                }
+              }
+            },
+            {
+              "name": "Historical Bars",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "APCA-API-KEY-ID", "value": "{{alpaca_key}}" },
+                  { "key": "APCA-API-SECRET-KEY", "value": "{{alpaca_secret}}" }
+                ],
+                "url": {
+                  "raw": "https://data.alpaca.markets/v2/stocks/{{stock_symbol}}/bars?timeframe=1Day&start=2024-01-01&end=2024-12-31&limit=252&feed=iex",
+                  "protocol": "https",
+                  "host": ["data", "alpaca", "markets"],
+                  "path": ["v2", "stocks", "{{stock_symbol}}", "bars"],
+                  "query": [
+                    { "key": "timeframe", "value": "1Day", "description": "1Min, 5Min, 15Min, 1Hour, 1Day" },
+                    { "key": "start", "value": "2024-01-01" },
+                    { "key": "end", "value": "2024-12-31" },
+                    { "key": "limit", "value": "252" },
+                    { "key": "feed", "value": "iex" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Multi-Symbol Snapshot",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "APCA-API-KEY-ID", "value": "{{alpaca_key}}" },
+                  { "key": "APCA-API-SECRET-KEY", "value": "{{alpaca_secret}}" }
+                ],
+                "url": {
+                  "raw": "https://data.alpaca.markets/v2/stocks/snapshots?symbols=AAPL,TSLA,MSFT&feed=iex",
+                  "protocol": "https",
+                  "host": ["data", "alpaca", "markets"],
+                  "path": ["v2", "stocks", "snapshots"],
+                  "query": [
+                    { "key": "symbols", "value": "AAPL,TSLA,MSFT" },
+                    { "key": "feed", "value": "iex" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Screener — Most Active",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "APCA-API-KEY-ID", "value": "{{alpaca_key}}" },
+                  { "key": "APCA-API-SECRET-KEY", "value": "{{alpaca_secret}}" }
+                ],
+                "url": {
+                  "raw": "https://data.alpaca.markets/v2/screener/stocks/most-actives?by=volume&top=20",
+                  "protocol": "https",
+                  "host": ["data", "alpaca", "markets"],
+                  "path": ["v2", "screener", "stocks", "most-actives"],
+                  "query": [
+                    { "key": "by", "value": "volume", "description": "volume or trades" },
+                    { "key": "top", "value": "20" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Screener — Top Movers",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "APCA-API-KEY-ID", "value": "{{alpaca_key}}" },
+                  { "key": "APCA-API-SECRET-KEY", "value": "{{alpaca_secret}}" }
+                ],
+                "url": {
+                  "raw": "https://data.alpaca.markets/v2/screener/movers?top=10",
+                  "protocol": "https",
+                  "host": ["data", "alpaca", "markets"],
+                  "path": ["v2", "screener", "movers"],
+                  "query": [{ "key": "top", "value": "10" }]
+                }
+              }
+            },
+            {
+              "name": "News",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "APCA-API-KEY-ID", "value": "{{alpaca_key}}" },
+                  { "key": "APCA-API-SECRET-KEY", "value": "{{alpaca_secret}}" }
+                ],
+                "url": {
+                  "raw": "https://data.alpaca.markets/v2/news?symbols={{stock_symbol}}&limit=20&sort=desc",
+                  "protocol": "https",
+                  "host": ["data", "alpaca", "markets"],
+                  "path": ["v2", "news"],
+                  "query": [
+                    { "key": "symbols", "value": "{{stock_symbol}}" },
+                    { "key": "limit", "value": "20" },
+                    { "key": "sort", "value": "desc" }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+
+      ]
+    },
+
+    {
+      "name": "🪙 Crypto",
+      "description": "Crypto market data APIs: Binance, CoinGecko, CoinMarketCap, CryptoCompare, Kraken, Coinbase Advanced Trade, Glassnode, Messari",
+      "item": [
+
+        {
+          "name": "Binance",
+          "description": "Free Tier: 1200 req/min (public). No API key needed for public market data. World's largest crypto exchange.",
+          "item": [
+            {
+              "name": "Server Time",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.binance.com/api/v3/time",
+                  "protocol": "https",
+                  "host": ["api", "binance", "com"],
+                  "path": ["api", "v3", "time"]
+                }
+              }
+            },
+            {
+              "name": "Exchange Info",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.binance.com/api/v3/exchangeInfo",
+                  "protocol": "https",
+                  "host": ["api", "binance", "com"],
+                  "path": ["api", "v3", "exchangeInfo"]
+                },
+                "description": "All trading pairs, rules, filters, and exchange status."
+              }
+            },
+            {
+              "name": "Latest Price (Single Symbol)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.binance.com/api/v3/ticker/price?symbol={{crypto_symbol}}",
+                  "protocol": "https",
+                  "host": ["api", "binance", "com"],
+                  "path": ["api", "v3", "ticker", "price"],
+                  "query": [{ "key": "symbol", "value": "{{crypto_symbol}}", "description": "Omit to get all symbols" }]
+                }
+              }
+            },
+            {
+              "name": "Latest Price (All Symbols)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.binance.com/api/v3/ticker/price",
+                  "protocol": "https",
+                  "host": ["api", "binance", "com"],
+                  "path": ["api", "v3", "ticker", "price"]
+                }
+              }
+            },
+            {
+              "name": "24hr Ticker Statistics",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.binance.com/api/v3/ticker/24hr?symbol={{crypto_symbol}}",
+                  "protocol": "https",
+                  "host": ["api", "binance", "com"],
+                  "path": ["api", "v3", "ticker", "24hr"],
+                  "query": [{ "key": "symbol", "value": "{{crypto_symbol}}", "description": "Omit for all symbols" }]
+                }
+              }
+            },
+            {
+              "name": "Best Bid/Ask (Book Ticker)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.binance.com/api/v3/ticker/bookTicker?symbol={{crypto_symbol}}",
+                  "protocol": "https",
+                  "host": ["api", "binance", "com"],
+                  "path": ["api", "v3", "ticker", "bookTicker"],
+                  "query": [{ "key": "symbol", "value": "{{crypto_symbol}}" }]
+                }
+              }
+            },
+            {
+              "name": "Average Price",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.binance.com/api/v3/avgPrice?symbol={{crypto_symbol}}",
+                  "protocol": "https",
+                  "host": ["api", "binance", "com"],
+                  "path": ["api", "v3", "avgPrice"],
+                  "query": [{ "key": "symbol", "value": "{{crypto_symbol}}" }]
+                }
+              }
+            },
+            {
+              "name": "Klines / Candlesticks (OHLCV)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.binance.com/api/v3/klines?symbol={{crypto_symbol}}&interval=1h&limit=100",
+                  "protocol": "https",
+                  "host": ["api", "binance", "com"],
+                  "path": ["api", "v3", "klines"],
+                  "query": [
+                    { "key": "symbol", "value": "{{crypto_symbol}}" },
+                    { "key": "interval", "value": "1h", "description": "1s,1m,3m,5m,15m,30m,1h,2h,4h,6h,8h,12h,1d,3d,1w,1M" },
+                    { "key": "limit", "value": "100", "description": "Max 1000" },
+                    { "key": "startTime", "value": "", "disabled": true, "description": "Unix ms timestamp" },
+                    { "key": "endTime", "value": "", "disabled": true, "description": "Unix ms timestamp" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Order Book (Depth)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.binance.com/api/v3/depth?symbol={{crypto_symbol}}&limit=20",
+                  "protocol": "https",
+                  "host": ["api", "binance", "com"],
+                  "path": ["api", "v3", "depth"],
+                  "query": [
+                    { "key": "symbol", "value": "{{crypto_symbol}}" },
+                    { "key": "limit", "value": "20", "description": "5, 10, 20, 50, 100, 500, 1000, 5000" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Recent Trades",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.binance.com/api/v3/trades?symbol={{crypto_symbol}}&limit=100",
+                  "protocol": "https",
+                  "host": ["api", "binance", "com"],
+                  "path": ["api", "v3", "trades"],
+                  "query": [
+                    { "key": "symbol", "value": "{{crypto_symbol}}" },
+                    { "key": "limit", "value": "100", "description": "Max 1000" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Aggregate Trades",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.binance.com/api/v3/aggTrades?symbol={{crypto_symbol}}&limit=100",
+                  "protocol": "https",
+                  "host": ["api", "binance", "com"],
+                  "path": ["api", "v3", "aggTrades"],
+                  "query": [
+                    { "key": "symbol", "value": "{{crypto_symbol}}" },
+                    { "key": "limit", "value": "100" }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "CoinGecko",
+          "description": "Free Tier: 30 req/min (demo tier with key: 30 req/min, public no key: ~10 req/min). No key required for basic use (use x-cg-demo-api-key header for demo tier).",
+          "item": [
+            {
+              "name": "Ping / API Status",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coingecko.com/api/v3/ping",
+                  "protocol": "https",
+                  "host": ["api", "coingecko", "com"],
+                  "path": ["api", "v3", "ping"]
+                }
+              }
+            },
+            {
+              "name": "Simple Price (Multi-coin, Multi-currency)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd,eur&include_24hr_change=true&include_market_cap=true",
+                  "protocol": "https",
+                  "host": ["api", "coingecko", "com"],
+                  "path": ["api", "v3", "simple", "price"],
+                  "query": [
+                    { "key": "ids", "value": "bitcoin,ethereum,solana" },
+                    { "key": "vs_currencies", "value": "usd,eur" },
+                    { "key": "include_24hr_change", "value": "true" },
+                    { "key": "include_market_cap", "value": "true" },
+                    { "key": "include_24hr_vol", "value": "true", "disabled": true }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Coins Market (Full Data, All Coins)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&sparkline=false",
+                  "protocol": "https",
+                  "host": ["api", "coingecko", "com"],
+                  "path": ["api", "v3", "coins", "markets"],
+                  "query": [
+                    { "key": "vs_currency", "value": "usd" },
+                    { "key": "order", "value": "market_cap_desc", "description": "market_cap_desc, volume_desc, id_asc, price_change_desc" },
+                    { "key": "per_page", "value": "50" },
+                    { "key": "page", "value": "1" },
+                    { "key": "sparkline", "value": "false" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Coin Details (by ID)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coingecko.com/api/v3/coins/bitcoin?localization=false&tickers=false&market_data=true&community_data=false",
+                  "protocol": "https",
+                  "host": ["api", "coingecko", "com"],
+                  "path": ["api", "v3", "coins", "bitcoin"],
+                  "query": [
+                    { "key": "localization", "value": "false" },
+                    { "key": "tickers", "value": "false" },
+                    { "key": "market_data", "value": "true" },
+                    { "key": "community_data", "value": "false" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Historical Chart — Price Over Time",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=30",
+                  "protocol": "https",
+                  "host": ["api", "coingecko", "com"],
+                  "path": ["api", "v3", "coins", "bitcoin", "market_chart"],
+                  "query": [
+                    { "key": "vs_currency", "value": "usd" },
+                    { "key": "days", "value": "30", "description": "1, 7, 14, 30, 90, 180, 365, max" },
+                    { "key": "interval", "value": "daily", "disabled": true, "description": "daily or hourly (auto based on days)" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "OHLC Data",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=30",
+                  "protocol": "https",
+                  "host": ["api", "coingecko", "com"],
+                  "path": ["api", "v3", "coins", "bitcoin", "ohlc"],
+                  "query": [
+                    { "key": "vs_currency", "value": "usd" },
+                    { "key": "days", "value": "30", "description": "1, 7, 14, 30, 90, 180, 365" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Historical Data for a Specific Date",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coingecko.com/api/v3/coins/bitcoin/history?date=01-01-2024&localization=false",
+                  "protocol": "https",
+                  "host": ["api", "coingecko", "com"],
+                  "path": ["api", "v3", "coins", "bitcoin", "history"],
+                  "query": [
+                    { "key": "date", "value": "01-01-2024", "description": "DD-MM-YYYY format" },
+                    { "key": "localization", "value": "false" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Global Crypto Market Data",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coingecko.com/api/v3/global",
+                  "protocol": "https",
+                  "host": ["api", "coingecko", "com"],
+                  "path": ["api", "v3", "global"]
+                }
+              }
+            },
+            {
+              "name": "Trending Coins",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coingecko.com/api/v3/search/trending",
+                  "protocol": "https",
+                  "host": ["api", "coingecko", "com"],
+                  "path": ["api", "v3", "search", "trending"]
+                }
+              }
+            },
+            {
+              "name": "Search Coins / Exchanges",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coingecko.com/api/v3/search?query=solana",
+                  "protocol": "https",
+                  "host": ["api", "coingecko", "com"],
+                  "path": ["api", "v3", "search"],
+                  "query": [{ "key": "query", "value": "solana" }]
+                }
+              }
+            },
+            {
+              "name": "All Exchanges",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coingecko.com/api/v3/exchanges?per_page=20&page=1",
+                  "protocol": "https",
+                  "host": ["api", "coingecko", "com"],
+                  "path": ["api", "v3", "exchanges"],
+                  "query": [
+                    { "key": "per_page", "value": "20" },
+                    { "key": "page", "value": "1" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Exchange Tickers",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coingecko.com/api/v3/exchanges/binance/tickers?coin_ids=bitcoin&page=1",
+                  "protocol": "https",
+                  "host": ["api", "coingecko", "com"],
+                  "path": ["api", "v3", "exchanges", "binance", "tickers"],
+                  "query": [
+                    { "key": "coin_ids", "value": "bitcoin" },
+                    { "key": "page", "value": "1" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Coin Categories",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coingecko.com/api/v3/coins/categories?order=market_cap_desc",
+                  "protocol": "https",
+                  "host": ["api", "coingecko", "com"],
+                  "path": ["api", "v3", "coins", "categories"],
+                  "query": [{ "key": "order", "value": "market_cap_desc" }]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "CoinMarketCap",
+          "description": "Free Tier: 333 req/day (~10k/month). Auth: X-CMC_PRO_API_KEY header. Industry-standard market cap rankings.",
+          "item": [
+            {
+              "name": "Listings — Latest (All Cryptos, Ranked)",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CMC_PRO_API_KEY", "value": "{{coinmarketcap_key}}" }],
+                "url": {
+                  "raw": "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest?limit=50&convert=USD&sort=market_cap",
+                  "protocol": "https",
+                  "host": ["pro-api", "coinmarketcap", "com"],
+                  "path": ["v1", "cryptocurrency", "listings", "latest"],
+                  "query": [
+                    { "key": "limit", "value": "50", "description": "Max 5000" },
+                    { "key": "convert", "value": "USD" },
+                    { "key": "sort", "value": "market_cap", "description": "name, symbol, date_added, market_cap, price, volume_24h, percent_change_24h" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Latest Quote (By Symbol)",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CMC_PRO_API_KEY", "value": "{{coinmarketcap_key}}" }],
+                "url": {
+                  "raw": "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol=BTC,ETH&convert=USD",
+                  "protocol": "https",
+                  "host": ["pro-api", "coinmarketcap", "com"],
+                  "path": ["v1", "cryptocurrency", "quotes", "latest"],
+                  "query": [
+                    { "key": "symbol", "value": "BTC,ETH" },
+                    { "key": "convert", "value": "USD" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Coin Metadata",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CMC_PRO_API_KEY", "value": "{{coinmarketcap_key}}" }],
+                "url": {
+                  "raw": "https://pro-api.coinmarketcap.com/v1/cryptocurrency/info?symbol=BTC",
+                  "protocol": "https",
+                  "host": ["pro-api", "coinmarketcap", "com"],
+                  "path": ["v1", "cryptocurrency", "info"],
+                  "query": [{ "key": "symbol", "value": "BTC" }]
+                }
+              }
+            },
+            {
+              "name": "ID Map (All Coins with CMC IDs)",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CMC_PRO_API_KEY", "value": "{{coinmarketcap_key}}" }],
+                "url": {
+                  "raw": "https://pro-api.coinmarketcap.com/v1/cryptocurrency/map?listing_status=active&limit=100",
+                  "protocol": "https",
+                  "host": ["pro-api", "coinmarketcap", "com"],
+                  "path": ["v1", "cryptocurrency", "map"],
+                  "query": [
+                    { "key": "listing_status", "value": "active" },
+                    { "key": "limit", "value": "100" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Global Market Metrics",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CMC_PRO_API_KEY", "value": "{{coinmarketcap_key}}" }],
+                "url": {
+                  "raw": "https://pro-api.coinmarketcap.com/v1/global-metrics/quotes/latest?convert=USD",
+                  "protocol": "https",
+                  "host": ["pro-api", "coinmarketcap", "com"],
+                  "path": ["v1", "global-metrics", "quotes", "latest"],
+                  "query": [{ "key": "convert", "value": "USD" }]
+                }
+              }
+            },
+            {
+              "name": "Price Conversion",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CMC_PRO_API_KEY", "value": "{{coinmarketcap_key}}" }],
+                "url": {
+                  "raw": "https://pro-api.coinmarketcap.com/v1/tools/price-conversion?amount=1&symbol=BTC&convert=USD,EUR",
+                  "protocol": "https",
+                  "host": ["pro-api", "coinmarketcap", "com"],
+                  "path": ["v1", "tools", "price-conversion"],
+                  "query": [
+                    { "key": "amount", "value": "1" },
+                    { "key": "symbol", "value": "BTC" },
+                    { "key": "convert", "value": "USD,EUR" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Trending — Latest",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CMC_PRO_API_KEY", "value": "{{coinmarketcap_key}}" }],
+                "url": {
+                  "raw": "https://pro-api.coinmarketcap.com/v1/cryptocurrency/trending/latest?limit=10&convert=USD",
+                  "protocol": "https",
+                  "host": ["pro-api", "coinmarketcap", "com"],
+                  "path": ["v1", "cryptocurrency", "trending", "latest"],
+                  "query": [
+                    { "key": "limit", "value": "10" },
+                    { "key": "convert", "value": "USD" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Trending Gainers & Losers",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CMC_PRO_API_KEY", "value": "{{coinmarketcap_key}}" }],
+                "url": {
+                  "raw": "https://pro-api.coinmarketcap.com/v1/cryptocurrency/trending/gainers-losers?limit=10&convert=USD&time_period=24h",
+                  "protocol": "https",
+                  "host": ["pro-api", "coinmarketcap", "com"],
+                  "path": ["v1", "cryptocurrency", "trending", "gainers-losers"],
+                  "query": [
+                    { "key": "limit", "value": "10" },
+                    { "key": "convert", "value": "USD" },
+                    { "key": "time_period", "value": "24h", "description": "1h, 24h, 7d, 30d" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Exchange Listings — Latest",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CMC_PRO_API_KEY", "value": "{{coinmarketcap_key}}" }],
+                "url": {
+                  "raw": "https://pro-api.coinmarketcap.com/v1/exchange/listings/latest?limit=20&convert=USD&sort=volume_24h",
+                  "protocol": "https",
+                  "host": ["pro-api", "coinmarketcap", "com"],
+                  "path": ["v1", "exchange", "listings", "latest"],
+                  "query": [
+                    { "key": "limit", "value": "20" },
+                    { "key": "convert", "value": "USD" },
+                    { "key": "sort", "value": "volume_24h" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Fiat Currency Map",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CMC_PRO_API_KEY", "value": "{{coinmarketcap_key}}" }],
+                "url": {
+                  "raw": "https://pro-api.coinmarketcap.com/v1/fiat/map?include_metals=false",
+                  "protocol": "https",
+                  "host": ["pro-api", "coinmarketcap", "com"],
+                  "path": ["v1", "fiat", "map"],
+                  "query": [{ "key": "include_metals", "value": "false" }]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "CryptoCompare",
+          "description": "Free Tier: 100,000 calls/month, 2,500/hour, 50/second. Auth: Apikey header or api_key query param.",
+          "item": [
+            {
+              "name": "Current Price (Single)",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Apikey", "value": "{{cryptocompare_key}}" }],
+                "url": {
+                  "raw": "https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=USD,EUR,GBP",
+                  "protocol": "https",
+                  "host": ["min-api", "cryptocompare", "com"],
+                  "path": ["data", "price"],
+                  "query": [
+                    { "key": "fsym", "value": "BTC" },
+                    { "key": "tsyms", "value": "USD,EUR,GBP" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Current Price (Multi-Asset)",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Apikey", "value": "{{cryptocompare_key}}" }],
+                "url": {
+                  "raw": "https://min-api.cryptocompare.com/data/pricemulti?fsyms=BTC,ETH,SOL&tsyms=USD,EUR",
+                  "protocol": "https",
+                  "host": ["min-api", "cryptocompare", "com"],
+                  "path": ["data", "pricemulti"],
+                  "query": [
+                    { "key": "fsyms", "value": "BTC,ETH,SOL" },
+                    { "key": "tsyms", "value": "USD,EUR" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Full Price Data",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Apikey", "value": "{{cryptocompare_key}}" }],
+                "url": {
+                  "raw": "https://min-api.cryptocompare.com/data/pricemultifull?fsyms=BTC,ETH&tsyms=USD",
+                  "protocol": "https",
+                  "host": ["min-api", "cryptocompare", "com"],
+                  "path": ["data", "pricemultifull"],
+                  "query": [
+                    { "key": "fsyms", "value": "BTC,ETH" },
+                    { "key": "tsyms", "value": "USD" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Daily OHLCV History",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Apikey", "value": "{{cryptocompare_key}}" }],
+                "url": {
+                  "raw": "https://min-api.cryptocompare.com/data/histoday?fsym=BTC&tsym=USD&limit=90",
+                  "protocol": "https",
+                  "host": ["min-api", "cryptocompare", "com"],
+                  "path": ["data", "histoday"],
+                  "query": [
+                    { "key": "fsym", "value": "BTC" },
+                    { "key": "tsym", "value": "USD" },
+                    { "key": "limit", "value": "90", "description": "Max 2000 days" },
+                    { "key": "aggregate", "value": "1", "disabled": true, "description": "Number of days to aggregate" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Hourly OHLCV History",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Apikey", "value": "{{cryptocompare_key}}" }],
+                "url": {
+                  "raw": "https://min-api.cryptocompare.com/data/histohour?fsym=BTC&tsym=USD&limit=168",
+                  "protocol": "https",
+                  "host": ["min-api", "cryptocompare", "com"],
+                  "path": ["data", "histohour"],
+                  "query": [
+                    { "key": "fsym", "value": "BTC" },
+                    { "key": "tsym", "value": "USD" },
+                    { "key": "limit", "value": "168", "description": "168 = 7 days of hourly data" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Minute OHLCV History",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Apikey", "value": "{{cryptocompare_key}}" }],
+                "url": {
+                  "raw": "https://min-api.cryptocompare.com/data/histominute?fsym=BTC&tsym=USD&limit=60",
+                  "protocol": "https",
+                  "host": ["min-api", "cryptocompare", "com"],
+                  "path": ["data", "histominute"],
+                  "query": [
+                    { "key": "fsym", "value": "BTC" },
+                    { "key": "tsym", "value": "USD" },
+                    { "key": "limit", "value": "60", "description": "Max 2000 minutes" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Crypto News",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Apikey", "value": "{{cryptocompare_key}}" }],
+                "url": {
+                  "raw": "https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest",
+                  "protocol": "https",
+                  "host": ["min-api", "cryptocompare", "com"],
+                  "path": ["data", "v2", "news", ""],
+                  "query": [
+                    { "key": "lang", "value": "EN" },
+                    { "key": "sortOrder", "value": "latest", "description": "latest or popular" },
+                    { "key": "categories", "value": "BTC,ETH", "disabled": true }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Top Coins by Volume",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Apikey", "value": "{{cryptocompare_key}}" }],
+                "url": {
+                  "raw": "https://min-api.cryptocompare.com/data/top/totalvolfull?limit=20&tsym=USD",
+                  "protocol": "https",
+                  "host": ["min-api", "cryptocompare", "com"],
+                  "path": ["data", "top", "totalvolfull"],
+                  "query": [
+                    { "key": "limit", "value": "20" },
+                    { "key": "tsym", "value": "USD" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Top Coins by Market Cap",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Apikey", "value": "{{cryptocompare_key}}" }],
+                "url": {
+                  "raw": "https://min-api.cryptocompare.com/data/top/mktcapfull?limit=20&tsym=USD",
+                  "protocol": "https",
+                  "host": ["min-api", "cryptocompare", "com"],
+                  "path": ["data", "top", "mktcapfull"],
+                  "query": [
+                    { "key": "limit", "value": "20" },
+                    { "key": "tsym", "value": "USD" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Exchange Details",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Apikey", "value": "{{cryptocompare_key}}" }],
+                "url": {
+                  "raw": "https://min-api.cryptocompare.com/data/exchanges/general?tsym=USD",
+                  "protocol": "https",
+                  "host": ["min-api", "cryptocompare", "com"],
+                  "path": ["data", "exchanges", "general"],
+                  "query": [{ "key": "tsym", "value": "USD" }]
+                }
+              }
+            },
+            {
+              "name": "Order Book Snapshot",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Apikey", "value": "{{cryptocompare_key}}" }],
+                "url": {
+                  "raw": "https://min-api.cryptocompare.com/data/ob/l2snapshot?market=Binance&fsym=BTC&tsym=USDT",
+                  "protocol": "https",
+                  "host": ["min-api", "cryptocompare", "com"],
+                  "path": ["data", "ob", "l2snapshot"],
+                  "query": [
+                    { "key": "market", "value": "Binance" },
+                    { "key": "fsym", "value": "BTC" },
+                    { "key": "tsym", "value": "USDT" }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Kraken",
+          "description": "Free Tier: Unlimited public endpoints. No API key needed for market data.",
+          "item": [
+            {
+              "name": "Server Time",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.kraken.com/0/public/Time",
+                  "protocol": "https",
+                  "host": ["api", "kraken", "com"],
+                  "path": ["0", "public", "Time"]
+                }
+              }
+            },
+            {
+              "name": "Asset Info",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.kraken.com/0/public/Assets?asset=XBT,ETH",
+                  "protocol": "https",
+                  "host": ["api", "kraken", "com"],
+                  "path": ["0", "public", "Assets"],
+                  "query": [{ "key": "asset", "value": "XBT,ETH", "description": "Kraken uses XBT for Bitcoin. Omit for all." }]
+                }
+              }
+            },
+            {
+              "name": "All Trading Pairs",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.kraken.com/0/public/AssetPairs",
+                  "protocol": "https",
+                  "host": ["api", "kraken", "com"],
+                  "path": ["0", "public", "AssetPairs"]
+                }
+              }
+            },
+            {
+              "name": "Ticker",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.kraken.com/0/public/Ticker?pair=XBTUSD",
+                  "protocol": "https",
+                  "host": ["api", "kraken", "com"],
+                  "path": ["0", "public", "Ticker"],
+                  "query": [{ "key": "pair", "value": "XBTUSD", "description": "E.g. XBTUSD, ETHUSD, SOLUSD. Comma-separated for multiple." }]
+                }
+              }
+            },
+            {
+              "name": "OHLC Candlesticks",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=60",
+                  "protocol": "https",
+                  "host": ["api", "kraken", "com"],
+                  "path": ["0", "public", "OHLC"],
+                  "query": [
+                    { "key": "pair", "value": "XBTUSD" },
+                    { "key": "interval", "value": "60", "description": "Minutes: 1, 5, 15, 30, 60, 240, 1440, 10080, 21600" },
+                    { "key": "since", "value": "", "disabled": true, "description": "Unix timestamp for historical data" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Order Book",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.kraken.com/0/public/Depth?pair=XBTUSD&count=20",
+                  "protocol": "https",
+                  "host": ["api", "kraken", "com"],
+                  "path": ["0", "public", "Depth"],
+                  "query": [
+                    { "key": "pair", "value": "XBTUSD" },
+                    { "key": "count", "value": "20", "description": "Max 500" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Recent Trades",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.kraken.com/0/public/Trades?pair=XBTUSD",
+                  "protocol": "https",
+                  "host": ["api", "kraken", "com"],
+                  "path": ["0", "public", "Trades"],
+                  "query": [
+                    { "key": "pair", "value": "XBTUSD" },
+                    { "key": "since", "value": "", "disabled": true }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Recent Spread",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.kraken.com/0/public/Spread?pair=XBTUSD",
+                  "protocol": "https",
+                  "host": ["api", "kraken", "com"],
+                  "path": ["0", "public", "Spread"],
+                  "query": [{ "key": "pair", "value": "XBTUSD" }]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Coinbase Advanced Trade",
+          "description": "Free Tier: 10 req/sec public endpoints. No auth needed for public market data.",
+          "item": [
+            {
+              "name": "All Products (Trading Pairs)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coinbase.com/api/v3/brokerage/market/products?limit=50&product_type=SPOT",
+                  "protocol": "https",
+                  "host": ["api", "coinbase", "com"],
+                  "path": ["api", "v3", "brokerage", "market", "products"],
+                  "query": [
+                    { "key": "limit", "value": "50" },
+                    { "key": "product_type", "value": "SPOT", "description": "SPOT or FUTURE" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Product Details",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coinbase.com/api/v3/brokerage/market/products/BTC-USD",
+                  "protocol": "https",
+                  "host": ["api", "coinbase", "com"],
+                  "path": ["api", "v3", "brokerage", "market", "products", "BTC-USD"]
+                }
+              }
+            },
+            {
+              "name": "OHLCV Candles",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coinbase.com/api/v3/brokerage/market/products/BTC-USD/candles?start=1704067200&end=1706745600&granularity=ONE_DAY",
+                  "protocol": "https",
+                  "host": ["api", "coinbase", "com"],
+                  "path": ["api", "v3", "brokerage", "market", "products", "BTC-USD", "candles"],
+                  "query": [
+                    { "key": "start", "value": "1704067200", "description": "Unix timestamp" },
+                    { "key": "end", "value": "1706745600", "description": "Unix timestamp" },
+                    { "key": "granularity", "value": "ONE_DAY", "description": "ONE_MINUTE, FIVE_MINUTE, FIFTEEN_MINUTE, THIRTY_MINUTE, ONE_HOUR, TWO_HOUR, SIX_HOUR, ONE_DAY" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Current Ticker",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coinbase.com/api/v3/brokerage/market/products/BTC-USD/ticker?limit=1",
+                  "protocol": "https",
+                  "host": ["api", "coinbase", "com"],
+                  "path": ["api", "v3", "brokerage", "market", "products", "BTC-USD", "ticker"],
+                  "query": [{ "key": "limit", "value": "1" }]
+                }
+              }
+            },
+            {
+              "name": "Order Book",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.coinbase.com/api/v3/brokerage/market/products/BTC-USD/book?limit=10",
+                  "protocol": "https",
+                  "host": ["api", "coinbase", "com"],
+                  "path": ["api", "v3", "brokerage", "market", "products", "BTC-USD", "book"],
+                  "query": [{ "key": "limit", "value": "10", "description": "Number of bid/ask levels" }]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Glassnode (On-Chain Analytics)",
+          "description": "Free Tier: ~30 basic metrics, 10 req/min. Auth: api_key query param. Unique on-chain data for Bitcoin and Ethereum.",
+          "item": [
+            {
+              "name": "BTC Daily Close Price",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.glassnode.com/v1/metrics/market/price_usd_close?a=BTC&api_key={{glassnode_key}}",
+                  "protocol": "https",
+                  "host": ["api", "glassnode", "com"],
+                  "path": ["v1", "metrics", "market", "price_usd_close"],
+                  "query": [
+                    { "key": "a", "value": "BTC", "description": "Asset: BTC, ETH, LTC, etc." },
+                    { "key": "api_key", "value": "{{glassnode_key}}" },
+                    { "key": "i", "value": "24h", "disabled": true, "description": "Interval: 1h, 24h, 10m" },
+                    { "key": "s", "value": "1577836800", "disabled": true, "description": "Start timestamp" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Active Addresses Count",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.glassnode.com/v1/metrics/addresses/active_count?a=BTC&api_key={{glassnode_key}}",
+                  "protocol": "https",
+                  "host": ["api", "glassnode", "com"],
+                  "path": ["v1", "metrics", "addresses", "active_count"],
+                  "query": [
+                    { "key": "a", "value": "BTC" },
+                    { "key": "api_key", "value": "{{glassnode_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Market Cap",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.glassnode.com/v1/metrics/market/marketcap_usd?a=BTC&api_key={{glassnode_key}}",
+                  "protocol": "https",
+                  "host": ["api", "glassnode", "com"],
+                  "path": ["v1", "metrics", "market", "marketcap_usd"],
+                  "query": [
+                    { "key": "a", "value": "BTC" },
+                    { "key": "api_key", "value": "{{glassnode_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "MVRV Ratio",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.glassnode.com/v1/metrics/market/mvrv?a=BTC&api_key={{glassnode_key}}",
+                  "protocol": "https",
+                  "host": ["api", "glassnode", "com"],
+                  "path": ["v1", "metrics", "market", "mvrv"],
+                  "query": [
+                    { "key": "a", "value": "BTC" },
+                    { "key": "api_key", "value": "{{glassnode_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Current Supply",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.glassnode.com/v1/metrics/supply/current?a=BTC&api_key={{glassnode_key}}",
+                  "protocol": "https",
+                  "host": ["api", "glassnode", "com"],
+                  "path": ["v1", "metrics", "supply", "current"],
+                  "query": [
+                    { "key": "a", "value": "BTC" },
+                    { "key": "api_key", "value": "{{glassnode_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Transaction Count",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.glassnode.com/v1/metrics/transactions/count?a=BTC&api_key={{glassnode_key}}",
+                  "protocol": "https",
+                  "host": ["api", "glassnode", "com"],
+                  "path": ["v1", "metrics", "transactions", "count"],
+                  "query": [
+                    { "key": "a", "value": "BTC" },
+                    { "key": "api_key", "value": "{{glassnode_key}}" }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Messari",
+          "description": "Free Tier: 20 req/min (IP limited, no key needed). Auth: x-messari-api-key header (optional, extends limits). Institutional crypto research.",
+          "item": [
+            {
+              "name": "All Assets",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "x-messari-api-key", "value": "{{messari_key}}", "disabled": true, "description": "Optional — extends rate limits" }],
+                "url": {
+                  "raw": "https://data.messari.io/api/v1/assets?limit=20&page=1&fields=id,slug,symbol,name,metrics/market_data",
+                  "protocol": "https",
+                  "host": ["data", "messari", "io"],
+                  "path": ["api", "v1", "assets"],
+                  "query": [
+                    { "key": "limit", "value": "20" },
+                    { "key": "page", "value": "1" },
+                    { "key": "fields", "value": "id,slug,symbol,name,metrics/market_data" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Asset Metrics (All)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://data.messari.io/api/v1/assets/bitcoin/metrics",
+                  "protocol": "https",
+                  "host": ["data", "messari", "io"],
+                  "path": ["api", "v1", "assets", "bitcoin", "metrics"]
+                }
+              }
+            },
+            {
+              "name": "Asset Market Data",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://data.messari.io/api/v1/assets/bitcoin/metrics/market-data",
+                  "protocol": "https",
+                  "host": ["data", "messari", "io"],
+                  "path": ["api", "v1", "assets", "bitcoin", "metrics", "market-data"]
+                }
+              }
+            },
+            {
+              "name": "Asset Profile",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://data.messari.io/api/v2/assets/bitcoin/profile",
+                  "protocol": "https",
+                  "host": ["data", "messari", "io"],
+                  "path": ["api", "v2", "assets", "bitcoin", "profile"]
+                }
+              }
+            },
+            {
+              "name": "All Markets",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://data.messari.io/api/v1/markets?limit=20",
+                  "protocol": "https",
+                  "host": ["data", "messari", "io"],
+                  "path": ["api", "v1", "markets"],
+                  "query": [{ "key": "limit", "value": "20" }]
+                }
+              }
+            },
+            {
+              "name": "Crypto News",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://data.messari.io/api/v1/news?page=1&limit=20",
+                  "protocol": "https",
+                  "host": ["data", "messari", "io"],
+                  "path": ["api", "v1", "news"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "limit", "value": "20" }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+
+      ]
+    },
+
+    {
+      "name": "💱 Forex",
+      "description": "Foreign exchange rate APIs: Open Exchange Rates, ExchangeRate-API, Frankfurter, FreeCurrencyAPI, CurrencyLayer, Fixer.io, Alpha Vantage FX",
+      "item": [
+
+        {
+          "name": "Open Exchange Rates",
+          "description": "Free Tier: 1,000 req/month, USD base only, HTTP only. Auth: app_id query param.",
+          "item": [
+            {
+              "name": "Latest Rates (USD base)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://openexchangerates.org/api/latest.json?app_id={{openexchangerates_key}}",
+                  "protocol": "https",
+                  "host": ["openexchangerates", "org"],
+                  "path": ["api", "latest.json"],
+                  "query": [
+                    { "key": "app_id", "value": "{{openexchangerates_key}}" },
+                    { "key": "symbols", "value": "EUR,GBP,JPY,CAD", "disabled": true, "description": "Comma-separated to filter currencies" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Historical Rates",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://openexchangerates.org/api/historical/2024-01-15.json?app_id={{openexchangerates_key}}",
+                  "protocol": "https",
+                  "host": ["openexchangerates", "org"],
+                  "path": ["api", "historical", "2024-01-15.json"],
+                  "query": [{ "key": "app_id", "value": "{{openexchangerates_key}}" }]
+                }
+              }
+            },
+            {
+              "name": "Supported Currencies",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://openexchangerates.org/api/currencies.json",
+                  "protocol": "https",
+                  "host": ["openexchangerates", "org"],
+                  "path": ["api", "currencies.json"]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "ExchangeRate-API",
+          "description": "Free Tier: 1,500 req/month, any base currency, HTTPS included, daily updates. Auth: API key in URL path.",
+          "item": [
+            {
+              "name": "Latest Rates (USD base)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://v6.exchangerate-api.com/v6/{{exchangerateapi_key}}/latest/USD",
+                  "protocol": "https",
+                  "host": ["v6", "exchangerate-api", "com"],
+                  "path": ["v6", "{{exchangerateapi_key}}", "latest", "USD"]
+                }
+              }
+            },
+            {
+              "name": "Latest Rates (EUR base)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://v6.exchangerate-api.com/v6/{{exchangerateapi_key}}/latest/EUR",
+                  "protocol": "https",
+                  "host": ["v6", "exchangerate-api", "com"],
+                  "path": ["v6", "{{exchangerateapi_key}}", "latest", "EUR"]
+                }
+              }
+            },
+            {
+              "name": "Specific Pair Rate",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://v6.exchangerate-api.com/v6/{{exchangerateapi_key}}/pair/EUR/USD",
+                  "protocol": "https",
+                  "host": ["v6", "exchangerate-api", "com"],
+                  "path": ["v6", "{{exchangerateapi_key}}", "pair", "EUR", "USD"]
+                }
+              }
+            },
+            {
+              "name": "Convert Amount",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://v6.exchangerate-api.com/v6/{{exchangerateapi_key}}/pair/EUR/USD/1000",
+                  "protocol": "https",
+                  "host": ["v6", "exchangerate-api", "com"],
+                  "path": ["v6", "{{exchangerateapi_key}}", "pair", "EUR", "USD", "1000"]
+                },
+                "description": "Convert 1000 EUR to USD."
+              }
+            },
+            {
+              "name": "Historical Rate",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://v6.exchangerate-api.com/v6/{{exchangerateapi_key}}/history/USD/2024/1/15",
+                  "protocol": "https",
+                  "host": ["v6", "exchangerate-api", "com"],
+                  "path": ["v6", "{{exchangerateapi_key}}", "history", "USD", "2024", "1", "15"]
+                }
+              }
+            },
+            {
+              "name": "Supported Currency Codes",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://v6.exchangerate-api.com/v6/{{exchangerateapi_key}}/codes",
+                  "protocol": "https",
+                  "host": ["v6", "exchangerate-api", "com"],
+                  "path": ["v6", "{{exchangerateapi_key}}", "codes"]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Frankfurter (ECB Data)",
+          "description": "Free Tier: Unlimited requests, no API key, ECB data (~30 currencies), daily updates. Historical data back to 1999.",
+          "item": [
+            {
+              "name": "Latest Rates (EUR base)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.frankfurter.app/latest",
+                  "protocol": "https",
+                  "host": ["api", "frankfurter", "app"],
+                  "path": ["latest"]
+                }
+              }
+            },
+            {
+              "name": "Latest Rates (Custom base)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.frankfurter.app/latest?from=USD",
+                  "protocol": "https",
+                  "host": ["api", "frankfurter", "app"],
+                  "path": ["latest"],
+                  "query": [{ "key": "from", "value": "USD" }]
+                }
+              }
+            },
+            {
+              "name": "Latest — Specific Pairs",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.frankfurter.app/latest?from=USD&to=EUR,GBP,JPY",
+                  "protocol": "https",
+                  "host": ["api", "frankfurter", "app"],
+                  "path": ["latest"],
+                  "query": [
+                    { "key": "from", "value": "USD" },
+                    { "key": "to", "value": "EUR,GBP,JPY" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Historical Rate on Specific Date",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.frankfurter.app/2024-01-15?from=USD",
+                  "protocol": "https",
+                  "host": ["api", "frankfurter", "app"],
+                  "path": ["2024-01-15"],
+                  "query": [{ "key": "from", "value": "USD" }]
+                }
+              }
+            },
+            {
+              "name": "Historical Rate Range",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.frankfurter.app/2024-01-01..2024-12-31?from=USD&to=EUR",
+                  "protocol": "https",
+                  "host": ["api", "frankfurter", "app"],
+                  "path": ["2024-01-01..2024-12-31"],
+                  "query": [
+                    { "key": "from", "value": "USD" },
+                    { "key": "to", "value": "EUR" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Supported Currencies",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.frankfurter.app/currencies",
+                  "protocol": "https",
+                  "host": ["api", "frankfurter", "app"],
+                  "path": ["currencies"]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "FreeCurrencyAPI",
+          "description": "Free Tier: 5,000 req/month, any base currency, hourly updates, HTTPS. Auth: apikey query param.",
+          "item": [
+            {
+              "name": "API Quota Status",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.freecurrencyapi.com/v1/status?apikey={{freecurrencyapi_key}}",
+                  "protocol": "https",
+                  "host": ["api", "freecurrencyapi", "com"],
+                  "path": ["v1", "status"],
+                  "query": [{ "key": "apikey", "value": "{{freecurrencyapi_key}}" }]
+                }
+              }
+            },
+            {
+              "name": "Supported Currencies",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.freecurrencyapi.com/v1/currencies?apikey={{freecurrencyapi_key}}",
+                  "protocol": "https",
+                  "host": ["api", "freecurrencyapi", "com"],
+                  "path": ["v1", "currencies"],
+                  "query": [
+                    { "key": "apikey", "value": "{{freecurrencyapi_key}}" },
+                    { "key": "currencies", "value": "EUR,USD,GBP", "disabled": true, "description": "Filter specific currencies" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Latest Rates",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.freecurrencyapi.com/v1/latest?apikey={{freecurrencyapi_key}}&base_currency=USD",
+                  "protocol": "https",
+                  "host": ["api", "freecurrencyapi", "com"],
+                  "path": ["v1", "latest"],
+                  "query": [
+                    { "key": "apikey", "value": "{{freecurrencyapi_key}}" },
+                    { "key": "base_currency", "value": "USD" },
+                    { "key": "currencies", "value": "EUR,GBP,JPY", "disabled": true }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Historical Rate for Date",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.freecurrencyapi.com/v1/historical?apikey={{freecurrencyapi_key}}&date=2024-01-15&base_currency=USD",
+                  "protocol": "https",
+                  "host": ["api", "freecurrencyapi", "com"],
+                  "path": ["v1", "historical"],
+                  "query": [
+                    { "key": "apikey", "value": "{{freecurrencyapi_key}}" },
+                    { "key": "date", "value": "2024-01-15" },
+                    { "key": "base_currency", "value": "USD" }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "CurrencyLayer",
+          "description": "⚠️ Free Tier: 100 req/month — near unusable for production. USD base only, HTTP only. Auth: access_key query param.",
+          "item": [
+            {
+              "name": "Live Rates (USD base)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://apilayer.net/api/live?access_key={{currencylayer_key}}&currencies=EUR,GBP,JPY&format=1",
+                  "protocol": "http",
+                  "host": ["apilayer", "net"],
+                  "path": ["api", "live"],
+                  "query": [
+                    { "key": "access_key", "value": "{{currencylayer_key}}" },
+                    { "key": "currencies", "value": "EUR,GBP,JPY" },
+                    { "key": "format", "value": "1" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Historical Rates",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://apilayer.net/api/historical?access_key={{currencylayer_key}}&date=2024-01-15",
+                  "protocol": "http",
+                  "host": ["apilayer", "net"],
+                  "path": ["api", "historical"],
+                  "query": [
+                    { "key": "access_key", "value": "{{currencylayer_key}}" },
+                    { "key": "date", "value": "2024-01-15" }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Fixer.io",
+          "description": "⚠️ Free Tier: 100 req/month, EUR base only, HTTP only. Auth: access_key query param.",
+          "item": [
+            {
+              "name": "Latest Rates (EUR base)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://data.fixer.io/api/latest?access_key={{fixerio_key}}",
+                  "protocol": "http",
+                  "host": ["data", "fixer", "io"],
+                  "path": ["api", "latest"],
+                  "query": [
+                    { "key": "access_key", "value": "{{fixerio_key}}" },
+                    { "key": "symbols", "value": "USD,GBP,JPY", "disabled": true }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Historical Rates",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://data.fixer.io/api/2024-01-15?access_key={{fixerio_key}}",
+                  "protocol": "http",
+                  "host": ["data", "fixer", "io"],
+                  "path": ["api", "2024-01-15"],
+                  "query": [{ "key": "access_key", "value": "{{fixerio_key}}" }]
+                }
+              }
+            },
+            {
+              "name": "Supported Symbols",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "http://data.fixer.io/api/symbols?access_key={{fixerio_key}}",
+                  "protocol": "http",
+                  "host": ["data", "fixer", "io"],
+                  "path": ["api", "symbols"],
+                  "query": [{ "key": "access_key", "value": "{{fixerio_key}}" }]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Alpha Vantage (Forex)",
+          "description": "Free Tier: 25–500 req/day (shared with stock quota). Covers 100+ currency pairs with OHLCV and intraday data.",
+          "item": [
+            {
+              "name": "FX Daily OHLCV",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=FX_DAILY&from_symbol=EUR&to_symbol=USD&outputsize=compact&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "FX_DAILY" },
+                    { "key": "from_symbol", "value": "EUR" },
+                    { "key": "to_symbol", "value": "USD" },
+                    { "key": "outputsize", "value": "compact" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "FX Intraday OHLCV",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=FX_INTRADAY&from_symbol=EUR&to_symbol=USD&interval=60min&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "FX_INTRADAY" },
+                    { "key": "from_symbol", "value": "EUR" },
+                    { "key": "to_symbol", "value": "USD" },
+                    { "key": "interval", "value": "60min", "description": "1min, 5min, 15min, 30min, 60min" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "FX Weekly OHLCV",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=FX_WEEKLY&from_symbol=EUR&to_symbol=USD&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "FX_WEEKLY" },
+                    { "key": "from_symbol", "value": "EUR" },
+                    { "key": "to_symbol", "value": "USD" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "FX Monthly OHLCV",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=FX_MONTHLY&from_symbol=EUR&to_symbol=USD&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "FX_MONTHLY" },
+                    { "key": "from_symbol", "value": "EUR" },
+                    { "key": "to_symbol", "value": "USD" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Real-time Exchange Rate",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=EUR&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "CURRENCY_EXCHANGE_RATE" },
+                    { "key": "from_currency", "value": "USD" },
+                    { "key": "to_currency", "value": "EUR" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Crypto Exchange Rate",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=BTC&to_currency=USD&apikey={{alphavantage_key}}",
+                  "protocol": "https",
+                  "host": ["www", "alphavantage", "co"],
+                  "path": ["query"],
+                  "query": [
+                    { "key": "function", "value": "CURRENCY_EXCHANGE_RATE" },
+                    { "key": "from_currency", "value": "BTC" },
+                    { "key": "to_currency", "value": "USD" },
+                    { "key": "apikey", "value": "{{alphavantage_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Finnhub — Forex OHLCV",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Finnhub-Token", "value": "{{finnhub_key}}" }],
+                "url": {
+                  "raw": "https://finnhub.io/api/v1/forex/candle?symbol=OANDA:EUR_USD&resolution=D&from=1704067200&to=1735689600",
+                  "protocol": "https",
+                  "host": ["finnhub", "io"],
+                  "path": ["api", "v1", "forex", "candle"],
+                  "query": [
+                    { "key": "symbol", "value": "OANDA:EUR_USD", "description": "Format: EXCHANGE:PAIR" },
+                    { "key": "resolution", "value": "D", "description": "1, 5, 15, 30, 60, D, W, M" },
+                    { "key": "from", "value": "1704067200" },
+                    { "key": "to", "value": "1735689600" }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+
+      ]
+    },
+
+    {
+      "name": "🌐 Multi-Asset",
+      "description": "Unified APIs covering Stocks, Crypto, and Forex: Twelve Data, CoinAPI, NASDAQ Data Link, Finnhub Crypto",
+      "item": [
+
+        {
+          "name": "Twelve Data",
+          "description": "Free Tier: 800 req/day, 8 req/min. Auth: apikey query param. Covers stocks, crypto, forex, ETFs, 90+ technical indicators.",
+          "item": [
+            {
+              "name": "Real-time Price",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.twelvedata.com/price?symbol={{stock_symbol}}&apikey={{twelvedata_key}}",
+                  "protocol": "https",
+                  "host": ["api", "twelvedata", "com"],
+                  "path": ["price"],
+                  "query": [
+                    { "key": "symbol", "value": "{{stock_symbol}}", "description": "AAPL, BTC/USD, EUR/USD, etc." },
+                    { "key": "apikey", "value": "{{twelvedata_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Time Series (OHLCV)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.twelvedata.com/time_series?symbol={{stock_symbol}}&interval=1day&outputsize=30&apikey={{twelvedata_key}}",
+                  "protocol": "https",
+                  "host": ["api", "twelvedata", "com"],
+                  "path": ["time_series"],
+                  "query": [
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "interval", "value": "1day", "description": "1min, 5min, 15min, 30min, 45min, 1h, 2h, 4h, 1day, 1week, 1month" },
+                    { "key": "outputsize", "value": "30" },
+                    { "key": "apikey", "value": "{{twelvedata_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Full Quote",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.twelvedata.com/quote?symbol={{stock_symbol}}&apikey={{twelvedata_key}}",
+                  "protocol": "https",
+                  "host": ["api", "twelvedata", "com"],
+                  "path": ["quote"],
+                  "query": [
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "apikey", "value": "{{twelvedata_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "End-of-Day Data",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.twelvedata.com/eod?symbol={{stock_symbol}}&apikey={{twelvedata_key}}",
+                  "protocol": "https",
+                  "host": ["api", "twelvedata", "com"],
+                  "path": ["eod"],
+                  "query": [
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "apikey", "value": "{{twelvedata_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Forex Exchange Rate",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.twelvedata.com/exchange_rate?symbol=EUR/USD&apikey={{twelvedata_key}}",
+                  "protocol": "https",
+                  "host": ["api", "twelvedata", "com"],
+                  "path": ["exchange_rate"],
+                  "query": [
+                    { "key": "symbol", "value": "EUR/USD" },
+                    { "key": "apikey", "value": "{{twelvedata_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Currency Conversion",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.twelvedata.com/currency_conversion?symbol=EUR/USD&amount=1000&apikey={{twelvedata_key}}",
+                  "protocol": "https",
+                  "host": ["api", "twelvedata", "com"],
+                  "path": ["currency_conversion"],
+                  "query": [
+                    { "key": "symbol", "value": "EUR/USD" },
+                    { "key": "amount", "value": "1000" },
+                    { "key": "apikey", "value": "{{twelvedata_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Stock List for Exchange",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.twelvedata.com/stocks?exchange=NASDAQ&apikey={{twelvedata_key}}",
+                  "protocol": "https",
+                  "host": ["api", "twelvedata", "com"],
+                  "path": ["stocks"],
+                  "query": [
+                    { "key": "exchange", "value": "NASDAQ" },
+                    { "key": "apikey", "value": "{{twelvedata_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "All Forex Pairs",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.twelvedata.com/forex_pairs?currency_base=USD&apikey={{twelvedata_key}}",
+                  "protocol": "https",
+                  "host": ["api", "twelvedata", "com"],
+                  "path": ["forex_pairs"],
+                  "query": [
+                    { "key": "currency_base", "value": "USD" },
+                    { "key": "apikey", "value": "{{twelvedata_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Cryptocurrencies",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.twelvedata.com/cryptocurrencies?symbol=BTC/USD&apikey={{twelvedata_key}}",
+                  "protocol": "https",
+                  "host": ["api", "twelvedata", "com"],
+                  "path": ["cryptocurrencies"],
+                  "query": [
+                    { "key": "symbol", "value": "BTC/USD" },
+                    { "key": "apikey", "value": "{{twelvedata_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Technical — SMA",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.twelvedata.com/sma?symbol={{stock_symbol}}&interval=1day&time_period=20&apikey={{twelvedata_key}}",
+                  "protocol": "https",
+                  "host": ["api", "twelvedata", "com"],
+                  "path": ["sma"],
+                  "query": [
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "interval", "value": "1day" },
+                    { "key": "time_period", "value": "20" },
+                    { "key": "apikey", "value": "{{twelvedata_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Technical — RSI",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.twelvedata.com/rsi?symbol={{stock_symbol}}&interval=1day&time_period=14&apikey={{twelvedata_key}}",
+                  "protocol": "https",
+                  "host": ["api", "twelvedata", "com"],
+                  "path": ["rsi"],
+                  "query": [
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "interval", "value": "1day" },
+                    { "key": "time_period", "value": "14" },
+                    { "key": "apikey", "value": "{{twelvedata_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Technical — MACD",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.twelvedata.com/macd?symbol={{stock_symbol}}&interval=1day&fast_period=12&slow_period=26&signal_period=9&apikey={{twelvedata_key}}",
+                  "protocol": "https",
+                  "host": ["api", "twelvedata", "com"],
+                  "path": ["macd"],
+                  "query": [
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "interval", "value": "1day" },
+                    { "key": "fast_period", "value": "12" },
+                    { "key": "slow_period", "value": "26" },
+                    { "key": "signal_period", "value": "9" },
+                    { "key": "apikey", "value": "{{twelvedata_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Technical — Bollinger Bands",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.twelvedata.com/bbands?symbol={{stock_symbol}}&interval=1day&time_period=20&sd=2&apikey={{twelvedata_key}}",
+                  "protocol": "https",
+                  "host": ["api", "twelvedata", "com"],
+                  "path": ["bbands"],
+                  "query": [
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "interval", "value": "1day" },
+                    { "key": "time_period", "value": "20" },
+                    { "key": "sd", "value": "2" },
+                    { "key": "apikey", "value": "{{twelvedata_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Technical — Stochastic",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.twelvedata.com/stoch?symbol={{stock_symbol}}&interval=1day&apikey={{twelvedata_key}}",
+                  "protocol": "https",
+                  "host": ["api", "twelvedata", "com"],
+                  "path": ["stoch"],
+                  "query": [
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "interval", "value": "1day" },
+                    { "key": "apikey", "value": "{{twelvedata_key}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Technical — ATR",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://api.twelvedata.com/atr?symbol={{stock_symbol}}&interval=1day&time_period=14&apikey={{twelvedata_key}}",
+                  "protocol": "https",
+                  "host": ["api", "twelvedata", "com"],
+                  "path": ["atr"],
+                  "query": [
+                    { "key": "symbol", "value": "{{stock_symbol}}" },
+                    { "key": "interval", "value": "1day" },
+                    { "key": "time_period", "value": "14" },
+                    { "key": "apikey", "value": "{{twelvedata_key}}" }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "CoinAPI",
+          "description": "Free Tier: 100 req/day. Auth: X-CoinAPI-Key header. Covers 300+ exchanges, crypto + forex in a unified format.",
+          "item": [
+            {
+              "name": "Exchange Rate (Single Pair)",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CoinAPI-Key", "value": "{{coinapi_key}}" }],
+                "url": {
+                  "raw": "https://rest.coinapi.io/v1/exchangerate/BTC/USD",
+                  "protocol": "https",
+                  "host": ["rest", "coinapi", "io"],
+                  "path": ["v1", "exchangerate", "BTC", "USD"]
+                }
+              }
+            },
+            {
+              "name": "All Rates for Base Asset",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CoinAPI-Key", "value": "{{coinapi_key}}" }],
+                "url": {
+                  "raw": "https://rest.coinapi.io/v1/exchangerate/BTC",
+                  "protocol": "https",
+                  "host": ["rest", "coinapi", "io"],
+                  "path": ["v1", "exchangerate", "BTC"]
+                }
+              }
+            },
+            {
+              "name": "Latest OHLCV",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CoinAPI-Key", "value": "{{coinapi_key}}" }],
+                "url": {
+                  "raw": "https://rest.coinapi.io/v1/ohlcv/BITSTAMP_SPOT_BTC_USD/latest?period_id=1DAY&limit=30",
+                  "protocol": "https",
+                  "host": ["rest", "coinapi", "io"],
+                  "path": ["v1", "ohlcv", "BITSTAMP_SPOT_BTC_USD", "latest"],
+                  "query": [
+                    { "key": "period_id", "value": "1DAY", "description": "1MIN, 5MIN, 15MIN, 30MIN, 1HRS, 4HRS, 1DAY, 1MTH, 1YRS" },
+                    { "key": "limit", "value": "30" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "OHLCV History",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CoinAPI-Key", "value": "{{coinapi_key}}" }],
+                "url": {
+                  "raw": "https://rest.coinapi.io/v1/ohlcv/BITSTAMP_SPOT_BTC_USD/history?period_id=1DAY&time_start=2024-01-01T00:00:00&time_end=2024-12-31T00:00:00&limit=30",
+                  "protocol": "https",
+                  "host": ["rest", "coinapi", "io"],
+                  "path": ["v1", "ohlcv", "BITSTAMP_SPOT_BTC_USD", "history"],
+                  "query": [
+                    { "key": "period_id", "value": "1DAY" },
+                    { "key": "time_start", "value": "2024-01-01T00:00:00" },
+                    { "key": "time_end", "value": "2024-12-31T00:00:00" },
+                    { "key": "limit", "value": "30" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Latest Trades",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CoinAPI-Key", "value": "{{coinapi_key}}" }],
+                "url": {
+                  "raw": "https://rest.coinapi.io/v1/trades/BITSTAMP_SPOT_BTC_USD/latest?limit=20",
+                  "protocol": "https",
+                  "host": ["rest", "coinapi", "io"],
+                  "path": ["v1", "trades", "BITSTAMP_SPOT_BTC_USD", "latest"],
+                  "query": [{ "key": "limit", "value": "20" }]
+                }
+              }
+            },
+            {
+              "name": "Order Book (Current)",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CoinAPI-Key", "value": "{{coinapi_key}}" }],
+                "url": {
+                  "raw": "https://rest.coinapi.io/v1/orderbooks/BITSTAMP_SPOT_BTC_USD/current?limit_levels=20",
+                  "protocol": "https",
+                  "host": ["rest", "coinapi", "io"],
+                  "path": ["v1", "orderbooks", "BITSTAMP_SPOT_BTC_USD", "current"],
+                  "query": [{ "key": "limit_levels", "value": "20" }]
+                }
+              }
+            },
+            {
+              "name": "Current Quote",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CoinAPI-Key", "value": "{{coinapi_key}}" }],
+                "url": {
+                  "raw": "https://rest.coinapi.io/v1/quotes/BITSTAMP_SPOT_BTC_USD/current",
+                  "protocol": "https",
+                  "host": ["rest", "coinapi", "io"],
+                  "path": ["v1", "quotes", "BITSTAMP_SPOT_BTC_USD", "current"]
+                }
+              }
+            },
+            {
+              "name": "All Symbols",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CoinAPI-Key", "value": "{{coinapi_key}}" }],
+                "url": {
+                  "raw": "https://rest.coinapi.io/v1/symbols?filter_symbol_id=BITSTAMP_SPOT&limit=20",
+                  "protocol": "https",
+                  "host": ["rest", "coinapi", "io"],
+                  "path": ["v1", "symbols"],
+                  "query": [
+                    { "key": "filter_symbol_id", "value": "BITSTAMP_SPOT" },
+                    { "key": "limit", "value": "20" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "All Assets",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CoinAPI-Key", "value": "{{coinapi_key}}" }],
+                "url": {
+                  "raw": "https://rest.coinapi.io/v1/assets?filter_asset_id=BTC,ETH,SOL",
+                  "protocol": "https",
+                  "host": ["rest", "coinapi", "io"],
+                  "path": ["v1", "assets"],
+                  "query": [{ "key": "filter_asset_id", "value": "BTC,ETH,SOL" }]
+                }
+              }
+            },
+            {
+              "name": "All Exchanges",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-CoinAPI-Key", "value": "{{coinapi_key}}" }],
+                "url": {
+                  "raw": "https://rest.coinapi.io/v1/exchanges",
+                  "protocol": "https",
+                  "host": ["rest", "coinapi", "io"],
+                  "path": ["v1", "exchanges"]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "NASDAQ Data Link (Quandl)",
+          "description": "Free Tier: Unlimited calls on free datasets, 50 calls/10sec, 720/10min. Auth: api_key query param or X-QUANDL-API-KEY header.",
+          "item": [
+            {
+              "name": "Dataset Data (FRED/GDP)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://data.nasdaq.com/api/v3/datasets/FRED/GDP/data.json?api_key={{nasdaq_datalink_key}}",
+                  "protocol": "https",
+                  "host": ["data", "nasdaq", "com"],
+                  "path": ["api", "v3", "datasets", "FRED", "GDP", "data.json"],
+                  "query": [
+                    { "key": "api_key", "value": "{{nasdaq_datalink_key}}" },
+                    { "key": "limit", "value": "20" },
+                    { "key": "order", "value": "desc" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Dataset Metadata (FRED/GDP)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://data.nasdaq.com/api/v3/datasets/FRED/GDP/metadata.json?api_key={{nasdaq_datalink_key}}",
+                  "protocol": "https",
+                  "host": ["data", "nasdaq", "com"],
+                  "path": ["api", "v3", "datasets", "FRED", "GDP", "metadata.json"],
+                  "query": [{ "key": "api_key", "value": "{{nasdaq_datalink_key}}" }]
+                }
+              }
+            },
+            {
+              "name": "ECB EUR/USD Rate",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://data.nasdaq.com/api/v3/datasets/ECB/EURUSD/data.json?api_key={{nasdaq_datalink_key}}&limit=30",
+                  "protocol": "https",
+                  "host": ["data", "nasdaq", "com"],
+                  "path": ["api", "v3", "datasets", "ECB", "EURUSD", "data.json"],
+                  "query": [
+                    { "key": "api_key", "value": "{{nasdaq_datalink_key}}" },
+                    { "key": "limit", "value": "30" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Bank of England FX Rates",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://data.nasdaq.com/api/v3/datasets/BOE/XUDLUSS/data.json?api_key={{nasdaq_datalink_key}}&limit=30",
+                  "protocol": "https",
+                  "host": ["data", "nasdaq", "com"],
+                  "path": ["api", "v3", "datasets", "BOE", "XUDLUSS", "data.json"],
+                  "query": [
+                    { "key": "api_key", "value": "{{nasdaq_datalink_key}}" },
+                    { "key": "limit", "value": "30" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Search Databases",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "https://data.nasdaq.com/api/v3/databases.json?query=stocks&api_key={{nasdaq_datalink_key}}",
+                  "protocol": "https",
+                  "host": ["data", "nasdaq", "com"],
+                  "path": ["api", "v3", "databases.json"],
+                  "query": [
+                    { "key": "query", "value": "stocks" },
+                    { "key": "api_key", "value": "{{nasdaq_datalink_key}}" }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Finnhub (Crypto)",
+          "description": "Uses the same Finnhub API key and 60 req/min limit shared with stock endpoints.",
+          "item": [
+            {
+              "name": "Crypto Candlesticks (OHLCV)",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Finnhub-Token", "value": "{{finnhub_key}}" }],
+                "url": {
+                  "raw": "https://finnhub.io/api/v1/crypto/candle?symbol=BINANCE:BTCUSDT&resolution=D&from=1704067200&to=1735689600",
+                  "protocol": "https",
+                  "host": ["finnhub", "io"],
+                  "path": ["api", "v1", "crypto", "candle"],
+                  "query": [
+                    { "key": "symbol", "value": "BINANCE:BTCUSDT", "description": "Format: EXCHANGE:PAIR, e.g. BINANCE:BTCUSDT, COINBASE:BTC-USD" },
+                    { "key": "resolution", "value": "D", "description": "1, 5, 15, 30, 60, D, W, M" },
+                    { "key": "from", "value": "1704067200" },
+                    { "key": "to", "value": "1735689600" }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+
+      ]
+    },
+
+    {
+      "name": "📰 Alternative Data",
+      "description": "News, SEC filings, and social sentiment data: SEC EDGAR, NewsAPI, Reddit",
+      "item": [
+
+        {
+          "name": "SEC EDGAR",
+          "description": "Free Tier: Unlimited (10 req/sec max). No API key required. All US company filings (10-K, 10-Q, 8-K, etc.).",
+          "item": [
+            {
+              "name": "Company Filings List",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "User-Agent", "value": "YourApp/1.0 your@email.com", "description": "Required by SEC EDGAR" }],
+                "url": {
+                  "raw": "https://data.sec.gov/submissions/CIK0000320193.json",
+                  "protocol": "https",
+                  "host": ["data", "sec", "gov"],
+                  "path": ["submissions", "CIK0000320193.json"]
+                },
+                "description": "CIK0000320193 = Apple. Look up CIKs at https://www.sec.gov/cgi-bin/browse-edgar?company=&CIK=AAPL"
+              }
+            },
+            {
+              "name": "Structured Financial Data (XBRL)",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "User-Agent", "value": "YourApp/1.0 your@email.com" }],
+                "url": {
+                  "raw": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+                  "protocol": "https",
+                  "host": ["data", "sec", "gov"],
+                  "path": ["api", "xbrl", "companyfacts", "CIK0000320193.json"]
+                },
+                "description": "Returns all reported financial facts (revenue, EPS, assets, etc.) in structured format."
+              }
+            },
+            {
+              "name": "Specific Financial Concept",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "User-Agent", "value": "YourApp/1.0 your@email.com" }],
+                "url": {
+                  "raw": "https://data.sec.gov/api/xbrl/companyconcept/CIK0000320193/us-gaap/Revenue.json",
+                  "protocol": "https",
+                  "host": ["data", "sec", "gov"],
+                  "path": ["api", "xbrl", "companyconcept", "CIK0000320193", "us-gaap", "Revenue.json"]
+                },
+                "description": "Path: /api/xbrl/companyconcept/CIK{cik}/{taxonomy}/{tag}.json\nCommon tags: Revenue, NetIncomeLoss, EarningsPerShareBasic, Assets, Liabilities"
+              }
+            },
+            {
+              "name": "All Companies for a Concept (Annual)",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "User-Agent", "value": "YourApp/1.0 your@email.com" }],
+                "url": {
+                  "raw": "https://data.sec.gov/api/xbrl/frames/us-gaap/Revenue/USD/CY2023.json",
+                  "protocol": "https",
+                  "host": ["data", "sec", "gov"],
+                  "path": ["api", "xbrl", "frames", "us-gaap", "Revenue", "USD", "CY2023.json"]
+                },
+                "description": "Returns the reported value for every company for a given year."
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "NewsAPI.org",
+          "description": "Free Tier: 1,000 req/day. Auth: X-Api-Key header or apiKey query param. Developer plan: no commercial use.",
+          "item": [
+            {
+              "name": "Everything — Keyword Search",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Api-Key", "value": "{{newsapi_key}}" }],
+                "url": {
+                  "raw": "https://newsapi.org/v2/everything?q=AAPL+stock&sortBy=publishedAt&language=en&pageSize=20",
+                  "protocol": "https",
+                  "host": ["newsapi", "org"],
+                  "path": ["v2", "everything"],
+                  "query": [
+                    { "key": "q", "value": "AAPL+stock" },
+                    { "key": "sortBy", "value": "publishedAt", "description": "publishedAt, relevancy, popularity" },
+                    { "key": "language", "value": "en" },
+                    { "key": "pageSize", "value": "20" },
+                    { "key": "from", "value": "2024-01-01", "disabled": true },
+                    { "key": "to", "value": "2024-01-31", "disabled": true }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Top Headlines — Business",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Api-Key", "value": "{{newsapi_key}}" }],
+                "url": {
+                  "raw": "https://newsapi.org/v2/top-headlines?category=business&country=us&pageSize=20",
+                  "protocol": "https",
+                  "host": ["newsapi", "org"],
+                  "path": ["v2", "top-headlines"],
+                  "query": [
+                    { "key": "category", "value": "business", "description": "business, entertainment, general, health, science, sports, technology" },
+                    { "key": "country", "value": "us" },
+                    { "key": "pageSize", "value": "20" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Sources List",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Api-Key", "value": "{{newsapi_key}}" }],
+                "url": {
+                  "raw": "https://newsapi.org/v2/top-headlines/sources?category=business&language=en",
+                  "protocol": "https",
+                  "host": ["newsapi", "org"],
+                  "path": ["v2", "top-headlines", "sources"],
+                  "query": [
+                    { "key": "category", "value": "business" },
+                    { "key": "language", "value": "en" }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "Reddit (Unofficial / Social Sentiment)",
+          "description": "No API key needed. Returns JSON. Rate limit ~60 req/min per IP. Not for production — unofficial.",
+          "item": [
+            {
+              "name": "r/wallstreetbets — Latest Posts",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "User-Agent", "value": "PostmanClient/1.0" }],
+                "url": {
+                  "raw": "https://www.reddit.com/r/wallstreetbets.json?limit=25",
+                  "protocol": "https",
+                  "host": ["www", "reddit", "com"],
+                  "path": ["r", "wallstreetbets.json"],
+                  "query": [
+                    { "key": "limit", "value": "25" },
+                    { "key": "sort", "value": "hot", "disabled": true, "description": "hot, new, top, rising" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "r/stocks — Latest Posts",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "User-Agent", "value": "PostmanClient/1.0" }],
+                "url": {
+                  "raw": "https://www.reddit.com/r/stocks.json?limit=25",
+                  "protocol": "https",
+                  "host": ["www", "reddit", "com"],
+                  "path": ["r", "stocks.json"],
+                  "query": [{ "key": "limit", "value": "25" }]
+                }
+              }
+            },
+            {
+              "name": "r/CryptoCurrency — Latest Posts",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "User-Agent", "value": "PostmanClient/1.0" }],
+                "url": {
+                  "raw": "https://www.reddit.com/r/CryptoCurrency.json?limit=25",
+                  "protocol": "https",
+                  "host": ["www", "reddit", "com"],
+                  "path": ["r", "CryptoCurrency.json"],
+                  "query": [{ "key": "limit", "value": "25" }]
+                }
+              }
+            },
+            {
+              "name": "Reddit Search — Ticker Mentions",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "User-Agent", "value": "PostmanClient/1.0" }],
+                "url": {
+                  "raw": "https://www.reddit.com/search.json?q=AAPL&subreddit=wallstreetbets&sort=new&limit=25",
+                  "protocol": "https",
+                  "host": ["www", "reddit", "com"],
+                  "path": ["search.json"],
+                  "query": [
+                    { "key": "q", "value": "AAPL" },
+                    { "key": "subreddit", "value": "wallstreetbets" },
+                    { "key": "sort", "value": "new" },
+                    { "key": "limit", "value": "25" }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+
+      ]
+    }
+
+  ]
+}

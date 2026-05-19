@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.*?>
+
+<?import javafx.scene.canvas.Canvas?>
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.mst.matt.tradingplatformapp.controller.DashboardController"
+      styleClass="scene-root" spacing="20">
+
+    <!-- Top Stat Cards -->
+    <HBox fx:id="statsSection" spacing="16">
+        <VBox styleClass="stat-card stat-card-blue" HBox.hgrow="ALWAYS" spacing="6">
+            <Label text="TOTAL P&amp;L" styleClass="label-muted"/>
+            <!-- \$ = literal $ in FXML -->
+            <Label fx:id="totalPnlLabel" text="\$0.00" styleClass="label-value"/>
+            <Label fx:id="totalPnlPctLabel" text="0.00%" styleClass="label-subtitle"/>
+        </VBox>
+
+        <VBox styleClass="stat-card" HBox.hgrow="ALWAYS" spacing="6">
+            <Label text="WIN RATE" styleClass="label-muted"/>
+            <Label fx:id="winRateLabel" text="0%" styleClass="label-value"/>
+            <Label fx:id="winLossLabel" text="0W / 0L" styleClass="label-subtitle"/>
+        </VBox>
+
+        <VBox styleClass="stat-card" HBox.hgrow="ALWAYS" spacing="6">
+            <Label text="TOTAL TRADES" styleClass="label-muted"/>
+            <Label fx:id="totalTradesLabel" text="0" styleClass="label-value"/>
+            <Label fx:id="openTradesLabel" text="0 Open" styleClass="label-subtitle"/>
+        </VBox>
+
+        <VBox styleClass="stat-card" HBox.hgrow="ALWAYS" spacing="6">
+            <Label text="BEST TRADE" styleClass="label-muted"/>
+            <Label fx:id="bestTradeLabel" text="\$0.00" style="-fx-font-size:28px; -fx-font-weight:bold; -fx-text-fill:#3fb950;"/>
+            <Label text="All time" styleClass="label-muted"/>
+        </VBox>
+
+        <VBox styleClass="stat-card" HBox.hgrow="ALWAYS" spacing="6">
+            <Label text="WORST TRADE" styleClass="label-muted"/>
+            <Label fx:id="worstTradeLabel" text="\$0.00" style="-fx-font-size:28px; -fx-font-weight:bold; -fx-text-fill:#f85149;"/>
+            <Label text="All time" styleClass="label-muted"/>
+        </VBox>
+
+        <VBox styleClass="stat-card" HBox.hgrow="ALWAYS" spacing="6">
+            <Label text="PROFIT FACTOR" styleClass="label-muted"/>
+            <Label fx:id="profitFactorLabel" text="0.00" styleClass="label-value"/>
+            <Label fx:id="avgWinLossLabel" text="Avg W/L: —" styleClass="label-subtitle"/>
+        </VBox>
+    </HBox>
+
+    <!-- Middle: Equity Curve + Breakdown -->
+    <HBox fx:id="middleSection" spacing="16" VBox.vgrow="ALWAYS">
+        <VBox styleClass="card" HBox.hgrow="ALWAYS" VBox.vgrow="ALWAYS" spacing="12">
+            <HBox alignment="CENTER_LEFT" spacing="12">
+                <Label text="📈 Equity Curve" styleClass="label-title" style="-fx-font-size:14px;"/>
+                <Pane HBox.hgrow="ALWAYS"/>
+                <Button text="1W" styleClass="btn-secondary" style="-fx-padding:4 10;" onAction="#onFilter1W"/>
+                <Button text="1M" styleClass="btn-secondary" style="-fx-padding:4 10;" onAction="#onFilter1M"/>
+                <Button text="3M" styleClass="btn-secondary" style="-fx-padding:4 10;" onAction="#onFilter3M"/>
+                <Button text="ALL" styleClass="btn-blue" style="-fx-padding:4 10;" onAction="#onFilterAll"/>
+            </HBox>
+            <Canvas
+                    fx:id="equityCanvas"
+                    width="700"
+                    height="200"/>
+        </VBox>
+
+        <VBox styleClass="card" prefWidth="280" spacing="12">
+            <Label text="🗂 Asset Breakdown" styleClass="label-title" style="-fx-font-size:14px;"/>
+            <VBox fx:id="breakdownContainer" spacing="10"/>
+        </VBox>
+    </HBox>
+
+    <!-- Recent Trades / Trade Journal -->
+    <VBox fx:id="tradesSection" styleClass="card" VBox.vgrow="ALWAYS" spacing="12">
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <Label fx:id="tradesSectionTitle" text="Recent Trades" styleClass="label-title" style="-fx-font-size:14px;"/>
+            <Pane HBox.hgrow="ALWAYS"/>
+            <Button text="+ New Trade" styleClass="btn-primary" onAction="#onNewTrade"/>
+            <Button fx:id="viewAllBtn" text="View All" styleClass="btn-secondary" onAction="#onViewAll"/>
+        </HBox>
+        <TableView fx:id="recentTradesTable" VBox.vgrow="ALWAYS">
+            <columns>
+                <TableColumn fx:id="colDate" text="DATE" prefWidth="130"/>
+                <TableColumn fx:id="colSymbol" text="SYMBOL" prefWidth="100"/>
+                <TableColumn fx:id="colType" text="TYPE" prefWidth="70"/>
+                <TableColumn fx:id="colDir" text="DIR" prefWidth="60"/>
+                <TableColumn fx:id="colEntry" text="ENTRY" prefWidth="110"/>
+                <TableColumn fx:id="colExit" text="EXIT" prefWidth="110"/>
+                <TableColumn fx:id="colQty" text="QTY" prefWidth="90"/>
+                <TableColumn fx:id="colPnl" text="P&amp;L $" prefWidth="100"/>
+                <TableColumn fx:id="colPnlPct" text="P&amp;L %" prefWidth="90"/>
+                <TableColumn fx:id="colStatus" text="STATUS" prefWidth="80"/>
+                <TableColumn fx:id="colActions" text="ACTIONS" prefWidth="100"/>
+            </columns>
+        </TableView>
+    </VBox>
+
+</VBox>

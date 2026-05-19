@@ -1,0 +1,14 @@
+[
+  {
+    "id": "bitcoin",
+    "symbol": "btc",
+    "name": "Bitcoin",
+    "current_price": 95000.25,
+    "price_change_24h": 1200.5,
+    "price_change_percentage_24h": 1.28,
+    "high_24h": 95500,
+    "low_24h": 93000,
+    "total_volume": 25000000000,
+    "market_cap": 1800000000000
+  }
+]

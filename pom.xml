@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.mst.matt</groupId>
+    <artifactId>TradingPlatformApp</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>TradingPlatformApp</name>
+    <description>TradingPlatformApp</description>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.4</version>
+        <relativePath/>
+    </parent>
+
+    <properties>
+        <java.version>21</java.version>
+        <javafx.version>21.0.2</javafx.version>
+        <ta4j.version>0.22.1</ta4j.version>
+        <poi.version>5.3.0</poi.version>
+        <okhttp.version>4.12.0</okhttp.version>
+        <gson.version>2.10.1</gson.version>
+        <sqlite.version>3.46.0.0</sqlite.version>
+        <hibernate.sqlite.dialect.version>1.0</hibernate.sqlite.dialect.version>
+        <telegram.version>6.9.7.1</telegram.version>
+        <lombok.version>1.18.34</lombok.version>
+        <fxweaver.version>2.0.1</fxweaver.version>
+    </properties>
+
+    <dependencies>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!--           SPRING BOOT CORE                 -->
+        <!-- ═══════════════════════════════════════════ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+
+        <!-- ===================== JAXB (Fix for Java 21) ===================== -->
+        <dependency>
+            <groupId>jakarta.xml.bind</groupId>
+            <artifactId>jakarta.xml.bind-api</artifactId>
+            <version>4.0.2</version>
+        </dependency>
+        <dependency>
+            <groupId>javax.xml.bind</groupId>
+            <artifactId>jaxb-api</artifactId>
+            <version>2.3.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish.jaxb</groupId>
+            <artifactId>jaxb-runtime</artifactId>
+            <version>4.0.5</version>
+        </dependency>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!--           JAVAFX MODULES                   -->
+        <!-- ═══════════════════════════════════════════ -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-fxml</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-swing</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-media</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-web</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+
+        <!-- FxWeaver: Spring DI bridge for JavaFX FXML controllers -->
+        <dependency>
+            <groupId>net.rgielen</groupId>
+            <artifactId>javafx-weaver-spring-boot-starter</artifactId>
+            <version>${fxweaver.version}</version>
+        </dependency>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!--           DATABASE: SQLite + Hibernate     -->
+        <!-- ═══════════════════════════════════════════ -->
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>${sqlite.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-community-dialects</artifactId>
+            <version>6.5.3.Final</version>   <!-- Match your Hibernate version -->
+        </dependency>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!--           TECHNICAL ANALYSIS               -->
+        <!-- ═══════════════════════════════════════════ -->
+        <dependency>
+            <groupId>org.ta4j</groupId>
+            <artifactId>ta4j-core</artifactId>
+            <version>${ta4j.version}</version>
+        </dependency>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!--           EXCEL EXPORT                     -->
+        <!-- ═══════════════════════════════════════════ -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>${poi.version}</version>
+        </dependency>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!--           HTTP + WEBSOCKET CLIENT          -->
+        <!-- ═══════════════════════════════════════════ -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>${okhttp.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>${gson.version}</version>
+        </dependency>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!--           TELEGRAM BOT                     -->
+        <!-- ═══════════════════════════════════════════ -->
+        <dependency>
+            <groupId>org.telegram</groupId>
+            <artifactId>telegrambots</artifactId>
+            <version>${telegram.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.telegram</groupId>
+            <artifactId>telegrambots-spring-boot-starter</artifactId>
+            <version>${telegram.version}</version>
+        </dependency>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!--           UTILITIES                        -->
+        <!-- ═══════════════════════════════════════════ -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>mockwebserver</artifactId>
+            <version>${okhttp.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+
+            <!-- Fail fast when JAVA_HOME is below 21 (Spring Boot 3 requirement) -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>enforce-java-21</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[21,)</version>
+                                    <message>
+                                        TradingPlatformApp requires JDK 21 or newer.
+                                        Install JDK 21+, set JAVA_HOME to it, then run mvn again.
+                                        Use the same JDK as your IDE (Project SDK / java.version 21).
+                                    </message>
+                                </requireJavaVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- JavaFX Maven Plugin -->
+            <plugin>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-maven-plugin</artifactId>
+                <version>0.0.8</version>
+                <configuration>
+                    <mainClass>com.mst.matt.tradingplatformapp.TradingPlatformAppApplication</mainClass>
+                </configuration>
+            </plugin>
+
+            <!-- Spring Boot Maven Plugin -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                    <mainClass>com.mst.matt.tradingplatformapp.TradingPlatformAppApplication</mainClass>
+                    <jvmArguments>
+                        --add-opens javafx.graphics/com.sun.javafx.application=ALL-UNNAMED
+                        --add-opens javafx.base/com.sun.javafx.runtime=ALL-UNNAMED
+                    </jvmArguments>
+                </configuration>
+            </plugin>
+
+            <!-- Maven Compiler Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <release>21</release>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+
+            <!-- Run tests with the same JDK that compiles (avoids class file 61 vs JVM 55 errors) -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-Dfile.encoding=UTF-8</argLine>
+                </configuration>
+            </plugin>
+
+            <!-- jpackage — native installer -->
+            <plugin>
+                <groupId>com.github.akman</groupId>
+                <artifactId>jpackage-maven-plugin</artifactId>
+                <version>0.1.5</version>
+                <configuration>
+                    <name>MatthewTradingPlatform</name>
+                    <appversion>1.0.0</appversion>
+                    <vendor>TradingPlatform</vendor>
+                    <description>developed by Mahdi Mostafavi</description>
+                    <description>Professional Trading Journal with AI Analysis</description>
+                    <copyright>2025 TradingPlatform</copyright>
+
+                    <!-- Entry point -->
+                    <mainclass>com.mst.matt.tradingplatformapp.TradingPlatformAppApplication</mainclass>
+                    <mainjar>${project.build.finalName}.jar</mainjar>
+
+                    <!-- Input directory with the fat JAR -->
+                    <input>${project.build.directory}</input>
+
+                    <!-- Output directory -->
+                    <dest>${project.build.directory}/installer</dest>
+
+                    <!-- Platform-specific settings -->
+                    <type>EXE</type>
+
+                    <!-- ✅ Correct javaoptions as a list of <javaoption> -->
+
+                    <javaoptions>--add-opens=javafx.graphics/com.sun.javafx.application=ALL-UNNAMED
+                        --add-opens=javafx.base/com.sun.javafx.runtime=ALL-UNNAMED
+                        -Xmx1024m</javaoptions>
+
+                    <!-- Windows-specific -->
+
+<!--                 todo:  turn this off later -->
+                    <winconsole>true</winconsole>
+                    <windirchooser>true</windirchooser>                    <winshortcut>true</winshortcut>
+                    <winmenu>true</winmenu>
+                    <winmenugroup>Trading Platform</winmenugroup>
+
+                    <!-- macOS-specific -->
+                    <macsign>false</macsign>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

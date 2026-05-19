@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.*?>
+
+<VBox fx:id="exportRoot"
+      xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.mst.matt.tradingplatformapp.controller.ExportController"
+      styleClass="scene-root" spacing="0" alignment="TOP_CENTER">
+
+    <!-- Header -->
+    <HBox styleClass="card" alignment="CENTER_LEFT" spacing="12"
+          style="-fx-background-radius:0; -fx-border-radius:0; -fx-border-width:0 0 1 0;">
+        <Label text="📤 Export" styleClass="label-title"/>
+    </HBox>
+
+    <!-- Content -->
+    <VBox alignment="CENTER" spacing="32" VBox.vgrow="ALWAYS">
+        <padding>
+            <Insets top="60" right="60" bottom="60" left="60"/>
+        </padding>
+
+        <!-- Excel Export Card -->
+        <VBox styleClass="card" spacing="20" style="-fx-max-width:520px;">
+            <padding>
+                <Insets top="32" right="32" bottom="32" left="32"/>
+            </padding>
+            <Label text="📊 Excel Report" styleClass="label-title"
+                   style="-fx-font-size:20px;"/>
+            <Label text="Export your complete trading journal as a professional multi-sheet Excel workbook."
+                   styleClass="label-subtitle" style="-fx-wrap-text:true;"/>
+
+            <Separator/>
+
+            <VBox spacing="8">
+                <Label text="✅  Sheet 1 — Full trade log with P&amp;L colour coding"
+                       style="-fx-text-fill:#8b949e; -fx-font-size:13px;"/>
+                <Label text="✅  Sheet 2 — Portfolio summary KPI dashboard"
+                       style="-fx-text-fill:#8b949e; -fx-font-size:13px;"/>
+                <Label text="✅  Sheet 3 — Asset breakdown with embedded bar chart"
+                       style="-fx-text-fill:#8b949e; -fx-font-size:13px;"/>
+                <Label text="✅  Sheet 4 — Equity curve with embedded line chart"
+                       style="-fx-text-fill:#8b949e; -fx-font-size:13px;"/>
+            </VBox>
+
+            <Separator/>
+
+            <HBox alignment="CENTER">
+                <Button text="  📥  Export to Excel (.xlsx)  "
+                        styleClass="btn-primary"
+                        style="-fx-font-size:14px;"
+                        onAction="#onExportExcel"/>
+                <padding>
+                    <Insets top="12" right="32" bottom="12" left="32"/>
+                </padding>
+            </HBox>
+
+            <Label text="File will be saved to a location you choose."
+                   style="-fx-text-fill:#484f58; -fx-font-size:11px;"
+                   alignment="CENTER" maxWidth="Infinity"/>
+        </VBox>
+
+    </VBox>
+</VBox>

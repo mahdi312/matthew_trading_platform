@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.*?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.mst.matt.tradingplatformapp.controller.MainDashboardController"
+            styleClass="scene-root"
+            prefWidth="1440"
+            prefHeight="900">
+
+    <!-- TOP: Ticker Bar -->
+    <top>
+        <VBox>
+            <HBox styleClass="header-bar" alignment="CENTER_LEFT" spacing="16">
+                <Label text="📈 Trading Intelligence Platform" styleClass="header-title"/>
+                <Pane HBox.hgrow="ALWAYS"/>
+
+                <Label text="Profile:" styleClass="label-subtitle"/>
+                <ComboBox fx:id="profileSelector" promptText="Select Profile" prefWidth="180"/>
+                <Button text="+ New Profile" styleClass="btn-secondary" onAction="#onNewProfile"/>
+                <Separator orientation="VERTICAL"/>
+
+                <StackPane>
+                    <Button fx:id="alertBellBtn" text="🔔" styleClass="btn-secondary" onAction="#onOpenAlerts"/>
+                    <Label fx:id="alertCountBadge" text="0" styleClass="alert-badge"
+                           StackPane.alignment="TOP_RIGHT" translateX="8" translateY="-8" visible="false"/>
+                </StackPane>
+                <Button text="⚙" styleClass="btn-secondary" onAction="#onOpenSettings"/>
+            </HBox>
+
+            <HBox fx:id="tickerBar" styleClass="ticker-bar" alignment="CENTER_LEFT" spacing="24"/>
+        </VBox>
+    </top>
+
+    <!-- LEFT: Sidebar -->
+    <left>
+        <VBox styleClass="sidebar" spacing="4">
+            <padding>
+                <Insets top="16" right="8" bottom="16" left="8"/>
+            </padding>
+
+            <Label text="MENU" styleClass="label-muted">
+                <padding>
+                    <Insets top="8" right="8" bottom="4" left="8"/>
+                </padding>
+            </Label>
+
+            <Button fx:id="navDashboard" text="  📊  Dashboard" styleClass="nav-item nav-item-active" onAction="#onNavDashboard"/>
+            <Button fx:id="navChart" text="  📈  Live Chart" styleClass="nav-item" onAction="#onNavChart"/>
+            <Button fx:id="navTrades" text="  📋  Trade Journal" styleClass="nav-item" onAction="#onNavTrades"/>
+            <Button fx:id="navAnalysis" text="  🧠  Analysis" styleClass="nav-item" onAction="#onNavAnalysis"/>
+            <Button fx:id="navAlerts" text="  🔔  Alerts" styleClass="nav-item" onAction="#onNavAlerts"/>
+            <Button fx:id="navMixer" text="  🎚  Indicator Mixer" styleClass="nav-item" onAction="#onNavMixer"/>
+            <Button fx:id="navPortfolio" text="  💼  Portfolio" styleClass="nav-item" onAction="#onNavPortfolio"/>
+            <Button fx:id="navFundamentals" text="  📑  Yearly Profit" styleClass="nav-item" onAction="#onNavFundamentals"/>
+
+            <Pane VBox.vgrow="ALWAYS"/>
+
+            <Separator/>
+
+            <Label text="TOOLS" styleClass="label-muted">
+                <padding>
+                    <Insets top="8" right="8" bottom="4" left="8"/>
+                </padding>
+            </Label>
+
+            <Button fx:id="navExport" text="  📤  Export Excel" styleClass="nav-item" onAction="#onNavExport"/>
+            <Button fx:id="navSettings" text="  ⚙  Settings" styleClass="nav-item" onAction="#onOpenSettings"/>
+        </VBox>
+    </left>
+
+    <!-- CENTER -->
+    <center>
+        <StackPane fx:id="contentArea" style="-fx-background-color: #0d1117;">
+            <padding>
+                <Insets top="24" right="24" bottom="24" left="24"/>
+            </padding>
+        </StackPane>
+    </center>
+
+    <!-- BOTTOM: Status Bar -->
+    <bottom>
+        <HBox spacing="16" alignment="CENTER_LEFT"
+              style="-fx-background-color: #161b22; -fx-border-color: #30363d; -fx-border-width: 1 0 0 0;">
+            <padding>
+                <Insets top="8" right="16" bottom="8" left="16"/>
+            </padding>
+
+            <Label fx:id="statusLabel" text="● Connected"
+                   style="-fx-text-fill: #3fb950; -fx-font-size: 11px;"/>
+            <Separator orientation="VERTICAL"/>
+            <Label fx:id="lastUpdateLabel" text="Last update: —" styleClass="label-muted"/>
+            <Pane HBox.hgrow="ALWAYS"/>
+            <Label fx:id="versionLabel" text="v1.0.0" styleClass="label-muted"/>
+        </HBox>
+    </bottom>
+
+</BorderPane>

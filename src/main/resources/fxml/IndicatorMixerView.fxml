@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.*?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.mst.matt.tradingplatformapp.controller.IndicatorMixerController"
+      styleClass="scene-root" spacing="0">
+
+    <!-- Header -->
+    <HBox styleClass="card" alignment="CENTER_LEFT" spacing="16"
+          style="-fx-background-radius:0; -fx-border-radius:0;
+                 -fx-border-width:0 0 1 0;">
+        <Label text="🎚 Indicator Mixer" styleClass="label-title"/>
+        <Pane HBox.hgrow="ALWAYS"/>
+        <Label text="Profile:" styleClass="label-subtitle"/>
+        <ComboBox fx:id="profilePresetCombo" prefWidth="200"
+                  onAction="#onPresetSelected"/>
+        <Button text="💾 Save Config" styleClass="btn-primary" onAction="#onSave"/>
+        <Button text="↩ Reset"        styleClass="btn-secondary" onAction="#onReset"/>
+    </HBox>
+
+    <HBox spacing="0" VBox.vgrow="ALWAYS">
+
+        <!-- Left: Indicator sliders -->
+        <ScrollPane fitToWidth="true" HBox.hgrow="ALWAYS"
+                    style="-fx-background-color:#0d1117;">
+            <VBox spacing="0" fx:id="mixerContainer">
+                <padding>
+                    <Insets top="24" right="24" bottom="24" left="24"/>
+                </padding>
+
+                <!-- MACD -->
+                <VBox styleClass="card" spacing="12">
+                    <VBox.margin>
+                        <Insets top="0" right="0" bottom="16" left="0"/>
+                    </VBox.margin>
+                    <HBox alignment="CENTER_LEFT" spacing="12">
+                        <CheckBox fx:id="macdEnabled" text="MACD"
+                                  style="-fx-font-weight:bold; -fx-font-size:14px;"/>
+                        <Pane HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="macdWeightLabel" text="Weight: 8"
+                               styleClass="label-subtitle"/>
+                    </HBox>
+                    <Slider fx:id="macdSlider" min="0" max="10" value="8"
+                            showTickMarks="true" showTickLabels="true"
+                            majorTickUnit="2" snapToTicks="true"/>
+                    <Label text="Signal: MACD line crosses above/below Signal line"
+                           styleClass="label-muted"/>
+                </VBox>
+
+                <!-- RSI -->
+                <VBox styleClass="card" spacing="12">
+                    <VBox.margin>
+                        <Insets top="0" right="0" bottom="16" left="0"/>
+                    </VBox.margin>
+                    <HBox alignment="CENTER_LEFT" spacing="12">
+                        <CheckBox fx:id="rsiEnabled" text="RSI"
+                                  style="-fx-font-weight:bold; -fx-font-size:14px;"/>
+                        <Pane HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="rsiWeightLabel" text="Weight: 7"
+                               styleClass="label-subtitle"/>
+                    </HBox>
+                    <Slider fx:id="rsiSlider" min="0" max="10" value="7"
+                            showTickMarks="true" showTickLabels="true"
+                            majorTickUnit="2" snapToTicks="true"/>
+                    <HBox spacing="24">
+                        <VBox spacing="4">
+                            <Label text="Period" styleClass="label-muted"/>
+                            <Spinner fx:id="rsiPeriod" min="2" max="50"
+                                     initialValue="14" prefWidth="80"/>
+                        </VBox>
+                        <VBox spacing="4">
+                            <Label text="Overbought" styleClass="label-muted"/>
+                            <Spinner fx:id="rsiOverbought" min="50" max="95"
+                                     initialValue="70" prefWidth="80"/>
+                        </VBox>
+                        <VBox spacing="4">
+                            <Label text="Oversold" styleClass="label-muted"/>
+                            <Spinner fx:id="rsiOversold" min="5" max="50"
+                                     initialValue="30" prefWidth="80"/>
+                        </VBox>
+                    </HBox>
+                </VBox>
+
+                <!-- Ichimoku -->
+                <VBox styleClass="card" spacing="12">
+                    <VBox.margin>
+                        <Insets top="0" right="0" bottom="16" left="0"/>
+                    </VBox.margin>
+                    <HBox alignment="CENTER_LEFT" spacing="12">
+                        <CheckBox fx:id="ichimokuEnabled" text="Ichimoku Cloud"
+                                  style="-fx-font-weight:bold; -fx-font-size:14px;"/>
+                        <Pane HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="ichimokuWeightLabel" text="Weight: 9"
+                               styleClass="label-subtitle"/>
+                    </HBox>
+                    <Slider fx:id="ichimokuSlider" min="0" max="10" value="9"
+                            showTickMarks="true" showTickLabels="true"
+                            majorTickUnit="2" snapToTicks="true"/>
+                    <HBox spacing="24">
+                        <VBox spacing="4">
+                            <Label text="Tenkan" styleClass="label-muted"/>
+                            <Spinner fx:id="tenkanPeriod" min="1" max="50"
+                                     initialValue="9" prefWidth="80"/>
+                        </VBox>
+                        <VBox spacing="4">
+                            <Label text="Kijun" styleClass="label-muted"/>
+                            <Spinner fx:id="kijunPeriod" min="1" max="100"
+                                     initialValue="26" prefWidth="80"/>
+                        </VBox>
+                        <VBox spacing="4">
+                            <Label text="Senkou B" styleClass="label-muted"/>
+                            <Spinner fx:id="senkouPeriod" min="1" max="200"
+                                     initialValue="52" prefWidth="80"/>
+                        </VBox>
+                    </HBox>
+                </VBox>
+
+                <!-- EMA -->
+                <VBox styleClass="card" spacing="12">
+                    <VBox.margin>
+                        <Insets top="0" right="0" bottom="16" left="0"/>
+                    </VBox.margin>
+                    <HBox alignment="CENTER_LEFT" spacing="12">
+                        <CheckBox fx:id="emaEnabled" text="EMA / Golden-Death Cross"
+                                  style="-fx-font-weight:bold; -fx-font-size:14px;"/>
+                        <Pane HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="emaWeightLabel" text="Weight: 6"
+                               styleClass="label-subtitle"/>
+                    </HBox>
+                    <Slider fx:id="emaSlider" min="0" max="10" value="6"
+                            showTickMarks="true" showTickLabels="true"
+                            majorTickUnit="2" snapToTicks="true"/>
+                    <HBox spacing="24">
+                        <VBox spacing="4">
+                            <Label text="Fast EMA" styleClass="label-muted"/>
+                            <Spinner fx:id="emaFast" min="1" max="50"
+                                     initialValue="12" prefWidth="80"/>
+                        </VBox>
+                        <VBox spacing="4">
+                            <Label text="Slow EMA" styleClass="label-muted"/>
+                            <Spinner fx:id="emaSlow" min="1" max="200"
+                                     initialValue="26" prefWidth="80"/>
+                        </VBox>
+                        <VBox spacing="4">
+                            <Label text="Short MA" styleClass="label-muted"/>
+                            <Spinner fx:id="goldShort" min="1" max="100"
+                                     initialValue="50" prefWidth="80"/>
+                        </VBox>
+                        <VBox spacing="4">
+                            <Label text="Long MA" styleClass="label-muted"/>
+                            <Spinner fx:id="goldLong" min="1" max="500"
+                                     initialValue="200" prefWidth="80"/>
+                        </VBox>
+                    </HBox>
+                </VBox>
+
+                <!-- Bollinger -->
+                <VBox styleClass="card" spacing="12">
+                    <VBox.margin>
+                        <Insets top="0" right="0" bottom="16" left="0"/>
+                    </VBox.margin>
+                    <HBox alignment="CENTER_LEFT" spacing="12">
+                        <CheckBox fx:id="bollingerEnabled" text="Bollinger Bands"
+                                  style="-fx-font-weight:bold; -fx-font-size:14px;"/>
+                        <Pane HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="bbWeightLabel" text="Weight: 5"
+                               styleClass="label-subtitle"/>
+                    </HBox>
+                    <Slider fx:id="bbSlider" min="0" max="10" value="5"
+                            showTickMarks="true" showTickLabels="true"
+                            majorTickUnit="2" snapToTicks="true"/>
+                    <HBox spacing="24">
+                        <VBox spacing="4">
+                            <Label text="Period" styleClass="label-muted"/>
+                            <Spinner fx:id="bbPeriod" min="5" max="100"
+                                     initialValue="20" prefWidth="80"/>
+                        </VBox>
+                        <VBox spacing="4">
+                            <Label text="Deviation" styleClass="label-muted"/>
+                            <Spinner fx:id="bbDev" min="1" max="5"
+                                     initialValue="2" prefWidth="80"/>
+                        </VBox>
+                    </HBox>
+                </VBox>
+
+                <!-- Fibonacci -->
+                <VBox styleClass="card" spacing="12">
+                    <VBox.margin>
+                        <Insets top="0" right="0" bottom="16" left="0"/>
+                    </VBox.margin>
+                    <HBox alignment="CENTER_LEFT" spacing="12">
+                        <CheckBox fx:id="fibEnabled" text="Fibonacci Retracement"
+                                  style="-fx-font-weight:bold; -fx-font-size:14px;"/>
+                        <Pane HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="fibWeightLabel" text="Weight: 8"
+                               styleClass="label-subtitle"/>
+                    </HBox>
+                    <Slider fx:id="fibSlider" min="0" max="10" value="8"
+                            showTickMarks="true" showTickLabels="true"
+                            majorTickUnit="2" snapToTicks="true"/>
+                    <HBox spacing="24">
+                        <VBox spacing="4">
+                            <Label text="Lookback Bars" styleClass="label-muted"/>
+                            <Spinner fx:id="fibLookback" min="10" max="500"
+                                     initialValue="50" prefWidth="80"/>
+                        </VBox>
+                    </HBox>
+                </VBox>
+
+                <!-- Stochastic -->
+                <VBox styleClass="card" spacing="12">
+                    <VBox.margin>
+                        <Insets top="0" right="0" bottom="16" left="0"/>
+                    </VBox.margin>
+                    <HBox alignment="CENTER_LEFT" spacing="12">
+                        <CheckBox fx:id="stochEnabled" text="Stochastic Oscillator"
+                                  style="-fx-font-weight:bold; -fx-font-size:14px;"/>
+                        <Pane HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="stochWeightLabel" text="Weight: 0"
+                               styleClass="label-subtitle"/>
+                    </HBox>
+                    <Slider fx:id="stochSlider" min="0" max="10" value="0"
+                            showTickMarks="true" showTickLabels="true"
+                            majorTickUnit="2" snapToTicks="true"/>
+                </VBox>
+
+                <!-- VWAP -->
+                <VBox styleClass="card" spacing="12">
+                    <VBox.margin>
+                        <Insets top="0" right="0" bottom="16" left="0"/>
+                    </VBox.margin>
+                    <HBox alignment="CENTER_LEFT" spacing="12">
+                        <CheckBox fx:id="vwapEnabled" text="VWAP"
+                                  style="-fx-font-weight:bold; -fx-font-size:14px;"/>
+                        <Pane HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="vwapWeightLabel" text="Weight: 6"
+                               styleClass="label-subtitle"/>
+                    </HBox>
+                    <Slider fx:id="vwapSlider" min="0" max="10" value="6"
+                            showTickMarks="true" showTickLabels="true"
+                            majorTickUnit="2" snapToTicks="true"/>
+                </VBox>
+
+                <!-- CCI -->
+                <VBox styleClass="card" spacing="12">
+                    <VBox.margin>
+                        <Insets top="0" right="0" bottom="16" left="0"/>
+                    </VBox.margin>
+                    <HBox alignment="CENTER_LEFT" spacing="12">
+                        <CheckBox fx:id="cciEnabled" text="CCI"
+                                  style="-fx-font-weight:bold; -fx-font-size:14px;"/>
+                        <Pane HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="cciWeightLabel" text="Weight: 0"
+                               styleClass="label-subtitle"/>
+                    </HBox>
+                    <Slider fx:id="cciSlider" min="0" max="10" value="0"
+                            showTickMarks="true" showTickLabels="true"
+                            majorTickUnit="2" snapToTicks="true"/>
+                </VBox>
+
+            </VBox>
+        </ScrollPane>
+
+        <!-- Right: Live signal preview -->
+        <VBox spacing="16" prefWidth="280"
+              style="-fx-background-color:#161b22;
+                     -fx-border-color:#30363d; -fx-border-width:0 0 0 1;">
+            <padding>
+                <Insets top="24" right="24" bottom="24" left="24"/>
+            </padding>
+
+            <Label text="Live Signal Preview" styleClass="label-title"
+                   style="-fx-font-size:14px;"/>
+
+            <VBox styleClass="card" spacing="12" alignment="CENTER">
+                <Label fx:id="previewSignalLabel"
+                       text="⚪ NEUTRAL"
+                       style="-fx-font-size:20px; -fx-font-weight:bold;
+                              -fx-text-fill:#8b949e;"/>
+                <Label fx:id="previewConfidence"
+                       text="Confidence: 0%"
+                       styleClass="label-subtitle"/>
+                <ProgressBar fx:id="previewProgress" prefWidth="200"
+                             progress="0"/>
+            </VBox>
+
+            <!-- Individual indicator signals -->
+            <VBox fx:id="signalBreakdownBox" spacing="8" styleClass="card">
+                <Label text="Signal Breakdown" styleClass="label-muted"/>
+            </VBox>
+
+            <VBox styleClass="card" spacing="8">
+                <Label text="Price Suggestions" styleClass="label-muted"/>
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                    <Label text="Best Buy:"  styleClass="label-subtitle"/>
+                    <Label fx:id="previewBuyLabel" text="—"
+                           style="-fx-text-fill:#3fb950; -fx-font-weight:bold;"/>
+                </HBox>
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                    <Label text="Best Sell:" styleClass="label-subtitle"/>
+                    <Label fx:id="previewSellLabel" text="—"
+                           style="-fx-text-fill:#f85149; -fx-font-weight:bold;"/>
+                </HBox>
+            </VBox>
+        </VBox>
+    </HBox>
+</VBox>

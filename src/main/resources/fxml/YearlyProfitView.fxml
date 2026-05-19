@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.*?>
+
+<VBox fx:id="root"
+      xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.mst.matt.tradingplatformapp.controller.YearlyProfitController"
+      styleClass="scene-root" spacing="0">
+
+    <HBox styleClass="card" alignment="CENTER_LEFT" spacing="12"
+          style="-fx-background-radius:0; -fx-border-radius:0; -fx-border-width:0 0 1 0;">
+        <padding>
+            <Insets top="12" right="16" bottom="12" left="16"/>
+        </padding>
+        <Label text="📑 Yearly Profit &amp; Fundamentals" styleClass="label-title"/>
+        <Pane HBox.hgrow="ALWAYS"/>
+        <Label text="Symbol:" styleClass="label-subtitle"/>
+        <TextField fx:id="symbolField" prefWidth="140" promptText="AAPL, EURUSD…" onAction="#onLoad"/>
+        <Label text="Provider:" styleClass="label-subtitle"/>
+        <ComboBox fx:id="providerCombo" prefWidth="200" onAction="#onProviderChanged"/>
+        <Button text="Load" styleClass="btn-primary" onAction="#onLoad"/>
+        <Label fx:id="statusLabel" styleClass="label-muted"/>
+    </HBox>
+
+    <VBox spacing="12" VBox.vgrow="ALWAYS">
+        <padding>
+            <Insets top="16" right="16" bottom="16" left="16"/>
+        </padding>
+
+        <VBox styleClass="card" spacing="6">
+            <padding>
+                <Insets top="16" right="16" bottom="16" left="16"/>
+            </padding>
+            <Label fx:id="companyLabel" text="—" styleClass="label-title" style="-fx-font-size:22px;"/>
+            <Label fx:id="metaLabel" text="—" styleClass="label-subtitle"/>
+            <Label fx:id="summaryLabel" text="" style="-fx-text-fill:#8b949e; -fx-wrap-text:true;"/>
+        </VBox>
+
+        <Label text="Annual income statement (highlights)" styleClass="label-subtitle"/>
+
+        <TableView fx:id="yearlyTable" VBox.vgrow="ALWAYS" prefHeight="280">
+            <columns>
+                <TableColumn fx:id="colYear" text="Year" prefWidth="70"/>
+                <TableColumn fx:id="colRevenue" text="Revenue" prefWidth="120"/>
+                <TableColumn fx:id="colGross" text="Gross profit" prefWidth="120"/>
+                <TableColumn fx:id="colOperating" text="Operating" prefWidth="120"/>
+                <TableColumn fx:id="colNet" text="Net income" prefWidth="120"/>
+                <TableColumn fx:id="colEbitda" text="EBITDA" prefWidth="120"/>
+            </columns>
+        </TableView>
+
+        <Label text="Recent earnings (EPS)" styleClass="label-subtitle"/>
+        <ListView fx:id="earningsList" prefHeight="100" styleClass="card"/>
+    </VBox>
+</VBox>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copy to:  %USERPROFILE%\.m2\toolchains.xml
+  Edit jdkHome to your JDK 17 install path, then Maven can use JDK 17 even if JAVA_HOME is 11.
+
+  Example after installing Eclipse Temurin 17:
+    jdkHome=C:\Program Files\Eclipse Adoptium\jdk-17.0.x-hotspot\
+-->
+<toolchains xmlns="http://maven.apache.org/TOOLCHAINS/1.1.0"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://maven.apache.org/TOOLCHAINS/1.1.0 https://maven.apache.org/xsd/toolchains-1.1.0.xsd">
+    <toolchain>
+        <type>jdk</type>
+        <provides>
+            <version>17</version>
+            <vendor>any</vendor>
+        </provides>
+        <configuration>
+            <jdkHome>C:\Program Files\Eclipse Adoptium\jdk-17.0.13.11-hotspot</jdkHome>
+        </configuration>
+    </toolchain>
+</toolchains>

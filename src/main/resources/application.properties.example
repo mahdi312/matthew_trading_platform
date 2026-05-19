@@ -1,0 +1,35 @@
+#
+# Copy this file to application-local.properties (same folder).
+# application-local.properties is gitignored and overrides application.properties.
+#
+#   cp src/main/resources/application.properties.example src/main/resources/application-local.properties
+#
+# Free providers without keys: Binance, Yahoo, Frankfurter (forex).
+# Paid / keyed providers are skipped when the key is blank.
+#
+
+# --- Mail (optional, for email alerts) ---
+spring.mail.username=your-email@gmail.com
+spring.mail.password=your-app-password
+notification.email.to=your-email@gmail.com
+
+# --- Market data API keys ---
+api.alphavantage-key=
+api.coingecko-key=
+api.polygon-key=
+api.marketstack-key=
+api.finnhub-key=
+api.fred-key=
+api.coinmarketcap-key=
+api.openexchangerates-key=
+api.exchangerateapi-key=
+api.freecurrencyapi-key=
+api.currencylayer-key=
+api.fixerio-key=
+api.twelvedata-key=
+
+# --- Telegram (optional) ---
+telegram.bot.enabled=false
+telegram.bot.token=
+telegram.bot.username=
+telegram.bot.chat-ids=
