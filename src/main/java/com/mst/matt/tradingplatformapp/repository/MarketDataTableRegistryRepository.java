@@ -16,7 +16,23 @@ public interface MarketDataTableRegistryRepository extends JpaRepository<MarketD
     Optional<MarketDataTableRegistry> findBySymbolAndTimeframeAndProvider(
             String symbol, String timeframe, MarketDataProvider provider);
 
-    Optional<MarketDataTableRegistry> findBySymbolAndTimeframe(String symbol, String timeframe);
+    /**
+     * Returns ALL rows for a symbol+timeframe pair (across all providers).
+     * Use this instead of findBySymbolAndTimeframe to avoid IncorrectResultSizeDataAccessException
+     * when multiple providers have stored data for the same symbol/timeframe.
+     */
+    List<MarketDataTableRegistry> findAllBySymbolAndTimeframe(String symbol, String timeframe);
+
+    /**
+     * Returns the first matching row for symbol+timeframe — safe when duplicates may exist.
+     */
+    @Query("SELECT r FROM MarketDataTableRegistry r WHERE r.symbol = :symbol AND r.timeframe = :timeframe ORDER BY r.id ASC")
+    List<MarketDataTableRegistry> findBySymbolAndTimeframeSafe(String symbol, String timeframe);
+
+    default Optional<MarketDataTableRegistry> findBySymbolAndTimeframe(String symbol, String timeframe) {
+        List<MarketDataTableRegistry> results = findAllBySymbolAndTimeframe(symbol, timeframe);
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
 
     Optional<MarketDataTableRegistry> findByTableName(String tableName);
 

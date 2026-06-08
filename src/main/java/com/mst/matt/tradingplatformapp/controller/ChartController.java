@@ -19,7 +19,14 @@ import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
-import javafx.scene.control.*;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Tooltip;
+import javafx.scene.control.Button;
 import javafx.scene.layout.Pane;
 import net.rgielen.fxweaver.core.FxmlView;
 import org.slf4j.Logger;
@@ -270,9 +277,9 @@ public class ChartController implements Initializable {
             } catch (Exception e) {
                 log.warn("Chart load failed for {} {}: {}", currentSymbol, currentTimeframe,
                         e.getMessage());
+                // Never show error dialogs to the user — log only
                 Platform.runLater(() ->
-                        new Alert(Alert.AlertType.WARNING, friendlyChartError(e))
-                                .showAndWait());
+                        dataSourceLabel.setText("⚠ Data unavailable — retrying…"));
             }
         });
     }
@@ -362,26 +369,25 @@ public class ChartController implements Initializable {
     @FXML public void onToggleRsi()       { chart.toggleRsi(); }
 
     @FXML public void onOpenIndicatorPicker() {
+        // Build current state from checkboxes (including any the toolbar hides)
         Map<String, Boolean> state = new LinkedHashMap<>();
-        state.put("EMA", chkEma != null && chkEma.isSelected());
-        state.put("Bollinger Bands", chkBollinger != null && chkBollinger.isSelected());
-        state.put("Ichimoku Cloud", chkIchimoku != null && chkIchimoku.isSelected());
-        state.put("Support / Resistance", chkSR != null && chkSR.isSelected());
-        state.put("Volume", chkVolume != null && chkVolume.isSelected());
-        state.put("MACD", chkMacd != null && chkMacd.isSelected());
-        state.put("RSI", chkRsi != null && chkRsi.isSelected());
-        state.put("Stochastic", false);
-        state.put("ATR", false);
-        state.put("CCI", false);
-        state.put("VWAP", false);
+        state.put("EMA",                 chkEma       != null && chkEma.isSelected());
+        state.put("Bollinger Bands",     chkBollinger != null && chkBollinger.isSelected());
+        state.put("Ichimoku Cloud",      chkIchimoku  != null && chkIchimoku.isSelected());
+        state.put("Support / Resistance",chkSR        != null && chkSR.isSelected());
+        state.put("Volume",              chkVolume    != null && chkVolume.isSelected());
+        state.put("MACD",                chkMacd      != null && chkMacd.isSelected());
+        state.put("RSI",                 chkRsi       != null && chkRsi.isSelected());
+
+        // Show the popup — changes are applied immediately via checkbox listener
         IndicatorPickerDialog.show(indicatorPickerBtn, state, selected -> {
-            if (chkEma != null) chkEma.setSelected(selected.getOrDefault("EMA", false));
-            if (chkBollinger != null) chkBollinger.setSelected(selected.getOrDefault("Bollinger Bands", false));
-            if (chkIchimoku != null) chkIchimoku.setSelected(selected.getOrDefault("Ichimoku Cloud", false));
-            if (chkSR != null) chkSR.setSelected(selected.getOrDefault("Support / Resistance", false));
-            if (chkVolume != null) chkVolume.setSelected(selected.getOrDefault("Volume", false));
-            if (chkMacd != null) chkMacd.setSelected(selected.getOrDefault("MACD", false));
-            if (chkRsi != null) chkRsi.setSelected(selected.getOrDefault("RSI", false));
+            if (chkEma        != null) chkEma.setSelected(selected.getOrDefault("EMA", false));
+            if (chkBollinger  != null) chkBollinger.setSelected(selected.getOrDefault("Bollinger Bands", false));
+            if (chkIchimoku   != null) chkIchimoku.setSelected(selected.getOrDefault("Ichimoku Cloud", false));
+            if (chkSR         != null) chkSR.setSelected(selected.getOrDefault("Support / Resistance", false));
+            if (chkVolume     != null) chkVolume.setSelected(selected.getOrDefault("Volume", false));
+            if (chkMacd       != null) chkMacd.setSelected(selected.getOrDefault("MACD", false));
+            if (chkRsi        != null) chkRsi.setSelected(selected.getOrDefault("RSI", false));
             syncOverlayTogglesToChart();
         });
     }

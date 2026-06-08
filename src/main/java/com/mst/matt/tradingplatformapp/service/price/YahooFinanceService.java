@@ -224,7 +224,7 @@ public class YahooFinanceService implements PriceService {
             case "15m" -> "15m";
             case "30m" -> "30m";
             case "1h"  -> "60m";
-            case "4h"  -> "1h"; // Yahoo doesn't have 4h; use 1h + more bars
+            case "4h"  -> "60m"; // Yahoo max intraday is 60m; caller must aggregate for 4h
             case "1d"  -> "1d";
             case "1w"  -> "1wk";
             case "1mo" -> "1mo";

@@ -32,7 +32,9 @@ import java.math.RoundingMode;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.ResourceBundle;
 
 @Component
@@ -112,12 +114,18 @@ public class MainDashboardController implements Initializable {
 
     private void setNavTip(Button btn, String label) {
         if (btn == null) return;
+        // Preserve the emoji/icon from the FXML text attribute before overwriting it
         String icon = btn.getText() == null ? "" : btn.getText().trim();
         javafx.scene.control.Label iconLabel = new javafx.scene.control.Label(icon);
         iconLabel.getStyleClass().add("nav-icon");
+        // Ensure the icon label itself is always visible (non-managed = ok, but keep visible)
+        iconLabel.setVisible(true);
+        iconLabel.setStyle("-fx-font-size:18px;");
         btn.setGraphic(iconLabel);
         btn.setText(label);
+        // Store both label and icon for later use by expandNavLabels
         btn.getProperties().put("navLabel", label);
+        btn.getProperties().put("navIcon", icon);
         Tooltip tip = new Tooltip(label);
         tip.setShowDelay(Duration.millis(200));
         tip.setHideDelay(Duration.seconds(4));
@@ -163,16 +171,31 @@ public class MainDashboardController implements Initializable {
             if (b == null) continue;
             String label = (String) b.getProperties().get("navLabel");
             if (label == null) label = (String) b.getUserData();
-            b.setText(expanded && label != null ? label : "");
+            String icon  = (String) b.getProperties().get("navIcon");
+
+            if (expanded) {
+                // Show icon (graphic) + text label side by side
+                b.setText(label != null ? label : "");
+                b.setContentDisplay(javafx.scene.control.ContentDisplay.LEFT);
+                b.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+                b.setGraphicTextGap(8);
+            } else {
+                // Collapsed: show ONLY the icon graphic, no text
+                b.setText("");
+                b.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+                b.setAlignment(javafx.geometry.Pos.CENTER);
+                // Ensure graphic label still has icon text
+                if (b.getGraphic() instanceof javafx.scene.control.Label iconLabel) {
+                    if (icon != null && !icon.isBlank()) {
+                        iconLabel.setText(icon);
+                    }
+                    iconLabel.setVisible(true);
+                }
+            }
+
             b.setPrefWidth(btnWidth);
             b.setMinWidth(btnWidth);
             b.setMaxWidth(btnWidth);
-            b.setAlignment(expanded
-                    ? javafx.geometry.Pos.CENTER_LEFT
-                    : javafx.geometry.Pos.CENTER);
-            b.setContentDisplay(expanded
-                    ? javafx.scene.control.ContentDisplay.LEFT
-                    : javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
         }
     }
 
@@ -312,45 +335,159 @@ public class MainDashboardController implements Initializable {
 
     @FXML public void onToggleWatchlistMenu() {
         if (watchlistMenuBtn == null) return;
+        // Toggle: close if already showing
         if (watchlistPopup != null && watchlistPopup.isShowing()) {
             watchlistPopup.hide();
+            watchlistPopup = null;
             return;
         }
-        VBox box = new VBox(8);
-        box.setStyle("-fx-background-color:#161b22; -fx-padding:12; -fx-border-color:#30363d;"
+
+        // ── Build watchlist popup ────────────────────────────────────
+        VBox box = new VBox(10);
+        box.setStyle("-fx-background-color:#161b22; -fx-padding:14; -fx-border-color:#30363d;"
                 + "-fx-border-width:1; -fx-background-radius:8; -fx-border-radius:8;");
-        box.setPrefWidth(320);
-        Label title = new Label("Profile watchlist");
-        title.setStyle("-fx-font-weight:bold; -fx-text-fill:#e6edf3;");
-        TextArea editor = new TextArea(activeProfile != null && activeProfile.getWatchlist() != null
+        box.setPrefWidth(340);
+
+        // Header
+        Label title = new Label("📋 Watchlist — " +
+                (activeProfile != null ? activeProfile.getName() : "No profile"));
+        title.setStyle("-fx-font-weight:bold; -fx-font-size:14px; -fx-text-fill:#e6edf3;");
+
+        Label hint = new Label("Profile watchlist (comma-separated). Changes saved automatically.");
+        hint.setStyle("-fx-font-size:11px; -fx-text-fill:#8b949e;");
+        hint.setWrapText(true);
+
+        // Get current watchlist CSV
+        String currentWl = (activeProfile != null && activeProfile.getWatchlist() != null
+                && !activeProfile.getWatchlist().isBlank())
                 ? activeProfile.getWatchlist()
                 : (activeProfile != null
-                ? WatchlistDefaults.csvForFocus(activeProfile.getAssetFocus()) : ""));
-        editor.setPrefRowCount(4);
+                    ? WatchlistDefaults.csvForFocus(activeProfile.getAssetFocus()) : "");
+
+        // Add-symbol row
+        javafx.scene.layout.HBox addRow = new javafx.scene.layout.HBox(6);
+        TextField addField = new TextField();
+        addField.setPromptText("Add symbol (e.g. NVDA, BTCUSDT)");
+        addField.setStyle("-fx-background-color:#21262d; -fx-text-fill:#e6edf3; -fx-border-color:#30363d;");
+        javafx.scene.layout.HBox.setHgrow(addField, javafx.scene.layout.Priority.ALWAYS);
+        Button addBtn = new Button("+ Add");
+        addBtn.getStyleClass().add("btn-primary");
+        addRow.getChildren().addAll(addField, addBtn);
+
+        // Current watchlist as chip-like labels
+        javafx.scene.layout.FlowPane chips = new javafx.scene.layout.FlowPane(6, 6);
+        chips.setStyle("-fx-padding:4;");
+
+        // Editable text area (full CSV edit)
+        TextArea editor = new TextArea(currentWl);
+        editor.setPrefRowCount(3);
         editor.setWrapText(true);
-        Button save = new Button("Apply to ticker");
-        save.getStyleClass().add("btn-primary");
-        save.setOnAction(e -> {
+        editor.setStyle("-fx-background-color:#21262d; -fx-text-fill:#e6edf3; -fx-border-color:#30363d; -fx-font-size:11px;");
+
+        // Rebuild chips from editor text
+        Runnable rebuildChips = () -> {
+            chips.getChildren().clear();
+            String csv = editor.getText() == null ? "" : editor.getText();
+            String[] syms = csv.split("[,\\s]+");
+            for (String s : syms) {
+                String sym = s.trim().toUpperCase();
+                if (sym.isEmpty()) continue;
+                Label chip = new Label(sym + " ✕");
+                chip.setStyle("-fx-background-color:#21262d; -fx-text-fill:#e6edf3;"
+                        + "-fx-border-color:#30363d; -fx-border-radius:4; -fx-background-radius:4;"
+                        + "-fx-padding:3 8; -fx-cursor:hand; -fx-font-size:11px;");
+                chip.setOnMouseClicked(ev -> {
+                    // Remove this symbol from the CSV
+                    String cur = editor.getText() == null ? "" : editor.getText();
+                    String updated = java.util.Arrays.stream(cur.split("[,\\s]+"))
+                            .map(String::trim)
+                            .filter(x -> !x.equalsIgnoreCase(sym))
+                            .collect(java.util.stream.Collectors.joining(", "));
+                    editor.setText(updated);
+                });
+                chips.getChildren().add(chip);
+            }
+        };
+        rebuildChips.run();
+        editor.textProperty().addListener((o, a, b) -> rebuildChips.run());
+
+        // Add button handler
+        addBtn.setOnAction(e -> {
+            String newSym = addField.getText() == null ? "" : addField.getText().trim().toUpperCase();
+            if (newSym.isEmpty()) return;
+            String cur = editor.getText() == null ? "" : editor.getText().trim();
+            // Avoid duplicates
+            boolean alreadyIn = java.util.Arrays.stream(cur.split("[,\\s]+"))
+                    .anyMatch(x -> x.trim().equalsIgnoreCase(newSym));
+            if (!alreadyIn) {
+                editor.setText(cur.isEmpty() ? newSym : cur + ", " + newSym);
+            }
+            addField.clear();
+        });
+        addField.setOnAction(e -> addBtn.fire());
+
+        // Default presets for this profile
+        Label presetsLabel = new Label("Quick add for this profile:");
+        presetsLabel.setStyle("-fx-font-size:11px; -fx-text-fill:#8b949e;");
+        javafx.scene.layout.FlowPane presets = new javafx.scene.layout.FlowPane(6, 4);
+        if (activeProfile != null) {
+            List<String> defaults = WatchlistDefaults.forFocus(activeProfile.getAssetFocus());
+            for (String sym : defaults) {
+                Button preset = new Button(sym);
+                preset.setStyle("-fx-background-color:#21262d; -fx-text-fill:#8b949e;"
+                        + "-fx-border-color:#30363d; -fx-border-radius:4; -fx-background-radius:4;"
+                        + "-fx-padding:2 8; -fx-cursor:hand; -fx-font-size:10px;");
+                preset.setOnAction(e -> {
+                    String cur = editor.getText() == null ? "" : editor.getText().trim();
+                    boolean already = java.util.Arrays.stream(cur.split("[,\\s]+"))
+                            .anyMatch(x -> x.trim().equalsIgnoreCase(sym));
+                    if (!already) {
+                        editor.setText(cur.isEmpty() ? sym : cur + ", " + sym);
+                    }
+                });
+                presets.getChildren().add(preset);
+            }
+        }
+
+        // Apply button
+        Button applyBtn = new Button("✔ Apply & Close");
+        applyBtn.getStyleClass().add("btn-primary");
+        applyBtn.setMaxWidth(Double.MAX_VALUE);
+        applyBtn.setOnAction(e -> {
             if (activeProfile == null) return;
             String csv = editor.getText() == null ? "" : editor.getText().trim();
-            activeProfile.setWatchlist(csv.isEmpty() ? null : csv.toUpperCase());
+            // Normalize
+            String normalized = java.util.Arrays.stream(csv.split("[,\\s]+"))
+                    .map(String::trim)
+                    .filter(x -> !x.isEmpty())
+                    .map(String::toUpperCase)
+                    .distinct()
+                    .collect(java.util.stream.Collectors.joining(", "));
+            activeProfile.setWatchlist(normalized.isEmpty() ? null : normalized);
             profileRepository.save(activeProfile);
             liveTickerService.applyProfileWatchlist(activeProfile);
-            scrollingTicker.setSymbols(liveTickerService.allSymbols());
-            if (watchlistPopup != null) watchlistPopup.hide();
+            if (scrollingTicker != null)
+                scrollingTicker.setSymbols(liveTickerService.allSymbols());
+            if (watchlistPopup != null) {
+                watchlistPopup.hide();
+                watchlistPopup = null;
+            }
         });
-        Button settings = new Button("Open settings…");
-        settings.getStyleClass().add("btn-secondary");
-        settings.setOnAction(e -> {
-            if (watchlistPopup != null) watchlistPopup.hide();
-            onOpenSettings();
-        });
-        box.getChildren().addAll(title, editor, save, settings);
+
+        Separator sep1 = new Separator();
+        sep1.setStyle("-fx-background-color:#30363d;");
+        Separator sep2 = new Separator();
+        sep2.setStyle("-fx-background-color:#30363d;");
+
+        box.getChildren().addAll(title, hint, addRow, chips, sep1,
+                presetsLabel, presets, sep2, editor, applyBtn);
+
         watchlistPopup = new Popup();
         watchlistPopup.getContent().add(box);
+        watchlistPopup.setAutoHide(true);
         watchlistPopup.show(watchlistMenuBtn,
-                watchlistMenuBtn.localToScreen(0, watchlistMenuBtn.getHeight()).getX(),
-                watchlistMenuBtn.localToScreen(0, watchlistMenuBtn.getHeight()).getY());
+                watchlistMenuBtn.localToScreen(0, watchlistMenuBtn.getHeight() + 4).getX(),
+                watchlistMenuBtn.localToScreen(0, watchlistMenuBtn.getHeight() + 4).getY());
     }
 
     private void ensureDashboardLoaded() {

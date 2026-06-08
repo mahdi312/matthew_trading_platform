@@ -732,7 +732,7 @@ public class CandlestickChartCanvas extends Canvas {
         gc.strokeLine(l.left, mouseY, l.right, mouseY);
         gc.setLineDashes(null);
 
-        // Price label at right
+        // Price label at right axis
         double price = yToPrice(mouseY, maxP, minP, l);
         gc.setFill(Color.web("#388bfd"));
         gc.fillRect(l.right + 1, mouseY - 9, PADDING_RIGHT - 4, 18);
@@ -741,13 +741,33 @@ public class CandlestickChartCanvas extends Canvas {
         gc.setTextAlign(TextAlignment.LEFT);
         gc.fillText(fmtPrice(price), l.right + 4, mouseY + 4);
 
-        // Candle OHLCV tooltip box
+        // Determine which candle is under the mouse
         int n    = visible.size();
-        int barW2 = (int)(l.plotWidth() / Math.max(1, n));
-        int barIdx = (int)((mouseX - l.left) / barW2);
+        double barW = l.plotWidth() / Math.max(1, n);
+        int barIdx = (int)((mouseX - l.left) / barW);
+        barIdx = Math.max(0, Math.min(n - 1, barIdx));
+
         if (barIdx >= 0 && barIdx < visible.size()) {
             OhlcvBar bar = visible.get(barIdx);
+
+            // OHLCV tooltip box near the mouse
             drawTooltip(gc, bar, mouseX, l.priceTop() + 4);
+
+            // Date label in the time-axis zone at the bottom of the chart
+            if (bar.getOpenTime() != null) {
+                String dateStr = bar.getOpenTime().format(
+                        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+                double labelW = 140, labelH = 16;
+                double labelX = Math.max(l.left + labelW / 2,
+                        Math.min(l.right - labelW / 2, mouseX));
+
+                gc.setFill(Color.web("#388bfd"));
+                gc.fillRoundRect(labelX - labelW / 2, l.priceBottom() + 2, labelW, labelH, 4, 4);
+                gc.setFill(Color.WHITE);
+                gc.setFont(FONT_SMALL);
+                gc.setTextAlign(TextAlignment.CENTER);
+                gc.fillText(dateStr, labelX, l.priceBottom() + 14);
+            }
         }
     }
 
@@ -859,15 +879,27 @@ public class CandlestickChartCanvas extends Canvas {
     private void onScroll(ScrollEvent e) {
         if (bars == null || bars.isEmpty()) return;
         double delta = e.getDeltaY();
+
+        // Compute which bar is under the mouse — zoom pivots around that bar
+        double plotW = getWidth() - PADDING_LEFT - PADDING_RIGHT;
+        double relX  = e.getX() - PADDING_LEFT;
+        double fraction = (plotW > 0) ? Math.max(0, Math.min(1, relX / plotW)) : 0.5;
+        // The bar index (in the full bars list) that should stay under the mouse
+        int anchorBar = startBarIndex + (int)(fraction * visibleBars);
+
+        int oldVisible = visibleBars;
         if (delta < 0) {
-            // Zoom out (show more bars)
+            // Zoom out — show more bars
             visibleBars = Math.min(bars.size(), (int)(visibleBars * 1.15));
         } else {
-            // Zoom in (show fewer bars)
-            visibleBars = Math.max(10, (int)(visibleBars * 0.87));
+            // Zoom in — show fewer bars
+            visibleBars = Math.max(5, (int)(visibleBars * 0.87));
         }
         visibleBars = Math.min(bars.size(), Math.max(1, visibleBars));
-        startBarIndex = Math.max(0, bars.size() - visibleBars);
+
+        // Adjust startBarIndex so the anchor bar stays under the mouse
+        startBarIndex = anchorBar - (int)(fraction * visibleBars);
+        startBarIndex = Math.max(0, Math.min(bars.size() - visibleBars, startBarIndex));
         render();
     }
 
