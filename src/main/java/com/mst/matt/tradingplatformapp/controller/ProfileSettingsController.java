@@ -3,9 +3,13 @@ package com.mst.matt.tradingplatformapp.controller;
 import com.mst.matt.tradingplatformapp.model.UserProfile;
 import com.mst.matt.tradingplatformapp.model.UserProfile.ProfileAssetFocus;
 import com.mst.matt.tradingplatformapp.repository.UserProfileRepository;
+import com.mst.matt.tradingplatformapp.service.AppSettingsService;
+import com.mst.matt.tradingplatformapp.service.ProfilePersistenceService;
+import com.mst.matt.tradingplatformapp.service.WatchlistDefaults;
 import com.mst.matt.tradingplatformapp.service.fundamental.FundamentalDataProvider;
 import com.mst.matt.tradingplatformapp.service.fundamental.FundamentalRouter;
 import com.mst.matt.tradingplatformapp.service.price.AssetClassDetector.AssetClass;
+import com.mst.matt.tradingplatformapp.service.price.LiveTickerService;
 import com.mst.matt.tradingplatformapp.service.price.MarketDataProvider;
 import com.mst.matt.tradingplatformapp.service.price.PriceProviderRegistry;
 import com.mst.matt.tradingplatformapp.service.price.PriceRouter;
@@ -35,11 +39,18 @@ public class ProfileSettingsController {
     @FXML private ComboBox<FundamentalDataProvider> fundamentalProviderCombo;
     @FXML private Label chartProvidersHint;
     @FXML private Label savedLabel;
+    /** T-12: watchlist editor. */
+    @FXML private TextArea watchlistField;
+    @FXML private CheckBox offlineModeCheck;
 
     @Autowired private UserProfileRepository profileRepository;
+    @Autowired private AppSettingsService appSettings;
+    /** P1 (LOG-FIX): async writer to keep JavaFX thread off JPA commits. */
+    @Autowired private ProfilePersistenceService profilePersistence;
     @Autowired private PriceProviderRegistry priceRegistry;
     @Autowired private FundamentalRouter fundamentalRouter;
     @Autowired private PriceRouter priceRouter;
+    @Autowired private LiveTickerService liveTickerService;
 
     private UserProfile activeProfile;
 
@@ -65,17 +76,42 @@ public class ProfileSettingsController {
     public void setProfile(UserProfile profile) {
         this.activeProfile = profile;
         if (profile == null) return;
+        // P2 (LOG-FIX): never let a null assetFocus reach the combo or symbol lookup
+        // (legacy rows persisted before the nullable=false migration may still be null).
+        ProfileAssetFocus focus = profile.getAssetFocus() != null
+                ? profile.getAssetFocus()
+                : ProfileAssetFocus.MULTI;
+        if (profile.getAssetFocus() == null) {
+            profile.setAssetFocus(focus);
+        }
         profileNameLabel.setText(profile.getName());
-        assetFocusCombo.setValue(profile.getAssetFocus());
+        assetFocusCombo.setValue(focus);
         defaultSymbolField.setText(profile.getDefaultSymbol() != null
                 ? profile.getDefaultSymbol()
-                : profile.getAssetFocus().defaultSymbol());
+                : focus.defaultSymbol());
         refreshChartProviders();
         chartProviderCombo.setValue(
                 MarketDataProvider.fromString(profile.getChartProvider()));
         fundamentalProviderCombo.setValue(
                 FundamentalDataProvider.fromString(profile.getFundamentalProvider()));
+        // T-12: preload watchlist (may be null → leave blank to fall back to defaults).
+        if (watchlistField != null) {
+            watchlistField.setText(profile.getWatchlist() == null
+                    ? WatchlistDefaults.csvForFocus(focus)
+                    : profile.getWatchlist());
+        }
+        if (offlineModeCheck != null) {
+            offlineModeCheck.setSelected(appSettings.isOfflineMode());
+        }
         savedLabel.setText("");
+    }
+
+    @FXML public void onOfflineModeChanged() {
+        if (offlineModeCheck == null) return;
+        appSettings.setApiFetchEnabled(!offlineModeCheck.isSelected());
+        savedLabel.setText(offlineModeCheck.isSelected()
+                ? "Offline mode on — using cached data."
+                : "Live API fetching enabled.");
     }
 
     private void refreshChartProviders() {
@@ -115,7 +151,20 @@ public class ProfileSettingsController {
         if (chart != null) activeProfile.setChartProvider(chart.name());
         FundamentalDataProvider fund = fundamentalProviderCombo.getValue();
         if (fund != null) activeProfile.setFundamentalProvider(fund.name());
-        profileRepository.save(activeProfile);
+
+        // T-12: persist the watchlist string and push it to LiveTickerService.
+        if (watchlistField != null) {
+            String csv = watchlistField.getText() == null ? ""
+                    : watchlistField.getText().trim();
+            activeProfile.setWatchlist(csv.isEmpty() ? null : csv.toUpperCase());
+            liveTickerService.applyProfileWatchlist(activeProfile);
+        }
+        if (offlineModeCheck != null) {
+            appSettings.setApiFetchEnabled(!offlineModeCheck.isSelected());
+        }
+
+        // P1 (LOG-FIX): non-blocking save.
+        profilePersistence.saveAsync(activeProfile);
         priceRouter.setActiveProfile(activeProfile);
         savedLabel.setText("Saved.");
     }

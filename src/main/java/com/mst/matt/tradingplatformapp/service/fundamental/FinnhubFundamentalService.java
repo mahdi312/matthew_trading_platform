@@ -46,8 +46,8 @@ public class FinnhubFundamentalService implements FundamentalService {
         String finUrl = "https://finnhub.io/api/v1/stock/financials-reported?symbol=" + sym
                 + "&freq=annual&token=" + token;
 
-        Optional<JsonObject> profileOpt = http.getJson(profileUrl);
-        Optional<JsonObject> finOpt = http.getJson(finUrl);
+        Optional<JsonObject> profileOpt = http.getJson(profileUrl, null, "finnhub");
+        Optional<JsonObject> finOpt = http.getJson(finUrl, null, "finnhub");
 
         String companyName = sym;
         String sector = "";
@@ -104,7 +104,7 @@ public class FinnhubFundamentalService implements FundamentalService {
 
         List<String> earningsNotes = new ArrayList<>();
         String earnUrl = "https://finnhub.io/api/v1/stock/earnings?symbol=" + sym + "&token=" + token;
-        http.getJson(earnUrl).ifPresent(earn -> {
+        http.getJson(earnUrl, null, "finnhub").ifPresent(earn -> {
             if (earn.isJsonArray()) {
                 JsonArray arr = earn.getAsJsonArray();
                 for (int i = 0; i < Math.min(5, arr.size()); i++) {

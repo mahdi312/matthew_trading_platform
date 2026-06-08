@@ -102,13 +102,17 @@ public class IndicatorMixerController implements Initializable {
 
     @Override
     public void initialize(URL url, ResourceBundle rb) {
-        profilePresetCombo.setItems(FXCollections.observableArrayList(
-                "Swing Trading", "Scalping", "Day Trading",
-                "Crypto Momentum", "Long Term", "Conservative", "Custom"
-        ));
-        profilePresetCombo.setValue("Swing Trading");
-        bbDev.setValueFactory(
-                new SpinnerValueFactory.DoubleSpinnerValueFactory(1.0, 5.0, 2.0, 0.1));
+        if (profilePresetCombo != null) {
+            profilePresetCombo.setItems(FXCollections.observableArrayList(
+                    "Swing Trading", "Scalping", "Day Trading",
+                    "Crypto Momentum", "Long Term", "Conservative", "Custom"
+            ));
+            profilePresetCombo.setValue("Swing Trading");
+        }
+        if (bbDev != null) {
+            bbDev.setValueFactory(
+                    new SpinnerValueFactory.DoubleSpinnerValueFactory(1.0, 5.0, 2.0, 0.1));
+        }
 
         // Wire all sliders to update labels and re-score
         wireSlider(macdSlider,     macdWeightLabel,     "Weight: ");
@@ -160,7 +164,7 @@ public class IndicatorMixerController implements Initializable {
     @FXML public void onReset() { loadConfig(); }
 
     @FXML public void onPresetSelected() {
-        if (applyingConfig) return;
+        if (applyingConfig || profilePresetCombo == null) return;
         String preset = profilePresetCombo.getValue();
         if (preset == null || activeProfile == null) return;
 
@@ -177,7 +181,9 @@ public class IndicatorMixerController implements Initializable {
     private void applyConfigToUI(IndicatorConfig c) {
         applyingConfig = true;
         try {
-            profilePresetCombo.setValue(toPresetLabel(c.getActiveProfile()));
+            if (profilePresetCombo != null) {
+                profilePresetCombo.setValue(toPresetLabel(c.getActiveProfile()));
+            }
 
             macdEnabled.setSelected(c.isMacdEnabled());
             macdSlider.setValue(c.getMacdWeight());
@@ -229,7 +235,8 @@ public class IndicatorMixerController implements Initializable {
                 ? configRepo.findByProfile(activeProfile) : Optional.empty();
         IndicatorConfig c = opt.orElse(new IndicatorConfig());
         c.setProfile(activeProfile);
-        c.setActiveProfile(toIndicatorProfile(profilePresetCombo.getValue()));
+        c.setActiveProfile(toIndicatorProfile(
+                profilePresetCombo != null ? profilePresetCombo.getValue() : "Swing Trading"));
 
         c.setMacdEnabled(macdEnabled.isSelected());
         c.setMacdWeight((int)macdSlider.getValue());
@@ -326,7 +333,8 @@ public class IndicatorMixerController implements Initializable {
     }
 
     private void updatePreview() {
-        if (applyingConfig || lastIndicators == null || lastSr == null) return;
+        if (applyingConfig || lastIndicators == null || lastSr == null
+                || previewSignalLabel == null) return;
 
         IndicatorConfig config = buildConfigFromUI();
         SignalScoringService.SignalResult result =

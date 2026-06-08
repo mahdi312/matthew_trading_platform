@@ -3,6 +3,7 @@ package com.mst.matt.tradingplatformapp.service.price;
 import com.google.gson.*;
 import com.mst.matt.tradingplatformapp.model.OhlcvBar;
 import com.mst.matt.tradingplatformapp.model.Trade.AssetType;
+import com.mst.matt.tradingplatformapp.service.price.api.FrankfurterLatestResponse;
 import okhttp3.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,27 +65,9 @@ public class ForexService implements PriceService {
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful() || response.body() == null) return Optional.empty();
 
-            JsonObject json  = gson.fromJson(response.body().string(), JsonObject.class);
-            JsonObject rates = json.getAsJsonObject("rates");
-            if (rates == null || !rates.has(to)) return Optional.empty();
-
-            BigDecimal rate = JsonParseUtil.asBigDecimal(rates, to);
-            if (rate.compareTo(BigDecimal.ZERO) == 0) return Optional.empty();
-
-            PriceQuote quote = PriceQuote.builder()
-                    .symbol(from + "/" + to)
-                    .assetName(from + "/" + to)
-                    .assetType(AssetType.FOREX)
-                    .price(rate)
-                    .change24h(BigDecimal.ZERO)      // Frankfurter is daily, no intraday delta
-                    .changePct24h(BigDecimal.ZERO)
-                    .currency(to)
-                    .exchange("Frankfurter (ECB)")
-                    .timestamp(LocalDateTime.now())
-                    .isUp(true)
-                    .build();
-
-            return Optional.of(quote);
+            JsonObject json = gson.fromJson(response.body().string(), JsonObject.class);
+            return FrankfurterLatestResponse.fromJson(json)
+                    .flatMap(r -> r.toPriceQuote(from, to));
 
         } catch (IOException e) {
             log.error("Frankfurter error for {}: {}", symbol, e.getMessage());

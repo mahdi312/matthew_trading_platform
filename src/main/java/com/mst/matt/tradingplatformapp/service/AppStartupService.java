@@ -4,6 +4,7 @@ import com.mst.matt.tradingplatformapp.service.price.LiveTickerService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
  * Starts WebSocket streams and other background services.
  */
 @Service
+@ConditionalOnProperty(name = "app.live.startup-enabled", havingValue = "true", matchIfMissing = true)
 public class AppStartupService {
 
     private static final Logger log = LoggerFactory.getLogger(AppStartupService.class);

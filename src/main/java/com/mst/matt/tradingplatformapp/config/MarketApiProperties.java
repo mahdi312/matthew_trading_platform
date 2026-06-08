@@ -1,13 +1,18 @@
 package com.mst.matt.tradingplatformapp.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
 
 /**
  * API keys aligned with {@code Free_Trading_APIs.postman_collection.json} variables.
  * Providers with blank keys are skipped at runtime.
+ *
+ * <p><b>NOTE:</b> Do NOT annotate this class with {@code @Component}. It is registered
+ * exclusively via {@code @EnableConfigurationProperties(MarketApiProperties.class)} on
+ * {@code TradingPlatformAppApplication}. Marking it with {@code @Component} *and* enabling
+ * configuration properties simultaneously produces two beans of the same type
+ * (component-scanned bean + relaxed-binding bean) which breaks Spring autowiring
+ * and the {@code @SpringBootTest} context.
  */
-@Component
 @ConfigurationProperties(prefix = "api")
 public class MarketApiProperties {
 

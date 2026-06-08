@@ -3,6 +3,7 @@ package com.mst.matt.tradingplatformapp.service.price;
 import com.google.gson.*;
 import com.mst.matt.tradingplatformapp.model.OhlcvBar;
 import com.mst.matt.tradingplatformapp.model.Trade;
+import com.mst.matt.tradingplatformapp.service.price.api.BinanceTicker24hResponse;
 import okhttp3.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -136,27 +137,10 @@ public class BinanceService implements PriceService {
             }
 
             JsonObject json = gson.fromJson(response.body().string(), JsonObject.class);
-
-            PriceQuote quote = PriceQuote.builder()
-                    .symbol(symbol)
-                    .assetName(symbol)
-                    .assetType(Trade.AssetType.CRYPTO)
-                    .price(JsonParseUtil.asBigDecimal(json, "lastPrice"))
-                    .open24h(JsonParseUtil.asBigDecimal(json, "openPrice"))
-                    .high24h(JsonParseUtil.asBigDecimal(json, "highPrice"))
-                    .low24h(JsonParseUtil.asBigDecimal(json, "lowPrice"))
-                    .change24h(JsonParseUtil.asBigDecimal(json, "priceChange"))
-                    .changePct24h(JsonParseUtil.asBigDecimal(json, "priceChangePercent"))
-                    .volume24h(JsonParseUtil.asBigDecimal(json, "volume"))
-                    .currency("USDT")
-                    .exchange("Binance")
-                    .timestamp(LocalDateTime.now())
-                    .isUp(JsonParseUtil.asBigDecimal(json, "priceChangePercent")
-                            .compareTo(BigDecimal.ZERO) >= 0)
-                    .build();
-
-            quoteCache.put(symbol, quote);
-            return Optional.of(quote);
+            Optional<PriceQuote> quote = BinanceTicker24hResponse.fromJson(json)
+                    .map(t -> t.toPriceQuote(symbol));
+            quote.ifPresent(q -> quoteCache.put(symbol, q));
+            return quote;
 
         } catch (IOException e) {
             log.error("Binance REST error for {} via {}: {}", symbol, root, e.getMessage());

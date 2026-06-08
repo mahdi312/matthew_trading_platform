@@ -339,7 +339,10 @@ public class IndicatorService {
 
         if (fastPrev <= slowPrev && fastNow > slowNow) return +1; // bullish cross
         if (fastPrev >= slowPrev && fastNow < slowNow) return -1; // bearish cross
-        return Double.compare(fastNow, slowNow);
+        // Sustained position (not a fresh cross)
+        if (fastNow > slowNow) return 1;
+        if (fastNow < slowNow) return -1;
+        return 0;
     }
 
     // ── Extract full series values for chart rendering ────────

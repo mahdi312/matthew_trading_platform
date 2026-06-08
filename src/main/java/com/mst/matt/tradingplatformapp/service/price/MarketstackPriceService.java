@@ -1,23 +1,21 @@
 package com.mst.matt.tradingplatformapp.service.price;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
 import com.mst.matt.tradingplatformapp.config.MarketApiProperties;
 import com.mst.matt.tradingplatformapp.model.OhlcvBar;
 import com.mst.matt.tradingplatformapp.model.Trade.AssetType;
+import com.mst.matt.tradingplatformapp.service.price.api.MarketstackEodResponse;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 @Service
 public class MarketstackPriceService implements PriceService {
 
-    private static final String BASE = "http://api.marketstack.com/v1";
+    /** Package-private and non-final so {@link MarketstackPriceServiceTest} can redirect via ReflectionTestUtils. */
+    String baseUrl = "http://api.marketstack.com/v1";
 
     private final HttpJsonClient http;
     private final MarketApiProperties keys;
@@ -55,32 +53,12 @@ public class MarketstackPriceService implements PriceService {
     @Override
     public List<OhlcvBar> getOhlcv(String symbol, String timeframe, int limit) {
         String sym = SymbolNormalizer.normalize(symbol);
-        String url = BASE + "/eod?access_key=" + keys.getMarketstackKey()
+        String url = baseUrl + "/eod?access_key=" + keys.getMarketstackKey()
                 + "&symbols=" + sym + "&limit=" + Math.min(limit, 1000);
-        return http.getJson(url).map(root -> {
-            JsonArray data = root.getAsJsonArray("data");
-            if (data == null) return List.<OhlcvBar>of();
-            List<OhlcvBar> bars = new ArrayList<>();
-            for (var el : data) {
-                JsonObject d = el.getAsJsonObject();
-                LocalDate date = LocalDate.parse(d.get("date").getAsString().substring(0, 10));
-                bars.add(OhlcvBar.builder()
-                        .symbol(sym)
-                        .timeframe(timeframe)
-                        .openTime(date.atStartOfDay())
-                        .open(JsonParseUtil.asBigDecimal(d, "open"))
-                        .high(JsonParseUtil.asBigDecimal(d, "high"))
-                        .low(JsonParseUtil.asBigDecimal(d, "low"))
-                        .close(JsonParseUtil.asBigDecimal(d, "close"))
-                        .volume(JsonParseUtil.asBigDecimal(d, "volume"))
-                        .assetType(AssetType.STOCK)
-                        .build());
-            }
-            bars.sort(java.util.Comparator.comparing(OhlcvBar::getOpenTime));
-            if (bars.size() > limit)
-                return bars.subList(bars.size() - limit, bars.size());
-            return bars;
-        }).orElse(List.of());
+        return http.getJson(url)
+                .flatMap(root -> MarketstackEodResponse.fromRoot(root, sym, timeframe, limit))
+                .map(MarketstackEodResponse::bars)
+                .orElse(List.of());
     }
 
     @Override

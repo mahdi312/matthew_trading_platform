@@ -22,11 +22,16 @@ public class PriceRouter {
 
     private final PriceProviderRegistry registry;
     private final BinanceService binanceService;
+    /** P3 (LOG-FIX): last-known-good cache served when every provider is down. */
+    private final PriceCacheService priceCache;
     private volatile UserProfile activeProfile;
 
-    public PriceRouter(PriceProviderRegistry registry, BinanceService binanceService) {
+    public PriceRouter(PriceProviderRegistry registry,
+                       BinanceService binanceService,
+                       PriceCacheService priceCache) {
         this.registry = registry;
         this.binanceService = binanceService;
+        this.priceCache = priceCache;
     }
 
     public void setActiveProfile(UserProfile profile) {
@@ -49,12 +54,22 @@ public class PriceRouter {
                 if (result.isPresent() && hasValidPrice(result.get())) {
                     lastProviderName = provider.getProviderName();
                     log.debug("Quote for {} from {}", normalized, lastProviderName);
+                    // P3 (LOG-FIX): refresh the cache on every success.
+                    priceCache.update(normalized, result.get());
                     return result;
                 }
             } catch (Exception e) {
                 log.warn("{} failed for {}: {}", provider.getProviderName(),
                         normalized, e.getMessage());
             }
+        }
+        // P3 (LOG-FIX): every provider failed — fall back to the last known good
+        // value so the UI keeps showing the previous price instead of going blank.
+        Optional<PriceQuote> cached = priceCache.getLastKnown(normalized);
+        if (cached.isPresent()) {
+            lastProviderName = "cache (stale)";
+            log.warn("All providers failed for {} — serving cached value", normalized);
+            return cached;
         }
         log.error("All providers failed for symbol: {}", normalized);
         return Optional.empty();

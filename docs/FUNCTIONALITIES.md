@@ -17,8 +17,9 @@ Data is stored locally at `~/.trading-platform/trading.db`. Everything is scoped
 | **Alerts** | Create and manage price / indicator alerts |
 | **Indicator Mixer** | Tune indicator weights and presets per profile |
 | **Portfolio** | Stats + equity curve + breakdown (no trade table) |
-| **Export Excel** | Download multi-sheet `.xlsx` report |
-| **Settings** | Placeholder (coming soon) |
+| **Yearly Profit** | Fundamentals view — yearly revenue/profit/EBITDA rows per ticker (T-17) |
+| **Export Excel** | Download multi-sheet `.xlsx` report (optionally with a fundamentals sheet — T-22) |
+| **Settings** | Profile preferences — asset focus, default symbol, chart/fundamentals provider, custom watchlist (T-12, T-17) |
 
 ---
 
@@ -26,7 +27,9 @@ Data is stored locally at `~/.trading-platform/trading.db`. Everything is scoped
 
 - Switch profiles from the header dropdown.
 - **+ New Profile** creates a profile with default Swing Trading indicator config.
+- **✏ Rename / 🗑 Delete** buttons next to the selector let you rename or remove the active profile (T-13). Deleting cascades through all trades, alerts and indicator configs; the last remaining profile cannot be deleted.
 - Switching profile refreshes dashboard, chart, alerts, mixer, and export context.
+- A custom **watchlist** can be set per profile in Settings (T-12); it overrides the hard-coded ticker bar defaults the moment you save.
 
 ---
 

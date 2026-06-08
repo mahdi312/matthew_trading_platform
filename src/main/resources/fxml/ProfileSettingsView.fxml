@@ -46,6 +46,23 @@
             <Label text="Fundamentals provider" styleClass="label-subtitle"/>
             <ComboBox fx:id="fundamentalProviderCombo" prefWidth="320"/>
 
+            <Separator/>
+
+            <Label text="Data fetching" styleClass="label-subtitle"/>
+            <CheckBox fx:id="offlineModeCheck" text="Offline mode (use cached DB prices only, skip live API calls)"
+                      onAction="#onOfflineModeChanged"/>
+            <Label text="When enabled, charts and ticker read from stored tables / cache. Disable to fetch fresh data from APIs."
+                   styleClass="label-muted" style="-fx-wrap-text:true;"/>
+
+            <Separator/>
+
+            <!-- T-12: customizable watchlist editor (comma-separated symbols) -->
+            <Label text="Ticker watchlist" styleClass="label-subtitle"/>
+            <Label text="Comma- or space-separated symbols shown in the top live ticker bar. Leave blank to keep platform defaults."
+                   styleClass="label-muted" style="-fx-wrap-text:true;"/>
+            <TextArea fx:id="watchlistField" prefRowCount="3" wrapText="true"
+                      promptText="e.g. BTCUSDT, ETHUSDT, AAPL, MSFT, EURUSD"/>
+
             <HBox spacing="12" alignment="CENTER_LEFT">
                 <Button text="Save preferences" styleClass="btn-primary" onAction="#onSave"/>
                 <Label fx:id="savedLabel" style="-fx-text-fill:#3fb950;"/>

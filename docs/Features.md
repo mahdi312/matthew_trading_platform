@@ -15,11 +15,11 @@ Global features:
 
 Header: App title, profile selector, “+ New Profile”, alert bell with triggered-count badge, settings button
 Live ticker bar: Real-time crypto (Binance WebSocket) + polled stocks/forex (15s)
-Sidebar navigation: Dashboard, Live Chart, Trade Journal, Analysis, Alerts, Indicator Mixer, Portfolio, Export Excel, Settings
+Sidebar navigation: Dashboard, Live Chart, Trade Journal, Analysis, Alerts, Indicator Mixer, Portfolio, Yearly Profit (Fundamentals), Export Excel, Settings
 Status bar: Connection/profile status, last update time, version (v1.0.0)
 Profile switching: Creates default indicator config per profile; refreshes all open views
 Default profiles on first run: Crypto Portfolio, Stocks Journal, Forex Trading
-Not yet implemented: Settings (shows “Settings coming soon” placeholder)
+Settings (T-17): now opens `ProfileSettingsView` — asset focus, default symbol, chart/fundamental providers, and the customizable ticker watchlist (T-12). The legacy “coming soon” placeholder has been removed.
 
 2. Main Views & Features
 2.1 Dashboard
@@ -36,7 +36,7 @@ KPI stat cards: Total P&L ($ and %), win rate, total/open trades, best/worst tra
 Equity curve chart (Canvas) with filters: 1W, 1M, 3M, ALL
 Asset breakdown: P&L by CRYPTO / STOCK / FOREX with progress bars
 Recent trades table (last 20): date, symbol, type, direction, entry/exit, qty, P&L, status
-Actions: + New Trade, View All (→ Journal), Edit (✏), Close open trade (✓ with exit price dialog)
+Actions: + New Trade, View All (→ Journal), Edit (✏), Close open trade (✓ with exit price dialog), Delete trade (🗑 with confirmation — T-11)
 2.2 Portfolio
 Same view/controller as Dashboard, ViewMode: PORTFOLIO.
 

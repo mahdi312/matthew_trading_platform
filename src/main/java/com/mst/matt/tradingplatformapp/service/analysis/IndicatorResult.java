@@ -9,7 +9,7 @@ import java.util.List;
  * Both single values (for signal scoring) and full series (for chart rendering).
  */
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class IndicatorResult {

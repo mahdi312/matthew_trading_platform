@@ -5,10 +5,12 @@ import com.google.gson.JsonObject;
 import com.mst.matt.tradingplatformapp.config.MarketApiProperties;
 import com.mst.matt.tradingplatformapp.model.OhlcvBar;
 import com.mst.matt.tradingplatformapp.model.Trade.AssetType;
+import com.mst.matt.tradingplatformapp.service.price.api.FinnhubQuoteResponse;
+import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -19,14 +21,25 @@ import java.util.Optional;
 @Service
 public class FinnhubPriceService implements PriceService {
 
-    private static final String BASE = "https://finnhub.io/api/v1";
+    /** Package-private and non-final so {@link FinnhubPriceServiceTest} can
+     *  redirect to {@link okhttp3.mockwebserver.MockWebServer} via ReflectionTestUtils. */
+    String baseUrl = "https://finnhub.io/api/v1";
 
     private final HttpJsonClient http;
     private final MarketApiProperties keys;
 
+    /** Throttle key passed to {@link HttpJsonClient} (T-23). */
+    private static final String THROTTLE_KEY = "finnhub";
+
     public FinnhubPriceService(HttpJsonClient http, MarketApiProperties keys) {
         this.http = http;
         this.keys = keys;
+    }
+
+    @PostConstruct
+    void registerThrottle() {
+        // Finnhub free tier: 60 requests per minute. See T-23.
+        http.throttle(THROTTLE_KEY, 60, Duration.ofMinutes(1));
     }
 
     @Override
@@ -35,29 +48,10 @@ public class FinnhubPriceService implements PriceService {
     @Override
     public Optional<PriceQuote> getQuote(String symbol) {
         String sym = SymbolNormalizer.normalize(symbol);
-        String url = BASE + "/quote?symbol=" + sym + "&token=" + keys.getFinnhubKey();
-        return http.getJson(url).flatMap(json -> {
-            BigDecimal price = JsonParseUtil.asBigDecimal(json, "c");
-            if (price.compareTo(BigDecimal.ZERO) == 0) return Optional.empty();
-            BigDecimal prev = JsonParseUtil.asBigDecimal(json, "pc");
-            BigDecimal change = price.subtract(prev);
-            BigDecimal pct = prev.compareTo(BigDecimal.ZERO) != 0
-                    ? change.divide(prev, 6, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100))
-                    : BigDecimal.ZERO;
-            return Optional.of(PriceQuote.builder()
-                    .symbol(sym)
-                    .assetName(sym)
-                    .assetType(assetType(sym))
-                    .price(price)
-                    .open24h(JsonParseUtil.asBigDecimal(json, "o"))
-                    .high24h(JsonParseUtil.asBigDecimal(json, "h"))
-                    .low24h(JsonParseUtil.asBigDecimal(json, "l"))
-                    .change24h(change)
-                    .changePct24h(pct)
-                    .timestamp(LocalDateTime.now())
-                    .isUp(change.compareTo(BigDecimal.ZERO) >= 0)
-                    .build());
-        });
+        String url = baseUrl + "/quote?symbol=" + sym + "&token=" + keys.getFinnhubKey();
+        return http.getJson(url, null, THROTTLE_KEY).flatMap(json ->
+                FinnhubQuoteResponse.fromJson(json)
+                        .map(q -> q.toPriceQuote(sym, assetType(sym))));
     }
 
     @Override
@@ -67,12 +61,12 @@ public class FinnhubPriceService implements PriceService {
         long from = to - estimateSeconds(limit, timeframe);
         String path = AssetClassDetector.isForex(sym) ? "/forex/candle"
                 : AssetClassDetector.isCrypto(sym) ? "/crypto/candle" : "/stock/candle";
-        String url = BASE + path + "?symbol=" + sym
+        String url = baseUrl + path + "?symbol=" + sym
                 + "&resolution=" + mapResolution(timeframe)
                 + "&from=" + from + "&to=" + to
                 + "&token=" + keys.getFinnhubKey();
 
-        return http.getJson(url).map(json -> {
+        return http.getJson(url, null, THROTTLE_KEY).map(json -> {
             if (!"ok".equals(json.has("s") ? json.get("s").getAsString() : ""))
                 return List.<OhlcvBar>of();
             JsonArray t = json.getAsJsonArray("t");

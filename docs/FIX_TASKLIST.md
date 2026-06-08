@@ -12,19 +12,18 @@
 |------|--------|
 | Full codebase audit | Done |
 | `mvn compile` | Passes |
-| `mvn test` (excluding live smoke) | **4 issues** — see [Current test failures](#current-test-failures) |
+| `mvn test` (excluding live smoke) | Passes — all non-live tests green |
 | Task list file | This document |
-| **No fix tasks executed yet** | Waiting for your commands one-by-one |
+| Fix tasks executed | Completed |
 
-### Current test failures
+### Current test status
 
 Run: `mvn test -Dtest="!LivePriceApiSmokeTest"`
 
-| Test | Issue |
+| Test scope | Status |
 |------|--------|
-| `SymbolNormalizerTest.forBinance_appendsUsdtToBareTicker` | `"BTC"` → expected `BTCUSDT`, got `BTC` |
-| `BinanceServiceTest` (2 tests) | Same root cause — `forBinance("BTC")` treats `BTC` as already suffixed because `endsWith("BTC")` |
-| `TradingPlatformAppApplicationTests.contextLoads` | Spring context fails (`resolveNotUnique` / bean ambiguity on full `@SpringBootTest`) |
+| Unit + Spring context tests | **green** — all passing locally |
+| `LivePriceApiSmokeTest` | **intentionally skipped by default**; enable with `-Dlive.api.tests=true` |
 
 ---
 
@@ -34,27 +33,27 @@ Run: `mvn test -Dtest="!LivePriceApiSmokeTest"`
 |----|----------|-------|--------|
 | T-01 | P0 | Remove secrets from repo; use env / example config | **done** |
 | T-02 | P1 | Fix `SymbolNormalizer.forBinance` bare-ticker bug | **done** |
-| T-03 | P1 | Fix Spring Boot `contextLoads` test | pending |
-| T-04 | P1 | Align `BinanceService` with normalizer + re-run all unit tests | pending |
-| T-05 | P2 | Forex fallback providers (registry vs implementation) | pending |
-| T-06 | P2 | Unify CoinGecko property keys (`coingecko-key` vs `coingecko.key`) | pending |
-| T-07 | P2 | Wire `MarketApiProperties` to Spring (`@EnableConfigurationProperties`) | pending |
-| T-08 | P2 | Add unit tests for paid API price services (mocked HTTP) | pending |
-| T-09 | P2 | Add unit tests for fundamental services | pending |
-| T-10 | P3 | Fundamentals UX for crypto / unsupported symbols | pending |
-| T-11 | P3 | Trade Journal: Delete trade button | pending |
-| T-12 | P3 | Settings: customizable ticker watchlist | pending |
-| T-13 | P3 | Profile delete / rename (optional) | pending |
-| T-14 | P3 | Chart: show active data provider in UI | pending |
-| T-15 | P3 | COMMODITY / INDEX routing in `PriceRouter` / `AssetClassDetector` | pending |
-| T-16 | P4 | Add missing `docs/API_PROVIDERS.md` | pending |
-| T-17 | P4 | Update `FUNCTIONALITIES.md` & `Features.md` (Settings, Fundamentals nav) | pending |
-| T-18 | P4 | Trim or relocate giant `Trading Journal & Analytics Desktop App.md` | pending |
-| T-19 | P5 | `dark-theme.css` — resolve `/*todo!*selected replaced*!*/` | pending |
-| T-20 | P5 | jpackage: disable `winconsole` for release builds | pending |
-| T-21 | P5 | Live API smoke test docs + CI-friendly profile | pending |
-| T-22 | P5 | Excel export: include fundamentals sheet (optional) | pending |
-| T-23 | P5 | Rate-limit / backoff for Alpha Vantage & Finnhub | pending |
+| T-03 | P1 | Fix Spring Boot `contextLoads` test | **done** |
+| T-04 | P1 | Align `BinanceService` with normalizer + re-run all unit tests | **done** |
+| T-05 | P2 | Forex fallback providers (registry vs implementation) | **done** (Option A — 5 thin services added) |
+| T-06 | P2 | Unify CoinGecko property keys (`coingecko-key` vs `coingecko.key`) | **done** (canonical `api.coingecko-key`) |
+| T-07 | P2 | Wire `MarketApiProperties` to Spring (`@EnableConfigurationProperties`) | **done** |
+| T-08 | P2 | Add unit tests for paid API price services (mocked HTTP) | **done** |
+| T-09 | P2 | Add unit tests for fundamental services | **done** (router tests; per-service mocked tests deferred) |
+| T-10 | P3 | Fundamentals UX for crypto / unsupported symbols | **done** |
+| T-11 | P3 | Trade Journal: Delete trade button | **done** |
+| T-12 | P3 | Settings: customizable ticker watchlist | **done** |
+| T-13 | P3 | Profile delete / rename (optional) | **done** |
+| T-14 | P3 | Chart: show active data provider in UI | **done** |
+| T-15 | P3 | COMMODITY / INDEX routing in `PriceRouter` / `AssetClassDetector` | **done** |
+| T-16 | P4 | Add missing `docs/API_PROVIDERS.md` | **done** |
+| T-17 | P4 | Update `FUNCTIONALITIES.md` & `Features.md` (Settings, Fundamentals nav) | **done** |
+| T-18 | P4 | Trim or relocate giant `Trading Journal & Analytics Desktop App.md` | **done** (moved to `docs/archive/`) |
+| T-19 | P5 | `dark-theme.css` — resolve `/*todo!*selected replaced*!*/` | **done** |
+| T-20 | P5 | jpackage: disable `winconsole` for release builds | **done** (`-Dwinconsole=true` re-enables) |
+| T-21 | P5 | Live API smoke test docs + CI-friendly profile | **done** (documented in `docs/API_PROVIDERS.md`) |
+| T-22 | P5 | Excel export: include fundamentals sheet (optional) | **done** |
+| T-23 | P5 | Rate-limit / backoff for Alpha Vantage & Finnhub | **done** (`HttpJsonClient.throttle`) |
 
 ---
 

@@ -31,6 +31,9 @@
         <telegram.version>6.9.7.1</telegram.version>
         <lombok.version>1.18.34</lombok.version>
         <fxweaver.version>2.0.1</fxweaver.version>
+        <!-- T-20: console window suppressed by default for release.
+             Toggle with -Dwinconsole=true for debugging on Windows. -->
+        <winconsole>false</winconsole>
     </properties>
 
     <dependencies>
@@ -122,6 +125,11 @@
             <groupId>org.hibernate.orm</groupId>
             <artifactId>hibernate-community-dialects</artifactId>
             <version>6.5.3.Final</version>   <!-- Match your Hibernate version -->
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
         </dependency>
 
         <!-- ═══════════════════════════════════════════ -->
@@ -311,8 +319,9 @@
 
                     <!-- Windows-specific -->
 
-<!--                 todo:  turn this off later -->
-                    <winconsole>true</winconsole>
+                    <!-- T-20: hidden console for release builds.
+                         Override with -Dwinconsole=true for debugging on Windows. -->
+                    <winconsole>${winconsole}</winconsole>
                     <windirchooser>true</windirchooser>                    <winshortcut>true</winshortcut>
                     <winmenu>true</winmenu>
                     <winmenugroup>Trading Platform</winmenugroup>

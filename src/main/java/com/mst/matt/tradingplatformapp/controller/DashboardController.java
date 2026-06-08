@@ -375,16 +375,22 @@ public class DashboardController implements Initializable {
             }
         });
 
-        // Actions column
+        // Actions column — edit / close / delete (T-11 adds the Delete button).
         colActions.setCellFactory(col -> new TableCell<>() {
-            private final Button editBtn  = new Button("✏");
-            private final Button closeBtn = new Button("✓");
-            private final HBox   box      = new HBox(4, editBtn, closeBtn);
+            private final Button editBtn   = new Button("✏");
+            private final Button closeBtn  = new Button("✓");
+            private final Button deleteBtn = new Button("🗑");
+            private final HBox   box       = new HBox(4, editBtn, closeBtn, deleteBtn);
             {
                 editBtn.setStyle("-fx-background-color:#1f6feb; -fx-text-fill:white;"
                         + "-fx-background-radius:4; -fx-cursor:hand; -fx-padding:2 6;");
                 closeBtn.setStyle("-fx-background-color:#238636; -fx-text-fill:white;"
                         + "-fx-background-radius:4; -fx-cursor:hand; -fx-padding:2 6;");
+                deleteBtn.setStyle("-fx-background-color:#da3633; -fx-text-fill:white;"
+                        + "-fx-background-radius:4; -fx-cursor:hand; -fx-padding:2 6;");
+                editBtn.setTooltip(new Tooltip("Edit trade"));
+                closeBtn.setTooltip(new Tooltip("Close open trade"));
+                deleteBtn.setTooltip(new Tooltip("Delete trade"));
 
                 editBtn.setOnAction(e -> {
                     Trade t = getTableView().getItems().get(getIndex());
@@ -395,6 +401,10 @@ public class DashboardController implements Initializable {
                     if (t.getStatus() == Trade.TradeStatus.OPEN) {
                         showCloseTradeDialog(t);
                     }
+                });
+                deleteBtn.setOnAction(e -> {
+                    Trade t = getTableView().getItems().get(getIndex());
+                    showDeleteTradeDialog(t);
                 });
             }
             @Override protected void updateItem(Void item, boolean empty) {
@@ -426,6 +436,28 @@ public class DashboardController implements Initializable {
 
     private void populateTable(List<Trade> trades) {
         recentTradesTable.getItems().setAll(trades);
+    }
+
+    /** T-11: confirm-and-delete dialog. Cascades through TradeService.deleteTrade. */
+    private void showDeleteTradeDialog(Trade trade) {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Delete Trade");
+        confirm.setHeaderText("Delete " + trade.getSymbol()
+                + " (" + trade.getDirection() + ")?");
+        confirm.setContentText("This permanently removes the trade and its P&L from "
+                + "this profile's history. Continue?");
+        confirm.getButtonTypes().setAll(ButtonType.OK, ButtonType.CANCEL);
+        confirm.showAndWait().ifPresent(bt -> {
+            if (bt == ButtonType.OK) {
+                try {
+                    tradeService.deleteTrade(trade.getId());
+                    refreshAll();
+                } catch (Exception ex) {
+                    new Alert(Alert.AlertType.ERROR,
+                            "Failed to delete trade: " + ex.getMessage()).showAndWait();
+                }
+            }
+        });
     }
 
     private void showCloseTradeDialog(Trade trade) {

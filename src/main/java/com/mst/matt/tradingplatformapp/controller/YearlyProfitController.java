@@ -4,8 +4,11 @@ import com.mst.matt.tradingplatformapp.model.UserProfile;
 import com.mst.matt.tradingplatformapp.model.fundamental.FundamentalsReport;
 import com.mst.matt.tradingplatformapp.model.fundamental.YearlyFinancialRow;
 import com.mst.matt.tradingplatformapp.repository.UserProfileRepository;
+import com.mst.matt.tradingplatformapp.service.ProfilePersistenceService;
 import com.mst.matt.tradingplatformapp.service.fundamental.FundamentalDataProvider;
 import com.mst.matt.tradingplatformapp.service.fundamental.FundamentalRouter;
+import com.mst.matt.tradingplatformapp.service.price.AssetClassDetector;
+import com.mst.matt.tradingplatformapp.service.price.AssetClassDetector.AssetClass;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
@@ -48,6 +51,8 @@ public class YearlyProfitController implements Initializable {
 
     @Autowired private FundamentalRouter fundamentalRouter;
     @Autowired private UserProfileRepository profileRepository;
+    /** P1 (LOG-FIX): async writer to keep JavaFX thread off JPA commits. */
+    @Autowired private ProfilePersistenceService profilePersistence;
 
     private UserProfile activeProfile;
     private String currentSymbol = "AAPL";
@@ -87,7 +92,12 @@ public class YearlyProfitController implements Initializable {
             currentSymbol = profile.getDefaultSymbol();
             symbolField.setText(currentSymbol);
         } else {
-            currentSymbol = profile.getAssetFocus().defaultSymbol();
+            // P2 (LOG-FIX): null-safe fallback so legacy rows with assetFocus=null
+            // can't NPE on profile load.
+            UserProfile.ProfileAssetFocus focus = profile.getAssetFocus() != null
+                    ? profile.getAssetFocus()
+                    : UserProfile.ProfileAssetFocus.MULTI;
+            currentSymbol = focus.defaultSymbol();
             symbolField.setText(currentSymbol);
         }
         FundamentalDataProvider pref = FundamentalDataProvider.fromString(
@@ -114,10 +124,20 @@ public class YearlyProfitController implements Initializable {
         }
         currentSymbol = sym;
 
+        // T-10: fundamentals providers only support equities. Show a clear message for
+        // crypto / forex / commodity / index symbols instead of a silent empty table.
+        AssetClass detected = AssetClassDetector.detect(sym);
+        if (detected != AssetClass.STOCK) {
+            String pretty = detected.name().toLowerCase();
+            showUnsupportedAssetMessage(sym, pretty);
+            return;
+        }
+
         FundamentalDataProvider selected = providerCombo.getValue();
         if (selected != null && selected != FundamentalDataProvider.AUTO) {
             activeProfile.setFundamentalProvider(selected.name());
-            profileRepository.save(activeProfile);
+            // P1 (LOG-FIX): non-blocking save.
+            profilePersistence.saveAsync(activeProfile);
         }
 
         statusLabel.setText("Loading " + sym + "…");
@@ -127,12 +147,26 @@ public class YearlyProfitController implements Initializable {
         });
     }
 
+    /** T-10 helper: friendly empty state for unsupported (non-stock) symbols. */
+    private void showUnsupportedAssetMessage(String sym, String assetClass) {
+        companyLabel.setText(sym);
+        metaLabel.setText("—");
+        summaryLabel.setText("Fundamentals are not available for " + assetClass + " symbols. "
+                + "Try a stock ticker such as AAPL, MSFT, or GOOG — or change the default "
+                + "symbol in Profile Settings.");
+        yearlyTable.setItems(FXCollections.observableArrayList());
+        yearlyTable.setPlaceholder(new Label("No fundamentals for " + assetClass + " symbols."));
+        earningsList.setItems(FXCollections.observableArrayList());
+        statusLabel.setText("Unsupported asset class for fundamentals: " + assetClass);
+    }
+
     @FXML public void onProviderChanged() {
         if (activeProfile == null) return;
         FundamentalDataProvider p = providerCombo.getValue();
         if (p == null) return;
         activeProfile.setFundamentalProvider(p.name());
-        profileRepository.save(activeProfile);
+        // P1 (LOG-FIX): non-blocking save.
+        profilePersistence.saveAsync(activeProfile);
         statusLabel.setText("Fundamental provider: " + p.getLabel());
     }
 

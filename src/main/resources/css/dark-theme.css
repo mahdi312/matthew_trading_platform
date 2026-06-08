@@ -63,8 +63,26 @@
     -fx-background-color: #161b22;
     -fx-border-color: #30363d;
     -fx-border-width: 0 1 0 0;
-    -fx-min-width: 220px;
-    -fx-max-width: 220px;
+    -fx-pref-width: 56px;
+    -fx-min-width: 56px;
+    -fx-max-width: 56px;
+}
+.sidebar.sidebar-expanded {
+    -fx-pref-width: 220px;
+    -fx-min-width: 200px;
+    -fx-max-width: 260px;
+}
+.sidebar.sidebar-collapsed .nav-item {
+    -fx-padding: 10 6 10 6;
+    -fx-alignment: center;
+    -fx-content-display: graphic-only;
+}
+.sidebar.sidebar-expanded .nav-item {
+    -fx-content-display: left;
+}
+.nav-icon {
+    -fx-font-size: 18px;
+    -fx-padding: 0;
 }
 .nav-item {
     -fx-background-color: transparent;
@@ -329,12 +347,20 @@
     -fx-padding: 8 16;
     -fx-cursor: hand;
 }
-/*todo!*selected replaced*!*/
-.tab::selection {
+/* T-19: selected nav/tab style — accent underline on active item */
+.tab:selected {
     -fx-background-color: transparent;
     -fx-text-fill: #e6edf3;
     -fx-border-color: #388bfd;
     -fx-border-width: 0 0 2 0;
+}
+.table-row-cell:selected {
+    -fx-background-color: #1f6feb33;
+    -fx-text-fill: #e6edf3;
+}
+.list-cell:selected {
+    -fx-background-color: #1f6feb33;
+    -fx-text-fill: #e6edf3;
 }
 .tab:hover { -fx-text-fill: #e6edf3; }
 

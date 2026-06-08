@@ -2,6 +2,9 @@ package com.mst.matt.tradingplatformapp.service.price;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.mst.matt.tradingplatformapp.model.UserProfile;
+import com.mst.matt.tradingplatformapp.service.AppSettingsService;
+import com.mst.matt.tradingplatformapp.service.WatchlistDefaults;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -9,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 /**
  * Manages the live ticker bar.
@@ -24,6 +28,10 @@ public class LiveTickerService {
 
     @Autowired private PriceRouter priceRouter;
     @Autowired private BinanceService binanceService;
+    @Autowired private AppSettingsService appSettings;
+    /** P3 (LOG-FIX): WS ticks feed the last-known-good cache so the chart never
+     *  goes blank when REST providers are down. */
+    @Autowired private PriceCacheService priceCache;
 
     // Default watchlist (user can customize in Settings — Phase 11)
     private final List<String> cryptoWatchlist = new ArrayList<>(List.of(
@@ -47,11 +55,20 @@ public class LiveTickerService {
      * Called by AppStartupService (Phase 3).
      */
     public void startLiveStreams() {
-        // Binance multi-stream for all crypto
+        if (!appSettings.isApiFetchEnabled()) {
+            log.info("Offline mode — live WebSocket streams skipped");
+            replayCachedQuotes();
+            return;
+        }
         binanceService.subscribeToMultiTicker(cryptoWatchlist);
         binanceService.addLiveListener(quote -> notifyListeners(quote));
         log.info("Live WebSocket streams started for {} crypto pairs",
                 cryptoWatchlist.size());
+    }
+
+    private void replayCachedQuotes() {
+        allSymbols().forEach(sym ->
+                priceCache.getLastKnown(sym).ifPresent(this::notifyListeners));
     }
 
     /**
@@ -60,6 +77,10 @@ public class LiveTickerService {
      */
     @Scheduled(fixedRateString = "15000")
     public void pollStocksAndForex() {
+        if (!appSettings.isApiFetchEnabled()) {
+            replayCachedQuotes();
+            return;
+        }
         List<String> all = new ArrayList<>();
         all.addAll(stockWatchlist);
         all.addAll(forexWatchlist);
@@ -69,6 +90,10 @@ public class LiveTickerService {
     }
 
     private void notifyListeners(PriceQuote quote) {
+        // P3 (LOG-FIX): cache every successful tick.
+        if (quote != null && quote.getSymbol() != null) {
+            priceCache.update(quote.getSymbol(), quote);
+        }
         tickerListeners.forEach(l -> {
             try { l.accept(quote); }
             catch (Exception e) {
@@ -97,6 +122,47 @@ public class LiveTickerService {
         } else {
             if (!stockWatchlist.contains(s)) stockWatchlist.add(s);
         }
+    }
+
+    /**
+     * T-12: replace every watchlist from a single comma/space-separated string supplied by
+     * Profile Settings. Symbols are classified by {@link #addToWatchlist(String)} so the
+     * Binance WS subscription stays in sync automatically.
+     */
+    public synchronized void replaceWatchlistFromString(String csv) {
+        if (csv == null) return;
+        cryptoWatchlist.clear();
+        stockWatchlist.clear();
+        forexWatchlist.clear();
+        for (String token : csv.split("[,;\\s]+")) {
+            String s = token.trim();
+            if (s.isEmpty()) continue;
+            addToWatchlist(s);
+        }
+        log.info("Watchlist updated — crypto={}, stocks={}, forex={}",
+                cryptoWatchlist.size(), stockWatchlist.size(), forexWatchlist.size());
+        if (appSettings.isApiFetchEnabled()) {
+            binanceService.subscribeToMultiTicker(cryptoWatchlist);
+        }
+    }
+
+    /** Apply profile watchlist or asset-focus defaults. */
+    public synchronized void applyProfileWatchlist(UserProfile profile) {
+        if (profile == null) return;
+        String csv = profile.getWatchlist();
+        if (csv != null && !csv.isBlank()) {
+            replaceWatchlistFromString(csv);
+        } else {
+            replaceWatchlistFromString(
+                    WatchlistDefaults.csvForFocus(profile.getAssetFocus()));
+        }
+    }
+
+    public List<String> allSymbols() {
+        return Stream.of(cryptoWatchlist, stockWatchlist, forexWatchlist)
+                .flatMap(Collection::stream)
+                .distinct()
+                .toList();
     }
 
     public List<String> getCryptoWatchlist() { return Collections.unmodifiableList(cryptoWatchlist); }

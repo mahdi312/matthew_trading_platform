@@ -10,7 +10,9 @@ import java.util.List;
  * All trades, alerts, and indicator configs are scoped to a profile.
  */
 @Entity
-@Table(name = "user_profiles")
+@Table(name = "user_profiles", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_user_profiles_name", columnNames = "name")
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -21,7 +23,7 @@ public class UserProfile {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String name;                     // e.g. "Crypto Portfolio", "Stocks Journal"
 
     @Column
@@ -39,9 +41,15 @@ public class UserProfile {
     @Column
     private LocalDateTime lastAccessedAt;
 
-    /** Primary asset class for this profile (drives default symbol & provider chain). */
+    /** Primary asset class for this profile (drives default symbol & provider chain).
+     *
+     * <p>P2 (LOG-FIX): {@code nullable = false} + {@link #getAssetFocus()} fallback +
+     * {@link #onCreate()} default ensure no caller ever observes {@code null}, which
+     * was the root cause of the {@code NullPointerException} thrown from
+     * {@code YearlyProfitController.setProfile}, {@code ProfileSettingsController.setProfile},
+     * and {@code ChartController.refreshProviderCombo}. */
     @Enumerated(EnumType.STRING)
-    @Column(length = 16)
+    @Column(length = 16, nullable = false)
     @Builder.Default
     private ProfileAssetFocus assetFocus = ProfileAssetFocus.MULTI;
 
@@ -58,6 +66,14 @@ public class UserProfile {
     @Builder.Default
     private String fundamentalProvider = "AUTO";
 
+    /**
+     * T-12: comma-separated watchlist that overrides the LiveTickerService default.
+     * Blank/null means “use the hard-coded defaults”. Symbols are normalised to upper case
+     * when persisted.
+     */
+    @Column(length = 1024)
+    private String watchlist;
+
     @OneToMany(mappedBy = "profile", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Trade> trades;
 
@@ -68,12 +84,23 @@ public class UserProfile {
     private IndicatorConfig indicatorConfig;
 
     @PrePersist
+    @PreUpdate                                              // P2 (LOG-FIX): also patch updates
     protected void onCreate() {
         if (createdAt == null)       createdAt       = LocalDateTime.now();
         if (lastAccessedAt == null)  lastAccessedAt  = LocalDateTime.now();
         if (assetFocus == null)      assetFocus      = ProfileAssetFocus.MULTI;
         if (chartProvider == null)   chartProvider   = "AUTO";
         if (fundamentalProvider == null) fundamentalProvider = "AUTO";
+        // watchlist may legitimately remain null — LiveTickerService falls back to defaults.
+    }
+
+    /**
+     * P2 (LOG-FIX): never return {@code null} for the asset focus. Older rows that
+     * predate the {@code nullable=false} migration can still contain {@code null};
+     * we fall back to {@link ProfileAssetFocus#MULTI} so the UI keeps working.
+     */
+    public ProfileAssetFocus getAssetFocus() {
+        return assetFocus != null ? assetFocus : ProfileAssetFocus.MULTI;
     }
 
     public enum ProfileAssetFocus {

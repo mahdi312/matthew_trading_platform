@@ -19,6 +19,10 @@ import java.util.Optional;
 @Service
 public class PolygonPriceService implements PriceService {
 
+    /** Package-private and non-final so {@link PolygonPriceServiceTest} can
+     *  redirect to {@link okhttp3.mockwebserver.MockWebServer} via ReflectionTestUtils. */
+    String baseUrl = "https://api.polygon.io";
+
     private final HttpJsonClient http;
     private final MarketApiProperties keys;
 
@@ -33,7 +37,7 @@ public class PolygonPriceService implements PriceService {
     @Override
     public Optional<PriceQuote> getQuote(String symbol) {
         String sym = SymbolNormalizer.normalize(symbol);
-        String url = "https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/"
+        String url = baseUrl + "/v2/snapshot/locale/us/markets/stocks/tickers/"
                 + sym + "?apiKey=" + keys.getPolygonKey();
         return http.getJson(url).flatMap(root -> {
             JsonObject ticker = root.getAsJsonObject("ticker");
@@ -68,7 +72,7 @@ public class PolygonPriceService implements PriceService {
         long to = Instant.now().toEpochMilli();
         long from = Instant.now().minus(estimateDays(limit, timeframe), ChronoUnit.DAYS).toEpochMilli();
         String url = String.format(
-                "https://api.polygon.io/v2/aggs/ticker/%s/range/%d/%s/%d/%d?adjusted=true&sort=asc&limit=%d&apiKey=%s",
+                baseUrl + "/v2/aggs/ticker/%s/range/%d/%s/%d/%d?adjusted=true&sort=asc&limit=%d&apiKey=%s",
                 sym, span.multiplier(), span.timespan(), from, to, limit, keys.getPolygonKey());
 
         return http.getJson(url).map(root -> {

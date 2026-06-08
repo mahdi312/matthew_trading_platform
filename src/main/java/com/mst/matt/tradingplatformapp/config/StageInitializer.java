@@ -1,9 +1,9 @@
 package com.mst.matt.tradingplatformapp.config;
 
-import javafx.fxml.FXMLLoader;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.image.Image;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import net.rgielen.fxweaver.core.FxWeaver;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,9 +36,14 @@ public class StageInitializer implements ApplicationListener<StageReadyEvent> {
                     com.mst.matt.tradingplatformapp.controller.MainDashboardController.class
             );
 
-            Scene scene = new Scene(root, 1440, 900);
+            Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+            double width  = Math.min(1440, bounds.getWidth() * 0.92);
+            double height = Math.min(900,  bounds.getHeight() * 0.90);
+            double minW   = Math.min(1200, bounds.getWidth() * 0.75);
+            double minH   = Math.min(700,  bounds.getHeight() * 0.70);
 
-            // Apply global dark theme CSS
+            Scene scene = new Scene(root, width, height);
+
             scene.getStylesheets().add(
                     Objects.requireNonNull(
                             getClass().getResource("/css/dark-theme.css")
@@ -47,8 +52,10 @@ public class StageInitializer implements ApplicationListener<StageReadyEvent> {
 
             stage.setTitle("📈 Trading Intelligence Platform");
             stage.setScene(scene);
-            stage.setMinWidth(1200);
-            stage.setMinHeight(700);
+            stage.setMinWidth(minW);
+            stage.setMinHeight(minH);
+            stage.setX(bounds.getMinX() + (bounds.getWidth() - width) / 2);
+            stage.setY(bounds.getMinY() + (bounds.getHeight() - height) / 2);
             stage.show();
 
         } catch (Exception e) {

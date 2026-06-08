@@ -45,7 +45,9 @@ public class AlphaVantageFundamentalService implements FundamentalService {
         String base = "https://www.alphavantage.co/query?symbol=" + sym
                 + "&apikey=" + keys.getAlphavantageKey();
 
-        Optional<JsonObject> incomeOpt = http.getJson(base + "&function=INCOME_STATEMENT");
+        // Routes through the shared Alpha Vantage throttle bucket (T-23).
+        Optional<JsonObject> incomeOpt =
+                http.getJson(base + "&function=INCOME_STATEMENT", null, "alphavantage");
         if (incomeOpt.isEmpty()) return Optional.empty();
 
         JsonObject income = incomeOpt.get();
@@ -72,7 +74,7 @@ public class AlphaVantageFundamentalService implements FundamentalService {
         rows.sort(Comparator.comparing(YearlyFinancialRow::getFiscalYear).reversed());
 
         List<String> earningsNotes = new ArrayList<>();
-        http.getJson(base + "&function=EARNINGS").ifPresent(earn -> {
+        http.getJson(base + "&function=EARNINGS", null, "alphavantage").ifPresent(earn -> {
             JsonArray annualEarn = earn.has("annualEarnings")
                     ? earn.getAsJsonArray("annualEarnings") : null;
             if (annualEarn != null) {

@@ -7,10 +7,14 @@ import com.mst.matt.tradingplatformapp.repository.IndicatorConfigRepository;
 import com.mst.matt.tradingplatformapp.repository.UserProfileRepository;
 import com.mst.matt.tradingplatformapp.service.analysis.AnalysisService;
 import com.mst.matt.tradingplatformapp.service.alert.AlertService;
+import com.mst.matt.tradingplatformapp.service.WatchlistDefaults;
 import com.mst.matt.tradingplatformapp.service.price.LiveTickerService;
 import com.mst.matt.tradingplatformapp.service.price.PriceQuote;
 import com.mst.matt.tradingplatformapp.service.price.PriceRouter;
+import com.mst.matt.tradingplatformapp.ui.ScrollingTickerPane;
 import javafx.application.Platform;
+import javafx.animation.PauseTransition;
+import javafx.util.Duration;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -18,6 +22,7 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.stage.Popup;
 import net.rgielen.fxweaver.core.FxWeaver;
 import net.rgielen.fxweaver.core.FxmlView;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,7 +40,9 @@ import java.util.ResourceBundle;
 public class MainDashboardController implements Initializable {
 
     @FXML private ComboBox<UserProfile> profileSelector;
-    @FXML private HBox   tickerBar;
+    @FXML private StackPane tickerContainer;
+    @FXML private VBox sidebar;
+    @FXML private Button watchlistMenuBtn;
     @FXML private StackPane contentArea;
     @FXML private Label  statusLabel;
     @FXML private Label  lastUpdateLabel;
@@ -67,13 +74,114 @@ public class MainDashboardController implements Initializable {
     private ProfileSettingsController   profileSettingsCtrl;
 
     private UserProfile activeProfile;
+    private ScrollingTickerPane scrollingTicker;
+    private Popup watchlistPopup;
+    private PauseTransition sidebarCollapseTimer;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
+        setupNavTooltips();
         setupProfileSelector();
         loadOrCreateDefaultProfiles();
+        setupScrollingTicker();
         setupLiveTicker();
         updateLastUpdateLabel();
+        Platform.runLater(() -> setSidebarExpanded(false));
+    }
+
+    private void setupNavTooltips() {
+        setNavTip(navDashboard, "Dashboard");
+        setNavTip(navChart, "Live Chart");
+        setNavTip(navTrades, "Trade Journal");
+        setNavTip(navAnalysis, "Analysis");
+        setNavTip(navAlerts, "Alerts");
+        setNavTip(navMixer, "Indicator Mixer");
+        setNavTip(navPortfolio, "Portfolio");
+        setNavTip(navFundamentals, "Yearly Profit");
+        setNavTip(navExport, "Export Excel");
+        setNavTip(navSettings, "Settings");
+        if (watchlistMenuBtn != null) {
+            watchlistMenuBtn.setTooltip(new Tooltip("Watchlist"));
+        }
+    }
+
+    private static final double SIDEBAR_WIDTH_EXPANDED = 220;
+    private static final double SIDEBAR_WIDTH_COLLAPSED = 56;
+    private static final double NAV_BTN_WIDTH_EXPANDED = 188;
+    private static final double NAV_BTN_WIDTH_COLLAPSED = 44;
+
+    private void setNavTip(Button btn, String label) {
+        if (btn == null) return;
+        String icon = btn.getText() == null ? "" : btn.getText().trim();
+        javafx.scene.control.Label iconLabel = new javafx.scene.control.Label(icon);
+        iconLabel.getStyleClass().add("nav-icon");
+        btn.setGraphic(iconLabel);
+        btn.setText(label);
+        btn.getProperties().put("navLabel", label);
+        Tooltip tip = new Tooltip(label);
+        tip.setShowDelay(Duration.millis(200));
+        tip.setHideDelay(Duration.seconds(4));
+        btn.setTooltip(tip);
+        btn.setUserData(label);
+    }
+
+    @FXML private void onSidebarEnter() {
+        if (sidebarCollapseTimer != null) sidebarCollapseTimer.stop();
+        setSidebarExpanded(true);
+    }
+
+    @FXML private void onSidebarExit() {
+        if (sidebarCollapseTimer != null) sidebarCollapseTimer.stop();
+        sidebarCollapseTimer = new PauseTransition(Duration.seconds(2));
+        sidebarCollapseTimer.setOnFinished(e -> Platform.runLater(() -> setSidebarExpanded(false)));
+        sidebarCollapseTimer.play();
+    }
+
+    private void setSidebarExpanded(boolean expanded) {
+        if (sidebar == null) return;
+        if (expanded) {
+            sidebar.getStyleClass().remove("sidebar-collapsed");
+            sidebar.getStyleClass().add("sidebar-expanded");
+        } else {
+            sidebar.getStyleClass().remove("sidebar-expanded");
+            if (!sidebar.getStyleClass().contains("sidebar-collapsed")) {
+                sidebar.getStyleClass().add("sidebar-collapsed");
+            }
+        }
+        double sideW = expanded ? SIDEBAR_WIDTH_EXPANDED : SIDEBAR_WIDTH_COLLAPSED;
+        double btnW  = expanded ? NAV_BTN_WIDTH_EXPANDED : NAV_BTN_WIDTH_COLLAPSED;
+        sidebar.setPrefWidth(sideW);
+        sidebar.setMinWidth(sideW);
+        sidebar.setMaxWidth(sideW);
+        expandNavLabels(expanded, btnW);
+        sidebar.requestLayout();
+    }
+
+    private void expandNavLabels(boolean expanded, double btnWidth) {
+        for (Button b : List.of(navDashboard, navChart, navTrades, navAnalysis,
+                navAlerts, navMixer, navPortfolio, navFundamentals, navExport, navSettings)) {
+            if (b == null) continue;
+            String label = (String) b.getProperties().get("navLabel");
+            if (label == null) label = (String) b.getUserData();
+            b.setText(expanded && label != null ? label : "");
+            b.setPrefWidth(btnWidth);
+            b.setMinWidth(btnWidth);
+            b.setMaxWidth(btnWidth);
+            b.setAlignment(expanded
+                    ? javafx.geometry.Pos.CENTER_LEFT
+                    : javafx.geometry.Pos.CENTER);
+            b.setContentDisplay(expanded
+                    ? javafx.scene.control.ContentDisplay.LEFT
+                    : javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+        }
+    }
+
+    private void setupScrollingTicker() {
+        scrollingTicker = new ScrollingTickerPane();
+        StackPane.setAlignment(scrollingTicker, javafx.geometry.Pos.CENTER_LEFT);
+        scrollingTicker.prefWidthProperty().bind(tickerContainer.widthProperty());
+        scrollingTicker.maxWidthProperty().bind(tickerContainer.widthProperty());
+        tickerContainer.getChildren().add(scrollingTicker);
     }
 
     private void setupProfileSelector() {
@@ -117,6 +225,7 @@ public class MainDashboardController implements Initializable {
                 .name(name).avatarColor(color).active(false)
                 .assetFocus(focus)
                 .defaultSymbol(focus.defaultSymbol())
+                .watchlist(WatchlistDefaults.csvForFocus(focus))
                 .chartProvider("AUTO")
                 .fundamentalProvider("AUTO")
                 .createdAt(LocalDateTime.now())
@@ -142,6 +251,13 @@ public class MainDashboardController implements Initializable {
         activeProfile = profile;
         analysisService.setActiveProfile(profile);
         priceRouter.setActiveProfile(profile);
+
+        if (liveTickerService != null) {
+            liveTickerService.applyProfileWatchlist(profile);
+            if (scrollingTicker != null) {
+                scrollingTicker.setSymbols(liveTickerService.allSymbols());
+            }
+        }
 
         if (dashboardCtrl != null)  dashboardCtrl.loadProfile(profile);
         if (chartCtrl      != null) chartCtrl.setProfile(profile);
@@ -174,43 +290,67 @@ public class MainDashboardController implements Initializable {
 
     private void onTickerUpdate(PriceQuote quote) {
         Platform.runLater(() -> {
+            if (scrollingTicker == null || quote.getSymbol() == null
+                    || quote.getPrice() == null) return;
+            if (activeProfile != null && !liveTickerService.allSymbols()
+                    .contains(quote.getSymbol().toUpperCase())) {
+                return;
+            }
             String sym = quote.getSymbol();
-            if (quote.getPrice() == null) return;
             String price = "$" + quote.getPrice()
                     .setScale(quote.getPrice().intValue() >= 10 ? 2 : 4,
                             RoundingMode.HALF_UP).toPlainString();
             String change = quote.getChangePct24h() != null
-                    ? (quote.isUp() ? "▲ +" : "▼ ")
+                    ? (quote.isUp() ? " ▲ +" : " ▼ ")
                     + quote.getChangePct24h()
                     .setScale(2, RoundingMode.HALF_UP).toPlainString() + "%"
                     : "";
-
-            tickerBar.getChildren().stream()
-                    .filter(n -> n instanceof Label)
-                    .map(n -> (Label) n)
-                    .filter(l -> l.getText().startsWith(sym))
-                    .findFirst()
-                    .ifPresentOrElse(
-                            l -> {
-                                l.setText(sym + "  " + price + "  " + change);
-                                l.getStyleClass().removeAll(
-                                        "ticker-price-up","ticker-price-down");
-                                l.getStyleClass().add(
-                                        quote.isUp() ? "ticker-price-up"
-                                                : "ticker-price-down");
-                            },
-                            () -> {
-                                Label lbl = new Label(sym + "  " + price + "  " + change);
-                                lbl.getStyleClass().addAll("ticker-item",
-                                        quote.isUp() ? "ticker-price-up"
-                                                : "ticker-price-down");
-                                Label sep = new Label(" │ ");
-                                sep.setStyle("-fx-text-fill:#30363d;");
-                                tickerBar.getChildren().addAll(lbl, sep);
-                            }
-                    );
+            scrollingTicker.updateQuote(sym, sym + "  " + price + change, quote.isUp());
             updateLastUpdateLabel();
         });
+    }
+
+    @FXML public void onToggleWatchlistMenu() {
+        if (watchlistMenuBtn == null) return;
+        if (watchlistPopup != null && watchlistPopup.isShowing()) {
+            watchlistPopup.hide();
+            return;
+        }
+        VBox box = new VBox(8);
+        box.setStyle("-fx-background-color:#161b22; -fx-padding:12; -fx-border-color:#30363d;"
+                + "-fx-border-width:1; -fx-background-radius:8; -fx-border-radius:8;");
+        box.setPrefWidth(320);
+        Label title = new Label("Profile watchlist");
+        title.setStyle("-fx-font-weight:bold; -fx-text-fill:#e6edf3;");
+        TextArea editor = new TextArea(activeProfile != null && activeProfile.getWatchlist() != null
+                ? activeProfile.getWatchlist()
+                : (activeProfile != null
+                ? WatchlistDefaults.csvForFocus(activeProfile.getAssetFocus()) : ""));
+        editor.setPrefRowCount(4);
+        editor.setWrapText(true);
+        Button save = new Button("Apply to ticker");
+        save.getStyleClass().add("btn-primary");
+        save.setOnAction(e -> {
+            if (activeProfile == null) return;
+            String csv = editor.getText() == null ? "" : editor.getText().trim();
+            activeProfile.setWatchlist(csv.isEmpty() ? null : csv.toUpperCase());
+            profileRepository.save(activeProfile);
+            liveTickerService.applyProfileWatchlist(activeProfile);
+            scrollingTicker.setSymbols(liveTickerService.allSymbols());
+            if (watchlistPopup != null) watchlistPopup.hide();
+        });
+        Button settings = new Button("Open settings…");
+        settings.getStyleClass().add("btn-secondary");
+        settings.setOnAction(e -> {
+            if (watchlistPopup != null) watchlistPopup.hide();
+            onOpenSettings();
+        });
+        box.getChildren().addAll(title, editor, save, settings);
+        watchlistPopup = new Popup();
+        watchlistPopup.getContent().add(box);
+        watchlistPopup.show(watchlistMenuBtn,
+                watchlistMenuBtn.localToScreen(0, watchlistMenuBtn.getHeight()).getX(),
+                watchlistMenuBtn.localToScreen(0, watchlistMenuBtn.getHeight()).getY());
     }
 
     private void ensureDashboardLoaded() {
@@ -250,6 +390,7 @@ public class MainDashboardController implements Initializable {
         setActiveNav(navChart);
         ensureChartLoaded();
         if (activeProfile != null) chartCtrl.setProfile(activeProfile);
+        chartCtrl.setViewMode(ChartController.ViewMode.CHART);
         chartCtrl.prepareView();
         showView(chartView);
     }
@@ -334,6 +475,7 @@ public class MainDashboardController implements Initializable {
     @FXML public void onNavAnalysis() {
         ensureChartLoaded();
         if (activeProfile != null) chartCtrl.setProfile(activeProfile);
+        chartCtrl.setViewMode(ChartController.ViewMode.ANALYSIS);
         chartCtrl.prepareView();
         setActiveNav(navAnalysis);
         showView(chartView);
@@ -370,6 +512,74 @@ public class MainDashboardController implements Initializable {
                 UserProfile p = createProfile(name.trim(), "#388bfd");
                 profileSelector.getItems().add(p);
                 profileSelector.setValue(p);
+            }
+        });
+    }
+
+    /**
+     * T-13: rename the active profile. Renaming is purely cosmetic — trades / alerts /
+     * configs remain linked via primary key.
+     */
+    @FXML public void onRenameProfile() {
+        if (activeProfile == null) return;
+        TextInputDialog dlg = new TextInputDialog(activeProfile.getName());
+        dlg.setTitle("Rename Profile");
+        dlg.setHeaderText("Rename \"" + activeProfile.getName() + "\"");
+        dlg.setContentText("New name:");
+        dlg.showAndWait().ifPresent(newName -> {
+            String trimmed = newName == null ? "" : newName.trim();
+            if (trimmed.isBlank()) return;
+            if (profileRepository.findAll().stream()
+                    .anyMatch(p -> !p.getId().equals(activeProfile.getId())
+                            && trimmed.equalsIgnoreCase(p.getName()))) {
+                new Alert(Alert.AlertType.ERROR,
+                        "A profile named \"" + trimmed + "\" already exists.")
+                        .showAndWait();
+                return;
+            }
+            activeProfile.setName(trimmed);
+            profileRepository.save(activeProfile);
+            profileSelector.setItems(FXCollections.observableArrayList(
+                    profileRepository.findAllByOrderByLastAccessedAtDesc()));
+            profileSelector.setValue(activeProfile);
+            updateStatusBar("Profile renamed to " + trimmed);
+        });
+    }
+
+    /**
+     * T-13: safely delete the active profile after confirmation. JPA cascades remove all
+     * dependent trades / alerts / indicator configs.
+     */
+    @FXML public void onDeleteProfile() {
+        if (activeProfile == null) return;
+        long profileCount = profileRepository.count();
+        if (profileCount <= 1) {
+            new Alert(Alert.AlertType.WARNING,
+                    "Cannot delete the last remaining profile — create another one first.")
+                    .showAndWait();
+            return;
+        }
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Delete Profile");
+        confirm.setHeaderText("Delete \"" + activeProfile.getName() + "\"?");
+        confirm.setContentText("This permanently removes the profile and all of its trades, "
+                + "alerts, and indicator configurations. This cannot be undone.");
+        confirm.getButtonTypes().setAll(ButtonType.OK, ButtonType.CANCEL);
+        confirm.showAndWait().ifPresent(bt -> {
+            if (bt != ButtonType.OK) return;
+            try {
+                UserProfile victim = activeProfile;
+                profileRepository.delete(victim);
+                List<UserProfile> remaining =
+                        profileRepository.findAllByOrderByLastAccessedAtDesc();
+                profileSelector.setItems(FXCollections.observableArrayList(remaining));
+                if (!remaining.isEmpty()) {
+                    profileSelector.setValue(remaining.get(0));
+                }
+                updateStatusBar("Deleted profile \"" + victim.getName() + "\"");
+            } catch (Exception ex) {
+                new Alert(Alert.AlertType.ERROR,
+                        "Failed to delete profile: " + ex.getMessage()).showAndWait();
             }
         });
     }

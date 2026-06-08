@@ -4,6 +4,8 @@ import com.mst.matt.tradingplatformapp.model.*;
 import com.mst.matt.tradingplatformapp.repository.IndicatorConfigRepository;
 import com.mst.matt.tradingplatformapp.service.OhlcvStorageService;
 import com.mst.matt.tradingplatformapp.service.alert.AlertService;
+import com.mst.matt.tradingplatformapp.service.marketdata.IndicatorSeriesStorageService;
+import com.mst.matt.tradingplatformapp.service.marketdata.MarketDataSyncScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +40,8 @@ public class AnalysisService {
     @Autowired private SignalScoringService        scoringService;
     @Autowired private IndicatorConfigRepository  configRepo;
     @Autowired private AlertService               alertService;
+    @Autowired private MarketDataSyncScheduler    marketDataSyncScheduler;
+    @Autowired private IndicatorSeriesStorageService indicatorSeriesStorage;
 
     @Value("${app.chart.default-bars:200}")
     private int defaultBars;
@@ -62,8 +66,8 @@ public class AnalysisService {
                         IndicatorConfig.IndicatorProfile.SWING_TRADING, profile));
 
         // 1. Load bars
-        List<OhlcvBar> bars = ohlcvStorageService.getBars(
-                symbol, timeframe, barCount, profile);
+        List<OhlcvBar> bars = OhlcvStorageService.chronological(ohlcvStorageService.getBars(
+                symbol, timeframe, barCount, profile));
 
         if (bars.isEmpty()) {
             log.warn("No OHLCV data for {}/{}", symbol, timeframe);
@@ -73,8 +77,16 @@ public class AnalysisService {
         // 2. Build BarSeries
         BarSeries series = indicatorService.toBarSeries(bars, symbol);
 
-        // 3. Compute indicators
+        // 3. Compute indicators (load series from symbol/timeframe tables when still fresh)
         IndicatorResult indicators = indicatorService.compute(series, config);
+        if (indicatorSeriesStorage.isEnabled()) {
+            if (indicatorSeriesStorage.isFresh(symbol, timeframe)) {
+                indicators = indicatorSeriesStorage.enrichFromTables(
+                        symbol, timeframe, indicators, config, bars.size());
+            } else {
+                indicatorSeriesStorage.save(symbol, timeframe, indicators, bars);
+            }
+        }
 
         // 4. Support / Resistance
         SupportResistanceService.SRResult sr = srService.analyze(
@@ -140,7 +152,10 @@ public class AnalysisService {
         });
     }
 
-    public void setActiveProfile(UserProfile profile) { this.activeProfile = profile; }
+    public void setActiveProfile(UserProfile profile) {
+        this.activeProfile = profile;
+        marketDataSyncScheduler.setActiveProfile(profile);
+    }
     public void addToWatchlist(String symbol) { activeWatchlist.add(symbol); }
     public void removeFromWatchlist(String symbol) { activeWatchlist.remove(symbol); }
 

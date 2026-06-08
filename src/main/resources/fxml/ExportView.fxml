@@ -42,6 +42,12 @@
                        style="-fx-text-fill:#8b949e; -fx-font-size:13px;"/>
                 <Label text="✅  Sheet 4 — Equity curve with embedded line chart"
                        style="-fx-text-fill:#8b949e; -fx-font-size:13px;"/>
+                <!-- T-22: optional fundamentals snapshot -->
+                <CheckBox fx:id="includeFundamentalsCheck"
+                          text="Include Sheet 5 — last loaded fundamentals snapshot"
+                          style="-fx-text-fill:#8b949e; -fx-font-size:13px;"/>
+                <TextField fx:id="fundamentalsSymbolField"
+                           promptText="Symbol for fundamentals (e.g. AAPL)"/>
             </VBox>
 
             <Separator/>

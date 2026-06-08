@@ -3,6 +3,8 @@ package com.mst.matt.tradingplatformapp.service.price;
 import com.google.gson.*;
 import com.mst.matt.tradingplatformapp.model.OhlcvBar;
 import com.mst.matt.tradingplatformapp.model.Trade.AssetType;
+import com.mst.matt.tradingplatformapp.service.price.api.CoinGeckoMarketCoin;
+import com.mst.matt.tradingplatformapp.service.price.api.CoinGeckoSimplePrice;
 import okhttp3.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,49 +73,44 @@ public class CoinGeckoService implements PriceService {
     public Optional<PriceQuote> getQuote(String symbol) {
         String coinId = toCoinId(symbol);
         if (coinId == null) return Optional.empty();
+        String display = symbol.toUpperCase();
 
+        Optional<PriceQuote> fromMarkets = fetchFromMarkets(coinId, display);
+        if (fromMarkets.isPresent()) return fromMarkets;
+        return fetchFromSimplePrice(coinId, display);
+    }
+
+    private Optional<PriceQuote> fetchFromMarkets(String coinId, String display) {
         String url = baseUrl + "/coins/markets"
                 + "?vs_currency=usd"
                 + "&ids=" + coinId
                 + "&order=market_cap_desc"
                 + "&sparkline=false"
                 + "&price_change_percentage=24h";
-
-        Request request = buildRequest(url);
-
-        try (Response response = httpClient.newCall(request).execute()) {
+        try (Response response = httpClient.newCall(buildRequest(url)).execute()) {
             if (!response.isSuccessful() || response.body() == null) return Optional.empty();
-
             JsonArray arr = gson.fromJson(response.body().string(), JsonArray.class);
-            if (arr.size() == 0) return Optional.empty();
-
-            JsonObject coin = arr.get(0).getAsJsonObject();
-
-            BigDecimal price     = JsonParseUtil.asBigDecimal(coin, "current_price");
-            BigDecimal changePct = JsonParseUtil.asBigDecimal(coin, "price_change_percentage_24h");
-            BigDecimal change    = JsonParseUtil.asBigDecimal(coin, "price_change_24h");
-
-            PriceQuote quote = PriceQuote.builder()
-                    .symbol(symbol.toUpperCase())
-                    .assetName(coin.has("name") ? coin.get("name").getAsString() : symbol)
-                    .assetType(AssetType.CRYPTO)
-                    .price(price)
-                    .high24h(JsonParseUtil.asBigDecimal(coin, "high_24h"))
-                    .low24h(JsonParseUtil.asBigDecimal(coin, "low_24h"))
-                    .change24h(change)
-                    .changePct24h(changePct)
-                    .volume24h(JsonParseUtil.asBigDecimal(coin, "total_volume"))
-                    .marketCap(JsonParseUtil.asBigDecimal(coin, "market_cap"))
-                    .currency("USD")
-                    .exchange("CoinGecko")
-                    .timestamp(LocalDateTime.now())
-                    .isUp(changePct.compareTo(BigDecimal.ZERO) >= 0)
-                    .build();
-
-            return Optional.of(quote);
-
+            if (arr == null || arr.isEmpty()) return Optional.empty();
+            return CoinGeckoMarketCoin.fromJson(arr.get(0).getAsJsonObject())
+                    .map(c -> c.toPriceQuote(display));
         } catch (IOException e) {
-            log.error("CoinGecko error for {}: {}", symbol, e.getMessage());
+            log.warn("CoinGecko markets error for {}: {}", display, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /** Lighter endpoint from report.html when markets is rate-limited. */
+    private Optional<PriceQuote> fetchFromSimplePrice(String coinId, String display) {
+        String url = baseUrl + "/simple/price?ids=" + coinId
+                + "&vs_currencies=usd&include_24hr_change=true&include_market_cap=true";
+        try (Response response = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!response.isSuccessful() || response.body() == null) return Optional.empty();
+            JsonObject root = gson.fromJson(response.body().string(), JsonObject.class);
+            if (root == null || !root.has(coinId)) return Optional.empty();
+            return CoinGeckoSimplePrice.fromCoinNode(root.getAsJsonObject(coinId))
+                    .map(p -> p.toPriceQuote(display, display));
+        } catch (IOException e) {
+            log.error("CoinGecko error for {}: {}", display, e.getMessage());
             return Optional.empty();
         }
     }

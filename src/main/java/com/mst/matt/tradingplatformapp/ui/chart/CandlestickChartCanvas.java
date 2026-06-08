@@ -87,13 +87,15 @@ public class CandlestickChartCanvas extends Canvas {
     private int     dragStartBar;
 
     // ── Overlay toggles ───────────────────────────────────────
-    private boolean showEma         = true;
-    private boolean showBollinger   = true;
-    private boolean showIchimoku    = true;
-    private boolean showSR          = true;
+    private boolean analysisMode    = false;
+    private boolean showEma         = false;
+    private boolean showBollinger   = false;
+    private boolean showIchimoku    = false;
+    private boolean showSR          = false;
     private boolean showVolume      = true;
-    private boolean showMacd        = true;
-    private boolean showRsi         = true;
+    private boolean showMacd        = false;
+    private boolean showRsi         = false;
+    private double  lastPrice       = Double.NaN;
 
     private static final Font FONT_SMALL  =
             Font.font("Segoe UI", 11);
@@ -138,6 +140,27 @@ public class CandlestickChartCanvas extends Canvas {
         }
         render();
     }
+
+    public void setLastPrice(double price) { this.lastPrice = price; render(); }
+    public double getLastPrice() { return lastPrice; }
+
+    public void setAnalysisMode(boolean analysisMode) {
+        this.analysisMode = analysisMode;
+        render();
+    }
+
+    public void setOverlaysEnabled(boolean enabled) {
+        showEma = showBollinger = showIchimoku = showSR = showMacd = showRsi = enabled;
+        render();
+    }
+
+    public void setShowEma(boolean v)       { showEma = v; render(); }
+    public void setShowBollinger(boolean v) { showBollinger = v; render(); }
+    public void setShowIchimoku(boolean v)  { showIchimoku = v; render(); }
+    public void setShowSR(boolean v)        { showSR = v; render(); }
+    public void setShowVolume(boolean v)    { showVolume = v; render(); }
+    public void setShowMacd(boolean v)      { showMacd = v; render(); }
+    public void setShowRsi(boolean v)       { showRsi = v; render(); }
 
     public void toggleEma()       { showEma       = !showEma;       render(); }
     public void toggleBollinger() { showBollinger = !showBollinger; render(); }
@@ -217,31 +240,26 @@ public class CandlestickChartCanvas extends Canvas {
         // 2. Grid
         drawGrid(gc, layout, maxPrice, minPrice, visible.size());
 
-        // 3. Ichimoku Cloud (behind candles)
+        // 3. Indicator overlays (chart + analysis views)
         if (showIchimoku && indicators != null)
             drawIchimokuCloud(gc, layout, maxPrice, minPrice,
                     startBarIndex, endBarIndex, visible.size());
 
-        // 4. Bollinger Bands fill (behind candles)
         if (showBollinger && indicators != null)
             drawBollingerFill(gc, layout, maxPrice, minPrice,
                     startBarIndex, endBarIndex, visible.size());
 
-        // 5. Support & Resistance lines
         if (showSR && srResult != null)
             drawSupportResistance(gc, layout, maxPrice, minPrice, w);
 
-        // 6. EMA lines
         if (showEma && indicators != null)
             drawEmaLines(gc, layout, maxPrice, minPrice,
                     startBarIndex, endBarIndex, visible.size());
 
-        // 7. Bollinger Band lines (on top of fill)
         if (showBollinger && indicators != null)
             drawBollingerLines(gc, layout, maxPrice, minPrice,
                     startBarIndex, endBarIndex, visible.size());
 
-        // 8. Ichimoku Tenkan/Kijun lines
         if (showIchimoku && indicators != null)
             drawIchimokuLines(gc, layout, maxPrice, minPrice,
                     startBarIndex, endBarIndex, visible.size());
@@ -249,15 +267,16 @@ public class CandlestickChartCanvas extends Canvas {
         // 9. Candles
         drawCandles(gc, layout, visible, maxPrice, minPrice, startBarIndex);
 
+        // 9b. Last price — dotted red line from last candle close
+        drawLastPriceLine(gc, layout, maxPrice, minPrice, visible);
+
         // 10. Volume bars
         if (showVolume)
             drawVolume(gc, layout, visible, maxVolume);
 
-        // 11. MACD sub-chart
         if (showMacd && indicators != null)
             drawMacd(gc, layout, startBarIndex, endBarIndex, visible.size());
 
-        // 12. RSI sub-chart
         if (showRsi && indicators != null)
             drawRsi(gc, layout, startBarIndex, endBarIndex, visible.size());
 
@@ -338,6 +357,28 @@ public class CandlestickChartCanvas extends Canvas {
                 gc.strokeLine(cx - bodyW/2, bodyTop, cx + bodyW/2, bodyTop);
             }
         }
+    }
+
+    /** Dotted red horizontal line at last traded / close price. */
+    private void drawLastPriceLine(GraphicsContext gc, ChartLayout l,
+                                   double maxP, double minP, List<OhlcvBar> visible) {
+        double price = lastPrice;
+        if (Double.isNaN(price) && visible != null && !visible.isEmpty()) {
+            price = visible.getLast().getClose().doubleValue();
+        }
+        if (Double.isNaN(price)) return;
+
+        double y = priceToY(price, maxP, minP, l);
+        gc.setStroke(Color.web("#f85149"));
+        gc.setLineWidth(1.2);
+        gc.setLineDashes(6, 6);
+        gc.strokeLine(l.left, y, l.right, y);
+        gc.setLineDashes();
+
+        gc.setFill(Color.web("#f85149"));
+        gc.setFont(FONT_SMALL);
+        gc.setTextAlign(TextAlignment.RIGHT);
+        gc.fillText(String.format("%.4f", price), l.right + 72, y + 4);
     }
 
     // ── Draw: Volume ──────────────────────────────────────────

@@ -17,7 +17,8 @@ import java.util.Optional;
 @Service
 public class TwelveDataPriceService implements PriceService {
 
-    private static final String BASE = "https://api.twelvedata.com";
+    /** Package-private and non-final so {@link TwelveDataPriceServiceTest} can redirect via ReflectionTestUtils. */
+    String baseUrl = "https://api.twelvedata.com";
     private static final DateTimeFormatter DT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -35,7 +36,7 @@ public class TwelveDataPriceService implements PriceService {
     @Override
     public Optional<PriceQuote> getQuote(String symbol) {
         String sym = formatSymbol(symbol);
-        String url = BASE + "/quote?symbol=" + sym + "&apikey=" + keys.getTwelvedataKey();
+        String url = baseUrl + "/quote?symbol=" + sym + "&apikey=" + keys.getTwelvedataKey();
         return http.getJson(url).flatMap(json -> {
             BigDecimal price = JsonParseUtil.asBigDecimal(json, "close");
             if (price.compareTo(BigDecimal.ZERO) == 0)
@@ -60,7 +61,7 @@ public class TwelveDataPriceService implements PriceService {
     public List<OhlcvBar> getOhlcv(String symbol, String timeframe, int limit) {
         String sym = formatSymbol(symbol);
         String interval = mapInterval(timeframe);
-        String url = BASE + "/time_series?symbol=" + sym
+        String url = baseUrl + "/time_series?symbol=" + sym
                 + "&interval=" + interval + "&outputsize=" + Math.min(limit, 5000)
                 + "&apikey=" + keys.getTwelvedataKey();
 

@@ -33,3 +33,12 @@ telegram.bot.enabled=false
 telegram.bot.token=
 telegram.bot.username=
 telegram.bot.chat-ids=
+
+# --- PostgreSQL / Docker (optional) ---
+# Run: docker compose up -d postgres
+# Then start the app with SPRING_PROFILES_ACTIVE=docker (see docs/DOCKER.md)
+# POSTGRES_HOST=localhost
+# POSTGRES_PORT=5432
+# POSTGRES_DB=trading_platform
+# POSTGRES_USER=trading
+# POSTGRES_PASSWORD=trading

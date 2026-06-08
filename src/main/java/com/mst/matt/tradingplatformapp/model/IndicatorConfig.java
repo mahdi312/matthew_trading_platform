@@ -21,7 +21,7 @@ public class IndicatorConfig {
     private Long id;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "profile_id", nullable = false)
+    @JoinColumn(name = "profile_id", nullable = false, unique = true)
     private UserProfile profile;
 
     @Enumerated(EnumType.STRING)

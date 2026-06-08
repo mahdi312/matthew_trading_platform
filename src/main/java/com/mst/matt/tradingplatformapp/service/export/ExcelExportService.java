@@ -2,6 +2,8 @@ package com.mst.matt.tradingplatformapp.service.export;
 
 import com.mst.matt.tradingplatformapp.model.Trade;
 import com.mst.matt.tradingplatformapp.model.UserProfile;
+import com.mst.matt.tradingplatformapp.model.fundamental.FundamentalsReport;
+import com.mst.matt.tradingplatformapp.model.fundamental.YearlyFinancialRow;
 import com.mst.matt.tradingplatformapp.service.TradeService;
 import com.mst.matt.tradingplatformapp.service.TradeService.PortfolioStats;
 import org.apache.poi.ss.usermodel.*;
@@ -62,6 +64,15 @@ public class ExcelExportService {
      * @param outputPath  Full file path e.g. "/home/user/report.xlsx"
      */
     public void export(UserProfile profile, String outputPath) throws IOException {
+        export(profile, outputPath, null);
+    }
+
+    /**
+     * T-22: export with an optional fundamentals snapshot appended as Sheet 5.
+     * Pass {@code null} to skip the extra sheet (same as the legacy 4-sheet overload).
+     */
+    public void export(UserProfile profile, String outputPath, FundamentalsReport fundamentals)
+            throws IOException {
         log.info("Exporting Excel report for profile: {}", profile.getName());
 
         List<Trade>     trades = tradeService.getTradesForProfile(profile);
@@ -83,6 +94,11 @@ public class ExcelExportService {
 
             // ── Sheet 4: Equity Curve ────────────────────────
             buildEquityCurveSheet(wb, styles, stats);
+
+            // T-22: optional fundamentals snapshot.
+            if (fundamentals != null) {
+                buildFundamentalsSheet(wb, styles, fundamentals);
+            }
 
             // Write file
             try (FileOutputStream fos = new FileOutputStream(outputPath)) {
@@ -424,6 +440,91 @@ public class ExcelExportService {
             chart.plot(lineData);
         }
     }
+
+    // ================================================================
+    //  SHEET 5 - FUNDAMENTALS (T-22)
+    // ================================================================
+    private void buildFundamentalsSheet(XSSFWorkbook wb, StyleKit sk,
+                                        FundamentalsReport report) {
+        XSSFSheet sheet = wb.createSheet("Fundamentals");
+        sheet.setDisplayGridlines(false);
+
+        // Title
+        Row title = sheet.createRow(0);
+        Cell tc = title.createCell(0);
+        tc.setCellValue("Fundamentals - "
+                + (report.getCompanyName() != null ? report.getCompanyName() : report.getSymbol()));
+        tc.setCellStyle(sk.titleStyle);
+        sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 6));
+
+        // Meta row
+        Row meta = sheet.createRow(2);
+        String[] metaCells = {
+                "Symbol: "   + safeFund(report.getSymbol()),
+                "Sector: "   + safeFund(report.getSector()),
+                "Industry: " + safeFund(report.getIndustry()),
+                "Country: "  + safeFund(report.getCountry()),
+                "Provider: " + safeFund(report.getProviderUsed())
+        };
+        for (int i = 0; i < metaCells.length; i++) {
+            Cell c = meta.createCell(i);
+            c.setCellValue(metaCells[i]);
+            c.setCellStyle(sk.openRowStyle);
+        }
+
+        // Year header
+        Row header = sheet.createRow(4);
+        String[] cols = {"Fiscal Year", "Revenue", "Gross Profit",
+                "Operating Income", "Net Income", "EBITDA", "Currency"};
+        for (int i = 0; i < cols.length; i++) {
+            Cell c = header.createCell(i);
+            c.setCellValue(cols[i]);
+            c.setCellStyle(sk.headerStyle);
+        }
+
+        int rowIdx = 5;
+        for (YearlyFinancialRow row : report.getYearlyRows()) {
+            Row r = sheet.createRow(rowIdx++);
+            Cell c0 = r.createCell(0);
+            c0.setCellValue(safeFund(row.getFiscalYear()));
+            c0.setCellStyle(sk.openRowStyle);
+            writeMoneyCell(r, 1, row.getTotalRevenue(),     sk);
+            writeMoneyCell(r, 2, row.getGrossProfit(),      sk);
+            writeMoneyCell(r, 3, row.getOperatingIncome(),  sk);
+            writeMoneyCell(r, 4, row.getNetIncome(),        sk);
+            writeMoneyCell(r, 5, row.getEbitda(),           sk);
+            Cell c6 = r.createCell(6);
+            c6.setCellValue(safeFund(row.getCurrency()));
+            c6.setCellStyle(sk.openRowStyle);
+        }
+
+        // Summary block
+        if (report.getSummaryText() != null && !report.getSummaryText().isBlank()) {
+            Row s = sheet.createRow(rowIdx + 1);
+            Cell sc = s.createCell(0);
+            sc.setCellValue("Summary: " + report.getSummaryText());
+            sc.setCellStyle(sk.openRowStyle);
+            sheet.addMergedRegion(new CellRangeAddress(rowIdx + 1, rowIdx + 1, 0, 6));
+        }
+
+        for (int i = 0; i < 7; i++) sheet.setColumnWidth(i, 4800);
+    }
+
+    private static void writeMoneyCell(Row row, int col, BigDecimal value, StyleKit sk) {
+        Cell c = row.createCell(col);
+        if (value == null) {
+            c.setCellValue("-");
+            c.setCellStyle(sk.openRowStyle);
+        } else {
+            c.setCellValue(value.doubleValue());
+            c.setCellStyle(sk.priceStyle);
+        }
+    }
+
+    private static String safeFund(String s) {
+        return s == null || s.isBlank() ? "-" : s;
+    }
+
 
     // ══════════════════════════════════════════════════════════
     //  StyleKit — Central style factory

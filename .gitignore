@@ -1,5 +1,7 @@
 HELP.md
 target/
+.cursor/
+docs/report.html
 
 # Local secrets (T-01) — copy from application.properties.example
 src/main/resources/application-local.properties

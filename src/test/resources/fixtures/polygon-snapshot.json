@@ -1,0 +1,11 @@
+{
+  "status": "OK",
+  "ticker": {
+    "ticker": "AAPL",
+    "day": {"o": 172.00, "h": 175.50, "l": 171.20, "c": 174.25, "v": 58213400, "vw": 173.50},
+    "prevDay": {"c": 172.50},
+    "todaysChange": 1.75,
+    "todaysChangePerc": 1.0145,
+    "updated": 1755000000
+  }
+}

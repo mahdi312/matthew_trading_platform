@@ -20,16 +20,21 @@ public class PriceHttpConfig {
 
     @Bean(name = "priceHttpClient")
     public OkHttpClient priceHttpClient(
-            @Value("${api.http.connect-timeout-sec:30}") int connectSec,
-            @Value("${api.http.read-timeout-sec:45}") int readSec,
-            @Value("${api.http.retry-count:2}") int retryCount) {
+            // P3 (LOG-FIX): fail fast on bad networks (default 5s/10s instead of 30s/45s).
+            // The CircuitBreakerInterceptor + retry-count=0 prevent us from queueing
+            // up doomed requests behind a dead provider.
+            @Value("${api.http.connect-timeout-sec:5}") int connectSec,
+            @Value("${api.http.read-timeout-sec:10}") int readSec,
+            @Value("${api.http.retry-count:0}") int retryCount) {
 
         return new OkHttpClient.Builder()
                 .connectTimeout(connectSec, TimeUnit.SECONDS)
                 .readTimeout(readSec, TimeUnit.SECONDS)
-                .callTimeout(connectSec + readSec + 15L, TimeUnit.SECONDS)
+                .writeTimeout(connectSec, TimeUnit.SECONDS)
+                .callTimeout(connectSec + readSec + 5L, TimeUnit.SECONDS)
                 .followRedirects(true)
                 .followSslRedirects(true)
+                .retryOnConnectionFailure(false)   // P3 (LOG-FIX): circuit breaker decides, not OkHttp
                 .addInterceptor(new RetryInterceptor(retryCount))
                 .build();
     }

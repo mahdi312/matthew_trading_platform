@@ -92,6 +92,17 @@ public class PriceProviderRegistry {
                     MarketDataProvider.MARKETSTACK,
                     MarketDataProvider.BINANCE,
                     MarketDataProvider.COINGECKO);
+            // T-15: Yahoo handles commodity futures (=F) and indices (^) natively.
+            case COMMODITY -> List.of(
+                    MarketDataProvider.YAHOO,
+                    MarketDataProvider.TWELVE_DATA,
+                    MarketDataProvider.ALPHA_VANTAGE,
+                    MarketDataProvider.FINNHUB);
+            case INDEX -> List.of(
+                    MarketDataProvider.YAHOO,
+                    MarketDataProvider.TWELVE_DATA,
+                    MarketDataProvider.ALPHA_VANTAGE,
+                    MarketDataProvider.FINNHUB);
         };
     }
 
