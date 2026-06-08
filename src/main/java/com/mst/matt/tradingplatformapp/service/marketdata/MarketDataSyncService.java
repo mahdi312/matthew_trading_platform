@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -71,12 +72,15 @@ public class MarketDataSyncService {
             if (existing.isPresent()) {
                 return existing.get();
             }
-            existing = registryRepository.findBySymbolAndTimeframe(sym, tf);
-            if (existing.isPresent()) {
-                return existing.get();
+            // Fallback: check any existing row for this symbol+timeframe (different provider)
+            List<MarketDataTableRegistry> allForPair =
+                    registryRepository.findAllBySymbolAndTimeframe(sym, tf);
+            if (!allForPair.isEmpty()) {
+                return allForPair.get(0);
             }
 
-            String tableName = MarketDataTableNameUtil.buildOhlcvTableName(sym, tf);
+            // Use provider-qualified table name to avoid collisions
+            String tableName = MarketDataTableNameUtil.buildTableName(sym, provider, tf);
 
             dynamicTableService.ensureTable(tableName);
             try {

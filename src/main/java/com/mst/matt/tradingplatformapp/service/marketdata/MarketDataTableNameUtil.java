@@ -9,13 +9,23 @@ public final class MarketDataTableNameUtil {
 
     private MarketDataTableNameUtil() {}
 
-    /** OHLCV table — symbol + timeframe only (e.g. {@code BTCUSDT_1H}), not API provider. */
+    /**
+     * OHLCV table including provider — e.g. {@code ETHUSDT_BINANCE_1h}.
+     * The provider segment lets different data sources coexist without collision.
+     */
     public static String buildTableName(String symbol, MarketDataProvider provider, String timeframe) {
-        return buildOhlcvTableName(symbol, timeframe);
+        String providerSeg = (provider == null || provider == MarketDataProvider.AUTO)
+                ? ""
+                : "_" + sanitizeSymbol(provider.name());
+        return sanitizeSymbol(symbol) + providerSeg + "_" + normalizeTimeframe(timeframe);
     }
 
+    /**
+     * OHLCV table — symbol + timeframe only (legacy / fallback, no provider segment).
+     * e.g. {@code BTCUSDT_1h}
+     */
     public static String buildOhlcvTableName(String symbol, String timeframe) {
-        return sanitizeSymbol(symbol) + "_" + normalizeTimeframe(timeframe).toUpperCase();
+        return sanitizeSymbol(symbol) + "_" + normalizeTimeframe(timeframe);
     }
 
     static String sanitizeSymbol(String value) {
