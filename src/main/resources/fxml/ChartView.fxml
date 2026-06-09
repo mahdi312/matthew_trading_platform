@@ -8,66 +8,76 @@
       fx:controller="com.mst.matt.tradingplatformapp.controller.ChartController"
       styleClass="scene-root" spacing="0">
 
+    <!-- ═══════════════ Toolbar ═══════════════ -->
     <ScrollPane fitToHeight="true" hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
                 style="-fx-background-color:#1c2128; -fx-background:#1c2128;">
-        <HBox styleClass="card" alignment="CENTER_LEFT" spacing="10"
+        <HBox styleClass="card" alignment="CENTER_LEFT" spacing="8"
               style="-fx-background-radius:0; -fx-border-radius:0; -fx-border-width:0 0 1 0;">
             <padding>
-                <Insets top="10" right="12" bottom="10" left="12"/>
+                <Insets top="8" right="10" bottom="8" left="10"/>
             </padding>
 
+            <!-- Symbol -->
             <Label text="Symbol:" styleClass="label-subtitle"/>
-            <ComboBox fx:id="symbolCombo" prefWidth="130" promptText="Pick symbol"/>
-            <TextField fx:id="symbolInput" promptText="Or type symbol"
-                       prefWidth="140" onAction="#onLoadChart"/>
+            <ComboBox fx:id="symbolCombo" prefWidth="120" promptText="Pick symbol"/>
+            <TextField fx:id="symbolInput" promptText="Or type symbol…"
+                       prefWidth="130" onAction="#onLoadChart"/>
             <Button text="Load" styleClass="btn-primary" onAction="#onLoadChart"
-                    style="-fx-min-width:64;"/>
+                    style="-fx-min-width:60;"/>
 
             <Separator orientation="VERTICAL"/>
 
-            <Label text="Timeframe:" styleClass="label-subtitle"/>
-            <ToggleButton fx:id="tf1m" text="1m" styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf5m" text="5m" styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf15m" text="15m" styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf1h" text="1h" styleClass="btn-blue chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf4h" text="4h" styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf1d" text="1D" styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf1w" text="1W" styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
+            <!-- Timeframes — ALL supported intervals -->
+            <Label text="TF:" styleClass="label-subtitle"/>
+            <ToggleButton fx:id="tf1m"  text="1m"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
+            <ToggleButton fx:id="tf3m"  text="3m"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
+            <ToggleButton fx:id="tf5m"  text="5m"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
+            <ToggleButton fx:id="tf15m" text="15m"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
+            <ToggleButton fx:id="tf30m" text="30m"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
+            <ToggleButton fx:id="tf1h"  text="1h"   styleClass="btn-blue     chart-tf-btn" onAction="#onTimeframe"/>
+            <ToggleButton fx:id="tf2h"  text="2h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
+            <ToggleButton fx:id="tf4h"  text="4h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
+            <ToggleButton fx:id="tf6h"  text="6h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
+            <ToggleButton fx:id="tf8h"  text="8h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
+            <ToggleButton fx:id="tf12h" text="12h"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
+            <ToggleButton fx:id="tf1d"  text="1D"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
+            <ToggleButton fx:id="tf3d"  text="3D"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
+            <ToggleButton fx:id="tf1w"  text="1W"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
+            <ToggleButton fx:id="tf1mo" text="1Mo"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
 
             <Separator orientation="VERTICAL"/>
 
+            <!-- Bars count -->
             <Label text="Bars:" styleClass="label-subtitle"/>
-            <ComboBox fx:id="barsCombo" prefWidth="85"/>
+            <ComboBox fx:id="barsCombo" prefWidth="80"/>
 
             <Separator orientation="VERTICAL"/>
 
+            <!-- Indicator picker (new unified button) -->
             <Button fx:id="indicatorPickerBtn" text="📊 Indicators" styleClass="btn-secondary"
                     onAction="#onOpenIndicatorPicker"/>
 
-            <HBox fx:id="analysisToolbar" spacing="8" alignment="CENTER_LEFT" visible="false" managed="false">
-                <CheckBox fx:id="chkEma" text="EMA" selected="true" onAction="#onToggleEma"/>
-                <CheckBox fx:id="chkBollinger" text="BB" selected="true" onAction="#onToggleBollinger"/>
-                <CheckBox fx:id="chkIchimoku" text="Ichimoku" selected="true" onAction="#onToggleIchimoku"/>
-                <CheckBox fx:id="chkSR" text="S/R" selected="true" onAction="#onToggleSR"/>
-                <CheckBox fx:id="chkVolume" text="Vol" selected="true" onAction="#onToggleVolume"/>
-                <CheckBox fx:id="chkMacd" text="MACD" selected="true" onAction="#onToggleMacd"/>
-                <CheckBox fx:id="chkRsi" text="RSI" selected="true" onAction="#onToggleRsi"/>
-            </HBox>
+            <!-- Analysis-mode extra toolbar (analyze button only — indicators handled by picker) -->
+            <HBox fx:id="analysisToolbar" spacing="8" alignment="CENTER_LEFT"
+                  visible="false" managed="false"/>
 
             <Separator orientation="VERTICAL"/>
 
+            <!-- Data source -->
             <Label text="Source:" styleClass="label-subtitle"/>
-            <ComboBox fx:id="chartProviderCombo" prefWidth="170" onAction="#onChartProviderChanged"/>
+            <ComboBox fx:id="chartProviderCombo" prefWidth="160" onAction="#onChartProviderChanged"/>
             <Label fx:id="dataSourceLabel" text="—" styleClass="label-muted"/>
 
             <Button text="Refresh" styleClass="btn-secondary" onAction="#onRefresh"
-                    style="-fx-min-width:72;"/>
+                    style="-fx-min-width:70;"/>
             <Button fx:id="analyzeBtn" text="Analyze" styleClass="btn-primary" onAction="#onAnalyze"
-                    style="-fx-min-width:72;" visible="false" managed="false"/>
+                    style="-fx-min-width:70;" visible="false" managed="false"/>
         </HBox>
     </ScrollPane>
 
-    <HBox fx:id="signalBar" alignment="CENTER_LEFT" spacing="12" visible="false" managed="false"
+    <!-- ═══════════════ Signal bar (analysis mode) ═══════════════ -->
+    <HBox fx:id="signalBar" alignment="CENTER_LEFT" spacing="12"
+          visible="false" managed="false"
           style="-fx-background-color:#161b22; -fx-border-color:#30363d; -fx-border-width:0 0 1 0;">
         <padding>
             <Insets top="8" right="16" bottom="8" left="16"/>
@@ -86,6 +96,7 @@
                style="-fx-font-size:18px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
     </HBox>
 
+    <!-- ═══════════════ Chart canvas ═══════════════ -->
     <Pane fx:id="chartPane" VBox.vgrow="ALWAYS" style="-fx-background-color:#0d1117;"/>
 
 </VBox>
