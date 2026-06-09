@@ -4,7 +4,6 @@ import com.mst.matt.tradingplatformapp.model.*;
 import com.mst.matt.tradingplatformapp.repository.IndicatorConfigRepository;
 import com.mst.matt.tradingplatformapp.service.OhlcvStorageService;
 import com.mst.matt.tradingplatformapp.service.alert.AlertService;
-import com.mst.matt.tradingplatformapp.service.marketdata.IndicatorSeriesStorageService;
 import com.mst.matt.tradingplatformapp.service.marketdata.MarketDataSyncScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,36 +21,35 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  *   1. Fetch or load OHLCV bars
  *   2. Build ta4j BarSeries
- *   3. Compute all indicators (IndicatorService)
+ *   3. Compute indicators on demand (IndicatorService for signal scoring,
+ *      IndicatorComputeService for chart rendering via IndicatorDefinitions)
  *   4. Compute support / resistance levels (SupportResistanceService)
  *   5. Score composite signal (SignalScoringService)
  *   6. Notify AlertService if buy/sell signal threshold crossed
  *
- * Also runs a background refresh every 60 seconds for the active watchlist.
+ * NOTE: Indicator series are no longer stored in separate DB tables.
+ *       They are computed fresh on each chart load directly from OHLCV data.
  */
 @Service
 public class AnalysisService {
 
     private static final Logger log = LoggerFactory.getLogger(AnalysisService.class);
 
-    @Autowired private OhlcvStorageService        ohlcvStorageService;
-    @Autowired private IndicatorService           indicatorService;
-    @Autowired private SupportResistanceService   srService;
-    @Autowired private SignalScoringService        scoringService;
-    @Autowired private IndicatorConfigRepository  configRepo;
-    @Autowired private AlertService               alertService;
-    @Autowired private MarketDataSyncScheduler    marketDataSyncScheduler;
-    @Autowired private IndicatorSeriesStorageService indicatorSeriesStorage;
+    @Autowired private OhlcvStorageService       ohlcvStorageService;
+    @Autowired private IndicatorService          indicatorService;
+    @Autowired private IndicatorComputeService   indicatorComputeService;
+    @Autowired private SupportResistanceService  srService;
+    @Autowired private SignalScoringService      scoringService;
+    @Autowired private IndicatorConfigRepository configRepo;
+    @Autowired private AlertService              alertService;
+    @Autowired private MarketDataSyncScheduler   marketDataSyncScheduler;
 
     @Value("${app.chart.default-bars:200}")
     private int defaultBars;
 
-    // Cache: symbol+timeframe → last analysis result
     private final Map<String, AnalysisResult> analysisCache = new ConcurrentHashMap<>();
-
-    // Watchlist for background refresh
-    private final Set<String> activeWatchlist = ConcurrentHashMap.newKeySet();
-    private volatile UserProfile activeProfile; // written on FX thread, read on scheduler
+    private final Set<String> activeWatchlist  = ConcurrentHashMap.newKeySet();
+    private volatile UserProfile activeProfile;
 
     /**
      * Run full analysis for a symbol with a given profile config.
@@ -66,32 +64,23 @@ public class AnalysisService {
                         IndicatorConfig.IndicatorProfile.SWING_TRADING, profile));
 
         // 1. Load bars
-        List<OhlcvBar> bars = OhlcvStorageService.chronological(ohlcvStorageService.getBars(
-                symbol, timeframe, barCount, profile));
+        List<OhlcvBar> bars = OhlcvStorageService.chronological(
+                ohlcvStorageService.getBars(symbol, timeframe, barCount, profile));
 
         if (bars.isEmpty()) {
             log.warn("No OHLCV data for {}/{}", symbol, timeframe);
             return AnalysisResult.empty(symbol, timeframe);
         }
 
-        // 2. Build BarSeries
+        // 2. Build BarSeries (for legacy IndicatorService used by signal scoring)
         BarSeries series = indicatorService.toBarSeries(bars, symbol);
 
-        // 3. Compute indicators (load series from symbol/timeframe tables when still fresh)
+        // 3. Compute indicators (for signal scoring — uses IndicatorResult/IndicatorConfig)
         IndicatorResult indicators = indicatorService.compute(series, config);
-        if (indicatorSeriesStorage.isEnabled()) {
-            if (indicatorSeriesStorage.isFresh(symbol, timeframe)) {
-                indicators = indicatorSeriesStorage.enrichFromTables(
-                        symbol, timeframe, indicators, config, bars.size());
-            } else {
-                indicatorSeriesStorage.save(symbol, timeframe, indicators, bars);
-            }
-        }
 
         // 4. Support / Resistance
         SupportResistanceService.SRResult sr = srService.analyze(
-                bars, config.getFibonacciLookback() > 0
-                        ? config.getFibonacciLookback() : 50);
+                bars, config.getFibonacciLookback() > 0 ? config.getFibonacciLookback() : 50);
 
         // 5. Signal scoring
         double currentPrice = bars.get(bars.size() - 1).getClose().doubleValue();
@@ -135,19 +124,16 @@ public class AnalysisService {
 
     /**
      * Background refresh of analysis for all watchlist symbols.
-     * Runs every 60 seconds to keep signal recommendations current.
      */
     @Scheduled(fixedRate = 60000)
     public void backgroundRefresh() {
         if (activeProfile == null || activeWatchlist.isEmpty()) return;
         activeWatchlist.forEach(symbol -> {
             try {
-                // Refresh with default 1h timeframe
                 ohlcvStorageService.refreshBars(symbol, "1h", defaultBars, activeProfile);
                 analyze(symbol, "1h", activeProfile);
             } catch (Exception e) {
-                log.error("Background analysis failed for {}: {}",
-                        symbol, e.getMessage());
+                log.error("Background analysis failed for {}: {}", symbol, e.getMessage());
             }
         });
     }
@@ -156,11 +142,21 @@ public class AnalysisService {
         this.activeProfile = profile;
         marketDataSyncScheduler.setActiveProfile(profile);
     }
-    public void addToWatchlist(String symbol) { activeWatchlist.add(symbol); }
+    public void addToWatchlist(String symbol)    { activeWatchlist.add(symbol); }
     public void removeFromWatchlist(String symbol) { activeWatchlist.remove(symbol); }
 
     public Optional<AnalysisResult> getCached(String symbol, String timeframe) {
         return Optional.ofNullable(analysisCache.get(symbol + "_" + timeframe));
+    }
+
+    // ── BarSeries accessor for chart rendering ────────────────
+
+    /**
+     * Builds a ta4j BarSeries from a list of OhlcvBars.
+     * Used by ChartController to compute IndicatorDefinitions on the fly.
+     */
+    public BarSeries buildBarSeries(List<OhlcvBar> bars, String name) {
+        return indicatorComputeService.toBarSeries(bars, name);
     }
 
     // ── Result DTO ───────────────────────────────────────────

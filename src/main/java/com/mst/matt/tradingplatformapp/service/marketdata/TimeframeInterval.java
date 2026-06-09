@@ -4,23 +4,32 @@ import java.time.Duration;
 import java.util.Map;
 
 /**
- * Maps chart timeframes to polling intervals for background API sync.
+ * Maps ALL supported chart timeframes to polling intervals for background API sync.
  */
 public final class TimeframeInterval {
 
-    private static final Map<String, Duration> INTERVALS = Map.of(
-            "1m", Duration.ofMinutes(1),
-            "5m", Duration.ofMinutes(5),
-            "15m", Duration.ofMinutes(15),
-            "1h", Duration.ofHours(1),
-            "4h", Duration.ofHours(4),
-            "1d", Duration.ofDays(1),
-            "1w", Duration.ofDays(7)
+    private static final Map<String, Duration> INTERVALS = Map.ofEntries(
+            Map.entry("1m",  Duration.ofMinutes(1)),
+            Map.entry("3m",  Duration.ofMinutes(3)),
+            Map.entry("5m",  Duration.ofMinutes(5)),
+            Map.entry("15m", Duration.ofMinutes(15)),
+            Map.entry("30m", Duration.ofMinutes(30)),
+            Map.entry("1h",  Duration.ofHours(1)),
+            Map.entry("2h",  Duration.ofHours(2)),
+            Map.entry("4h",  Duration.ofHours(4)),
+            Map.entry("6h",  Duration.ofHours(6)),
+            Map.entry("8h",  Duration.ofHours(8)),
+            Map.entry("12h", Duration.ofHours(12)),
+            Map.entry("1d",  Duration.ofDays(1)),
+            Map.entry("3d",  Duration.ofDays(3)),
+            Map.entry("1w",  Duration.ofDays(7)),
+            Map.entry("1mo", Duration.ofDays(30))
     );
 
     private TimeframeInterval() {}
 
     public static Duration forTimeframe(String timeframe) {
-        return INTERVALS.getOrDefault(timeframe, Duration.ofHours(1));
+        if (timeframe == null) return Duration.ofHours(1);
+        return INTERVALS.getOrDefault(timeframe.toLowerCase(), Duration.ofHours(1));
     }
 }
