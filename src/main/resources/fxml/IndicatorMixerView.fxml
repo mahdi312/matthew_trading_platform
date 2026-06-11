@@ -14,8 +14,19 @@
                  -fx-border-width:0 0 1 0;">
         <Label text="🎚 Indicator Mixer" styleClass="label-title"/>
         <Pane HBox.hgrow="ALWAYS"/>
-        <Label text="Profile:" styleClass="label-subtitle"/>
-        <ComboBox fx:id="profilePresetCombo" prefWidth="200"
+        <!-- Symbol search/select for mixer -->
+        <Label text="Symbol:" styleClass="label-subtitle"/>
+        <TextField fx:id="mixerSymbolField" promptText="e.g. BTCUSDT" prefWidth="130"
+                   onAction="#onMixerSymbolChanged"/>
+        <ComboBox fx:id="mixerSymbolCombo" prefWidth="130" promptText="Pick symbol"
+                  onAction="#onMixerSymbolComboChanged"/>
+        <Button text="🔄" styleClass="btn-secondary" onAction="#onMixerSymbolChanged"
+                style="-fx-padding:8 12;">
+            <tooltip><Tooltip text="Re-run analysis for selected symbol"/></tooltip>
+        </Button>
+        <Separator orientation="VERTICAL"/>
+        <Label text="Preset:" styleClass="label-subtitle"/>
+        <ComboBox fx:id="profilePresetCombo" prefWidth="180"
                   onAction="#onPresetSelected"/>
         <Button text="💾 Save Config" styleClass="btn-primary" onAction="#onSave"/>
         <Button text="↩ Reset"        styleClass="btn-secondary" onAction="#onReset"/>

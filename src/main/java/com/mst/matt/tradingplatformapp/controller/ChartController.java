@@ -67,8 +67,10 @@ public class ChartController implements Initializable {
     @FXML private Button indicatorPickerBtn;
     @FXML private Button analyzeBtn;
     @FXML private HBox   signalBar;
+    @FXML private HBox   sentimentBox;
     @FXML private Label  signalLabel, confidenceLabel, bestBuyLabel,
             bestSellLabel, bullBearLabel, currentPriceChartLabel;
+    @FXML private Label  bullCircle, neutralCircle, bearCircle;
 
     // ── Spring beans ──────────────────────────────────────────
     @Autowired private AnalysisService          analysisService;
@@ -532,9 +534,93 @@ public class ChartController implements Initializable {
         confidenceLabel.setText(String.format("Confidence: %.1f%%", signal.getConfidence()));
         bestBuyLabel.setText("$" + fmtPrice(signal.getBestBuyPrice()));
         bestSellLabel.setText("$" + fmtPrice(signal.getBestSellPrice()));
-        bullBearLabel.setText("🟢 " + signal.getBullishCount()
-                + "  ⚪ " + signal.getNeutralCount()
-                + "  🔴 " + signal.getBearishCount());
+
+        // ── Color-coded sentiment circles ──────────────────────
+        int bull = signal.getBullishCount();
+        int neu  = signal.getNeutralCount();
+        int bear = signal.getBearishCount();
+
+        // Legacy label (hidden, keep for reference)
+        if (bullBearLabel != null)
+            bullBearLabel.setText("🟢 " + bull + "  ⚪ " + neu + "  🔴 " + bear);
+
+        // Colored circles with dynamic styling
+        if (bullCircle != null) {
+            bullCircle.setText(String.valueOf(bull));
+            // Intensity: more bullish = more vivid green
+            String bgColor  = bull > 0 ? "#238636" : "#1a2b1a";
+            String brdColor = bull > 0 ? "#3fb950" : "#30363d";
+            bullCircle.setStyle(
+                    "-fx-background-color:" + bgColor + ";"
+                    + "-fx-text-fill:" + (bull > 0 ? "white" : "#8b949e") + ";"
+                    + "-fx-background-radius:50%;"
+                    + "-fx-min-width:36px;-fx-min-height:36px;"
+                    + "-fx-max-width:36px;-fx-max-height:36px;"
+                    + "-fx-alignment:center;-fx-font-weight:bold;-fx-font-size:13px;"
+                    + "-fx-border-radius:50%;-fx-border-color:" + brdColor + ";-fx-border-width:2;");
+            Tooltip buyTip = new Tooltip(
+                    "🟢 Buying Sentiment\n"
+                    + bull + " indicator(s) show bullish signals.\n"
+                    + "Higher count = stronger buying pressure.");
+            buyTip.setShowDelay(javafx.util.Duration.millis(200));
+            Tooltip.install(bullCircle, buyTip);
+        }
+
+        if (neutralCircle != null) {
+            neutralCircle.setText(String.valueOf(neu));
+            String bgColor  = neu > 0 ? "#2d333b" : "#161b22";
+            String brdColor = neu > 0 ? "#8b949e" : "#30363d";
+            neutralCircle.setStyle(
+                    "-fx-background-color:" + bgColor + ";"
+                    + "-fx-text-fill:" + (neu > 0 ? "#e6edf3" : "#484f58") + ";"
+                    + "-fx-background-radius:50%;"
+                    + "-fx-min-width:36px;-fx-min-height:36px;"
+                    + "-fx-max-width:36px;-fx-max-height:36px;"
+                    + "-fx-alignment:center;-fx-font-weight:bold;-fx-font-size:13px;"
+                    + "-fx-border-radius:50%;-fx-border-color:" + brdColor + ";-fx-border-width:2;");
+            Tooltip neutTip = new Tooltip(
+                    "⚪ Neutral Sentiment\n"
+                    + neu + " indicator(s) show no clear direction.\n"
+                    + "Neutral means sideways or conflicting signals.");
+            neutTip.setShowDelay(javafx.util.Duration.millis(200));
+            Tooltip.install(neutralCircle, neutTip);
+        }
+
+        if (bearCircle != null) {
+            bearCircle.setText(String.valueOf(bear));
+            String bgColor  = bear > 0 ? "#da3633" : "#2b1a1a";
+            String brdColor = bear > 0 ? "#f85149" : "#30363d";
+            bearCircle.setStyle(
+                    "-fx-background-color:" + bgColor + ";"
+                    + "-fx-text-fill:" + (bear > 0 ? "white" : "#8b949e") + ";"
+                    + "-fx-background-radius:50%;"
+                    + "-fx-min-width:36px;-fx-min-height:36px;"
+                    + "-fx-max-width:36px;-fx-max-height:36px;"
+                    + "-fx-alignment:center;-fx-font-weight:bold;-fx-font-size:13px;"
+                    + "-fx-border-radius:50%;-fx-border-color:" + brdColor + ";-fx-border-width:2;");
+            Tooltip sellTip = new Tooltip(
+                    "🔴 Selling Sentiment\n"
+                    + bear + " indicator(s) show bearish signals.\n"
+                    + "Higher count = stronger selling pressure.");
+            sellTip.setShowDelay(javafx.util.Duration.millis(200));
+            Tooltip.install(bearCircle, sellTip);
+        }
+
+        // Legend tooltip on the entire sentiment box
+        if (sentimentBox != null) {
+            Tooltip legendTip = new Tooltip(
+                    "Sentiment Circles Legend\n"
+                    + "─────────────────────────\n"
+                    + "🟢 Green  = Buying  (bullish indicators)\n"
+                    + "⚪ Gray   = Neutral (no clear direction)\n"
+                    + "🔴 Red    = Selling (bearish indicators)\n\n"
+                    + "The number inside each circle shows how many\n"
+                    + "weighted indicators are giving that signal.");
+            legendTip.setShowDelay(javafx.util.Duration.millis(300));
+            legendTip.setPrefWidth(280);
+            legendTip.setWrapText(true);
+            Tooltip.install(sentimentBox, legendTip);
+        }
     }
 
     // ── Utilities ─────────────────────────────────────────────

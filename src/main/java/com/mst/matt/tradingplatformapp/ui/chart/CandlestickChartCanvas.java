@@ -901,15 +901,33 @@ public class CandlestickChartCanvas extends Canvas {
         double plotW    = getWidth() - PADDING_LEFT - PADDING_RIGHT;
         double relX     = e.getX() - PADDING_LEFT;
         double fraction = (plotW > 0) ? Math.max(0, Math.min(1, relX / plotW)) : 0.5;
+
         // Bar index (absolute) that should stay fixed under the mouse
-        int anchor = startBarIndex + (int)(fraction * visibleBars);
+        // Clamp anchor to valid range before computing new start
+        int oldVisible = visibleBars;
+        int anchor = startBarIndex + (int) Math.round(fraction * oldVisible);
+        anchor = Math.max(0, Math.min(bars.size() - 1, anchor));
 
-        if (delta < 0) visibleBars = Math.min(bars.size(), (int)(visibleBars * 1.15));
-        else           visibleBars = Math.max(5, (int)(visibleBars * 0.87));
+        // Zoom in = scroll up (deltaY > 0), zoom out = scroll down (deltaY < 0)
+        if (delta < 0) {
+            // Zoom OUT — always allow, expand visible range
+            visibleBars = Math.min(bars.size(), (int) Math.ceil(visibleBars * 1.15));
+        } else {
+            // Zoom IN — limit to minimum 5 bars
+            visibleBars = Math.max(5, (int) Math.floor(visibleBars * 0.87));
+        }
 
-        visibleBars   = Math.max(1, Math.min(visibleBars, bars.size()));
-        startBarIndex = Math.max(0, Math.min(bars.size() - visibleBars,
-                anchor - (int)(fraction * visibleBars)));
+        // Final clamp: visibleBars must be in [1, bars.size()]
+        visibleBars = Math.max(1, Math.min(visibleBars, bars.size()));
+
+        // Recalculate startBarIndex so that the anchor bar stays under the mouse.
+        // When zooming out fully (visibleBars == bars.size()), force startBarIndex = 0.
+        if (visibleBars >= bars.size()) {
+            startBarIndex = 0;
+        } else {
+            int newStart = anchor - (int) Math.round(fraction * visibleBars);
+            startBarIndex = Math.max(0, Math.min(bars.size() - visibleBars, newStart));
+        }
         render();
     }
 

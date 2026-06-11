@@ -2,8 +2,10 @@ package com.mst.matt.tradingplatformapp.controller;
 
 import com.mst.matt.tradingplatformapp.model.*;
 import com.mst.matt.tradingplatformapp.repository.IndicatorConfigRepository;
+import com.mst.matt.tradingplatformapp.repository.SymbolEntryRepository;
 import com.mst.matt.tradingplatformapp.service.OhlcvStorageService;
 import com.mst.matt.tradingplatformapp.service.analysis.*;
+import com.mst.matt.tradingplatformapp.service.price.PriceRouter;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
@@ -12,12 +14,17 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import net.rgielen.fxweaver.core.FxmlView;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.ResourceBundle;
+import java.util.stream.Collectors;
 
 /**
  * Indicator Mixer controller.
@@ -26,6 +33,12 @@ import java.util.ResourceBundle;
 @Component
 @FxmlView("/fxml/IndicatorMixerView.fxml")
 public class IndicatorMixerController implements Initializable {
+
+    private static final Logger log = LoggerFactory.getLogger(IndicatorMixerController.class);
+
+    // Symbol search / select
+    @FXML private TextField    mixerSymbolField;
+    @FXML private ComboBox<String> mixerSymbolCombo;
 
     // Preset combo
     @FXML private ComboBox<String> profilePresetCombo;
@@ -93,12 +106,17 @@ public class IndicatorMixerController implements Initializable {
     @Autowired private SupportResistanceService  srService;
     @Autowired private SignalScoringService      scoringService;
     @Autowired private OhlcvStorageService       ohlcvStorage;
+    @Autowired private AnalysisService           analysisService;
+    @Autowired private PriceRouter               priceRouter;
+    @Autowired private SymbolEntryRepository     symbolEntryRepository;
 
     private UserProfile activeProfile;
     private IndicatorResult lastIndicators;
     private SupportResistanceService.SRResult lastSr;
     private double lastPrice;
     private boolean applyingConfig;
+    /** Currently selected symbol in the mixer (may differ from chart symbol). */
+    private String mixerSymbol = "BTCUSDT";
 
     @Override
     public void initialize(URL url, ResourceBundle rb) {
@@ -112,6 +130,25 @@ public class IndicatorMixerController implements Initializable {
         if (bbDev != null) {
             bbDev.setValueFactory(
                     new SpinnerValueFactory.DoubleSpinnerValueFactory(1.0, 5.0, 2.0, 0.1));
+        }
+
+        // Initialize symbol search field and combo
+        if (mixerSymbolField != null) {
+            mixerSymbolField.setText(mixerSymbol);
+            mixerSymbolField.textProperty().addListener((o, a, text) -> {
+                if (text != null && !text.isBlank())
+                    mixerSymbol = text.trim().toUpperCase();
+            });
+        }
+        populateMixerSymbolCombo();
+        if (mixerSymbolCombo != null) {
+            mixerSymbolCombo.valueProperty().addListener((o, a, sym) -> {
+                if (sym != null && !sym.isBlank()) {
+                    mixerSymbol = sym.trim().toUpperCase();
+                    if (mixerSymbolField != null) mixerSymbolField.setText(mixerSymbol);
+                    reloadMixerIndicators();
+                }
+            });
         }
 
         // Wire all sliders to update labels and re-score
@@ -128,8 +165,116 @@ public class IndicatorMixerController implements Initializable {
         wireControls();
     }
 
+    // ── Symbol search helpers ──────────────────────────────────
+
+    /**
+     * Populate the symbol ComboBox from DB + a default list.
+     */
+    private void populateMixerSymbolCombo() {
+        if (mixerSymbolCombo == null) return;
+        Thread.ofVirtual().start(() -> {
+            try {
+                List<String> symbols = symbolEntryRepository.findAll()
+                        .stream().map(SymbolEntry::getSymbol).sorted().collect(Collectors.toList());
+                if (symbols.isEmpty()) {
+                    symbols = List.of("BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT",
+                            "AAPL","TSLA","MSFT","EURUSD","GBPUSD");
+                }
+                final List<String> finalSymbols = symbols;
+                Platform.runLater(() -> {
+                    mixerSymbolCombo.setItems(FXCollections.observableArrayList(finalSymbols));
+                    if (finalSymbols.contains(mixerSymbol)) {
+                        mixerSymbolCombo.setValue(mixerSymbol);
+                    } else if (!finalSymbols.isEmpty()) {
+                        mixerSymbolCombo.setValue(finalSymbols.get(0));
+                    }
+                });
+            } catch (Exception ex) {
+                log.warn("Could not populate mixer symbol combo: {}", ex.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Triggered when the user clicks the refresh button or presses Enter in the symbol field.
+     * Reads the symbol from the text field, then loads indicators for that symbol.
+     */
+    @FXML public void onMixerSymbolChanged() {
+        if (mixerSymbolField != null && !mixerSymbolField.getText().isBlank()) {
+            mixerSymbol = mixerSymbolField.getText().trim().toUpperCase();
+        }
+        reloadMixerIndicators();
+    }
+
+    /**
+     * Triggered when the user selects a symbol from the combo dropdown.
+     */
+    @FXML public void onMixerSymbolComboChanged() {
+        if (mixerSymbolCombo != null && mixerSymbolCombo.getValue() != null) {
+            mixerSymbol = mixerSymbolCombo.getValue().trim().toUpperCase();
+            if (mixerSymbolField != null) mixerSymbolField.setText(mixerSymbol);
+            reloadMixerIndicators();
+        }
+    }
+
+    /**
+     * Loads OHLCV data and re-computes indicators for the current mixerSymbol.
+     * Runs analysis in a background thread to keep the UI responsive.
+     */
+    private void reloadMixerIndicators() {
+        if (activeProfile == null || mixerSymbol == null || mixerSymbol.isBlank()) return;
+        // Show loading hint
+        Platform.runLater(() -> {
+            if (previewSignalLabel != null) {
+                previewSignalLabel.setText("⏳ Loading " + mixerSymbol + "…");
+                previewSignalLabel.setStyle("-fx-font-size:14px; -fx-text-fill:#8b949e;");
+            }
+        });
+        Thread.ofVirtual().start(() -> {
+            try {
+                AnalysisService.AnalysisResult result =
+                        analysisService.analyze(mixerSymbol, "1h", 200, activeProfile);
+                double price = result.getBars().isEmpty() ? 0.0
+                        : result.getBars().get(result.getBars().size() - 1).getClose().doubleValue();
+                var quoteOpt = priceRouter.getQuote(mixerSymbol, activeProfile);
+                double livePrice = quoteOpt
+                        .filter(q -> q.getPrice() != null)
+                        .map(q -> q.getPrice().doubleValue())
+                        .orElse(price);
+                if (result.getIndicators() != null && result.getSrResult() != null) {
+                    setIndicatorData(result.getIndicators(), result.getSrResult(), livePrice);
+                } else {
+                    Platform.runLater(() -> {
+                        if (previewSignalLabel != null) {
+                            previewSignalLabel.setText("⚠ No data for " + mixerSymbol);
+                            previewSignalLabel.setStyle("-fx-font-size:14px; -fx-text-fill:#d29922;");
+                        }
+                    });
+                }
+            } catch (Exception ex) {
+                log.warn("Mixer indicator reload failed for {}: {}", mixerSymbol, ex.getMessage());
+                Platform.runLater(() -> {
+                    if (previewSignalLabel != null) {
+                        previewSignalLabel.setText("⚠ Error loading " + mixerSymbol);
+                        previewSignalLabel.setStyle("-fx-font-size:14px; -fx-text-fill:#f85149;");
+                    }
+                });
+            }
+        });
+    }
+
     public void setProfile(UserProfile profile) {
         this.activeProfile = profile;
+        // Update mixer symbol to match profile default if not already customized
+        if (profile != null && profile.getDefaultSymbol() != null
+                && !profile.getDefaultSymbol().isBlank()) {
+            mixerSymbol = profile.getDefaultSymbol().toUpperCase();
+            if (mixerSymbolField != null) mixerSymbolField.setText(mixerSymbol);
+            if (mixerSymbolCombo != null) {
+                // Refresh symbol list for this profile's asset focus
+                populateMixerSymbolCombo();
+            }
+        }
         loadConfig();
     }
 

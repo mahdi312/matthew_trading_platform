@@ -420,3 +420,63 @@
     -fx-padding: 5 10;
     -fx-font-size: 12px;
 }
+
+/* ── Trade Journal Table ──────────────────────────────────── */
+.table-view .virtual-flow {
+    -fx-background-color: #1c2128;
+}
+.table-view .placeholder .label {
+    -fx-text-fill: #8b949e;
+    -fx-font-size: 13px;
+}
+/* Ensure table fills its container correctly */
+.table-view:focused {
+    -fx-border-color: #388bfd55;
+}
+
+/* ── Sentiment Circles ────────────────────────────────────── */
+.sentiment-circle-buying {
+    -fx-background-color: #238636;
+    -fx-text-fill: white;
+    -fx-background-radius: 50%;
+    -fx-min-width: 36px;
+    -fx-min-height: 36px;
+    -fx-max-width: 36px;
+    -fx-max-height: 36px;
+    -fx-alignment: center;
+    -fx-font-weight: bold;
+    -fx-font-size: 13px;
+    -fx-border-radius: 50%;
+    -fx-border-color: #3fb950;
+    -fx-border-width: 2;
+}
+.sentiment-circle-selling {
+    -fx-background-color: #da3633;
+    -fx-text-fill: white;
+    -fx-background-radius: 50%;
+    -fx-min-width: 36px;
+    -fx-min-height: 36px;
+    -fx-max-width: 36px;
+    -fx-max-height: 36px;
+    -fx-alignment: center;
+    -fx-font-weight: bold;
+    -fx-font-size: 13px;
+    -fx-border-radius: 50%;
+    -fx-border-color: #f85149;
+    -fx-border-width: 2;
+}
+.sentiment-circle-neutral {
+    -fx-background-color: #2d333b;
+    -fx-text-fill: #e6edf3;
+    -fx-background-radius: 50%;
+    -fx-min-width: 36px;
+    -fx-min-height: 36px;
+    -fx-max-width: 36px;
+    -fx-max-height: 36px;
+    -fx-alignment: center;
+    -fx-font-weight: bold;
+    -fx-font-size: 13px;
+    -fx-border-radius: 50%;
+    -fx-border-color: #8b949e;
+    -fx-border-width: 2;
+}

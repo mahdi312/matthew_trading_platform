@@ -31,8 +31,9 @@
                            StackPane.alignment="TOP_RIGHT" translateX="8" translateY="-8" visible="false"/>
                 </StackPane>
                 <Button text="⚙" styleClass="btn-secondary" onAction="#onOpenSettings"/>
-                <Button text="👥 Admin" styleClass="btn-secondary" onAction="#onOpenAdminPanel"
-                        tooltip="Admin User Management"/>
+                <Button text="👥 Admin" styleClass="btn-secondary" onAction="#onOpenAdminPanel">
+                    <tooltip><Tooltip text="Admin User Management"/></tooltip>
+                </Button>
                 <Button text="↩ Sign Out" styleClass="btn-secondary" onAction="#onLogout"/>
             </HBox>
 

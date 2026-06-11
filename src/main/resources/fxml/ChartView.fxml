@@ -90,7 +90,15 @@
         <Label text="Best Sell:" styleClass="label-muted"/>
         <Label fx:id="bestSellLabel" text="—" style="-fx-text-fill:#f85149; -fx-font-weight:bold;"/>
         <Separator orientation="VERTICAL"/>
-        <Label fx:id="bullBearLabel" text="" styleClass="label-subtitle"/>
+        <!-- Sentiment circles: Buying / Neutral / Selling -->
+        <Label text="Sentiment:" styleClass="label-muted"/>
+        <HBox fx:id="sentimentBox" spacing="6" alignment="CENTER_LEFT">
+            <Label fx:id="bullCircle" text="0" styleClass="sentiment-circle-buying"/>
+            <Label fx:id="neutralCircle" text="0" styleClass="sentiment-circle-neutral"/>
+            <Label fx:id="bearCircle" text="0" styleClass="sentiment-circle-selling"/>
+        </HBox>
+        <!-- hidden legacy label kept for compatibility -->
+        <Label fx:id="bullBearLabel" text="" styleClass="label-subtitle" visible="false" managed="false"/>
         <Pane HBox.hgrow="ALWAYS"/>
         <Label fx:id="currentPriceChartLabel" text=""
                style="-fx-font-size:18px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
