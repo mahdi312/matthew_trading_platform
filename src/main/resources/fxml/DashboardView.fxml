@@ -73,14 +73,19 @@
     </HBox>
 
     <!-- Recent Trades / Trade Journal -->
-    <VBox fx:id="tradesSection" styleClass="card" VBox.vgrow="ALWAYS" spacing="12">
+    <VBox fx:id="tradesSection" styleClass="card" VBox.vgrow="ALWAYS" spacing="12" minHeight="420">
         <HBox alignment="CENTER_LEFT" spacing="12">
             <Label fx:id="tradesSectionTitle" text="Recent Trades" styleClass="label-title" style="-fx-font-size:14px;"/>
             <Pane HBox.hgrow="ALWAYS"/>
             <Button text="+ New Trade" styleClass="btn-primary" onAction="#onNewTrade"/>
             <Button fx:id="viewAllBtn" text="View All" styleClass="btn-secondary" onAction="#onViewAll"/>
         </HBox>
-        <TableView fx:id="recentTradesTable" VBox.vgrow="ALWAYS">
+        <TableView fx:id="recentTradesTable" VBox.vgrow="ALWAYS" minHeight="360"
+                   style="-fx-background-color:#161b22; -fx-border-color:#30363d; -fx-border-width:1;">
+            <placeholder>
+                <Label text="📋 No trades yet — click '+ New Trade' to get started."
+                       style="-fx-text-fill:#8b949e; -fx-font-size:13px;"/>
+            </placeholder>
             <columns>
                 <TableColumn fx:id="colDate" text="DATE" prefWidth="130"/>
                 <TableColumn fx:id="colSymbol" text="SYMBOL" prefWidth="100"/>
