@@ -1,6 +1,8 @@
 package com.mst.matt.tradingplatformapp.controller;
 
 import com.mst.matt.tradingplatformapp.model.*;
+import com.mst.matt.tradingplatformapp.model.SymbolEntry.AssetType;
+import com.mst.matt.tradingplatformapp.repository.SymbolEntryRepository;
 import com.mst.matt.tradingplatformapp.repository.UserProfileRepository;
 import com.mst.matt.tradingplatformapp.service.OhlcvStorageService;
 import com.mst.matt.tradingplatformapp.service.ProfilePersistenceService;
@@ -9,6 +11,7 @@ import com.mst.matt.tradingplatformapp.service.analysis.AnalysisService.Analysis
 import com.mst.matt.tradingplatformapp.service.analysis.IndicatorComputeService;
 import com.mst.matt.tradingplatformapp.service.analysis.SignalScoringService.Recommendation;
 import com.mst.matt.tradingplatformapp.service.analysis.SignalScoringService.SignalResult;
+import com.mst.matt.tradingplatformapp.service.auth.AuthService;
 import com.mst.matt.tradingplatformapp.service.price.AssetClassDetector;
 import com.mst.matt.tradingplatformapp.service.price.AssetClassDetector.AssetClass;
 import com.mst.matt.tradingplatformapp.service.price.MarketDataProvider;
@@ -34,15 +37,18 @@ import org.ta4j.core.BarSeries;
 
 import java.net.URL;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.ResourceBundle;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 @FxmlView("/fxml/ChartView.fxml")
 public class ChartController implements Initializable {
 
     private static final Logger log = LoggerFactory.getLogger(ChartController.class);
+
+    /** All 15 canonical timeframes in display order. */
+    private static final List<String> ALL_TIMEFRAMES = List.of(
+            "1m","3m","5m","15m","30m","1h","2h","4h","6h","8h","12h","1d","3d","1w","1mo");
 
     public enum ViewMode { CHART, ANALYSIS }
 
@@ -72,6 +78,8 @@ public class ChartController implements Initializable {
     @Autowired private PriceProviderRegistry    providerRegistry;
     @Autowired private UserProfileRepository    profileRepository;
     @Autowired private ProfilePersistenceService profilePersistence;
+    @Autowired private AuthService              authService;
+    @Autowired private SymbolEntryRepository    symbolEntryRepository;
     @Autowired @org.springframework.context.annotation.Lazy
     private IndicatorMixerController indicatorMixerController;
 
@@ -86,15 +94,12 @@ public class ChartController implements Initializable {
     private int           currentBars;
     private ViewMode      viewMode         = ViewMode.CHART;
 
-    /**
-     * Active indicator list — one entry per indicator instance the user has added.
-     * Persisted in memory; survives chart refreshes.
-     */
     private final List<IndicatorDefinition> activeIndicators = new ArrayList<>();
 
     @Override
     public void initialize(URL url, ResourceBundle rb) {
-        currentBars = defaultBars;
+        // Feature 4.3: cap default bars to role limit
+        currentBars = Math.min(defaultBars, authService.maxCandles());
 
         chart = new CandlestickChartCanvas();
         chart.widthProperty().bind(chartPane.widthProperty());
@@ -107,6 +112,7 @@ public class ChartController implements Initializable {
         chartProviderCombo.setCellFactory(lv -> providerLabelCell());
         chartProviderCombo.setButtonCell(providerLabelCell());
 
+        // Initial symbol list — overridden by setProfile()
         symbolCombo.setItems(FXCollections.observableArrayList(
                 "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT",
                 "AAPL", "TSLA", "MSFT", "EURUSD", "GBPUSD"));
@@ -124,17 +130,22 @@ public class ChartController implements Initializable {
         });
 
         barsCombo.setItems(FXCollections.observableArrayList(50, 100, 200, 300, 500, 750, 1000));
-        barsCombo.setValue(defaultBars);
+        barsCombo.setValue(currentBars);
         barsCombo.valueProperty().addListener((o, a, n) -> {
-            if (n != null) { currentBars = n; loadChart(); }
+            if (n != null) {
+                // Feature 4.3: enforce role cap
+                currentBars = Math.min(n, authService.maxCandles());
+                loadChart();
+            }
         });
 
-        // Timeframe toggle group — wire all buttons
+        // Timeframe toggle group + role-based visibility
         ToggleGroup tfGroup = new ToggleGroup();
         for (ToggleButton btn : allTimeframeButtons()) {
             if (btn != null) btn.setToggleGroup(tfGroup);
         }
-        if (tf1h != null) { tf1h.setSelected(true); styleTimeframeButtons(tf1h); }
+        applyTimeframeAccess();
+        if (tf1h != null && tf1h.isVisible()) { tf1h.setSelected(true); styleTimeframeButtons(tf1h); }
     }
 
     // ── ViewMode ──────────────────────────────────────────────
@@ -159,6 +170,8 @@ public class ChartController implements Initializable {
     }
 
     public void prepareView() {
+        // Feature 1: null-guard + always re-apply role access on every navigation
+        applyTimeframeAccess();
         applyViewMode();
         if (symbolInput.getText() == null || symbolInput.getText().isBlank())
             symbolInput.setText(currentSymbol);
@@ -166,7 +179,8 @@ public class ChartController implements Initializable {
             currentSymbol = symbolInput.getText().trim().toUpperCase();
         if (symbolCombo.getValue() == null) symbolCombo.setValue(currentSymbol);
         refreshProviderCombo();
-        loadChart();
+        // Feature 1: only load if we actually have a profile set
+        if (activeProfile != null) loadChart();
     }
 
     public void setProfile(UserProfile profile) {
@@ -176,10 +190,69 @@ public class ChartController implements Initializable {
         if (profile != null && profile.getDefaultSymbol() != null
                 && !profile.getDefaultSymbol().isBlank()) {
             currentSymbol = profile.getDefaultSymbol();
-            symbolInput.setText(currentSymbol);
-            symbolCombo.setValue(currentSymbol);
+            if (symbolInput != null) symbolInput.setText(currentSymbol);
+            if (symbolCombo != null) symbolCombo.setValue(currentSymbol);
         }
+        // Feature 5: reload symbol list for this profile's asset focus
+        refreshSymbolList(profile);
         refreshProviderCombo();
+    }
+
+    /**
+     * Feature 5: populate symbolCombo from SymbolEntry table filtered by profile assetFocus.
+     * Falls back to hardcoded defaults if no entries in DB yet.
+     */
+    private void refreshSymbolList(UserProfile profile) {
+        if (profile == null || symbolCombo == null) return;
+        Thread.ofVirtual().start(() -> {
+            try {
+                AssetType assetType = mapFocusToType(profile.getAssetFocus());
+                List<String> symbols;
+                if (assetType != null) {
+                    symbols = symbolEntryRepository.findByAssetTypeOrderBySymbolAsc(assetType)
+                            .stream().map(SymbolEntry::getSymbol).collect(Collectors.toList());
+                } else {
+                    // MULTI focus — show all
+                    symbols = symbolEntryRepository.findAll()
+                            .stream().map(SymbolEntry::getSymbol).collect(Collectors.toList());
+                }
+                if (symbols.isEmpty()) {
+                    symbols = defaultSymbolsFor(profile.getAssetFocus());
+                }
+                final List<String> finalSymbols = symbols;
+                Platform.runLater(() -> {
+                    String current = symbolCombo.getValue();
+                    symbolCombo.setItems(FXCollections.observableArrayList(finalSymbols));
+                    if (current != null && finalSymbols.contains(current)) {
+                        symbolCombo.setValue(current);
+                    } else if (!finalSymbols.isEmpty()) {
+                        symbolCombo.setValue(finalSymbols.get(0));
+                    }
+                });
+            } catch (Exception e) {
+                log.warn("Symbol list refresh failed: {}", e.getMessage());
+            }
+        });
+    }
+
+    private AssetType mapFocusToType(UserProfile.ProfileAssetFocus focus) {
+        if (focus == null) return null;
+        return switch (focus) {
+            case CRYPTO -> AssetType.CRYPTO;
+            case STOCK  -> AssetType.STOCK;
+            case FOREX  -> AssetType.FOREX;
+            default     -> null; // MULTI
+        };
+    }
+
+    private List<String> defaultSymbolsFor(UserProfile.ProfileAssetFocus focus) {
+        if (focus == null) return List.of("BTCUSDT");
+        return switch (focus) {
+            case CRYPTO -> List.of("BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT","ADAUSDT");
+            case STOCK  -> List.of("AAPL","TSLA","MSFT","NVDA","AMZN","GOOGL");
+            case FOREX  -> List.of("EURUSD","GBPUSD","USDJPY","AUDUSD","USDCHF","NZDUSD");
+            default     -> List.of("BTCUSDT","AAPL","EURUSD");
+        };
     }
 
     private void refreshProviderCombo() {
@@ -194,6 +267,81 @@ public class ChartController implements Initializable {
         chartProviderCombo.setItems(FXCollections.observableArrayList(options));
         chartProviderCombo.setValue(
                 MarketDataProvider.fromString(activeProfile.getChartProvider()));
+    }
+
+    // ── Feature 4.1: Timeframe access ────────────────────────
+
+    /**
+     * Show only the timeframe buttons allowed for the current role.
+     * Also applies favorite ordering (Feature 2).
+     */
+    private void applyTimeframeAccess() {
+        List<String> allowed  = authService.allowedTimeframes();
+        List<String> favorites = authService.getFavoriteTimeframes();
+
+        for (ToggleButton btn : allTimeframeButtons()) {
+            if (btn == null) continue;
+            String tf = timeframeFor(btn);
+            boolean canUse = allowed.contains(tf);
+            btn.setVisible(canUse);
+            btn.setManaged(canUse);
+            // Feature 2: highlight favorites with a star tooltip
+            if (canUse && favorites.contains(tf)) {
+                btn.setStyle(favoriteStyle());
+                Tooltip t = new Tooltip("★ Favorite — " + tf.toUpperCase());
+                t.setShowDelay(javafx.util.Duration.millis(200));
+                btn.setTooltip(t);
+            } else if (canUse) {
+                btn.setStyle(inactiveStyle());
+                Tooltip t = new Tooltip("Click to use " + tf.toUpperCase()
+                        + "  |  Right-click to ★ favorite");
+                t.setShowDelay(javafx.util.Duration.millis(200));
+                btn.setTooltip(t);
+                // Right-click context menu to toggle favorite
+                ContextMenu cm = new ContextMenu();
+                MenuItem starItem = new MenuItem("★ Add to Favorites");
+                starItem.setOnAction(ev -> toggleFavorite(tf, btn));
+                MenuItem unstarItem = new MenuItem("✕ Remove from Favorites");
+                unstarItem.setOnAction(ev -> toggleFavorite(tf, btn));
+                cm.getItems().addAll(starItem, unstarItem);
+                btn.setContextMenu(cm);
+            }
+        }
+
+        // Feature 4.3: also cap barsCombo max to role limit
+        int maxC = authService.maxCandles();
+        if (barsCombo != null) {
+            List<Integer> caps = List.of(50, 100, 200, 300, 500, 750, 1000).stream()
+                    .filter(v -> v <= maxC).collect(Collectors.toList());
+            if (!caps.contains(maxC)) caps = new ArrayList<>(caps);
+            barsCombo.setItems(FXCollections.observableArrayList(caps));
+            if (currentBars > maxC) {
+                currentBars = maxC;
+                barsCombo.setValue(maxC);
+            }
+        }
+    }
+
+    /**
+     * Feature 2: toggle a timeframe in/out of favorites and persist via AuthService.
+     */
+    private void toggleFavorite(String tf, ToggleButton btn) {
+        List<String> current = new ArrayList<>(authService.getFavoriteTimeframes());
+        if (current.contains(tf)) {
+            current.remove(tf);
+        } else {
+            current.add(tf);
+        }
+        authService.saveFavoriteTimeframes(current);
+        // Refresh button styling
+        applyTimeframeAccess();
+        // Restore active TF selection styling
+        for (ToggleButton b : allTimeframeButtons()) {
+            if (b != null && b.isSelected()) {
+                b.setStyle(activeStyle());
+                break;
+            }
+        }
     }
 
     // ── Chart loading ─────────────────────────────────────────
@@ -218,14 +366,20 @@ public class ChartController implements Initializable {
     }
 
     private void loadChart() {
-        if (activeProfile == null) return;
+        // Feature 1: always guard against null profile
+        if (activeProfile == null) {
+            log.debug("loadChart() skipped — no active profile");
+            return;
+        }
+        // Feature 4.3: enforce candle cap
+        currentBars = Math.min(currentBars, authService.maxCandles());
+
         Thread.ofVirtual().start(() -> {
             try {
                 AnalysisResult result = loadAnalysisWithRetry();
                 var quoteOpt = priceRouter.getQuote(currentSymbol, activeProfile);
                 String provider = PriceRouter.getLastProviderName();
 
-                // Compute all active IndicatorDefinitions on the bar series
                 if (!activeIndicators.isEmpty() && !result.getBars().isEmpty()) {
                     BarSeries series = analysisService.buildBarSeries(
                             result.getBars(), currentSymbol);
@@ -304,7 +458,15 @@ public class ChartController implements Initializable {
     @FXML public void onTimeframe(javafx.event.ActionEvent e) {
         ToggleButton src = (ToggleButton) e.getSource();
         if (!src.isSelected()) { src.setSelected(true); return; }
-        currentTimeframe = timeframeFor(src);
+        String tf = timeframeFor(src);
+        // Feature 4.1: double-check permission (shouldn't be visible if not allowed, but safety net)
+        if (!authService.canUseTimeframe(tf)) {
+            src.setSelected(false);
+            new Alert(Alert.AlertType.INFORMATION,
+                    "Timeframe '" + tf + "' is not available for your plan.").showAndWait();
+            return;
+        }
+        currentTimeframe = tf;
         styleTimeframeButtons(src);
         loadChart();
     }
@@ -320,9 +482,15 @@ public class ChartController implements Initializable {
     }
 
     private void styleTimeframeButtons(ToggleButton active) {
+        List<String> favorites = authService.getFavoriteTimeframes();
         for (ToggleButton btn : allTimeframeButtons()) {
             if (btn == null) continue;
-            btn.setStyle(btn == active ? activeStyle() : inactiveStyle());
+            if (btn == active) {
+                btn.setStyle(activeStyle());
+            } else {
+                String tf = timeframeFor(btn);
+                btn.setStyle(favorites.contains(tf) ? favoriteStyle() : inactiveStyle());
+            }
         }
     }
 
@@ -336,7 +504,6 @@ public class ChartController implements Initializable {
 
     @FXML public void onOpenIndicatorPicker() {
         IndicatorPickerDialog.show(indicatorPickerBtn, activeIndicators, updatedList -> {
-            // Recompute indicators when list changes
             Thread.ofVirtual().start(() -> {
                 try {
                     AnalysisResult cached = analysisService.getCached(currentSymbol, currentTimeframe)
@@ -385,6 +552,13 @@ public class ChartController implements Initializable {
         return "-fx-background-color:#1f6feb;-fx-text-fill:white;"
                 + "-fx-background-radius:6;-fx-padding:4 8;-fx-cursor:hand;";
     }
+
+    /** Feature 2: style for favorited timeframes — gold tint. */
+    private String favoriteStyle() {
+        return "-fx-background-color:#b08800;-fx-text-fill:white;"
+                + "-fx-background-radius:6;-fx-padding:4 8;-fx-cursor:hand;";
+    }
+
     private String inactiveStyle() {
         return "-fx-background-color:#21262d;-fx-text-fill:#e6edf3;"
                 + "-fx-background-radius:6;-fx-padding:4 8;-fx-cursor:hand;";

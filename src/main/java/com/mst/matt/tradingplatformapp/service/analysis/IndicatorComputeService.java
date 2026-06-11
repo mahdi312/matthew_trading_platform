@@ -137,6 +137,8 @@ public class IndicatorComputeService {
                 case CHAIKIN_OSC     -> computeChaikinOsc(def, series);
                 case ADX             -> computeAdx(def, series);
                 case ICHIMOKU        -> computeIchimoku(def, series);
+                case TWO_MA          -> computeTwoMa(def, series);
+                case THREE_MA        -> computeThreeMa(def, series);
                 case SUPPORT_RESISTANCE -> { /* handled externally by SupportResistanceService */ }
                 default -> log.warn("Unhandled indicator type: {}", def.getType());
             }
@@ -449,5 +451,42 @@ public class IndicatorComputeService {
                 compute(def, series);
             }
         }
+    }
+
+    // ── Feature 3: Multi-MA ───────────────────────────────────
+
+    /**
+     * TWO_MA: plots two EMA lines.
+     *   period  = fast period (default 9)
+     *   period2 = slow period (default 21)
+     * Primary series = fast line; extraSeries["line2"] = slow line.
+     */
+    private void computeTwoMa(IndicatorDefinition def, BarSeries s) {
+        int fast = Math.max(2, def.getPeriod());
+        int slow = Math.max(fast + 1, def.getPeriod2() > 0 ? def.getPeriod2() : 21);
+        var src  = priceIndicator(s, def.getPriceSource());
+
+        def.setSeries(extract(new EMAIndicator(src, fast), s));           // line1
+        def.putExtraSeries("line2", extract(new EMAIndicator(src, slow), s)); // line2
+        def.autoLabel();
+    }
+
+    /**
+     * THREE_MA: plots three EMA lines.
+     *   period  = fast  (default 9)
+     *   period2 = mid   (default 21)
+     *   period3 = slow  (default 50)
+     * Primary series = fast line; extraSeries["line2"] = mid; extraSeries["line3"] = slow.
+     */
+    private void computeThreeMa(IndicatorDefinition def, BarSeries s) {
+        int fast = Math.max(2, def.getPeriod());
+        int mid  = Math.max(fast + 1,  def.getPeriod2() > 0 ? def.getPeriod2() : 21);
+        int slow = Math.max(mid  + 1,  def.getPeriod3() > 0 ? def.getPeriod3() : 50);
+        var src  = priceIndicator(s, def.getPriceSource());
+
+        def.setSeries(extract(new EMAIndicator(src, fast), s));            // line1
+        def.putExtraSeries("line2", extract(new EMAIndicator(src, mid),  s)); // line2
+        def.putExtraSeries("line3", extract(new EMAIndicator(src, slow), s)); // line3
+        def.autoLabel();
     }
 }

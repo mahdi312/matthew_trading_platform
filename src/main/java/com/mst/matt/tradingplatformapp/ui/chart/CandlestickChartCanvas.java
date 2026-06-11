@@ -472,6 +472,22 @@ public class CandlestickChartCanvas extends Canvas {
                 // Parabolic SAR — drawn as dots
                 case PARABOLIC_SAR -> drawSarDots(gc, l, def, start, n, maxP, minP);
 
+                // Feature 3: TWO_MA — two EMA lines with separate colors
+                case TWO_MA -> {
+                    Color c2 = safeWebColor(def.getColor2(), "#bc8cff");
+                    drawLineSeriesAbsolute(gc, l, def.getSeries(),               start, n, maxP, minP, c,  lw);  // line1
+                    drawLineSeriesAbsolute(gc, l, def.getExtraSeries("line2"),   start, n, maxP, minP, c2, lw);  // line2
+                }
+
+                // Feature 3: THREE_MA — three EMA lines with separate colors
+                case THREE_MA -> {
+                    Color c2 = safeWebColor(def.getColor2(), "#bc8cff");
+                    Color c3 = safeWebColor(def.getColor3(), "#f0883e");
+                    drawLineSeriesAbsolute(gc, l, def.getSeries(),               start, n, maxP, minP, c,  lw);  // line1 (fast)
+                    drawLineSeriesAbsolute(gc, l, def.getExtraSeries("line2"),   start, n, maxP, minP, c2, lw);  // line2 (mid)
+                    drawLineSeriesAbsolute(gc, l, def.getExtraSeries("line3"),   start, n, maxP, minP, c3, lw);  // line3 (slow)
+                }
+
                 default -> {} // handled elsewhere
             }
         }
@@ -1011,6 +1027,14 @@ public class CandlestickChartCanvas extends Canvas {
         if (v >= 1_000_000)     return String.format("%.2fM", v / 1_000_000);
         if (v >= 1_000)         return String.format("%.2fK", v / 1_000);
         return String.format("%.2f", v);
+    }
+
+    /** Safely parse a web color string; falls back to {@code fallback} if null/invalid. */
+    private static Color safeWebColor(String webColor, String fallback) {
+        try {
+            if (webColor != null && !webColor.isBlank()) return Color.web(webColor);
+        } catch (IllegalArgumentException ignored) { }
+        return Color.web(fallback);
     }
 
     // ── Layout record ─────────────────────────────────────────

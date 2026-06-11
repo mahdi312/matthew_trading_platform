@@ -2,11 +2,13 @@ package com.mst.matt.tradingplatformapp.controller;
 
 import com.mst.matt.tradingplatformapp.model.UserProfile;
 import com.mst.matt.tradingplatformapp.model.UserProfile.ProfileAssetFocus;
+import com.mst.matt.tradingplatformapp.model.AppUser;
 import com.mst.matt.tradingplatformapp.model.IndicatorConfig;
 import com.mst.matt.tradingplatformapp.repository.IndicatorConfigRepository;
 import com.mst.matt.tradingplatformapp.repository.UserProfileRepository;
 import com.mst.matt.tradingplatformapp.service.analysis.AnalysisService;
 import com.mst.matt.tradingplatformapp.service.alert.AlertService;
+import com.mst.matt.tradingplatformapp.service.auth.AuthService;
 import com.mst.matt.tradingplatformapp.service.WatchlistDefaults;
 import com.mst.matt.tradingplatformapp.service.price.LiveTickerService;
 import com.mst.matt.tradingplatformapp.service.price.PriceQuote;
@@ -62,23 +64,31 @@ public class MainDashboardController implements Initializable {
     @Autowired private AlertService          alertService;
     @Autowired private AnalysisService       analysisService;
     @Autowired private PriceRouter           priceRouter;
+    @Autowired private AuthService           authService;
 
     private Parent dashboardView, chartView, tradeEntryView,
-            alertsView, mixerView, exportView, fundamentalsView, settingsView;
+            alertsView, mixerView, exportView, fundamentalsView, settingsView, adminView;
 
-    private DashboardController         dashboardCtrl;
-    private ChartController             chartCtrl;
-    private TradeEntryController        tradeEntryCtrl;
-    private AlertManagerController      alertsCtrl;
-    private IndicatorMixerController    mixerCtrl;
-    private ExportController            exportCtrl;
-    private YearlyProfitController      yearlyProfitCtrl;
-    private ProfileSettingsController   profileSettingsCtrl;
+    /** Callback invoked on logout — provided by StageInitializer. */
+    private Runnable onLogout;
+
+    private DashboardController              dashboardCtrl;
+    private ChartController                  chartCtrl;
+    private TradeEntryController             tradeEntryCtrl;
+    private AlertManagerController           alertsCtrl;
+    private IndicatorMixerController         mixerCtrl;
+    private ExportController                 exportCtrl;
+    private YearlyProfitController           yearlyProfitCtrl;
+    private ProfileSettingsController        profileSettingsCtrl;
+    private AdminUserManagementController    adminCtrl;
 
     private UserProfile activeProfile;
     private ScrollingTickerPane scrollingTicker;
     private Popup watchlistPopup;
     private PauseTransition sidebarCollapseTimer;
+
+    /** Called by StageInitializer after login; wire logout callback. */
+    public void setOnLogout(Runnable r) { this.onLogout = r; }
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -88,7 +98,33 @@ public class MainDashboardController implements Initializable {
         setupScrollingTicker();
         setupLiveTicker();
         updateLastUpdateLabel();
-        Platform.runLater(() -> setSidebarExpanded(false));
+        Platform.runLater(() -> {
+            setSidebarExpanded(false);
+            applyRoleNavVisibility();
+        });
+    }
+
+    /**
+     * Feature 4.2: Show/hide nav buttons based on the current user's tab permissions.
+     * Called on initialize and after login.
+     */
+    private void applyRoleNavVisibility() {
+        setNavVisible(navChart,        authService.canSeeTab("CHART"));
+        setNavVisible(navAnalysis,     authService.canSeeTab("ANALYZE"));
+        setNavVisible(navPortfolio,    authService.canSeeTab("PORTFOLIO"));
+        setNavVisible(navTrades,       authService.canSeeTab("TRADE_JOURNAL"));
+        setNavVisible(navMixer,        authService.canSeeTab("INDICATOR_MIXER"));
+        setNavVisible(navAlerts,       authService.canSeeTab("ALERTS"));
+        setNavVisible(navExport,       authService.canSeeTab("EXPORT"));
+        setNavVisible(navFundamentals, authService.canSeeTab("FUNDAMENTALS"));
+        // Settings always visible; admin panel shown only to ADMIN
+        if (navSettings != null) { navSettings.setVisible(true); navSettings.setManaged(true); }
+    }
+
+    private void setNavVisible(Button btn, boolean visible) {
+        if (btn == null) return;
+        btn.setVisible(visible);
+        btn.setManaged(visible);
     }
 
     private void setupNavTooltips() {
@@ -116,7 +152,7 @@ public class MainDashboardController implements Initializable {
         if (btn == null) return;
         // Preserve the emoji/icon from the FXML text attribute before overwriting it
         String icon = btn.getText() == null ? "" : btn.getText().trim();
-        javafx.scene.control.Label iconLabel = new javafx.scene.control.Label(icon);
+        Label iconLabel = new Label(icon);
         iconLabel.getStyleClass().add("nav-icon");
         // Ensure the icon label itself is always visible (non-managed = ok, but keep visible)
         iconLabel.setVisible(true);
@@ -176,16 +212,16 @@ public class MainDashboardController implements Initializable {
             if (expanded) {
                 // Show icon (graphic) + text label side by side
                 b.setText(label != null ? label : "");
-                b.setContentDisplay(javafx.scene.control.ContentDisplay.LEFT);
+                b.setContentDisplay(ContentDisplay.LEFT);
                 b.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
                 b.setGraphicTextGap(8);
             } else {
                 // Collapsed: show ONLY the icon graphic, no text
                 b.setText("");
-                b.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+                b.setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
                 b.setAlignment(javafx.geometry.Pos.CENTER);
                 // Ensure graphic label still has icon text
-                if (b.getGraphic() instanceof javafx.scene.control.Label iconLabel) {
+                if (b.getGraphic() instanceof Label iconLabel) {
                     if (icon != null && !icon.isBlank()) {
                         iconLabel.setText(icon);
                     }
@@ -365,17 +401,17 @@ public class MainDashboardController implements Initializable {
                     ? WatchlistDefaults.csvForFocus(activeProfile.getAssetFocus()) : "");
 
         // Add-symbol row
-        javafx.scene.layout.HBox addRow = new javafx.scene.layout.HBox(6);
+        HBox addRow = new HBox(6);
         TextField addField = new TextField();
         addField.setPromptText("Add symbol (e.g. NVDA, BTCUSDT)");
         addField.setStyle("-fx-background-color:#21262d; -fx-text-fill:#e6edf3; -fx-border-color:#30363d;");
-        javafx.scene.layout.HBox.setHgrow(addField, javafx.scene.layout.Priority.ALWAYS);
+        HBox.setHgrow(addField, Priority.ALWAYS);
         Button addBtn = new Button("+ Add");
         addBtn.getStyleClass().add("btn-primary");
         addRow.getChildren().addAll(addField, addBtn);
 
         // Current watchlist as chip-like labels
-        javafx.scene.layout.FlowPane chips = new javafx.scene.layout.FlowPane(6, 6);
+        FlowPane chips = new FlowPane(6, 6);
         chips.setStyle("-fx-padding:4;");
 
         // Editable text area (full CSV edit)
@@ -399,10 +435,10 @@ public class MainDashboardController implements Initializable {
                 chip.setOnMouseClicked(ev -> {
                     // Remove this symbol from the CSV
                     String cur = editor.getText() == null ? "" : editor.getText();
-                    String updated = java.util.Arrays.stream(cur.split("[,\\s]+"))
+                    String updated = Arrays.stream(cur.split("[,\\s]+"))
                             .map(String::trim)
                             .filter(x -> !x.equalsIgnoreCase(sym))
-                            .collect(java.util.stream.Collectors.joining(", "));
+                            .collect(Collectors.joining(", "));
                     editor.setText(updated);
                 });
                 chips.getChildren().add(chip);
@@ -417,7 +453,7 @@ public class MainDashboardController implements Initializable {
             if (newSym.isEmpty()) return;
             String cur = editor.getText() == null ? "" : editor.getText().trim();
             // Avoid duplicates
-            boolean alreadyIn = java.util.Arrays.stream(cur.split("[,\\s]+"))
+            boolean alreadyIn = Arrays.stream(cur.split("[,\\s]+"))
                     .anyMatch(x -> x.trim().equalsIgnoreCase(newSym));
             if (!alreadyIn) {
                 editor.setText(cur.isEmpty() ? newSym : cur + ", " + newSym);
@@ -429,7 +465,7 @@ public class MainDashboardController implements Initializable {
         // Default presets for this profile
         Label presetsLabel = new Label("Quick add for this profile:");
         presetsLabel.setStyle("-fx-font-size:11px; -fx-text-fill:#8b949e;");
-        javafx.scene.layout.FlowPane presets = new javafx.scene.layout.FlowPane(6, 4);
+        FlowPane presets = new FlowPane(6, 4);
         if (activeProfile != null) {
             List<String> defaults = WatchlistDefaults.forFocus(activeProfile.getAssetFocus());
             for (String sym : defaults) {
@@ -439,7 +475,7 @@ public class MainDashboardController implements Initializable {
                         + "-fx-padding:2 8; -fx-cursor:hand; -fx-font-size:10px;");
                 preset.setOnAction(e -> {
                     String cur = editor.getText() == null ? "" : editor.getText().trim();
-                    boolean already = java.util.Arrays.stream(cur.split("[,\\s]+"))
+                    boolean already = Arrays.stream(cur.split("[,\\s]+"))
                             .anyMatch(x -> x.trim().equalsIgnoreCase(sym));
                     if (!already) {
                         editor.setText(cur.isEmpty() ? sym : cur + ", " + sym);
@@ -457,12 +493,12 @@ public class MainDashboardController implements Initializable {
             if (activeProfile == null) return;
             String csv = editor.getText() == null ? "" : editor.getText().trim();
             // Normalize
-            String normalized = java.util.Arrays.stream(csv.split("[,\\s]+"))
+            String normalized = Arrays.stream(csv.split("[,\\s]+"))
                     .map(String::trim)
                     .filter(x -> !x.isEmpty())
                     .map(String::toUpperCase)
                     .distinct()
-                    .collect(java.util.stream.Collectors.joining(", "));
+                    .collect(Collectors.joining(", "));
             activeProfile.setWatchlist(normalized.isEmpty() ? null : normalized);
             profileRepository.save(activeProfile);
             liveTickerService.applyProfileWatchlist(activeProfile);
@@ -629,6 +665,36 @@ public class MainDashboardController implements Initializable {
         }
         if (activeProfile != null) profileSettingsCtrl.setProfile(activeProfile);
         showView(settingsView);
+    }
+
+    /** Feature 4.4: Open admin user management panel (ADMIN only). */
+    @FXML public void onOpenAdminPanel() {
+        if (!authService.isAdmin()) {
+            new Alert(Alert.AlertType.WARNING,
+                    "Admin access required.").showAndWait();
+            return;
+        }
+        if (adminView == null) {
+            var wc = fxWeaver.load(AdminUserManagementController.class);
+            adminView = asParent(wc.getView().orElseThrow());
+            adminCtrl = wc.getController();
+            adminCtrl.setOnClose(this::onNavDashboard);
+        }
+        adminCtrl.refresh();
+        showView(adminView);
+    }
+
+    /** Logout: clear auth session and return to login screen. */
+    @FXML public void onLogout() {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Sign Out");
+        confirm.setHeaderText("Sign out of the Trading Platform?");
+        confirm.getButtonTypes().setAll(ButtonType.OK, ButtonType.CANCEL);
+        confirm.showAndWait().ifPresent(bt -> {
+            if (bt != ButtonType.OK) return;
+            authService.logout();
+            if (onLogout != null) onLogout.run();
+        });
     }
 
     @FXML public void onNavPortfolio() {

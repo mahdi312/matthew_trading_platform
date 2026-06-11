@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.*?>
+
+<StackPane xmlns:fx="http://javafx.com/fxml"
+           fx:controller="com.mst.matt.tradingplatformapp.controller.RegisterController"
+           style="-fx-background-color:#0d1117;"
+           prefWidth="420" prefHeight="580">
+
+    <VBox alignment="CENTER" spacing="0" maxWidth="380"
+          style="-fx-background-color:#161b22; -fx-border-color:#30363d; -fx-border-width:1;
+                 -fx-background-radius:12; -fx-border-radius:12;"
+          StackPane.alignment="CENTER">
+
+        <padding>
+            <Insets top="36" right="40" bottom="36" left="40"/>
+        </padding>
+
+        <!-- Title -->
+        <Label text="Create Account"
+               style="-fx-font-size:22px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"
+               alignment="CENTER"/>
+        <Label text="Register to use the Trading Platform"
+               style="-fx-font-size:13px; -fx-text-fill:#8b949e;" alignment="CENTER"/>
+
+        <VBox spacing="0"><padding><Insets top="24"/></padding></VBox>
+
+        <!-- Error label -->
+        <Label fx:id="errorLabel" text="" wrapText="true"
+               style="-fx-text-fill:#f85149; -fx-font-size:12px; -fx-padding:0 0 8 0;"
+               alignment="CENTER" managed="false" visible="false"/>
+
+        <!-- Username -->
+        <VBox spacing="4">
+            <Label text="Username" style="-fx-text-fill:#8b949e; -fx-font-size:12px;"/>
+            <TextField fx:id="usernameField" promptText="Choose a username"
+                       style="-fx-background-color:#21262d; -fx-text-fill:#e6edf3;
+                              -fx-border-color:#30363d; -fx-border-radius:6;
+                              -fx-background-radius:6; -fx-padding:8 12;
+                              -fx-font-size:14px; -fx-pref-height:38;"/>
+        </VBox>
+
+        <VBox spacing="0"><padding><Insets top="12"/></padding></VBox>
+
+        <!-- Display name -->
+        <VBox spacing="4">
+            <Label text="Display Name" style="-fx-text-fill:#8b949e; -fx-font-size:12px;"/>
+            <TextField fx:id="displayNameField" promptText="Your name (shown in app)"
+                       style="-fx-background-color:#21262d; -fx-text-fill:#e6edf3;
+                              -fx-border-color:#30363d; -fx-border-radius:6;
+                              -fx-background-radius:6; -fx-padding:8 12;
+                              -fx-font-size:14px; -fx-pref-height:38;"/>
+        </VBox>
+
+        <VBox spacing="0"><padding><Insets top="12"/></padding></VBox>
+
+        <!-- Password -->
+        <VBox spacing="4">
+            <Label text="Password" style="-fx-text-fill:#8b949e; -fx-font-size:12px;"/>
+            <PasswordField fx:id="passwordField" promptText="Min 6 characters"
+                           style="-fx-background-color:#21262d; -fx-text-fill:#e6edf3;
+                                  -fx-border-color:#30363d; -fx-border-radius:6;
+                                  -fx-background-radius:6; -fx-padding:8 12;
+                                  -fx-font-size:14px; -fx-pref-height:38;"/>
+        </VBox>
+
+        <VBox spacing="0"><padding><Insets top="12"/></padding></VBox>
+
+        <!-- Confirm Password -->
+        <VBox spacing="4">
+            <Label text="Confirm Password" style="-fx-text-fill:#8b949e; -fx-font-size:12px;"/>
+            <PasswordField fx:id="confirmPasswordField" promptText="Re-enter password"
+                           style="-fx-background-color:#21262d; -fx-text-fill:#e6edf3;
+                                  -fx-border-color:#30363d; -fx-border-radius:6;
+                                  -fx-background-radius:6; -fx-padding:8 12;
+                                  -fx-font-size:14px; -fx-pref-height:38;"
+                           onAction="#onRegister"/>
+        </VBox>
+
+        <VBox spacing="0"><padding><Insets top="20"/></padding></VBox>
+
+        <!-- Register button -->
+        <Button text="Create Account" onAction="#onRegister"
+                maxWidth="Infinity" prefHeight="40"
+                style="-fx-background-color:#238636; -fx-text-fill:white;
+                       -fx-font-size:14px; -fx-font-weight:bold;
+                       -fx-background-radius:6; -fx-cursor:hand;"/>
+
+        <VBox spacing="0"><padding><Insets top="12"/></padding></VBox>
+
+        <!-- Back to login -->
+        <Button text="← Back to Sign In" onAction="#onBackToLogin"
+                maxWidth="Infinity" prefHeight="38"
+                style="-fx-background-color:transparent; -fx-text-fill:#388bfd;
+                       -fx-font-size:13px; -fx-border-color:#30363d;
+                       -fx-border-radius:6; -fx-background-radius:6; -fx-cursor:hand;"/>
+
+    </VBox>
+</StackPane>

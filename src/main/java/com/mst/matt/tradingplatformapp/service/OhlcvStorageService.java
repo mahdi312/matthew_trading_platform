@@ -169,7 +169,7 @@ public class OhlcvStorageService {
             return bars == null ? List.of() : new ArrayList<>(bars);
         }
         List<OhlcvBar> ordered = new ArrayList<>(bars);
-        ordered.sort(java.util.Comparator.comparing(OhlcvBar::getOpenTime));
+        ordered.sort(Comparator.comparing(OhlcvBar::getOpenTime));
         return ordered;
     }
 }

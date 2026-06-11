@@ -65,6 +65,10 @@ public class IndicatorDefinition {
         // Complex multi-line (overlay)
         ICHIMOKU("Ichimoku", "Ichimoku Cloud", DisplayPane.PRICE, false),
 
+        // Multi-MA overlays — each plots 2 or 3 MA lines simultaneously
+        TWO_MA("2MA", "Dual Moving Average (2 lines)", DisplayPane.PRICE, false),
+        THREE_MA("3MA", "Triple Moving Average (3 lines)", DisplayPane.PRICE, false),
+
         // Support / Resistance
         SUPPORT_RESISTANCE("S/R", "Support & Resistance", DisplayPane.PRICE, false);
 
@@ -122,8 +126,14 @@ public class IndicatorDefinition {
     /** Which price is used to compute the indicator. */
     private PriceSource priceSource;
 
-    /** Line color as JavaFX web string, e.g. "#388bfd". */
+    /** Line color as JavaFX web string, e.g. "#388bfd". Primary line. */
     private String color;
+
+    /** Secondary line color (for TWO_MA line2, THREE_MA line2). */
+    private String color2;
+
+    /** Tertiary line color (for THREE_MA line3). */
+    private String color3;
 
     /** Line stroke width in pixels. */
     private double lineWeight;
@@ -157,6 +167,8 @@ public class IndicatorDefinition {
         this.period3     = defaultPeriod3(type);
         this.priceSource = PriceSource.CLOSE;
         this.color       = defaultColor(type);
+        this.color2      = defaultColor2(type);
+        this.color3      = defaultColor3(type);
         this.lineWeight  = 1.5;
         this.visible     = true;
         this.extraSeries = new LinkedHashMap<>();
@@ -166,6 +178,8 @@ public class IndicatorDefinition {
 
     private static int defaultPeriod(Type t) {
         return switch (t) {
+            case TWO_MA   -> 9;    // fast line period
+            case THREE_MA -> 9;    // fastest line period
             case EMA, SMA, WMA, DEMA, TEMA, HULL_MA, KAMA, ZLEMA -> 20;
             case VWAP    -> 14;
             case BOLLINGER -> 20;
@@ -205,16 +219,33 @@ public class IndicatorDefinition {
             case ICHIMOKU    -> 26;  // Kijun
             case CHAIKIN_OSC -> 10;  // slow
             case PPO         -> 26;
+            case TWO_MA      -> 21;  // slow line period
+            case THREE_MA    -> 21;  // medium line period
             default          -> 0;
         };
     }
 
     private static int defaultPeriod3(Type t) {
         return switch (t) {
-            case MACD     -> 9;   // signal line
-            case STOCH_RSI -> 14; // RSI period
-            case ICHIMOKU -> 52;  // Senkou B
-            default       -> 0;
+            case MACD      -> 9;   // signal line
+            case STOCH_RSI -> 14;  // RSI period
+            case ICHIMOKU  -> 52;  // Senkou B
+            case THREE_MA  -> 50;  // slow line period
+            default        -> 0;
+        };
+    }
+
+    private static String defaultColor2(Type t) {
+        return switch (t) {
+            case TWO_MA, THREE_MA -> "#bc8cff";
+            default -> "#888888";
+        };
+    }
+
+    private static String defaultColor3(Type t) {
+        return switch (t) {
+            case THREE_MA -> "#f0883e";
+            default -> "#888888";
         };
     }
 
@@ -253,6 +284,8 @@ public class IndicatorDefinition {
             case ADX          -> "#ff7b72";
             case ICHIMOKU     -> "#f85149";
             case PARABOLIC_SAR -> "#e3b341";
+            case TWO_MA        -> "#388bfd"; // line1 color; line2 stored in extraSeries
+            case THREE_MA      -> "#388bfd"; // line1 color
             default            -> "#888888";
         };
     }
@@ -273,6 +306,10 @@ public class IndicatorDefinition {
     public void   setPriceSource(PriceSource s)   { this.priceSource = s; }
     public String getColor()                      { return color; }
     public void   setColor(String color)          { this.color = color; }
+    public String getColor2()                     { return color2; }
+    public void   setColor2(String c)             { this.color2 = c; }
+    public String getColor3()                     { return color3; }
+    public void   setColor3(String c)             { this.color3 = c; }
     public double getLineWeight()                 { return lineWeight; }
     public void   setLineWeight(double w)         { this.lineWeight = w; }
     public boolean isVisible()                    { return visible; }

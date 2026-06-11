@@ -135,7 +135,7 @@ public class AlertManagerController implements Initializable {
             return;
         }
 
-        PriceAlert.PriceAlertBuilder builder = PriceAlert.builder()
+        PriceAlertBuilder builder = PriceAlert.builder()
                 .profile(activeProfile)
                 .symbol(sym)
                 .alertType(selectedType)

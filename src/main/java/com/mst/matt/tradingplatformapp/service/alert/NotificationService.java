@@ -55,8 +55,8 @@ public class NotificationService {
                 trayIcon = icons[0];
             } else {
                 // Create a minimal 1×1 transparent image — empty byte[] causes NPE on some JDKs
-                BufferedImage img = new java.awt.image.BufferedImage(
-                        1, 1, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                BufferedImage img = new BufferedImage(
+                        1, 1, BufferedImage.TYPE_INT_ARGB);
                 trayIcon = new TrayIcon(img, "Trading Platform");
                 trayIcon.setImageAutoSize(true);
                 tray.add(trayIcon);
