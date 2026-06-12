@@ -27,23 +27,30 @@
 
             <Separator orientation="VERTICAL"/>
 
-            <!-- Timeframes — ALL supported intervals -->
+            <!-- Timeframes — ALL supported intervals (hidden; shown in favorites bar instead) -->
             <Label text="TF:" styleClass="label-subtitle"/>
-            <ToggleButton fx:id="tf1m"  text="1m"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf3m"  text="3m"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf5m"  text="5m"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf15m" text="15m"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf30m" text="30m"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf1h"  text="1h"   styleClass="btn-blue     chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf2h"  text="2h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf4h"  text="4h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf6h"  text="6h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf8h"  text="8h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf12h" text="12h"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf1d"  text="1D"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf3d"  text="3D"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf1w"  text="1W"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
-            <ToggleButton fx:id="tf1mo" text="1Mo"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe"/>
+            <ToggleButton fx:id="tf1m"  text="1m"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+            <ToggleButton fx:id="tf3m"  text="3m"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+            <ToggleButton fx:id="tf5m"  text="5m"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+            <ToggleButton fx:id="tf15m" text="15m"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+            <ToggleButton fx:id="tf30m" text="30m"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+            <ToggleButton fx:id="tf1h"  text="1h"   styleClass="btn-blue     chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+            <ToggleButton fx:id="tf2h"  text="2h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+            <ToggleButton fx:id="tf4h"  text="4h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+            <ToggleButton fx:id="tf6h"  text="6h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+            <ToggleButton fx:id="tf8h"  text="8h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+            <ToggleButton fx:id="tf12h" text="12h"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+            <ToggleButton fx:id="tf1d"  text="1D"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+            <ToggleButton fx:id="tf3d"  text="3D"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+            <ToggleButton fx:id="tf1w"  text="1W"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+            <ToggleButton fx:id="tf1mo" text="1Mo"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+            <!-- Timeframe favorites bar — dynamically populated from favorite list -->
+            <HBox fx:id="favTfBar" spacing="4" alignment="CENTER_LEFT"/>
+            <!-- "All Timeframes" dropdown button to manage favorites -->
+            <Button fx:id="tfDropdownBtn" text="☆ TF" styleClass="btn-secondary"
+                    onAction="#onOpenTfDropdown"
+                    style="-fx-font-size:11px; -fx-padding:3 8;"
+                    tooltip="All timeframes — click to add/remove favorites"/>
 
             <Separator orientation="VERTICAL"/>
 

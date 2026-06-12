@@ -45,6 +45,11 @@ public class MarketDataSyncScheduler {
         this.activeProfile = profile;
     }
 
+    /**
+     * Sync only tables that belong to the currently viewed symbol (or the active profile's
+     * default symbol). This prevents background bulk-loading of OHLCV data for every
+     * symbol ever registered — only the chart the user is actually looking at gets refreshed.
+     */
     @Scheduled(fixedDelay = 30_000)
     public void syncDueTables() {
         if (!properties.getDynamicTables().isEnabled() || !appSettings.isApiFetchEnabled()) {
@@ -54,13 +59,34 @@ public class MarketDataSyncScheduler {
         if (due.isEmpty()) {
             return;
         }
-        log.debug("Market data sync tick — {} table(s) due", due.size());
+
+        // Lazy load: only sync tables for the currently active symbol
+        // (if we know which symbol is active via the profile's default symbol)
+        String activeSymbol = (activeProfile != null && activeProfile.getDefaultSymbol() != null)
+                ? activeProfile.getDefaultSymbol().toUpperCase() : null;
+
+        log.debug("Market data sync tick — {} table(s) due, active symbol: {}",
+                due.size(), activeSymbol);
+
         for (MarketDataTableRegistry entry : due) {
+            // Skip entries for symbols not matching the currently viewed symbol
+            if (activeSymbol != null && !entry.getSymbol().equalsIgnoreCase(activeSymbol)) {
+                log.trace("Skipping background sync for {} (not the active chart symbol {})",
+                        entry.getSymbol(), activeSymbol);
+                continue;
+            }
             try {
                 syncService.syncRegistryEntry(entry, syncService.defaultBarLimit(), activeProfile);
             } catch (Exception e) {
                 log.error("Scheduled sync failed for {}: {}", entry.getTableName(), e.getMessage());
             }
+        }
+    }
+
+    /** Called by MainDashboardController / ChartController when the user switches symbol. */
+    public void notifyActiveSymbolChanged(String symbol) {
+        if (activeProfile != null && symbol != null) {
+            activeProfile.setDefaultSymbol(symbol.toUpperCase());
         }
     }
 }

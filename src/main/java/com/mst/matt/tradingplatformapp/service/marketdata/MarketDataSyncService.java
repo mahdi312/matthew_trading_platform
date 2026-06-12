@@ -136,7 +136,8 @@ public class MarketDataSyncService {
         }
 
         if (!fresh.isEmpty()) {
-            dynamicTableService.replaceBars(
+            // Full replacement for live-fetched data (the API always returns a complete window)
+            dynamicTableService.replaceAllBars(
                     entry.getTableName(), sym, entry.getTimeframe(), entry.getAssetType(), fresh);
             entry.setLastSyncAt(LocalDateTime.now());
             entry.setNextSyncAt(LocalDateTime.now().plus(TimeframeInterval.forTimeframe(entry.getTimeframe())));
