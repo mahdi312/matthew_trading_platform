@@ -49,8 +49,9 @@
             <!-- "All Timeframes" dropdown button to manage favorites -->
             <Button fx:id="tfDropdownBtn" text="☆ TF" styleClass="btn-secondary"
                     onAction="#onOpenTfDropdown"
-                    style="-fx-font-size:11px; -fx-padding:3 8;"
-                    tooltip="All timeframes — click to add/remove favorites"/>
+                    style="-fx-font-size:11px; -fx-padding:3 8;">
+                <tooltip><Tooltip text="All timeframes — click to add/remove favorites"/></tooltip>
+            </Button>
 
             <Separator orientation="VERTICAL"/>
 
