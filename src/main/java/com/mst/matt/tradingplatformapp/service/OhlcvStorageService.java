@@ -3,9 +3,13 @@ package com.mst.matt.tradingplatformapp.service;
 import com.mst.matt.tradingplatformapp.config.MarketDataProperties;
 import com.mst.matt.tradingplatformapp.model.MarketDataTableRegistry;
 import com.mst.matt.tradingplatformapp.model.OhlcvBar;
+import com.mst.matt.tradingplatformapp.model.Trade;
 import com.mst.matt.tradingplatformapp.model.UserProfile;
 import com.mst.matt.tradingplatformapp.repository.OhlcvBarRepository;
+import com.mst.matt.tradingplatformapp.service.marketdata.AggregatedCandleQueryService;
 import com.mst.matt.tradingplatformapp.service.marketdata.MarketDataSyncService;
+import com.mst.matt.tradingplatformapp.service.price.AssetClassDetector;
+import com.mst.matt.tradingplatformapp.service.price.MarketDataProvider;
 import com.mst.matt.tradingplatformapp.service.price.PriceRouter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +35,7 @@ public class OhlcvStorageService {
     @Autowired private MarketDataProperties marketDataProperties;
     @Autowired private MarketDataSyncService marketDataSyncService;
     @Autowired private AppSettingsService appSettings;
+    @Autowired private AggregatedCandleQueryService aggregatedCandleQueryService;
 
     @Transactional
     public List<OhlcvBar> getBars(String symbol, String timeframe, int limit) {
@@ -53,7 +58,8 @@ public class OhlcvStorageService {
             entry = marketDataSyncService.register(sym, timeframe, profile);
         } catch (Exception e) {
             log.warn("Registry register failed for {} {}: {}", sym, timeframe, e.getMessage());
-            return List.of();
+            // Try offline aggregated data before giving up
+            return tryAggregatedFallback(sym, timeframe, profile, limit);
         }
         List<OhlcvBar> cached = marketDataSyncService.readFromRegistry(entry, limit);
 
@@ -68,13 +74,60 @@ public class OhlcvStorageService {
         if (cached.isEmpty() && marketDataProperties.getSync().isBootstrapOnMiss()
                 && appSettings.isApiFetchEnabled()) {
             log.info("Bootstrapping OHLCV table {} from API", entry.getTableName());
-            return marketDataSyncService.syncRegistryEntry(entry, limit, profile);
+            List<OhlcvBar> synced = marketDataSyncService.syncRegistryEntry(entry, limit, profile);
+            if (!synced.isEmpty()) return synced;
+            // Last resort: aggregated offline data
+            return tryAggregatedFallback(sym, timeframe, profile, limit);
         }
 
         if (marketDataSyncService.isDue(entry) && appSettings.isApiFetchEnabled()) {
             marketDataSyncService.syncRegistryEntryAsync(entry, limit, profile);
         }
+
+        // If cached is empty and API fetch is disabled (offline), try pre-aggregated data
+        if (cached.isEmpty() && !appSettings.isApiFetchEnabled()) {
+            List<OhlcvBar> agg = tryAggregatedFallback(sym, timeframe, profile, limit);
+            if (!agg.isEmpty()) {
+                log.info("Offline mode — serving {} aggregated bars for {}/{}", agg.size(), sym, timeframe);
+                return agg;
+            }
+        }
         return cached;
+    }
+
+    /**
+     * Tries to serve bars from the pre-aggregated offline tables.
+     * Detects the provider from the registry or falls back to an empty provider segment.
+     */
+    private List<OhlcvBar> tryAggregatedFallback(String symbol, String timeframe,
+                                                  UserProfile profile, int limit) {
+        try {
+            // Determine asset type
+            AssetClassDetector.AssetClass ac = profile != null
+                    ? AssetClassDetector.fromProfileFocus(profile.getAssetFocus(), symbol)
+                    : AssetClassDetector.detect(symbol);
+            Trade.AssetType assetType = switch (ac) {
+                case CRYPTO    -> Trade.AssetType.CRYPTO;
+                case FOREX     -> Trade.AssetType.FOREX;
+                case COMMODITY -> Trade.AssetType.COMMODITY;
+                case INDEX     -> Trade.AssetType.INDEX;
+                default        -> Trade.AssetType.STOCK;
+            };
+
+            // Try with known providers first (BINANCE is common for crypto)
+            for (MarketDataProvider provider : MarketDataProvider.values()) {
+                if (provider == MarketDataProvider.AUTO) continue;
+                List<OhlcvBar> bars = aggregatedCandleQueryService.fetchAggregated(
+                        symbol, provider.name(), timeframe, assetType, limit);
+                if (!bars.isEmpty()) return bars;
+            }
+            // Generic agg table
+            return aggregatedCandleQueryService.fetchAggregated(
+                    symbol, "", timeframe, assetType, limit);
+        } catch (Exception ex) {
+            log.debug("Aggregated fallback failed for {}/{}: {}", symbol, timeframe, ex.getMessage());
+            return List.of();
+        }
     }
 
     private List<OhlcvBar> getBarsLegacy(String symbol, String timeframe, int limit, UserProfile profile) {

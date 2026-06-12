@@ -9,67 +9,130 @@
       fx:controller="com.mst.matt.tradingplatformapp.controller.ProfileSettingsController"
       styleClass="scene-root" spacing="0">
 
+    <!-- Fixed header -->
     <HBox styleClass="card" alignment="CENTER_LEFT" spacing="12"
-          style="-fx-background-radius:0; -fx-border-width:0 0 1 0;">
+          style="-fx-background-radius:0; -fx-border-radius:0; -fx-border-width:0 0 1 0;">
         <padding>
             <Insets top="12" right="16" bottom="12" left="16"/>
         </padding>
-        <Label text="⚙ Profile &amp; Data Providers" styleClass="label-title"/>
+        <Label text="⚙ Settings &amp; Preferences" styleClass="label-title"/>
+        <Pane HBox.hgrow="ALWAYS"/>
+        <Button text="💾 Save All" styleClass="btn-primary" onAction="#onSave"/>
+        <Label fx:id="savedLabel" style="-fx-text-fill:#3fb950; -fx-font-size:12px;"/>
     </HBox>
 
-    <VBox spacing="20" alignment="TOP_LEFT" style="-fx-max-width:560px;">
-        <padding>
-            <Insets top="24" right="24" bottom="24" left="24"/>
-        </padding>
-
-        <VBox styleClass="card" spacing="16">
+    <!-- Scrollable content area -->
+    <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS"
+                style="-fx-background-color:#0d1117; -fx-background:#0d1117;"
+                hbarPolicy="NEVER" vbarPolicy="AS_NEEDED">
+        <VBox spacing="20">
+            <fx:define>
+                <ToggleGroup fx:id="themeGroup"/>
+            </fx:define>
             <padding>
-                <Insets top="24" right="24" bottom="24" left="24"/>
+                <Insets top="20" right="20" bottom="24" left="20"/>
             </padding>
-            <Label text="Active profile" styleClass="label-muted"/>
-            <Label fx:id="profileNameLabel" text="—" styleClass="label-title"/>
 
-            <Separator/>
+            <!-- ════ PROFILE SECTION ════ -->
+            <VBox styleClass="card" spacing="14">
+                <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+                <Label text="👤 Active Profile" styleClass="label-subtitle"/>
+                <Label fx:id="profileNameLabel" text="—" styleClass="label-title" style="-fx-font-size:18px;"/>
 
-            <Label text="Asset focus" styleClass="label-subtitle"/>
-            <ComboBox fx:id="assetFocusCombo" prefWidth="280" onAction="#onAssetFocusChanged"/>
+                <Separator/>
 
-            <Label text="Default symbol" styleClass="label-subtitle"/>
-            <TextField fx:id="defaultSymbolField" promptText="e.g. AAPL, BTCUSDT, EURUSD"/>
+                <Label text="Asset Focus" styleClass="label-subtitle"/>
+                <ComboBox fx:id="assetFocusCombo" maxWidth="320" onAction="#onAssetFocusChanged"/>
 
-            <Separator/>
+                <Label text="Default Symbol" styleClass="label-subtitle"/>
+                <TextField fx:id="defaultSymbolField" promptText="e.g. AAPL, BTCUSDT, EURUSD" maxWidth="320"/>
 
-            <Label text="Chart data provider" styleClass="label-subtitle"/>
-            <ComboBox fx:id="chartProviderCombo" prefWidth="320"/>
-            <Label fx:id="chartProvidersHint" styleClass="label-muted" style="-fx-wrap-text:true;"/>
+                <Label text="Chart Data Provider" styleClass="label-subtitle"/>
+                <ComboBox fx:id="chartProviderCombo" maxWidth="320"/>
+                <Label fx:id="chartProvidersHint" styleClass="label-muted" style="-fx-wrap-text:true;"/>
 
-            <Label text="Fundamentals provider" styleClass="label-subtitle"/>
-            <ComboBox fx:id="fundamentalProviderCombo" prefWidth="320"/>
+                <Label text="Fundamentals Provider" styleClass="label-subtitle"/>
+                <ComboBox fx:id="fundamentalProviderCombo" maxWidth="320"/>
+            </VBox>
 
-            <Separator/>
+            <!-- ════ TIMEZONE &amp; TIMEFRAME SECTION ════ -->
+            <VBox styleClass="card" spacing="14">
+                <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+                <Label text="🕐 Timezone &amp; Chart Settings" styleClass="label-subtitle"/>
+                <Separator/>
 
-            <Label text="Data fetching" styleClass="label-subtitle"/>
-            <CheckBox fx:id="offlineModeCheck" text="Offline mode (use cached DB prices only, skip live API calls)"
-                      onAction="#onOfflineModeChanged"/>
-            <Label text="When enabled, charts and ticker read from stored tables / cache. Disable to fetch fresh data from APIs."
+                <Label text="Timezone Override" styleClass="label-subtitle"/>
+                <Label text="Overrides system timezone for all chart time labels (x-axis, tooltips, crosshair)."
+                       styleClass="label-muted" style="-fx-wrap-text:true;"/>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <ComboBox fx:id="timezoneCombo" maxWidth="320" promptText="Select timezone…"/>
+                    <Button text="🖥 Use System" styleClass="btn-secondary" onAction="#onUseSystemTimezone"/>
+                </HBox>
+                <Label fx:id="timezoneHint" text="" styleClass="label-muted"/>
+
+                <Separator/>
+
+                <Label text="Default Timeframe" styleClass="label-subtitle"/>
+                <Label text="The timeframe selected by default when opening the chart."
+                       styleClass="label-muted" style="-fx-wrap-text:true;"/>
+                <ComboBox fx:id="defaultTfCombo" maxWidth="200"/>
+
+                <Separator/>
+
+                <Label text="Favorite Timeframes" styleClass="label-subtitle"/>
+                <Label text="Select the timeframes to highlight in the chart toolbar as favorites (shown in gold)."
+                       styleClass="label-muted" style="-fx-wrap-text:true;"/>
+                <FlowPane fx:id="favTfPane" hgap="8" vgap="8"/>
+            </VBox>
+
+            <!-- ════ APPEARANCE SECTION ════ -->
+            <VBox styleClass="card" spacing="14">
+                <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+                <Label text="🎨 Appearance" styleClass="label-subtitle"/>
+                <Separator/>
+
+                <Label text="Theme" styleClass="label-subtitle"/>
+                <HBox spacing="12">
+                    <ToggleButton fx:id="darkThemeBtn" text="🌙 Dark"
+                                  toggleGroup="$themeGroup"
+                                  styleClass="btn-secondary" onAction="#onThemeChanged"/>
+                    <ToggleButton fx:id="lightThemeBtn" text="☀ Light"
+                                  toggleGroup="$themeGroup"
+                                  styleClass="btn-secondary" onAction="#onThemeChanged"/>
+                </HBox>
+                <Label text="Theme change takes effect after restarting the application."
+                       styleClass="label-muted" style="-fx-wrap-text:true;"/>
+            </VBox>
+
+            <!-- ════ DATA &amp; NETWORK SECTION ════ -->
+            <VBox styleClass="card" spacing="14">
+                <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+                <Label text="🌐 Data &amp; Network" styleClass="label-subtitle"/>
+                <Separator/>
+
+                <Label text="Data Fetching" styleClass="label-subtitle"/>
+                <CheckBox fx:id="offlineModeCheck" text="Offline mode (use cached DB prices only, skip live API calls)"
+                          onAction="#onOfflineModeChanged"/>
+                <Label text="When enabled, charts and ticker read from stored tables / cache. Disable to fetch fresh data from APIs."
+                       styleClass="label-muted" style="-fx-wrap-text:true;"/>
+            </VBox>
+
+            <!-- ════ WATCHLIST SECTION ════ -->
+            <VBox styleClass="card" spacing="14">
+                <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+                <Label text="📋 Ticker Watchlist" styleClass="label-subtitle"/>
+                <Separator/>
+                <Label text="Comma- or space-separated symbols shown in the top live ticker bar. Leave blank to keep platform defaults."
+                       styleClass="label-muted" style="-fx-wrap-text:true;"/>
+                <TextArea fx:id="watchlistField" prefRowCount="3" wrapText="true"
+                          promptText="e.g. BTCUSDT, ETHUSDT, AAPL, MSFT, EURUSD"/>
+            </VBox>
+
+            <!-- ════ AUTO NOTE ════ -->
+            <Label text="AUTO picks the best enabled API for each symbol. If a source fails, the next provider in the chain is used automatically."
                    styleClass="label-muted" style="-fx-wrap-text:true;"/>
 
-            <Separator/>
-
-            <!-- T-12: customizable watchlist editor (comma-separated symbols) -->
-            <Label text="Ticker watchlist" styleClass="label-subtitle"/>
-            <Label text="Comma- or space-separated symbols shown in the top live ticker bar. Leave blank to keep platform defaults."
-                   styleClass="label-muted" style="-fx-wrap-text:true;"/>
-            <TextArea fx:id="watchlistField" prefRowCount="3" wrapText="true"
-                      promptText="e.g. BTCUSDT, ETHUSDT, AAPL, MSFT, EURUSD"/>
-
-            <HBox spacing="12" alignment="CENTER_LEFT">
-                <Button text="Save preferences" styleClass="btn-primary" onAction="#onSave"/>
-                <Label fx:id="savedLabel" style="-fx-text-fill:#3fb950;"/>
-            </HBox>
         </VBox>
+    </ScrollPane>
 
-        <Label text="AUTO picks the best enabled API for each symbol. If a source fails, the next provider in the chain is used automatically."
-               styleClass="label-muted" style="-fx-wrap-text:true;"/>
-    </VBox>
 </VBox>

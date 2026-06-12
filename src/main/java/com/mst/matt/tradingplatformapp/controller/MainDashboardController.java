@@ -263,15 +263,44 @@ public class MainDashboardController implements Initializable {
     }
 
     private void loadOrCreateDefaultProfiles() {
-        List<UserProfile> profiles =
-                profileRepository.findAllByOrderByLastAccessedAtDesc();
-        if (profiles.isEmpty()) {
-            profiles = List.of(
-                    createProfile("Crypto Portfolio", "#3fb950", ProfileAssetFocus.CRYPTO),
-                    createProfile("Stocks Journal",   "#388bfd", ProfileAssetFocus.STOCK),
-                    createProfile("Forex Trading",    "#bc8cff", ProfileAssetFocus.FOREX)
-            );
+        // Load profiles scoped to the current logged-in user
+        java.util.Optional<com.mst.matt.tradingplatformapp.model.AppUser> currentUser =
+                authService.currentUser();
+
+        List<UserProfile> profiles;
+        if (currentUser.isPresent()) {
+            profiles = profileRepository.findByAppUserOrderByLastAccessedAtDesc(currentUser.get());
+            if (profiles.isEmpty()) {
+                // Also check legacy profiles (no appUser) for first-run migration
+                List<UserProfile> legacy = profileRepository.findByAppUserIsNullOrderByLastAccessedAtDesc();
+                if (!legacy.isEmpty()) {
+                    // Adopt legacy profiles for this user
+                    for (UserProfile p : legacy) {
+                        p.setAppUser(currentUser.get());
+                        profileRepository.save(p);
+                    }
+                    profiles = profileRepository.findByAppUserOrderByLastAccessedAtDesc(currentUser.get());
+                }
+            }
+            if (profiles.isEmpty()) {
+                profiles = List.of(
+                        createProfile("Crypto Portfolio", "#3fb950", ProfileAssetFocus.CRYPTO),
+                        createProfile("Stocks Journal",   "#388bfd", ProfileAssetFocus.STOCK),
+                        createProfile("Forex Trading",    "#bc8cff", ProfileAssetFocus.FOREX)
+                );
+            }
+        } else {
+            // Fallback: no user logged in (shouldn't happen), show all
+            profiles = profileRepository.findAllByOrderByLastAccessedAtDesc();
+            if (profiles.isEmpty()) {
+                profiles = List.of(
+                        createProfile("Crypto Portfolio", "#3fb950", ProfileAssetFocus.CRYPTO),
+                        createProfile("Stocks Journal",   "#388bfd", ProfileAssetFocus.STOCK),
+                        createProfile("Forex Trading",    "#bc8cff", ProfileAssetFocus.FOREX)
+                );
+            }
         }
+
         profileSelector.setItems(FXCollections.observableArrayList(profiles));
         UserProfile active = profiles.stream()
                 .filter(UserProfile::isActive).findFirst()
@@ -280,7 +309,7 @@ public class MainDashboardController implements Initializable {
     }
 
     private UserProfile createProfile(String name, String color, ProfileAssetFocus focus) {
-        UserProfile p = UserProfile.builder()
+        UserProfile.UserProfileBuilder builder = UserProfile.builder()
                 .name(name).avatarColor(color).active(false)
                 .assetFocus(focus)
                 .defaultSymbol(focus.defaultSymbol())
@@ -288,8 +317,10 @@ public class MainDashboardController implements Initializable {
                 .chartProvider("AUTO")
                 .fundamentalProvider("AUTO")
                 .createdAt(LocalDateTime.now())
-                .lastAccessedAt(LocalDateTime.now()).build();
-        p = profileRepository.save(p);
+                .lastAccessedAt(LocalDateTime.now());
+        // Link to the currently logged-in user
+        authService.currentUser().ifPresent(builder::appUser);
+        UserProfile p = profileRepository.save(builder.build());
         IndicatorConfig cfg = IndicatorConfig.fromProfile(
                 IndicatorConfig.IndicatorProfile.SWING_TRADING, p);
         indicatorConfigRepository.save(cfg);
@@ -542,7 +573,7 @@ public class MainDashboardController implements Initializable {
                 tradeEntryCtrl.setOnSaveCallback(saved -> {
                     if (dashboardCtrl != null && activeProfile != null)
                         dashboardCtrl.loadProfile(activeProfile);
-                    onNavDashboard();
+                    onNavTrades(); // refresh journal after edit
                 });
             }
             if (activeProfile != null) tradeEntryCtrl.setProfile(activeProfile);
@@ -590,9 +621,10 @@ public class MainDashboardController implements Initializable {
             tradeEntryView = asParent(wc.getView().orElseThrow());
             tradeEntryCtrl = wc.getController();
             tradeEntryCtrl.setOnSaveCallback(saved -> {
+                // After save: refresh journal view so new/edited trade appears
                 if (dashboardCtrl != null && activeProfile != null)
                     dashboardCtrl.loadProfile(activeProfile);
-                onNavDashboard();
+                onNavTrades(); // go to Journal (not Dashboard overview)
             });
         }
         if (activeProfile != null) tradeEntryCtrl.setProfile(activeProfile);
@@ -657,11 +689,20 @@ public class MainDashboardController implements Initializable {
     @FXML public void onOpenAlerts() { onNavAlerts(); }
 
     @FXML public void onOpenSettings() {
+        // Guard: Settings is only accessible to authenticated users
+        if (!authService.isLoggedIn()) {
+            new Alert(Alert.AlertType.WARNING, "Please log in to access Settings.").showAndWait();
+            return;
+        }
         setActiveNav(navSettings);
         if (settingsView == null) {
             var wc = fxWeaver.load(ProfileSettingsController.class);
             settingsView = asParent(wc.getView().orElseThrow());
             profileSettingsCtrl = wc.getController();
+            // Wire timezone change callback → ChartController
+            profileSettingsCtrl.setOnTimezoneChanged(zone -> {
+                if (chartCtrl != null) chartCtrl.applyTimezone(zone);
+            });
         }
         if (activeProfile != null) profileSettingsCtrl.setProfile(activeProfile);
         showView(settingsView);

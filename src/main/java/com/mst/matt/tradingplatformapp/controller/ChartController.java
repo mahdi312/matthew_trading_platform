@@ -19,13 +19,19 @@ import com.mst.matt.tradingplatformapp.service.price.PriceProviderRegistry;
 import com.mst.matt.tradingplatformapp.service.price.PriceRouter;
 import com.mst.matt.tradingplatformapp.ui.IndicatorPickerDialog;
 import com.mst.matt.tradingplatformapp.ui.chart.CandlestickChartCanvas;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
+import javafx.util.Duration;
 import net.rgielen.fxweaver.core.FxmlView;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,7 +43,9 @@ import org.ta4j.core.BarSeries;
 
 import java.net.URL;
 import java.sql.SQLException;
+import java.time.ZoneId;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 @Component
@@ -59,6 +67,7 @@ public class ChartController implements Initializable {
     @FXML private ComboBox<Integer>    barsCombo;
     @FXML private ComboBox<MarketDataProvider> chartProviderCombo;
     @FXML private Label                dataSourceLabel;
+    @FXML private StackPane            notificationOverlay;
     // Timeframe buttons — all possible timeframes
     @FXML private ToggleButton tf1m, tf3m, tf5m, tf15m, tf30m,
             tf1h, tf2h, tf4h, tf6h, tf8h, tf12h,
@@ -67,8 +76,10 @@ public class ChartController implements Initializable {
     @FXML private Button indicatorPickerBtn;
     @FXML private Button analyzeBtn;
     @FXML private HBox   signalBar;
+    @FXML private HBox   sentimentBox;
     @FXML private Label  signalLabel, confidenceLabel, bestBuyLabel,
             bestSellLabel, bullBearLabel, currentPriceChartLabel;
+    @FXML private Label  bullCircle, neutralCircle, bearCircle;
 
     // ── Spring beans ──────────────────────────────────────────
     @Autowired private AnalysisService          analysisService;
@@ -80,6 +91,7 @@ public class ChartController implements Initializable {
     @Autowired private ProfilePersistenceService profilePersistence;
     @Autowired private AuthService              authService;
     @Autowired private SymbolEntryRepository    symbolEntryRepository;
+    @Autowired private com.mst.matt.tradingplatformapp.service.AppSettingsService appSettingsService;
     @Autowired @org.springframework.context.annotation.Lazy
     private IndicatorMixerController indicatorMixerController;
 
@@ -104,6 +116,9 @@ public class ChartController implements Initializable {
         chart = new CandlestickChartCanvas();
         chart.widthProperty().bind(chartPane.widthProperty());
         chart.heightProperty().bind(chartPane.heightProperty());
+        // Apply user's configured timezone (falls back to system default)
+        chart.setUserTimezone(appSettingsService.getUserTimezone());
+        chart.setCurrentTimeframe(currentTimeframe);
         chartPane.getChildren().add(chart);
 
         if (signalBar != null)
@@ -131,11 +146,25 @@ public class ChartController implements Initializable {
 
         barsCombo.setItems(FXCollections.observableArrayList(50, 100, 200, 300, 500, 750, 1000));
         barsCombo.setValue(currentBars);
+        // Fix: always show the selected integer, never fall back to toString "..."
+        ListCell<Integer> barsButtonCell = new ListCell<>() {
+            @Override protected void updateItem(Integer item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? "" : String.valueOf(item));
+            }
+        };
+        barsCombo.setButtonCell(barsButtonCell);
+        barsCombo.setCellFactory(lv -> new ListCell<>() {
+            @Override protected void updateItem(Integer item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? "" : String.valueOf(item));
+            }
+        });
         barsCombo.valueProperty().addListener((o, a, n) -> {
             if (n != null) {
                 // Feature 4.3: enforce role cap
                 currentBars = Math.min(n, authService.maxCandles());
-                loadChart();
+                loadChartWithTimeout();
             }
         });
 
@@ -167,6 +196,11 @@ public class ChartController implements Initializable {
         }
         if (signalBar != null && !analysis) signalBar.setVisible(false);
         chart.setAnalysisMode(analysis);
+    }
+
+    /** Apply updated timezone from settings to the chart canvas. */
+    public void applyTimezone(ZoneId zone) {
+        if (chart != null) chart.setUserTimezone(zone);
     }
 
     public void prepareView() {
@@ -314,10 +348,25 @@ public class ChartController implements Initializable {
             List<Integer> caps = List.of(50, 100, 200, 300, 500, 750, 1000).stream()
                     .filter(v -> v <= maxC).collect(Collectors.toList());
             if (!caps.contains(maxC)) caps = new ArrayList<>(caps);
+            // Preserve buttonCell so it always shows the number, not "..."
+            barsCombo.setButtonCell(new ListCell<>() {
+                @Override protected void updateItem(Integer item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? "" : String.valueOf(item));
+                }
+            });
+            barsCombo.setCellFactory(lv -> new ListCell<>() {
+                @Override protected void updateItem(Integer item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? "" : String.valueOf(item));
+                }
+            });
             barsCombo.setItems(FXCollections.observableArrayList(caps));
             if (currentBars > maxC) {
                 currentBars = maxC;
                 barsCombo.setValue(maxC);
+            } else {
+                barsCombo.setValue(currentBars);
             }
         }
     }
@@ -365,7 +414,29 @@ public class ChartController implements Initializable {
         loadChart();
     }
 
+    /**
+     * Load chart with a 10-second timeout. If the chart hasn't updated within that
+     * window, show a non-blocking error notification.
+     */
+    private void loadChartWithTimeout() {
+        AtomicBoolean completed = new AtomicBoolean(false);
+        // Start the load
+        loadChart(completed);
+        // Schedule a 10-second timeout check on FX thread
+        PauseTransition timeout = new PauseTransition(Duration.seconds(10));
+        timeout.setOnFinished(e -> {
+            if (!completed.get()) {
+                showErrorNotification("Failed to load requested candle count. Please try again.");
+            }
+        });
+        timeout.play();
+    }
+
     private void loadChart() {
+        loadChart(null);
+    }
+
+    private void loadChart(AtomicBoolean completionFlag) {
         // Feature 1: always guard against null profile
         if (activeProfile == null) {
             log.debug("loadChart() skipped — no active profile");
@@ -385,6 +456,8 @@ public class ChartController implements Initializable {
                             result.getBars(), currentSymbol);
                     indicatorComputeService.computeAll(activeIndicators, series);
                 }
+
+                if (completionFlag != null) completionFlag.set(true);
 
                 Platform.runLater(() -> {
                     double lastPrice = result.getBars().isEmpty() ? Double.NaN
@@ -425,12 +498,73 @@ public class ChartController implements Initializable {
                             "Last successful price provider for " + currentSymbol));
                 });
             } catch (Exception e) {
+                if (completionFlag != null) completionFlag.set(true);
                 log.warn("Chart load failed for {} {}: {}", currentSymbol, currentTimeframe,
                         e.getMessage());
                 Platform.runLater(() ->
                         dataSourceLabel.setText("⚠ Data unavailable — retrying…"));
             }
         });
+    }
+
+    /**
+     * Shows a non-blocking error notification that auto-hides after 3 seconds.
+     * The notification also has an ❌ button for manual dismissal.
+     */
+    private void showErrorNotification(String message) {
+        if (notificationOverlay == null) {
+            log.warn("Notification: {}", message);
+            return;
+        }
+
+        // Build notification bar
+        HBox notification = new HBox(12);
+        notification.setAlignment(Pos.CENTER_LEFT);
+        notification.setPadding(new Insets(10, 16, 10, 16));
+        notification.setMaxWidth(500);
+        notification.setStyle(
+                "-fx-background-color:#4a1a1a;" +
+                "-fx-border-color:#f85149;" +
+                "-fx-border-width:1;" +
+                "-fx-border-radius:8;" +
+                "-fx-background-radius:8;");
+
+        Label icon = new Label("⚠");
+        icon.setStyle("-fx-text-fill:#f85149; -fx-font-size:16px;");
+
+        Label msgLabel = new Label(message);
+        msgLabel.setStyle("-fx-text-fill:#e6edf3; -fx-font-size:13px;");
+        msgLabel.setWrapText(true);
+        HBox.setHgrow(msgLabel, Priority.ALWAYS);
+
+        Button closeBtn = new Button("❌");
+        closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#f85149;"
+                + "-fx-cursor:hand; -fx-padding:0; -fx-font-size:13px;");
+        closeBtn.setOnAction(e -> {
+            notificationOverlay.getChildren().remove(notification);
+            if (notificationOverlay.getChildren().isEmpty()) {
+                notificationOverlay.setVisible(false);
+                notificationOverlay.setManaged(false);
+            }
+        });
+
+        notification.getChildren().addAll(icon, msgLabel, closeBtn);
+
+        notificationOverlay.getChildren().add(notification);
+        notificationOverlay.setVisible(true);
+        notificationOverlay.setManaged(true);
+        StackPane.setAlignment(notification, Pos.TOP_CENTER);
+
+        // Auto-hide after 3 seconds
+        PauseTransition autoHide = new PauseTransition(Duration.seconds(3));
+        autoHide.setOnFinished(e -> {
+            notificationOverlay.getChildren().remove(notification);
+            if (notificationOverlay.getChildren().isEmpty()) {
+                notificationOverlay.setVisible(false);
+                notificationOverlay.setManaged(false);
+            }
+        });
+        autoHide.play();
     }
 
     private AnalysisResult loadAnalysisWithRetry() throws Exception {
@@ -467,6 +601,7 @@ public class ChartController implements Initializable {
             return;
         }
         currentTimeframe = tf;
+        chart.setCurrentTimeframe(tf);
         styleTimeframeButtons(src);
         loadChart();
     }
@@ -532,9 +667,93 @@ public class ChartController implements Initializable {
         confidenceLabel.setText(String.format("Confidence: %.1f%%", signal.getConfidence()));
         bestBuyLabel.setText("$" + fmtPrice(signal.getBestBuyPrice()));
         bestSellLabel.setText("$" + fmtPrice(signal.getBestSellPrice()));
-        bullBearLabel.setText("🟢 " + signal.getBullishCount()
-                + "  ⚪ " + signal.getNeutralCount()
-                + "  🔴 " + signal.getBearishCount());
+
+        // ── Color-coded sentiment circles ──────────────────────
+        int bull = signal.getBullishCount();
+        int neu  = signal.getNeutralCount();
+        int bear = signal.getBearishCount();
+
+        // Legacy label (hidden, keep for reference)
+        if (bullBearLabel != null)
+            bullBearLabel.setText("🟢 " + bull + "  ⚪ " + neu + "  🔴 " + bear);
+
+        // Colored circles with dynamic styling
+        if (bullCircle != null) {
+            bullCircle.setText(String.valueOf(bull));
+            // Intensity: more bullish = more vivid green
+            String bgColor  = bull > 0 ? "#238636" : "#1a2b1a";
+            String brdColor = bull > 0 ? "#3fb950" : "#30363d";
+            bullCircle.setStyle(
+                    "-fx-background-color:" + bgColor + ";"
+                    + "-fx-text-fill:" + (bull > 0 ? "white" : "#8b949e") + ";"
+                    + "-fx-background-radius:50%;"
+                    + "-fx-min-width:36px;-fx-min-height:36px;"
+                    + "-fx-max-width:36px;-fx-max-height:36px;"
+                    + "-fx-alignment:center;-fx-font-weight:bold;-fx-font-size:13px;"
+                    + "-fx-border-radius:50%;-fx-border-color:" + brdColor + ";-fx-border-width:2;");
+            Tooltip buyTip = new Tooltip(
+                    "🟢 Buying Sentiment\n"
+                    + bull + " indicator(s) show bullish signals.\n"
+                    + "Higher count = stronger buying pressure.");
+            buyTip.setShowDelay(javafx.util.Duration.millis(200));
+            Tooltip.install(bullCircle, buyTip);
+        }
+
+        if (neutralCircle != null) {
+            neutralCircle.setText(String.valueOf(neu));
+            String bgColor  = neu > 0 ? "#2d333b" : "#161b22";
+            String brdColor = neu > 0 ? "#8b949e" : "#30363d";
+            neutralCircle.setStyle(
+                    "-fx-background-color:" + bgColor + ";"
+                    + "-fx-text-fill:" + (neu > 0 ? "#e6edf3" : "#484f58") + ";"
+                    + "-fx-background-radius:50%;"
+                    + "-fx-min-width:36px;-fx-min-height:36px;"
+                    + "-fx-max-width:36px;-fx-max-height:36px;"
+                    + "-fx-alignment:center;-fx-font-weight:bold;-fx-font-size:13px;"
+                    + "-fx-border-radius:50%;-fx-border-color:" + brdColor + ";-fx-border-width:2;");
+            Tooltip neutTip = new Tooltip(
+                    "⚪ Neutral Sentiment\n"
+                    + neu + " indicator(s) show no clear direction.\n"
+                    + "Neutral means sideways or conflicting signals.");
+            neutTip.setShowDelay(javafx.util.Duration.millis(200));
+            Tooltip.install(neutralCircle, neutTip);
+        }
+
+        if (bearCircle != null) {
+            bearCircle.setText(String.valueOf(bear));
+            String bgColor  = bear > 0 ? "#da3633" : "#2b1a1a";
+            String brdColor = bear > 0 ? "#f85149" : "#30363d";
+            bearCircle.setStyle(
+                    "-fx-background-color:" + bgColor + ";"
+                    + "-fx-text-fill:" + (bear > 0 ? "white" : "#8b949e") + ";"
+                    + "-fx-background-radius:50%;"
+                    + "-fx-min-width:36px;-fx-min-height:36px;"
+                    + "-fx-max-width:36px;-fx-max-height:36px;"
+                    + "-fx-alignment:center;-fx-font-weight:bold;-fx-font-size:13px;"
+                    + "-fx-border-radius:50%;-fx-border-color:" + brdColor + ";-fx-border-width:2;");
+            Tooltip sellTip = new Tooltip(
+                    "🔴 Selling Sentiment\n"
+                    + bear + " indicator(s) show bearish signals.\n"
+                    + "Higher count = stronger selling pressure.");
+            sellTip.setShowDelay(javafx.util.Duration.millis(200));
+            Tooltip.install(bearCircle, sellTip);
+        }
+
+        // Legend tooltip on the entire sentiment box
+        if (sentimentBox != null) {
+            Tooltip legendTip = new Tooltip(
+                    "Sentiment Circles Legend\n"
+                    + "─────────────────────────\n"
+                    + "🟢 Green  = Buying  (bullish indicators)\n"
+                    + "⚪ Gray   = Neutral (no clear direction)\n"
+                    + "🔴 Red    = Selling (bearish indicators)\n\n"
+                    + "The number inside each circle shows how many\n"
+                    + "weighted indicators are giving that signal.");
+            legendTip.setShowDelay(javafx.util.Duration.millis(300));
+            legendTip.setPrefWidth(280);
+            legendTip.setWrapText(true);
+            Tooltip.install(sentimentBox, legendTip);
+        }
     }
 
     // ── Utilities ─────────────────────────────────────────────

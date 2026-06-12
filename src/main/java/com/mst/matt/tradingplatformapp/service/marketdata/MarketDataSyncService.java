@@ -33,6 +33,8 @@ public class MarketDataSyncService {
     private final MarketReferenceDataService referenceDataService;
     private final PriceRouter priceRouter;
     private final MarketDataProperties properties;
+    // Lazy injection to avoid circular dependency (Scheduler → SyncService → Scheduler)
+    private CandleAggregationScheduler aggregationScheduler;
 
     public MarketDataSyncService(MarketDataTableRegistryRepository registryRepository,
                                  DynamicOhlcvTableService dynamicTableService,
@@ -46,6 +48,12 @@ public class MarketDataSyncService {
         this.referenceDataService = referenceDataService;
         this.priceRouter = priceRouter;
         this.properties = properties;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAggregationScheduler(
+            @org.springframework.context.annotation.Lazy CandleAggregationScheduler scheduler) {
+        this.aggregationScheduler = scheduler;
     }
 
     @Transactional
@@ -138,6 +146,12 @@ public class MarketDataSyncService {
                     priceRouter.getQuote(sym, profile), profile);
             log.info("Synced {} bars for {} {} ({})", fresh.size(), sym,
                     entry.getTimeframe(), entry.getTableName());
+            // ── Trigger offline aggregation for higher timeframes ──
+            if (aggregationScheduler != null) {
+                aggregationScheduler.triggerAggregationForBars(
+                        sym, entry.getTimeframe(), entry.getProvider(),
+                        entry.getAssetType(), fresh);
+            }
             return fresh;
         }
 

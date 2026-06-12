@@ -5,6 +5,9 @@ import lombok.*;
 import java.time.LocalDateTime;
 import java.util.List;
 
+// NOTE: UserProfile stores a per-user "trading profile" (portfolio/account).
+// Linking to AppUser enables per-user isolation of trade journal data.
+
 /**
  * Represents an individual trader profile.
  * All trades, alerts, and indicator configs are scoped to a profile.
@@ -34,6 +37,15 @@ public class UserProfile {
 
     @Column(nullable = false)
     private boolean active;
+
+    /**
+     * The AppUser who owns this profile.
+     * Null for legacy profiles created before user auth was required;
+     * new profiles created after login will always have this set.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "app_user_id")
+    private AppUser appUser;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;

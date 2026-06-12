@@ -13,6 +13,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.TextAlignment;
 
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -60,16 +61,27 @@ public class CandlestickChartCanvas extends Canvas {
 
     private static final Font FONT_SMALL  = Font.font("Segoe UI", 11);
     private static final Font FONT_MEDIUM = Font.font("Segoe UI", 12);
-    private static final DateTimeFormatter DTF =
-            DateTimeFormatter.ofPattern("MM/dd HH:mm");
-    private static final DateTimeFormatter DTF_DATE =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    // ── Timezone (user's local zone, applied to all time labels) ─────────
+    /** User's local timezone — updated via {@link #setUserTimezone(ZoneId)}. */
+    private ZoneId userTimezone = ZoneId.systemDefault();
+
+    /** Pattern for time-axis labels (short timeframes show time, daily+ show date). */
+    private DateTimeFormatter axisFormatter  = buildAxisFormatter(userTimezone);
+    private DateTimeFormatter dtfDate        = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(userTimezone);
+    private DateTimeFormatter tooltipFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(userTimezone);
+
+    private static DateTimeFormatter buildAxisFormatter(ZoneId zone) {
+        return DateTimeFormatter.ofPattern("MM/dd HH:mm").withZone(zone);
+    }
 
     // ── Data ──────────────────────────────────────────────────
     private List<OhlcvBar>              bars;
     private List<IndicatorDefinition>   indicators  = new ArrayList<>();
     private SRResult                    srResult;
     private double                      lastPrice   = Double.NaN;
+    /** Current timeframe string (e.g. "1m", "4h", "1d") for smart label formatting. */
+    private String                      currentTimeframe = "1h";
 
     // ── View state — all relative to full bars list ───────────
     /**
@@ -136,6 +148,30 @@ public class CandlestickChartCanvas extends Canvas {
     public void setIndicators(List<IndicatorDefinition> ind) {
         this.indicators = ind != null ? ind : new ArrayList<>();
         render();
+    }
+
+    /**
+     * Set the user's local timezone so all time labels (axis, tooltip, crosshair)
+     * display times in the user's local time instead of UTC.
+     */
+    public void setUserTimezone(ZoneId zone) {
+        if (zone == null) zone = ZoneId.systemDefault();
+        this.userTimezone = zone;
+        this.axisFormatter    = buildAxisFormatter(zone);
+        this.dtfDate          = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(zone);
+        this.tooltipFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(zone);
+        render();
+    }
+
+    /** Set the current timeframe string to pick an appropriate date/time format. */
+    public void setCurrentTimeframe(String tf) {
+        this.currentTimeframe = tf != null ? tf : "1h";
+        // For daily/weekly/monthly bars, show only date on the axis
+        boolean isDate = tf != null && (tf.equals("1d") || tf.equals("3d")
+                || tf.equals("1w") || tf.equals("1mo"));
+        this.axisFormatter = isDate
+                ? DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(userTimezone)
+                : DateTimeFormatter.ofPattern("MM/dd HH:mm").withZone(userTimezone);
     }
 
     // ── Main Render ───────────────────────────────────────────
@@ -759,7 +795,10 @@ public class CandlestickChartCanvas extends Canvas {
             OhlcvBar bar = visible.get(i);
             if (bar.getOpenTime() == null) continue;
             double x = l.left + (i + 0.5) * barW;
-            gc.fillText(bar.getOpenTime().format(DTF), x, l.priceBottom() + 16);
+            // Convert bar time (assumed UTC / server-stored) to user's local timezone
+            String label = bar.getOpenTime().atZone(ZoneId.of("UTC"))
+                    .format(axisFormatter);
+            gc.fillText(label, x, l.priceBottom() + 16);
         }
     }
 
@@ -808,8 +847,10 @@ public class CandlestickChartCanvas extends Canvas {
             OhlcvBar bar = visible.get(barIdx);
             drawTooltip(gc, bar, mouseX, l.priceTop() + 4);
             if (bar.getOpenTime() != null) {
-                String dateStr = bar.getOpenTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
-                double lw = 140, lh = 16;
+                // Show time in user's local timezone
+                String dateStr = bar.getOpenTime().atZone(ZoneId.of("UTC"))
+                        .format(tooltipFormatter);
+                double lw = 160, lh = 16;
                 double lx = Math.max(l.left + lw / 2, Math.min(l.right - lw / 2, mouseX));
                 gc.setFill(Color.web("#388bfd"));
                 gc.fillRoundRect(lx - lw / 2, l.priceBottom() + 2, lw, lh, 4, 4);
@@ -901,15 +942,33 @@ public class CandlestickChartCanvas extends Canvas {
         double plotW    = getWidth() - PADDING_LEFT - PADDING_RIGHT;
         double relX     = e.getX() - PADDING_LEFT;
         double fraction = (plotW > 0) ? Math.max(0, Math.min(1, relX / plotW)) : 0.5;
+
         // Bar index (absolute) that should stay fixed under the mouse
-        int anchor = startBarIndex + (int)(fraction * visibleBars);
+        // Clamp anchor to valid range before computing new start
+        int oldVisible = visibleBars;
+        int anchor = startBarIndex + (int) Math.round(fraction * oldVisible);
+        anchor = Math.max(0, Math.min(bars.size() - 1, anchor));
 
-        if (delta < 0) visibleBars = Math.min(bars.size(), (int)(visibleBars * 1.15));
-        else           visibleBars = Math.max(5, (int)(visibleBars * 0.87));
+        // Zoom in = scroll up (deltaY > 0), zoom out = scroll down (deltaY < 0)
+        if (delta < 0) {
+            // Zoom OUT — always allow, expand visible range
+            visibleBars = Math.min(bars.size(), (int) Math.ceil(visibleBars * 1.15));
+        } else {
+            // Zoom IN — limit to minimum 5 bars
+            visibleBars = Math.max(5, (int) Math.floor(visibleBars * 0.87));
+        }
 
-        visibleBars   = Math.max(1, Math.min(visibleBars, bars.size()));
-        startBarIndex = Math.max(0, Math.min(bars.size() - visibleBars,
-                anchor - (int)(fraction * visibleBars)));
+        // Final clamp: visibleBars must be in [1, bars.size()]
+        visibleBars = Math.max(1, Math.min(visibleBars, bars.size()));
+
+        // Recalculate startBarIndex so that the anchor bar stays under the mouse.
+        // When zooming out fully (visibleBars == bars.size()), force startBarIndex = 0.
+        if (visibleBars >= bars.size()) {
+            startBarIndex = 0;
+        } else {
+            int newStart = anchor - (int) Math.round(fraction * visibleBars);
+            startBarIndex = Math.max(0, Math.min(bars.size() - visibleBars, newStart));
+        }
         render();
     }
 
