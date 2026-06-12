@@ -2,16 +2,22 @@ package com.mst.matt.tradingplatformapp.controller;
 
 import com.mst.matt.tradingplatformapp.model.*;
 import com.mst.matt.tradingplatformapp.model.Trade.*;
+import com.mst.matt.tradingplatformapp.service.BrokerImportService;
+import com.mst.matt.tradingplatformapp.service.BrokerImportService.ImportResult;
 import com.mst.matt.tradingplatformapp.service.TradeService;
 import com.mst.matt.tradingplatformapp.service.price.PriceRouter;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
+import javafx.stage.FileChooser;
+import javafx.util.Duration;
 import net.rgielen.fxweaver.core.FxmlView;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.io.File;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URL;
@@ -19,6 +25,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.ResourceBundle;
 import java.util.function.Consumer;
 
@@ -54,10 +61,12 @@ public class TradeEntryController implements Initializable {
     @FXML private Label pnlPercentLabel;
     @FXML private Label rrLabel;
     @FXML private Label formTitleLabel;
+    @FXML private Label importStatusLabel;
 
     // ── Spring services ─────────────────────────────────────
-    @Autowired private TradeService tradeService;
-    @Autowired private PriceRouter  priceRouter;
+    @Autowired private TradeService       tradeService;
+    @Autowired private PriceRouter        priceRouter;
+    @Autowired private BrokerImportService brokerImportService;
 
     private UserProfile currentProfile;
     private Trade       editingTrade;  // non-null if editing existing trade
@@ -377,6 +386,66 @@ public class TradeEntryController implements Initializable {
         isLong = true;
         if (formTitleLabel != null) formTitleLabel.setText("📋 New Trade Entry");
         styleDirectionButtons();
+    }
+
+    // ── Broker Import ─────────────────────────────────────────
+
+    @FXML public void onImportBroker() {
+        if (currentProfile == null) {
+            setImportStatus("⚠ Select a profile first", false);
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Import Broker Trade History");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("CSV Files", "*.csv", "*.CSV"));
+        File file = chooser.showOpenDialog(
+                symbolField.getScene() != null ? symbolField.getScene().getWindow() : null);
+        if (file == null) return;
+
+        setImportStatus("⏳ Parsing " + file.getName() + "…", true);
+        Thread.ofVirtual().start(() -> {
+            try {
+                ImportResult result = brokerImportService.importCsv(file, currentProfile);
+                List<Trade> saved   = new java.util.ArrayList<>();
+                for (Trade t : result.trades()) {
+                    saved.add(tradeService.saveTrade(t));
+                }
+                Platform.runLater(() -> {
+                    String msg = String.format(
+                            "✔ %s: imported %d/%d trades from %s",
+                            result.broker().label, saved.size(),
+                            result.totalRows(), file.getName());
+                    if (!result.skippedRows().isEmpty()) {
+                        msg += " (" + result.skippedRows().size() + " skipped)";
+                    }
+                    setImportStatus(msg, true);
+                    // Notify parent to refresh trade journal
+                    if (onSaveCallback != null) onSaveCallback.accept(null);
+                    // Auto-clear status after 6 s
+                    PauseTransition clear = new PauseTransition(Duration.seconds(6));
+                    final String finalMsg = msg;
+                    clear.setOnFinished(e -> {
+                        if (importStatusLabel != null &&
+                                finalMsg.equals(importStatusLabel.getText())) {
+                            importStatusLabel.setText("");
+                        }
+                    });
+                    clear.play();
+                });
+            } catch (Exception ex) {
+                Platform.runLater(() -> setImportStatus(
+                        "⚠ Import failed: " + ex.getMessage(), false));
+            }
+        });
+    }
+
+    private void setImportStatus(String text, boolean ok) {
+        if (importStatusLabel == null) return;
+        importStatusLabel.setText(text);
+        importStatusLabel.setStyle(ok
+                ? "-fx-text-fill:#3fb950; -fx-font-size:11px;"
+                : "-fx-text-fill:#f85149; -fx-font-size:11px;");
     }
 
     // ── Public API for parent controllers ────────────────────

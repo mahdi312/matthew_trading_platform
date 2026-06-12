@@ -7,146 +7,208 @@
 <VBox xmlns:fx="http://javafx.com/fxml"
       fx:controller="com.mst.matt.tradingplatformapp.controller.TradeEntryController"
       styleClass="scene-root"
+      style="-fx-background-color:#0d1117;"
       spacing="0">
 
-    <!-- Header -->
+    <!-- ═══ Header bar ═══ -->
     <HBox styleClass="card" alignment="CENTER_LEFT" spacing="12"
-          style="-fx-background-radius:0; -fx-border-radius:0; -fx-border-width:0 0 1 0;">
-        <padding>
-            <Insets top="12" right="16" bottom="12" left="16"/>
-        </padding>
+          style="-fx-background-color:#161b22; -fx-background-radius:0;
+                 -fx-border-radius:0; -fx-border-width:0 0 1 0; -fx-border-color:#30363d;">
+        <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
         <Label fx:id="formTitleLabel" text="📋 New Trade Entry" styleClass="label-title"/>
         <Pane HBox.hgrow="ALWAYS"/>
+        <Label fx:id="importStatusLabel" text="" style="-fx-text-fill:#8b949e; -fx-font-size:11px;"/>
+        <Button text="📥 Import" styleClass="btn-secondary" onAction="#onImportBroker"
+                style="-fx-font-size:12px; -fx-padding:6 14;">
+            <tooltip><Tooltip text="Import trades from a broker CSV file (Binance, Bybit, eToro, MT4, Interactive Brokers)"/></tooltip>
+        </Button>
         <Button text="✕ Cancel" styleClass="btn-secondary" onAction="#onCancel"/>
         <Button text="💾 Save Trade" styleClass="btn-primary" onAction="#onSave"/>
     </HBox>
 
-    <ScrollPane fitToWidth="true" style="-fx-background-color: #0d1117;">
-        <VBox spacing="20">
-            <padding>
-                <Insets top="24" right="24" bottom="24" left="24"/>
-            </padding>
+    <!-- ═══ Scrollable form body ═══ -->
+    <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS"
+                style="-fx-background-color:#0d1117; -fx-background:#0d1117;
+                       -fx-border-color:transparent;">
+        <VBox spacing="20" style="-fx-background-color:#0d1117;">
+            <padding><Insets top="24" right="24" bottom="24" left="24"/></padding>
 
-            <!-- Row 1 -->
+            <!-- ── Row 1: Symbol / Asset Type / Exchange ── -->
             <HBox spacing="16">
                 <VBox spacing="6" HBox.hgrow="ALWAYS">
                     <Label text="Symbol *" styleClass="label-subtitle"/>
                     <HBox spacing="8">
-                        <TextField fx:id="symbolField" promptText="e.g. BTCUSDT, AAPL, EURUSD" HBox.hgrow="ALWAYS"/>
+                        <TextField fx:id="symbolField" promptText="e.g. BTCUSDT, AAPL, EURUSD"
+                                   HBox.hgrow="ALWAYS"
+                                   style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
+                                          -fx-border-color:#30363d; -fx-border-radius:6;
+                                          -fx-background-radius:6; -fx-padding:8 12;"/>
                         <Button text="📡 Fetch Price" styleClass="btn-blue" onAction="#onFetchPrice"/>
                     </HBox>
-                    <Label fx:id="symbolValidation" style="-fx-font-size:11px;"/>
+                    <Label fx:id="symbolValidation" style="-fx-font-size:11px; -fx-text-fill:#8b949e;"/>
                 </VBox>
 
                 <VBox spacing="6" minWidth="180">
                     <Label text="Asset Type *" styleClass="label-subtitle"/>
-                    <ComboBox fx:id="assetTypeCombo" prefWidth="180" promptText="Select type"/>
+                    <ComboBox fx:id="assetTypeCombo" prefWidth="180" promptText="Select type"
+                              style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
+                                     -fx-border-color:#30363d; -fx-border-radius:6;
+                                     -fx-background-radius:6;"/>
                 </VBox>
 
                 <VBox spacing="6" minWidth="180">
                     <Label text="Exchange" styleClass="label-subtitle"/>
-                    <TextField fx:id="exchangeField" promptText="e.g. Binance, NYSE" prefWidth="180"/>
+                    <TextField fx:id="exchangeField" promptText="e.g. Binance, NYSE" prefWidth="180"
+                               style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
+                                      -fx-border-color:#30363d; -fx-border-radius:6;
+                                      -fx-background-radius:6; -fx-padding:8 12;"/>
                 </VBox>
             </HBox>
 
-            <!-- Row 2 -->
+            <!-- ── Row 2: Direction / Strategy ── -->
             <HBox spacing="16">
                 <VBox spacing="6" HBox.hgrow="ALWAYS">
                     <Label text="Direction *" styleClass="label-subtitle"/>
                     <HBox spacing="8">
                         <ToggleButton fx:id="longBtn" text="📈 LONG"
-                                      style="-fx-background-color: #1a4a1a; -fx-text-fill: #3fb950; -fx-background-radius:6; -fx-padding:10 24; -fx-font-weight:bold;"
+                                      style="-fx-background-color:#1a4a1a; -fx-text-fill:#3fb950;
+                                             -fx-background-radius:6; -fx-padding:10 24;
+                                             -fx-font-weight:bold; -fx-cursor:hand;"
                                       onAction="#onLongSelected"/>
                         <ToggleButton fx:id="shortBtn" text="📉 SHORT"
-                                      style="-fx-background-color: #21262d; -fx-text-fill: #8b949e; -fx-background-radius:6; -fx-padding:10 24;"
+                                      style="-fx-background-color:#21262d; -fx-text-fill:#8b949e;
+                                             -fx-background-radius:6; -fx-padding:10 24;
+                                             -fx-cursor:hand;"
                                       onAction="#onShortSelected"/>
                     </HBox>
                 </VBox>
 
                 <VBox spacing="6" minWidth="200">
                     <Label text="Strategy / Setup" styleClass="label-subtitle"/>
-                    <TextField fx:id="strategyField" promptText="e.g. Ichimoku Breakout" prefWidth="200"/>
+                    <TextField fx:id="strategyField" promptText="e.g. Ichimoku Breakout" prefWidth="200"
+                               style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
+                                      -fx-border-color:#30363d; -fx-border-radius:6;
+                                      -fx-background-radius:6; -fx-padding:8 12;"/>
                 </VBox>
             </HBox>
 
-            <!-- Row 3: Prices -->
+            <!-- ── Row 3: Prices / Quantity ── -->
             <HBox spacing="16">
                 <VBox spacing="6" HBox.hgrow="ALWAYS">
                     <Label text="Entry Price *" styleClass="label-subtitle"/>
-                    <TextField fx:id="entryPriceField" promptText="0.00"/>
-                    <Label fx:id="currentPriceLabel" text="Current: —" style="-fx-text-fill:#388bfd; -fx-font-size:11px;"/>
+                    <TextField fx:id="entryPriceField" promptText="0.00"
+                               style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
+                                      -fx-border-color:#30363d; -fx-border-radius:6;
+                                      -fx-background-radius:6; -fx-padding:8 12;"/>
+                    <Label fx:id="currentPriceLabel" text="Current: —"
+                           style="-fx-text-fill:#388bfd; -fx-font-size:11px;"/>
                 </VBox>
 
                 <VBox spacing="6" HBox.hgrow="ALWAYS">
                     <Label text="Exit Price" styleClass="label-subtitle"/>
-                    <TextField fx:id="exitPriceField" promptText="Leave blank if still open"/>
+                    <TextField fx:id="exitPriceField" promptText="Leave blank if still open"
+                               style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
+                                      -fx-border-color:#30363d; -fx-border-radius:6;
+                                      -fx-background-radius:6; -fx-padding:8 12;"/>
                 </VBox>
 
                 <VBox spacing="6" HBox.hgrow="ALWAYS">
                     <Label text="Quantity *" styleClass="label-subtitle"/>
-                    <TextField fx:id="quantityField" promptText="0.00"/>
+                    <TextField fx:id="quantityField" promptText="0.00"
+                               style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
+                                      -fx-border-color:#30363d; -fx-border-radius:6;
+                                      -fx-background-radius:6; -fx-padding:8 12;"/>
                 </VBox>
             </HBox>
 
-            <!-- Row 4: SL / TP / Fee -->
+            <!-- ── Row 4: SL / TP / Fee ── -->
             <HBox spacing="16">
                 <VBox spacing="6" HBox.hgrow="ALWAYS">
                     <Label text="Stop Loss" styleClass="label-subtitle"/>
-                    <TextField fx:id="stopLossField" promptText="0.00" style="-fx-border-color:#f85149;"/>
+                    <TextField fx:id="stopLossField" promptText="0.00"
+                               style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
+                                      -fx-border-color:#f85149; -fx-border-radius:6;
+                                      -fx-background-radius:6; -fx-padding:8 12;"/>
                 </VBox>
                 <VBox spacing="6" HBox.hgrow="ALWAYS">
                     <Label text="Take Profit" styleClass="label-subtitle"/>
-                    <TextField fx:id="takeProfitField" promptText="0.00" style="-fx-border-color:#3fb950;"/>
+                    <TextField fx:id="takeProfitField" promptText="0.00"
+                               style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
+                                      -fx-border-color:#3fb950; -fx-border-radius:6;
+                                      -fx-background-radius:6; -fx-padding:8 12;"/>
                 </VBox>
                 <VBox spacing="6" HBox.hgrow="ALWAYS">
                     <Label text="Fee" styleClass="label-subtitle"/>
-                    <TextField fx:id="feeField" promptText="0.00"/>
+                    <TextField fx:id="feeField" promptText="0.00"
+                               style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
+                                      -fx-border-color:#30363d; -fx-border-radius:6;
+                                      -fx-background-radius:6; -fx-padding:8 12;"/>
                 </VBox>
             </HBox>
 
-            <!-- Row 5: Dates -->
+            <!-- ── Row 5: Dates ── -->
             <HBox spacing="16">
                 <VBox spacing="6" HBox.hgrow="ALWAYS">
                     <Label text="Entry Date *" styleClass="label-subtitle"/>
-                    <DatePicker fx:id="entryDatePicker" prefWidth="200"/>
+                    <DatePicker fx:id="entryDatePicker" prefWidth="200"
+                                style="-fx-background-color:#0d1117;"/>
                 </VBox>
                 <VBox spacing="6" HBox.hgrow="ALWAYS">
                     <Label text="Entry Time" styleClass="label-subtitle"/>
-                    <TextField fx:id="entryTimeField" promptText="HH:mm" prefWidth="120"/>
+                    <TextField fx:id="entryTimeField" promptText="HH:mm" prefWidth="120"
+                               style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
+                                      -fx-border-color:#30363d; -fx-border-radius:6;
+                                      -fx-background-radius:6; -fx-padding:8 12;"/>
                 </VBox>
                 <VBox spacing="6" HBox.hgrow="ALWAYS">
                     <Label text="Exit Date" styleClass="label-subtitle"/>
-                    <DatePicker fx:id="exitDatePicker" prefWidth="200"/>
+                    <DatePicker fx:id="exitDatePicker" prefWidth="200"
+                                style="-fx-background-color:#0d1117;"/>
                 </VBox>
             </HBox>
 
-            <!-- P&L Preview -->
-            <HBox styleClass="card" spacing="40" alignment="CENTER" style="-fx-background-color:#161b22;">
-                <padding>
-                    <Insets top="16" right="24" bottom="16" left="24"/>
-                </padding>
-                <VBox alignment="CENTER" spacing="4">
+            <!-- ── P&L Preview Card ── -->
+            <HBox spacing="0" style="-fx-background-color:#161b22; -fx-background-radius:8;
+                                     -fx-border-color:#30363d; -fx-border-radius:8;
+                                     -fx-border-width:1;" alignment="CENTER">
+                <padding><Insets top="16" right="24" bottom="16" left="24"/></padding>
+
+                <VBox alignment="CENTER" spacing="4" HBox.hgrow="ALWAYS">
                     <Label text="INVESTED" styleClass="label-muted"/>
-                    <Label fx:id="investedLabel" text="\$0.00" styleClass="label-value"/>
+                    <Label fx:id="investedLabel" text="$0.00" styleClass="label-value"/>
                 </VBox>
-                <VBox alignment="CENTER" spacing="4">
+                <Separator orientation="VERTICAL" style="-fx-background-color:#30363d;"/>
+                <VBox alignment="CENTER" spacing="4" HBox.hgrow="ALWAYS">
+                    <padding><Insets left="24" right="24"/></padding>
                     <Label text="P&amp;L AMOUNT" styleClass="label-muted"/>
-                    <Label fx:id="pnlAmountLabel" text="\$0.00" style="-fx-font-size:28px; -fx-font-weight:bold; -fx-text-fill:#8b949e;"/>
+                    <Label fx:id="pnlAmountLabel" text="$0.00"
+                           style="-fx-font-size:26px; -fx-font-weight:bold; -fx-text-fill:#8b949e;"/>
                 </VBox>
-                <VBox alignment="CENTER" spacing="4">
+                <Separator orientation="VERTICAL" style="-fx-background-color:#30363d;"/>
+                <VBox alignment="CENTER" spacing="4" HBox.hgrow="ALWAYS">
+                    <padding><Insets left="24" right="24"/></padding>
                     <Label text="P&amp;L %" styleClass="label-muted"/>
-                    <Label fx:id="pnlPercentLabel" text="0.00%" style="-fx-font-size:28px; -fx-font-weight:bold; -fx-text-fill:#8b949e;"/>
+                    <Label fx:id="pnlPercentLabel" text="0.00%"
+                           style="-fx-font-size:26px; -fx-font-weight:bold; -fx-text-fill:#8b949e;"/>
                 </VBox>
-                <VBox alignment="CENTER" spacing="4">
+                <Separator orientation="VERTICAL" style="-fx-background-color:#30363d;"/>
+                <VBox alignment="CENTER" spacing="4" HBox.hgrow="ALWAYS">
+                    <padding><Insets left="24" right="24"/></padding>
                     <Label text="R:R RATIO" styleClass="label-muted"/>
-                    <Label fx:id="rrLabel" text="—" style="-fx-font-size:28px; -fx-font-weight:bold; -fx-text-fill:#388bfd;"/>
+                    <Label fx:id="rrLabel" text="—"
+                           style="-fx-font-size:26px; -fx-font-weight:bold; -fx-text-fill:#388bfd;"/>
                 </VBox>
             </HBox>
 
-            <!-- Notes -->
+            <!-- ── Notes ── -->
             <VBox spacing="6">
                 <Label text="Notes / Analysis" styleClass="label-subtitle"/>
-                <TextArea fx:id="notesArea" promptText="Trade rationale, setup description, lessons learned..." prefRowCount="5"/>
+                <TextArea fx:id="notesArea"
+                          promptText="Trade rationale, setup description, lessons learned..."
+                          prefRowCount="4"
+                          style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
+                                 -fx-border-color:#30363d; -fx-border-radius:6;
+                                 -fx-background-radius:6; -fx-padding:8;"/>
             </VBox>
 
         </VBox>
