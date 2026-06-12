@@ -48,6 +48,7 @@ public class MainDashboardController implements Initializable {
     @FXML private VBox sidebar;
     @FXML private Button watchlistMenuBtn;
     @FXML private StackPane contentArea;
+    @FXML private StackPane globalNotificationOverlay;
     @FXML private Label  statusLabel;
     @FXML private Label  lastUpdateLabel;
     @FXML private Label  alertCountBadge;
@@ -309,8 +310,39 @@ public class MainDashboardController implements Initializable {
     }
 
     private UserProfile createProfile(String name, String color, ProfileAssetFocus focus) {
+        // ── findOrCreate: avoid duplicate key on re-login ──────────────────────────
+        // Check if a profile with this name already exists for the current user
+        java.util.Optional<com.mst.matt.tradingplatformapp.model.AppUser> curUser =
+                authService.currentUser();
+        if (curUser.isPresent()) {
+            java.util.Optional<UserProfile> existing =
+                    profileRepository.findByAppUserAndName(curUser.get(), name);
+            if (existing.isPresent()) {
+                return existing.get(); // already exists — return it, do NOT insert again
+            }
+        } else {
+            // No logged-in user (unlikely); check by name globally
+            java.util.Optional<UserProfile> existing = profileRepository.findByName(name);
+            if (existing.isPresent()) {
+                return existing.get();
+            }
+        }
+
+        // If name exists globally but belongs to another user, disambiguate
+        String safeName = name;
+        if (profileRepository.existsByName(name)) {
+            String userTag = curUser.map(u -> "_" + u.getUsername()).orElse("_u");
+            safeName = name + userTag;
+            // Re-check the disambiguated name for the current user
+            if (curUser.isPresent()) {
+                java.util.Optional<UserProfile> existing2 =
+                        profileRepository.findByAppUserAndName(curUser.get(), safeName);
+                if (existing2.isPresent()) return existing2.get();
+            }
+        }
+
         UserProfile.UserProfileBuilder builder = UserProfile.builder()
-                .name(name).avatarColor(color).active(false)
+                .name(safeName).avatarColor(color).active(false)
                 .assetFocus(focus)
                 .defaultSymbol(focus.defaultSymbol())
                 .watchlist(WatchlistDefaults.csvForFocus(focus))
@@ -319,11 +351,26 @@ public class MainDashboardController implements Initializable {
                 .createdAt(LocalDateTime.now())
                 .lastAccessedAt(LocalDateTime.now());
         // Link to the currently logged-in user
-        authService.currentUser().ifPresent(builder::appUser);
-        UserProfile p = profileRepository.save(builder.build());
-        IndicatorConfig cfg = IndicatorConfig.fromProfile(
-                IndicatorConfig.IndicatorProfile.SWING_TRADING, p);
-        indicatorConfigRepository.save(cfg);
+        curUser.ifPresent(builder::appUser);
+        UserProfile p;
+        try {
+            p = profileRepository.save(builder.build());
+        } catch (org.springframework.dao.DataIntegrityViolationException dup) {
+            // Race condition — another thread/session created this profile; load it
+            if (curUser.isPresent()) {
+                p = profileRepository.findByAppUserAndName(curUser.get(), safeName)
+                        .or(() -> profileRepository.findByName(safeName))
+                        .orElseThrow(() -> dup);
+            } else {
+                p = profileRepository.findByName(safeName).orElseThrow(() -> dup);
+            }
+        }
+        // Create default indicator config if not already present
+        if (!indicatorConfigRepository.findByProfile(p).isPresent()) {
+            IndicatorConfig cfg = IndicatorConfig.fromProfile(
+                    IndicatorConfig.IndicatorProfile.SWING_TRADING, p);
+            indicatorConfigRepository.save(cfg);
+        }
         return p;
     }
 
@@ -360,6 +407,7 @@ public class MainDashboardController implements Initializable {
 
         refreshAlertBadge();
         updateStatusBar("Profile: " + profile.getName());
+        showInfoNotification("Switched to profile: " + profile.getName());
         Platform.runLater(this::onNavDashboard);
     }
 
@@ -535,6 +583,7 @@ public class MainDashboardController implements Initializable {
             liveTickerService.applyProfileWatchlist(activeProfile);
             if (scrollingTicker != null)
                 scrollingTicker.setSymbols(liveTickerService.allSymbols());
+            showInfoNotification("Watchlist saved for " + activeProfile.getName());
             if (watchlistPopup != null) {
                 watchlistPopup.hide();
                 watchlistPopup = null;
@@ -851,6 +900,81 @@ public class MainDashboardController implements Initializable {
 
     private void updateStatusBar(String s) {
         Platform.runLater(() -> statusLabel.setText("● " + s));
+    }
+
+    // ── Global notification system ────────────────────────────
+
+    public void showInfoNotification(String message) {
+        showNotification(message, "#1a3a1a", "#3fb950", "✔");
+    }
+
+    public void showErrorNotification(String message) {
+        showNotification(message, "#4a1a1a", "#f85149", "⚠");
+    }
+
+    public void showWarnNotification(String message) {
+        showNotification(message, "#3a2a0a", "#e3b341", "⚠");
+    }
+
+    /**
+     * Displays a non-blocking toast notification at the top of the content area.
+     * Auto-hides after 3 seconds; user can also dismiss manually with the ✕ button.
+     */
+    public void showNotification(String message, String bgColor, String accentColor, String iconText) {
+        if (globalNotificationOverlay == null) {
+            return; // no overlay available (e.g. during unit tests)
+        }
+        Platform.runLater(() -> {
+            HBox toast = new HBox(12);
+            toast.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            toast.setPadding(new javafx.geometry.Insets(10, 16, 10, 16));
+            toast.setMaxWidth(540);
+            toast.setStyle(
+                    "-fx-background-color:" + bgColor + ";" +
+                    "-fx-border-color:" + accentColor + ";" +
+                    "-fx-border-width:1;" +
+                    "-fx-border-radius:8;" +
+                    "-fx-background-radius:8;" +
+                    "-fx-effect:dropshadow(gaussian,rgba(0,0,0,0.5),8,0,0,2);");
+
+            Label icon = new Label(iconText);
+            icon.setStyle("-fx-text-fill:" + accentColor + "; -fx-font-size:15px;");
+
+            Label msgLabel = new Label(message);
+            msgLabel.setStyle("-fx-text-fill:#e6edf3; -fx-font-size:13px;");
+            msgLabel.setWrapText(true);
+            HBox.setHgrow(msgLabel, Priority.ALWAYS);
+
+            Button closeBtn = new Button("✕");
+            closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#8b949e;"
+                    + "-fx-cursor:hand; -fx-padding:0 4; -fx-font-size:12px; -fx-font-weight:bold;");
+            closeBtn.setOnAction(e -> dismissToast(toast));
+            closeBtn.setOnMouseEntered(e ->
+                    closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#e6edf3;"
+                            + "-fx-cursor:hand; -fx-padding:0 4; -fx-font-size:12px; -fx-font-weight:bold;"));
+            closeBtn.setOnMouseExited(e ->
+                    closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#8b949e;"
+                            + "-fx-cursor:hand; -fx-padding:0 4; -fx-font-size:12px; -fx-font-weight:bold;"));
+
+            toast.getChildren().addAll(icon, msgLabel, closeBtn);
+            globalNotificationOverlay.getChildren().add(toast);
+            globalNotificationOverlay.setVisible(true);
+            globalNotificationOverlay.setManaged(true);
+            javafx.scene.layout.StackPane.setAlignment(toast, javafx.geometry.Pos.TOP_CENTER);
+
+            PauseTransition autoHide = new PauseTransition(Duration.seconds(3));
+            autoHide.setOnFinished(e -> dismissToast(toast));
+            autoHide.play();
+        });
+    }
+
+    private void dismissToast(HBox toast) {
+        if (globalNotificationOverlay == null) return;
+        globalNotificationOverlay.getChildren().remove(toast);
+        if (globalNotificationOverlay.getChildren().isEmpty()) {
+            globalNotificationOverlay.setVisible(false);
+            globalNotificationOverlay.setManaged(false);
+        }
     }
 
     private void updateLastUpdateLabel() {

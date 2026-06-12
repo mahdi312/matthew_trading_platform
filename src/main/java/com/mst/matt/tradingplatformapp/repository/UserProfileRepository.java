@@ -18,4 +18,10 @@ public interface UserProfileRepository extends JpaRepository<UserProfile, Long> 
 
     /** Returns profiles where appUser is null (legacy/unowned) or owned by this user. */
     List<UserProfile> findByAppUserIsNullOrderByLastAccessedAtDesc();
+
+    /** Finds a profile owned by the given user with the given name (for duplicate-prevention). */
+    Optional<UserProfile> findByAppUserAndName(AppUser appUser, String name);
+
+    /** Finds a profile with the given name regardless of owner (for global uniqueness check). */
+    boolean existsByName(String name);
 }

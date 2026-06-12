@@ -39,14 +39,42 @@ public class DynamicOhlcvTableService {
         log.debug("Ensured OHLCV table {}", tableName);
     }
 
+    /**
+     * Upserts the provided bars into the table without deleting existing data.
+     * Each bar is inserted or updated keyed by {@code open_time}, so old bars
+     * that are not in the new batch are preserved (important for aggregated tables).
+     * <p>
+     * Use {@link #replaceAllBars} when a full replacement is explicitly required
+     * (e.g. live-fetch where the whole window is replaced).
+     */
     @Transactional
     public void replaceBars(String tableName, String symbol, String timeframe,
                             Trade.AssetType assetType, List<OhlcvBar> bars) {
+        upsertBars(tableName, assetType, bars);
+    }
+
+    /**
+     * Fully replaces the contents of the table (DELETE + INSERT).
+     * Use for live-feed tables where the complete window is always provided by the API.
+     */
+    @Transactional
+    public void replaceAllBars(String tableName, String symbol, String timeframe,
+                               Trade.AssetType assetType, List<OhlcvBar> bars) {
         ensureTable(tableName);
         jdbc.update("DELETE FROM \"%s\"".formatted(tableName));
-        if (bars.isEmpty()) {
-            return;
+        if (!bars.isEmpty()) {
+            upsertBars(tableName, assetType, bars);
         }
+    }
+
+    /**
+     * Core UPSERT logic — inserts or updates bars by open_time without any prior DELETE.
+     * Preserves all existing rows that are not included in {@code bars}.
+     */
+    @Transactional
+    public void upsertBars(String tableName, Trade.AssetType assetType, List<OhlcvBar> bars) {
+        ensureTable(tableName);
+        if (bars == null || bars.isEmpty()) return;
 
         LocalDateTime now = LocalDateTime.now();
         if (dialect.isPostgres()) {

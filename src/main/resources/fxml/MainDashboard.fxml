@@ -67,10 +67,17 @@
     </left>
 
     <center>
-        <StackPane fx:id="contentArea" style="-fx-background-color: #0d1117;">
-            <padding>
-                <Insets top="24" right="24" bottom="24" left="24"/>
-            </padding>
+        <!-- Global notification overlay sits on top of the content area -->
+        <StackPane style="-fx-background-color: #0d1117;">
+            <StackPane fx:id="contentArea">
+                <padding>
+                    <Insets top="24" right="24" bottom="24" left="24"/>
+                </padding>
+            </StackPane>
+            <!-- Non-blocking toast notifications (auto-hide 3s, closable) -->
+            <StackPane fx:id="globalNotificationOverlay" alignment="TOP_CENTER"
+                       visible="false" managed="false" mouseTransparent="false"
+                       style="-fx-padding:12 16 0 16; -fx-background-color:transparent;"/>
         </StackPane>
     </center>
 

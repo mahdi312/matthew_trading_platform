@@ -127,14 +127,29 @@ public class CandlestickChartCanvas extends Canvas {
 
     // ── Public API ────────────────────────────────────────────
 
-    /** Sets chart data and resets view. */
+    /**
+     * The preferred number of bars to display after data is loaded.
+     * Set by the controller from the barsCombo selection.
+     * Defaults to 100.
+     */
+    private int preferredVisibleBars = 100;
+
+    /** Sets the preferred number of visible bars (from the barsCombo control). */
+    public void setPreferredVisibleBars(int n) {
+        this.preferredVisibleBars = Math.max(5, n);
+    }
+
+    public int getPreferredVisibleBars() { return preferredVisibleBars; }
+
+    /** Sets chart data and resets view to show the last {@link #preferredVisibleBars} bars. */
     public void setData(List<OhlcvBar> bars, List<IndicatorDefinition> indicators, SRResult srResult) {
         this.bars       = bars;
         this.indicators = indicators != null ? indicators : new ArrayList<>();
         this.srResult   = srResult;
 
         if (bars != null && !bars.isEmpty()) {
-            visibleBars   = Math.min(100, bars.size());
+            // Use the preferred visible bars count (from barsCombo), capped to actual bar count
+            visibleBars   = Math.min(preferredVisibleBars, bars.size());
             startBarIndex = Math.max(0, bars.size() - visibleBars);
         }
         render();

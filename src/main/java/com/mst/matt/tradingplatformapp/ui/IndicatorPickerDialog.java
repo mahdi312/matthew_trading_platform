@@ -57,6 +57,8 @@ public final class IndicatorPickerDialog {
                 Type.ADX));
         CATEGORIES.put("🌩 Complex", List.of(
                 Type.ICHIMOKU, Type.SUPPORT_RESISTANCE));
+        CATEGORIES.put("📐 Multi-Line MA", List.of(
+                Type.TWO_MA, Type.THREE_MA));
     }
 
     // Track popup so we can toggle it
@@ -395,10 +397,28 @@ public final class IndicatorPickerDialog {
         VBox visualBox = new VBox(8);
         visualBox.getChildren().add(styledLabel("Visual", "#8b949e", 12, true));
 
-        // Color picker
-        ColorPicker colorPicker = new ColorPicker(Color.web(def.getColor()));
+        // Line 1 color
+        String line1Label = (def.getType() == Type.TWO_MA || def.getType() == Type.THREE_MA)
+                ? "Line 1 Color (fast)" : "Line Color";
+        ColorPicker colorPicker = new ColorPicker(safeColor(def.getColor(), "#388bfd"));
         colorPicker.setStyle("-fx-background-color:#21262d; -fx-border-color:#30363d; -fx-background-radius:6;");
-        visualBox.getChildren().add(labeledControl("Line Color", colorPicker));
+        visualBox.getChildren().add(labeledControl(line1Label, colorPicker));
+
+        // Line 2 color — TWO_MA and THREE_MA only
+        ColorPicker color2Picker = null;
+        if (def.getType() == Type.TWO_MA || def.getType() == Type.THREE_MA) {
+            color2Picker = new ColorPicker(safeColor(def.getColor2(), "#bc8cff"));
+            color2Picker.setStyle("-fx-background-color:#21262d; -fx-border-color:#30363d; -fx-background-radius:6;");
+            visualBox.getChildren().add(labeledControl("Line 2 Color (mid/slow)", color2Picker));
+        }
+
+        // Line 3 color — THREE_MA only
+        ColorPicker color3Picker = null;
+        if (def.getType() == Type.THREE_MA) {
+            color3Picker = new ColorPicker(safeColor(def.getColor3(), "#f0883e"));
+            color3Picker.setStyle("-fx-background-color:#21262d; -fx-border-color:#30363d; -fx-background-radius:6;");
+            visualBox.getChildren().add(labeledControl("Line 3 Color (slow)", color3Picker));
+        }
 
         // Line weight
         Spinner<Double> weightSpinner = makeDoubleSpinner(0.5, 5.0, def.getLineWeight(), 0.5);
@@ -436,6 +456,8 @@ public final class IndicatorPickerDialog {
         final Spinner<Integer> p3Ref = period3Spinner;
         final ComboBox<PriceSource> srcRef = sourceCombo;
         final Spinner<Double> devRef = bbDevSpinner;
+        final ColorPicker c2Ref = color2Picker;
+        final ColorPicker c3Ref = color3Picker;
 
         cancelBtn.setOnAction(e -> { dialog.close(); callback.accept(false); });
         okBtn.setOnAction(e -> {
@@ -450,10 +472,22 @@ public final class IndicatorPickerDialog {
             if (p3Ref != null) def.setPeriod3(p3Ref.getValue());
             if (srcRef != null) def.setPriceSource(srcRef.getValue());
 
-            // Color
+            // Line 1 color
             Color c = colorPicker.getValue();
             def.setColor(String.format("#%02x%02x%02x",
                     (int)(c.getRed()*255), (int)(c.getGreen()*255), (int)(c.getBlue()*255)));
+            // Line 2 color (TWO_MA / THREE_MA)
+            if (c2Ref != null) {
+                Color c2 = c2Ref.getValue();
+                def.setColor2(String.format("#%02x%02x%02x",
+                        (int)(c2.getRed()*255), (int)(c2.getGreen()*255), (int)(c2.getBlue()*255)));
+            }
+            // Line 3 color (THREE_MA)
+            if (c3Ref != null) {
+                Color c3 = c3Ref.getValue();
+                def.setColor3(String.format("#%02x%02x%02x",
+                        (int)(c3.getRed()*255), (int)(c3.getGreen()*255), (int)(c3.getBlue()*255)));
+            }
             def.setLineWeight(weightSpinner.getValue());
             def.autoLabel();
 
@@ -479,6 +513,8 @@ public final class IndicatorPickerDialog {
             case KELTNER     -> "EMA Period";
             case VWAP        -> "Period";
             case CHAIKIN_OSC -> "Fast Period";
+            case TWO_MA      -> "Line 1 Period (fast)";
+            case THREE_MA    -> "Line 1 Period (fastest)";
             default          -> "Period";
         };
     }
@@ -491,6 +527,8 @@ public final class IndicatorPickerDialog {
             case KELTNER     -> "ATR Period";
             case ICHIMOKU    -> "Kijun Period (26)";
             case CHAIKIN_OSC -> "Slow Period";
+            case TWO_MA      -> "Line 2 Period (slow)";
+            case THREE_MA    -> "Line 2 Period (middle)";
             case ADX         -> null; // uses same period
             default          -> null;
         };
@@ -501,6 +539,7 @@ public final class IndicatorPickerDialog {
             case MACD, PPO -> "Signal Period";
             case ICHIMOKU  -> "Senkou B Period (52)";
             case STOCH_RSI -> "RSI Period";
+            case THREE_MA  -> "Line 3 Period (slowest)";
             default        -> null;
         };
     }
@@ -588,5 +627,13 @@ public final class IndicatorPickerDialog {
     private static javafx.stage.Window getAnyWindow(Node node) {
         if (node != null && node.getScene() != null) return node.getScene().getWindow();
         return null;
+    }
+
+    /** Safely parse a web color string; falls back to {@code fallback} if null/invalid. */
+    private static Color safeColor(String webColor, String fallback) {
+        try {
+            if (webColor != null && !webColor.isBlank()) return Color.web(webColor);
+        } catch (IllegalArgumentException ignored) { }
+        return Color.web(fallback);
     }
 }
