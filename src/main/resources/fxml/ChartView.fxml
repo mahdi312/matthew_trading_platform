@@ -104,7 +104,15 @@
                style="-fx-font-size:18px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
     </HBox>
 
-    <!-- ═══════════════ Chart canvas ═══════════════ -->
-    <Pane fx:id="chartPane" VBox.vgrow="ALWAYS" style="-fx-background-color:#0d1117;"/>
+    <!-- ═══════════════ Chart canvas + notification overlay ═══════════════ -->
+    <StackPane VBox.vgrow="ALWAYS">
+        <Pane fx:id="chartPane" style="-fx-background-color:#0d1117;"/>
+        <!-- Non-blocking notification overlay (error messages, auto-hides after 3s) -->
+        <StackPane fx:id="notificationOverlay" alignment="TOP_CENTER"
+                   visible="false" managed="false"
+                   style="-fx-padding:12 12 0 12; -fx-background-color:transparent;"
+                   mouseTransparent="false">
+        </StackPane>
+    </StackPane>
 
 </VBox>
