@@ -414,6 +414,76 @@
 .check-box .mark { -fx-background-color: white; }
 .check-box { -fx-text-fill: #e6edf3; }
 
+/* ── DatePicker dark theme ────────────────────────────────── */
+.date-picker {
+    -fx-background-color: #0d1117;
+    -fx-border-color: #30363d;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+.date-picker .text-field {
+    -fx-background-color: #0d1117;
+    -fx-text-fill: #e6edf3;
+    -fx-border-color: transparent;
+    -fx-padding: 8 12;
+}
+.date-picker .arrow-button {
+    -fx-background-color: #21262d;
+    -fx-border-color: #30363d;
+    -fx-border-radius: 0 6 6 0;
+}
+.date-picker .arrow-button .arrow {
+    -fx-background-color: #8b949e;
+}
+.date-picker-popup .month-year-pane {
+    -fx-background-color: #161b22;
+}
+.date-picker-popup > * > .spinner {
+    -fx-background-color: #161b22;
+}
+.date-picker-popup > * > .spinner > .button,
+.date-picker-popup > * > .spinner > .label {
+    -fx-background-color: #161b22;
+    -fx-text-fill: #e6edf3;
+}
+.date-picker-popup > * > .day-name-cell,
+.date-picker-popup > * > .week-number-cell {
+    -fx-text-fill: #8b949e;
+    -fx-background-color: #161b22;
+}
+.date-picker-popup .calendar-grid {
+    -fx-background-color: #1c2128;
+}
+.date-picker-popup .day-cell {
+    -fx-background-color: #1c2128;
+    -fx-text-fill: #e6edf3;
+}
+.date-picker-popup .day-cell:hover {
+    -fx-background-color: #21262d;
+    -fx-text-fill: #e6edf3;
+}
+.date-picker-popup .day-cell.today {
+    -fx-border-color: #388bfd;
+    -fx-border-radius: 4;
+}
+.date-picker-popup .day-cell:selected {
+    -fx-background-color: #1f6feb;
+    -fx-text-fill: white;
+    -fx-background-radius: 4;
+}
+.date-picker-popup .day-cell.other-month {
+    -fx-text-fill: #484f58;
+}
+
+/* ── ScrollPane dark background ───────────────────────────── */
+.scroll-pane {
+    -fx-background-color: #0d1117;
+    -fx-background: #0d1117;
+}
+.scroll-pane > .viewport {
+    -fx-background-color: #0d1117;
+}
+
 /* ── Chart toolbar ────────────────────────────────────────── */
 .chart-tf-btn {
     -fx-min-width: 42px;

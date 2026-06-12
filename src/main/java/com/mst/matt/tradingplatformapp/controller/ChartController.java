@@ -815,43 +815,46 @@ public class ChartController implements Initializable {
         }
         // Marshal to FX thread in case called from background thread
         Platform.runLater(() -> {
-            HBox notification = new HBox(12);
+            // ── Compact pill toast ────────────────────────────────────────────────────
+            HBox notification = new HBox(7);
             notification.setAlignment(Pos.CENTER_LEFT);
-            notification.setPadding(new Insets(10, 16, 10, 16));
-            notification.setMaxWidth(520);
+            notification.setPadding(new Insets(6, 10, 6, 10));
+            notification.setMaxWidth(320);
             notification.setStyle(
                     "-fx-background-color:" + bgColor + ";" +
                     "-fx-border-color:" + accentColor + ";" +
                     "-fx-border-width:1;" +
-                    "-fx-border-radius:8;" +
-                    "-fx-background-radius:8;" +
-                    "-fx-effect:dropshadow(gaussian,rgba(0,0,0,0.5),8,0,0,2);");
+                    "-fx-border-radius:20;" +
+                    "-fx-background-radius:20;" +
+                    "-fx-effect:dropshadow(gaussian,rgba(0,0,0,0.45),6,0,0,2);");
 
             Label icon = new Label(iconText);
-            icon.setStyle("-fx-text-fill:" + accentColor + "; -fx-font-size:15px;");
+            icon.setStyle("-fx-text-fill:" + accentColor + "; -fx-font-size:11px;");
 
             Label msgLabel = new Label(message);
-            msgLabel.setStyle("-fx-text-fill:#e6edf3; -fx-font-size:13px;");
-            msgLabel.setWrapText(true);
+            msgLabel.setStyle("-fx-text-fill:#c9d1d9; -fx-font-size:11px;");
+            msgLabel.setMaxWidth(220);
+            msgLabel.setWrapText(false);
             HBox.setHgrow(msgLabel, Priority.ALWAYS);
 
             Button closeBtn = new Button("✕");
-            closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#8b949e;"
-                    + "-fx-cursor:hand; -fx-padding:0 4; -fx-font-size:12px; -fx-font-weight:bold;");
+            closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#6e7681;"
+                    + "-fx-cursor:hand; -fx-padding:0 2; -fx-font-size:9px;");
             closeBtn.setOnAction(e -> dismissNotification(notification));
-            // Hover effect
             closeBtn.setOnMouseEntered(e ->
-                    closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#e6edf3;"
-                            + "-fx-cursor:hand; -fx-padding:0 4; -fx-font-size:12px; -fx-font-weight:bold;"));
+                    closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#c9d1d9;"
+                            + "-fx-cursor:hand; -fx-padding:0 2; -fx-font-size:9px;"));
             closeBtn.setOnMouseExited(e ->
-                    closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#8b949e;"
-                            + "-fx-cursor:hand; -fx-padding:0 4; -fx-font-size:12px; -fx-font-weight:bold;"));
+                    closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#6e7681;"
+                            + "-fx-cursor:hand; -fx-padding:0 2; -fx-font-size:9px;"));
 
             notification.getChildren().addAll(icon, msgLabel, closeBtn);
             notificationOverlay.getChildren().add(notification);
             notificationOverlay.setVisible(true);
             notificationOverlay.setManaged(true);
-            StackPane.setAlignment(notification, Pos.TOP_CENTER);
+            // Position: bottom-right corner
+            StackPane.setAlignment(notification, Pos.BOTTOM_RIGHT);
+            StackPane.setMargin(notification, new Insets(0, 12, 12, 0));
 
             // Auto-hide after 3 seconds
             PauseTransition autoHide = new PauseTransition(Duration.seconds(3));

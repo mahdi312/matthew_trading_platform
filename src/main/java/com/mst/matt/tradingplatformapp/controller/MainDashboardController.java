@@ -88,6 +88,9 @@ public class MainDashboardController implements Initializable {
     private Popup watchlistPopup;
     private PauseTransition sidebarCollapseTimer;
 
+    /** Tracks which top-level view (Parent) is currently displayed in contentArea. */
+    private Parent currentView;
+
     /** Called by StageInitializer after login; wire logout callback. */
     public void setOnLogout(Runnable r) { this.onLogout = r; }
 
@@ -408,7 +411,22 @@ public class MainDashboardController implements Initializable {
         refreshAlertBadge();
         updateStatusBar("Profile: " + profile.getName());
         showInfoNotification("Switched to profile: " + profile.getName());
-        Platform.runLater(this::onNavDashboard);
+
+        // Reload the currently visible view in-place instead of always navigating to dashboard.
+        // This fixes the bug where switching profile while on the chart caused a stale/blank chart.
+        Platform.runLater(() -> {
+            if (chartView != null && currentView == chartView) {
+                // Chart view is active — reload chart for new profile immediately
+                chartCtrl.prepareView();
+            } else if (fundamentalsView != null && currentView == fundamentalsView) {
+                yearlyProfitCtrl.prepareView();
+            } else if (tradeEntryView != null && currentView == tradeEntryView) {
+                // Trade entry is open — stay on it; profile already set above
+            } else {
+                // Default: navigate to dashboard overview
+                onNavDashboard();
+            }
+        });
     }
 
     private void refreshAlertBadge() {
@@ -878,6 +896,7 @@ public class MainDashboardController implements Initializable {
     }
 
     private void showView(Parent view) {
+        currentView = view;
         contentArea.getChildren().setAll(view);
         StackPane.setAlignment(view, javafx.geometry.Pos.TOP_LEFT);
         VBox.setVgrow(view, Priority.ALWAYS);
@@ -925,42 +944,46 @@ public class MainDashboardController implements Initializable {
             return; // no overlay available (e.g. during unit tests)
         }
         Platform.runLater(() -> {
-            HBox toast = new HBox(12);
+            // ── Compact pill toast ────────────────────────────────────────────────────
+            HBox toast = new HBox(7);
             toast.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-            toast.setPadding(new javafx.geometry.Insets(10, 16, 10, 16));
-            toast.setMaxWidth(540);
+            toast.setPadding(new javafx.geometry.Insets(6, 10, 6, 10));
+            toast.setMaxWidth(320);
             toast.setStyle(
                     "-fx-background-color:" + bgColor + ";" +
                     "-fx-border-color:" + accentColor + ";" +
                     "-fx-border-width:1;" +
-                    "-fx-border-radius:8;" +
-                    "-fx-background-radius:8;" +
-                    "-fx-effect:dropshadow(gaussian,rgba(0,0,0,0.5),8,0,0,2);");
+                    "-fx-border-radius:20;" +
+                    "-fx-background-radius:20;" +
+                    "-fx-effect:dropshadow(gaussian,rgba(0,0,0,0.45),6,0,0,2);");
 
             Label icon = new Label(iconText);
-            icon.setStyle("-fx-text-fill:" + accentColor + "; -fx-font-size:15px;");
+            icon.setStyle("-fx-text-fill:" + accentColor + "; -fx-font-size:11px;");
 
             Label msgLabel = new Label(message);
-            msgLabel.setStyle("-fx-text-fill:#e6edf3; -fx-font-size:13px;");
-            msgLabel.setWrapText(true);
+            msgLabel.setStyle("-fx-text-fill:#c9d1d9; -fx-font-size:11px;");
+            msgLabel.setMaxWidth(220);
+            msgLabel.setWrapText(false);
             HBox.setHgrow(msgLabel, Priority.ALWAYS);
 
             Button closeBtn = new Button("✕");
-            closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#8b949e;"
-                    + "-fx-cursor:hand; -fx-padding:0 4; -fx-font-size:12px; -fx-font-weight:bold;");
+            closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#6e7681;"
+                    + "-fx-cursor:hand; -fx-padding:0 2; -fx-font-size:9px;");
             closeBtn.setOnAction(e -> dismissToast(toast));
             closeBtn.setOnMouseEntered(e ->
-                    closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#e6edf3;"
-                            + "-fx-cursor:hand; -fx-padding:0 4; -fx-font-size:12px; -fx-font-weight:bold;"));
+                    closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#c9d1d9;"
+                            + "-fx-cursor:hand; -fx-padding:0 2; -fx-font-size:9px;"));
             closeBtn.setOnMouseExited(e ->
-                    closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#8b949e;"
-                            + "-fx-cursor:hand; -fx-padding:0 4; -fx-font-size:12px; -fx-font-weight:bold;"));
+                    closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#6e7681;"
+                            + "-fx-cursor:hand; -fx-padding:0 2; -fx-font-size:9px;"));
 
             toast.getChildren().addAll(icon, msgLabel, closeBtn);
             globalNotificationOverlay.getChildren().add(toast);
             globalNotificationOverlay.setVisible(true);
             globalNotificationOverlay.setManaged(true);
-            javafx.scene.layout.StackPane.setAlignment(toast, javafx.geometry.Pos.TOP_CENTER);
+            // Position: bottom-right corner
+            javafx.scene.layout.StackPane.setAlignment(toast, javafx.geometry.Pos.BOTTOM_RIGHT);
+            javafx.scene.layout.StackPane.setMargin(toast, new javafx.geometry.Insets(0, 16, 16, 0));
 
             PauseTransition autoHide = new PauseTransition(Duration.seconds(3));
             autoHide.setOnFinished(e -> dismissToast(toast));

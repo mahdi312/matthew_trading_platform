@@ -21,6 +21,7 @@ import java.math.RoundingMode;
 import java.net.URL;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Dashboard controller — portfolio stats, equity curve, recent trades table.
@@ -48,6 +49,10 @@ public class DashboardController implements Initializable {
     // ── Charts ────────────────────────────────────────────────
     @FXML private Canvas equityCanvas;
     @FXML private VBox   breakdownContainer;
+
+    // ── Trades TabPane ────────────────────────────────────────
+    @FXML private TabPane  tradesTabPane;
+    @FXML private Tab      myTradesTab;
 
     // ── Recent Trades Table ───────────────────────────────────
     @FXML private TableView<Trade>       recentTradesTable;
@@ -128,6 +133,7 @@ public class DashboardController implements Initializable {
                     ? recent.size()
                     : Math.min(recent.size(), 20);
             populateTable(limit > 0 ? recent.subList(0, limit) : List.of());
+            buildBrokerTabs(recent);
         });
     }
 
@@ -289,6 +295,163 @@ public class DashboardController implements Initializable {
             breakdownContainer.getChildren().add(row);
             idx++;
         }
+    }
+
+    // ── Broker Import Tabs ────────────────────────────────────
+
+    /**
+     * Builds / refreshes per-broker tabs in the TabPane.
+     * For each unique exchange that has at least one trade with "Imported from" in notes,
+     * create (or re-populate) a tab named "<BrokerName> Imports" with a read-only TableView.
+     */
+    private void buildBrokerTabs(List<Trade> allTrades) {
+        if (tradesTabPane == null) return;
+
+        // Group imported trades by exchange (non-blank exchange field + notes contain "Imported from")
+        Map<String, List<Trade>> byBroker = allTrades.stream()
+                .filter(t -> t.getExchange() != null && !t.getExchange().isBlank()
+                        && t.getNotes() != null && t.getNotes().contains("Imported from"))
+                .collect(Collectors.groupingBy(Trade::getExchange, LinkedHashMap::new, Collectors.toList()));
+
+        // Remove old broker tabs (keep only "My Trades" tab at index 0)
+        tradesTabPane.getTabs().removeIf(tab -> tab != myTradesTab);
+
+        // Create a tab per broker
+        for (Map.Entry<String, List<Trade>> entry : byBroker.entrySet()) {
+            String broker = entry.getKey();
+            List<Trade> brokerTrades = entry.getValue();
+
+            Tab tab = new Tab(brokerIcon(broker) + " " + broker + " Imports");
+            tab.setClosable(false);
+            tab.setStyle("-fx-padding:4 10;");
+
+            VBox content = new VBox(8);
+            content.setStyle("-fx-background-color:#161b22; -fx-padding:8;");
+
+            // Summary bar
+            long closedCount = brokerTrades.stream()
+                    .filter(t -> t.getStatus() == Trade.TradeStatus.CLOSED).count();
+            BigDecimal totalPnl = brokerTrades.stream()
+                    .filter(t -> t.getPnlAmount() != null)
+                    .map(Trade::getPnlAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            boolean net = totalPnl.compareTo(BigDecimal.ZERO) >= 0;
+
+            HBox summary = new HBox(16);
+            summary.setStyle("-fx-padding:6 4 4 4;");
+            summary.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+
+            Label countLbl = new Label(brokerTrades.size() + " trades imported");
+            countLbl.setStyle("-fx-text-fill:#8b949e; -fx-font-size:12px;");
+
+            Label pnlLbl = new Label("Total P&L: " + (net ? "+" : "") + "$" + fmt(totalPnl));
+            pnlLbl.setStyle("-fx-font-size:12px; -fx-font-weight:bold;"
+                    + (net ? "-fx-text-fill:#3fb950;" : "-fx-text-fill:#f85149;"));
+
+            Label closedLbl = new Label(closedCount + " closed");
+            closedLbl.setStyle("-fx-text-fill:#8b949e; -fx-font-size:12px;");
+
+            summary.getChildren().addAll(countLbl,
+                    new javafx.scene.layout.Region() {{ HBox.setHgrow(this, Priority.ALWAYS); }},
+                    closedLbl, pnlLbl);
+
+            TableView<Trade> table = buildBrokerTableView();
+            table.getItems().setAll(brokerTrades);
+            VBox.setVgrow(table, Priority.ALWAYS);
+
+            content.getChildren().addAll(summary, table);
+            VBox.setVgrow(content, Priority.ALWAYS);
+
+            tab.setContent(content);
+            tradesTabPane.getTabs().add(tab);
+        }
+    }
+
+    private String brokerIcon(String broker) {
+        return switch (broker.toUpperCase()) {
+            case "BINANCE"                          -> "🟡";
+            case "BYBIT"                            -> "🔵";
+            case "ETORO"                            -> "🟢";
+            case "MT4", "MT5", "MT4/MT5"           -> "📊";
+            case "INTERACTIVE BROKERS", "IB"       -> "🏦";
+            default                                 -> "📥";
+        };
+    }
+
+    /** Builds a read-only TableView with the same columns as recentTradesTable. */
+    @SuppressWarnings("unchecked")
+    private TableView<Trade> buildBrokerTableView() {
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("MM/dd HH:mm");
+        TableView<Trade> table = new TableView<>();
+        table.setMinHeight(300);
+        table.setStyle("-fx-background-color:#161b22; -fx-border-color:#30363d; -fx-border-width:1;");
+        table.setPlaceholder(new Label("No imported trades") {{
+            setStyle("-fx-text-fill:#8b949e; -fx-font-size:13px;");
+        }});
+
+        TableColumn<Trade, String> cDate = col("DATE", 130,
+                t -> t.getEntryTime() != null ? t.getEntryTime().format(dtf) : "—");
+        TableColumn<Trade, String> cSymbol = col("SYMBOL", 100, Trade::getSymbol);
+        TableColumn<Trade, String> cType   = col("TYPE",   70,  t -> t.getAssetType().name());
+
+        TableColumn<Trade, String> cDir = col("DIR", 60, t -> t.getDirection().name());
+        cDir.setCellFactory(c -> new TableCell<>() {
+            @Override protected void updateItem(String v, boolean empty) {
+                super.updateItem(v, empty);
+                if (empty || v == null) { setText(null); return; }
+                setText(v);
+                setStyle("LONG".equals(v)
+                        ? "-fx-text-fill:#3fb950; -fx-font-weight:bold;"
+                        : "-fx-text-fill:#f85149; -fx-font-weight:bold;");
+            }
+        });
+
+        TableColumn<Trade, String> cEntry = col("ENTRY", 110,
+                t -> t.getEntryPrice() != null ? "$" + t.getEntryPrice().toPlainString() : "—");
+        TableColumn<Trade, String> cExit  = col("EXIT",  110,
+                t -> t.getExitPrice()  != null ? "$" + t.getExitPrice().toPlainString()  : "OPEN");
+        TableColumn<Trade, String> cQty   = col("QTY",   90,
+                t -> t.getQuantity() != null ? t.getQuantity().toPlainString() : "—");
+
+        TableColumn<Trade, String> cPnl = col("P&L $", 100, t -> {
+            BigDecimal p = t.getPnlAmount();
+            return p == null ? "—" : (p.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "") + "$" + fmt(p);
+        });
+        cPnl.setCellFactory(colPnl.getCellFactory());
+
+        TableColumn<Trade, String> cPnlPct = col("P&L %", 90, t -> {
+            BigDecimal p = t.getPnlPercent();
+            return p == null ? "—" : (p.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "") + fmt(p) + "%";
+        });
+        cPnlPct.setCellFactory(colPnl.getCellFactory());
+
+        TableColumn<Trade, String> cStatus = col("STATUS", 80, t -> t.getStatus().name());
+        cStatus.setCellFactory(colStatus.getCellFactory());
+
+        table.getColumns().addAll(cDate, cSymbol, cType, cDir,
+                cEntry, cExit, cQty, cPnl, cPnlPct, cStatus);
+
+        table.setRowFactory(tv -> new TableRow<>() {
+            @Override protected void updateItem(Trade t, boolean empty) {
+                super.updateItem(t, empty);
+                getStyleClass().removeAll("row-profit", "row-loss");
+                if (!empty && t != null && t.getPnlAmount() != null)
+                    getStyleClass().add(t.getPnlAmount().compareTo(BigDecimal.ZERO) >= 0
+                            ? "row-profit" : "row-loss");
+            }
+        });
+
+        return table;
+    }
+
+    private TableColumn<Trade, String> col(String title, double pref,
+                                            java.util.function.Function<Trade, String> extractor) {
+        TableColumn<Trade, String> c = new TableColumn<>(title);
+        c.setPrefWidth(pref);
+        c.setCellValueFactory(cellData ->
+                new javafx.beans.property.SimpleStringProperty(
+                        extractor.apply(cellData.getValue())));
+        return c;
     }
 
     // ── Trades Table ──────────────────────────────────────────
