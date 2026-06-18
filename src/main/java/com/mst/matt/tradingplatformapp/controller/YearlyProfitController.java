@@ -3,18 +3,21 @@ package com.mst.matt.tradingplatformapp.controller;
 import com.mst.matt.tradingplatformapp.model.UserProfile;
 import com.mst.matt.tradingplatformapp.model.fundamental.FundamentalsReport;
 import com.mst.matt.tradingplatformapp.model.fundamental.YearlyFinancialRow;
+import com.mst.matt.tradingplatformapp.repository.SymbolEntryRepository;
 import com.mst.matt.tradingplatformapp.repository.UserProfileRepository;
 import com.mst.matt.tradingplatformapp.service.ProfilePersistenceService;
 import com.mst.matt.tradingplatformapp.service.fundamental.FundamentalDataProvider;
 import com.mst.matt.tradingplatformapp.service.fundamental.FundamentalRouter;
 import com.mst.matt.tradingplatformapp.service.price.AssetClassDetector;
 import com.mst.matt.tradingplatformapp.service.price.AssetClassDetector.AssetClass;
+import com.mst.matt.tradingplatformapp.ui.AutocompleteSymbolField;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import net.rgielen.fxweaver.core.FxmlView;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +39,8 @@ public class YearlyProfitController implements Initializable {
     @FXML private VBox root;
     @FXML private TextField symbolField;
     @FXML private ComboBox<FundamentalDataProvider> providerCombo;
+    /** Autocomplete symbol field injected programmatically. */
+    private AutocompleteSymbolField autocompleteField;
     @FXML private Label companyLabel;
     @FXML private Label metaLabel;
     @FXML private Label summaryLabel;
@@ -53,6 +58,7 @@ public class YearlyProfitController implements Initializable {
     @Autowired private UserProfileRepository profileRepository;
     /** P1 (LOG-FIX): async writer to keep JavaFX thread off JPA commits. */
     @Autowired private ProfilePersistenceService profilePersistence;
+    @Autowired private SymbolEntryRepository symbolEntryRepository;
 
     private UserProfile activeProfile;
     private String currentSymbol = "AAPL";
@@ -83,6 +89,33 @@ public class YearlyProfitController implements Initializable {
                 new SimpleStringProperty(fmt(c.getValue().getEbitda())));
 
         symbolField.setText(currentSymbol);
+
+        // ── Wire AutocompleteSymbolField ──────────────────────────────────
+        // Replace the plain symbolField TextField in the header with an
+        // AutocompleteSymbolField that searches SymbolEntry DB as the user types.
+        // Re-create on each FXML reload (singleton bean: initialize() is called
+        // again after logout/re-login when fxWeaver re-loads the FXML).
+        autocompleteField = new AutocompleteSymbolField(symbolEntryRepository);
+        autocompleteField.setPrefWidth(160);
+        autocompleteField.setPromptText("AAPL, EURUSD…");
+        autocompleteField.setText(currentSymbol);
+        autocompleteField.setOnAction(e -> onLoad());
+        autocompleteField.setOnSymbolSelected(sym -> {
+            currentSymbol = sym.trim().toUpperCase();
+            if (symbolField != null) symbolField.setText(currentSymbol);
+            onLoad();
+        });
+        // Keep plain field in sync
+        autocompleteField.textProperty().addListener((o, a, text) -> {
+            if (text != null && !text.isBlank() && symbolField != null)
+                symbolField.setText(text.trim().toUpperCase());
+        });
+        if (symbolField != null && symbolField.getParent() instanceof HBox headerBox) {
+            int idx = headerBox.getChildren().indexOf(symbolField);
+            if (idx >= 0) {
+                headerBox.getChildren().set(idx, autocompleteField);
+            }
+        }
     }
 
     public void setProfile(UserProfile profile) {
@@ -91,6 +124,7 @@ public class YearlyProfitController implements Initializable {
         if (profile.getDefaultSymbol() != null && !profile.getDefaultSymbol().isBlank()) {
             currentSymbol = profile.getDefaultSymbol();
             symbolField.setText(currentSymbol);
+            if (autocompleteField != null) autocompleteField.setSymbol(currentSymbol);
         } else {
             // P2 (LOG-FIX): null-safe fallback so legacy rows with assetFocus=null
             // can't NPE on profile load.
@@ -99,6 +133,7 @@ public class YearlyProfitController implements Initializable {
                     : UserProfile.ProfileAssetFocus.MULTI;
             currentSymbol = focus.defaultSymbol();
             symbolField.setText(currentSymbol);
+            if (autocompleteField != null) autocompleteField.setSymbol(currentSymbol);
         }
         FundamentalDataProvider pref = FundamentalDataProvider.fromString(
                 profile.getFundamentalProvider());

@@ -352,7 +352,7 @@ public class DashboardController implements Initializable {
             closedLbl.setStyle("-fx-text-fill:#8b949e; -fx-font-size:12px;");
 
             summary.getChildren().addAll(countLbl,
-                    new javafx.scene.layout.Region() {{ HBox.setHgrow(this, Priority.ALWAYS); }},
+                    new Region() {{ HBox.setHgrow(this, Priority.ALWAYS); }},
                     closedLbl, pnlLbl);
 
             TableView<Trade> table = buildBrokerTableView();
@@ -449,7 +449,7 @@ public class DashboardController implements Initializable {
         TableColumn<Trade, String> c = new TableColumn<>(title);
         c.setPrefWidth(pref);
         c.setCellValueFactory(cellData ->
-                new javafx.beans.property.SimpleStringProperty(
+                new SimpleStringProperty(
                         extractor.apply(cellData.getValue())));
         return c;
     }

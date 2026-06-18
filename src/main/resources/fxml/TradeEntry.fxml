@@ -18,9 +18,9 @@
         <Label fx:id="formTitleLabel" text="📋 New Trade Entry" styleClass="label-title"/>
         <Pane HBox.hgrow="ALWAYS"/>
         <Label fx:id="importStatusLabel" text="" style="-fx-text-fill:#8b949e; -fx-font-size:11px;"/>
-        <Button text="📥 Import" styleClass="btn-secondary" onAction="#onImportBroker"
+        <Button text="📥 Import CSV" styleClass="btn-secondary" onAction="#onImportBroker"
                 style="-fx-font-size:12px; -fx-padding:6 14;">
-            <tooltip><Tooltip text="Import trades from a broker CSV file (Binance, Bybit, eToro, MT4, Interactive Brokers)"/></tooltip>
+            <tooltip><Tooltip text="Import trades from a broker CSV file.&#10;Supported: Binance, Bybit, eToro, MetaTrader (MT4/MT5), Interactive Brokers, and Generic CSV.&#10;The format is auto-detected from the CSV header row."/></tooltip>
         </Button>
         <Button text="✕ Cancel" styleClass="btn-secondary" onAction="#onCancel"/>
         <Button text="💾 Save Trade" styleClass="btn-primary" onAction="#onSave"/>
@@ -175,13 +175,13 @@
 
                 <VBox alignment="CENTER" spacing="4" HBox.hgrow="ALWAYS">
                     <Label text="INVESTED" styleClass="label-muted"/>
-                    <Label fx:id="investedLabel" text="$0.00" styleClass="label-value"/>
+                    <Label fx:id="investedLabel" text="\$0.00" styleClass="label-value"/>
                 </VBox>
                 <Separator orientation="VERTICAL" style="-fx-background-color:#30363d;"/>
                 <VBox alignment="CENTER" spacing="4" HBox.hgrow="ALWAYS">
                     <padding><Insets left="24" right="24"/></padding>
                     <Label text="P&amp;L AMOUNT" styleClass="label-muted"/>
-                    <Label fx:id="pnlAmountLabel" text="$0.00"
+                    <Label fx:id="pnlAmountLabel" text="\$0.00"
                            style="-fx-font-size:26px; -fx-font-weight:bold; -fx-text-fill:#8b949e;"/>
                 </VBox>
                 <Separator orientation="VERTICAL" style="-fx-background-color:#30363d;"/>

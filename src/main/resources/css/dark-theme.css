@@ -308,6 +308,33 @@
     -fx-alignment: center;
 }
 
+/* ── Spinner dark theme ───────────────────────────────────── */
+.spinner {
+    -fx-background-color: #0d1117;
+    -fx-border-color: #30363d;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+.spinner .text-field {
+    -fx-background-color: #0d1117;
+    -fx-text-fill: #e6edf3;
+    -fx-border-color: transparent;
+    -fx-padding: 6 8;
+}
+.spinner .increment-arrow-button,
+.spinner .decrement-arrow-button {
+    -fx-background-color: #21262d;
+    -fx-border-color: #30363d;
+}
+.spinner .increment-arrow-button:hover,
+.spinner .decrement-arrow-button:hover {
+    -fx-background-color: #2d333b;
+}
+.spinner .increment-arrow-button .increment-arrow,
+.spinner .decrement-arrow-button .decrement-arrow {
+    -fx-background-color: #8b949e;
+}
+
 /* ── Slider (Indicator Mixer) ─────────────────────────────── */
 .slider .thumb {
     -fx-background-color: #388bfd;
@@ -336,6 +363,29 @@
 .scroll-bar .decrement-arrow  { -fx-shape: ""; -fx-padding: 0; }
 
 /* ── ComboBox Dropdown ────────────────────────────────────── */
+.combo-box {
+    -fx-background-color: #0d1117;
+    -fx-text-fill: #e6edf3;
+    -fx-border-color: #30363d;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 4 8 4 8;
+}
+.combo-box .list-cell {
+    -fx-background-color: #0d1117;
+    -fx-text-fill: #e6edf3;
+}
+.combo-box .arrow-button {
+    -fx-background-color: #21262d;
+    -fx-border-color: #30363d;
+    -fx-border-radius: 0 6 6 0;
+}
+.combo-box .arrow-button .arrow {
+    -fx-background-color: #8b949e;
+}
+.combo-box:focused {
+    -fx-border-color: #388bfd;
+}
 .combo-box-popup .list-view {
     -fx-background-color: #1c2128;
     -fx-border-color: #388bfd;

@@ -105,6 +105,13 @@ public class MainDashboardController implements Initializable {
         Platform.runLater(() -> {
             setSidebarExpanded(false);
             applyRoleNavVisibility();
+            // Ensure dashboard is loaded and nav callbacks are wired on startup.
+            // This guarantees the "+ New Trade" callback is set before the user
+            // clicks the button, regardless of which nav item they click first.
+            ensureDashboardLoaded();
+            if (activeProfile != null) dashboardCtrl.loadProfile(activeProfile);
+            showView(dashboardView);
+            setActiveNav(navDashboard);
         });
     }
 
@@ -268,7 +275,7 @@ public class MainDashboardController implements Initializable {
 
     private void loadOrCreateDefaultProfiles() {
         // Load profiles scoped to the current logged-in user
-        java.util.Optional<com.mst.matt.tradingplatformapp.model.AppUser> currentUser =
+        java.util.Optional<AppUser> currentUser =
                 authService.currentUser();
 
         List<UserProfile> profiles;
@@ -315,7 +322,7 @@ public class MainDashboardController implements Initializable {
     private UserProfile createProfile(String name, String color, ProfileAssetFocus focus) {
         // ── findOrCreate: avoid duplicate key on re-login ──────────────────────────
         // Check if a profile with this name already exists for the current user
-        java.util.Optional<com.mst.matt.tradingplatformapp.model.AppUser> curUser =
+        java.util.Optional<AppUser> curUser =
                 authService.currentUser();
         if (curUser.isPresent()) {
             java.util.Optional<UserProfile> existing =
@@ -332,7 +339,7 @@ public class MainDashboardController implements Initializable {
         }
 
         // If name exists globally but belongs to another user, disambiguate
-        String safeName = name;
+        String safeName;
         if (profileRepository.existsByName(name)) {
             String userTag = curUser.map(u -> "_" + u.getUsername()).orElse("_u");
             safeName = name + userTag;
@@ -342,6 +349,8 @@ public class MainDashboardController implements Initializable {
                         profileRepository.findByAppUserAndName(curUser.get(), safeName);
                 if (existing2.isPresent()) return existing2.get();
             }
+        } else {
+            safeName = name;
         }
 
         UserProfile.UserProfileBuilder builder = UserProfile.builder()
@@ -936,65 +945,85 @@ public class MainDashboardController implements Initializable {
     }
 
     /**
-     * Displays a non-blocking toast notification at the top of the content area.
-     * Auto-hides after 3 seconds; user can also dismiss manually with the ✕ button.
+     * Displays a non-blocking toast notification at the bottom-right corner.
+     * Toasts stack vertically; each auto-hides after 3 seconds or can be dismissed.
+     * mouseTransparent overlay ensures content below remains fully interactive.
      */
     public void showNotification(String message, String bgColor, String accentColor, String iconText) {
         if (globalNotificationOverlay == null) {
             return; // no overlay available (e.g. during unit tests)
         }
         Platform.runLater(() -> {
-            // ── Compact pill toast ────────────────────────────────────────────────────
+            // ── Ensure a VBox toast-stack container exists ──────────────────────────
+            VBox toastStack;
+            if (!globalNotificationOverlay.getChildren().isEmpty()
+                    && globalNotificationOverlay.getChildren().get(0)
+                    instanceof VBox vb) {
+                toastStack = vb;
+            } else {
+                toastStack = new VBox(6);
+                toastStack.setAlignment(javafx.geometry.Pos.BOTTOM_RIGHT);
+                toastStack.setPickOnBounds(false); // transparent gaps pass events through
+                toastStack.setMaxWidth(Region.USE_PREF_SIZE);
+                toastStack.setMaxHeight(Region.USE_PREF_SIZE);
+                globalNotificationOverlay.getChildren().add(toastStack);
+            }
+
+            // ── Compact pill toast ───────────────────────────────────────────────
             HBox toast = new HBox(7);
             toast.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-            toast.setPadding(new javafx.geometry.Insets(6, 10, 6, 10));
-            toast.setMaxWidth(320);
+            toast.setPadding(new javafx.geometry.Insets(7, 12, 7, 12));
+            toast.setMaxWidth(340);
+            toast.setMinWidth(200);
             toast.setStyle(
                     "-fx-background-color:" + bgColor + ";" +
                     "-fx-border-color:" + accentColor + ";" +
                     "-fx-border-width:1;" +
                     "-fx-border-radius:20;" +
                     "-fx-background-radius:20;" +
-                    "-fx-effect:dropshadow(gaussian,rgba(0,0,0,0.45),6,0,0,2);");
+                    "-fx-effect:dropshadow(gaussian,rgba(0,0,0,0.55),8,0,0,3);");
 
             Label icon = new Label(iconText);
-            icon.setStyle("-fx-text-fill:" + accentColor + "; -fx-font-size:11px;");
+            icon.setStyle("-fx-text-fill:" + accentColor + "; -fx-font-size:13px;");
 
             Label msgLabel = new Label(message);
-            msgLabel.setStyle("-fx-text-fill:#c9d1d9; -fx-font-size:11px;");
-            msgLabel.setMaxWidth(220);
-            msgLabel.setWrapText(false);
+            msgLabel.setStyle("-fx-text-fill:#e6edf3; -fx-font-size:12px;");
+            msgLabel.setMaxWidth(240);
+            msgLabel.setWrapText(true);
             HBox.setHgrow(msgLabel, Priority.ALWAYS);
 
             Button closeBtn = new Button("✕");
-            closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#6e7681;"
-                    + "-fx-cursor:hand; -fx-padding:0 2; -fx-font-size:9px;");
-            closeBtn.setOnAction(e -> dismissToast(toast));
+            closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#8b949e;"
+                    + "-fx-cursor:hand; -fx-padding:0 4; -fx-font-size:10px;");
+            final VBox finalStack = toastStack;
+            closeBtn.setOnAction(e -> dismissToast(toast, finalStack));
             closeBtn.setOnMouseEntered(e ->
-                    closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#c9d1d9;"
-                            + "-fx-cursor:hand; -fx-padding:0 2; -fx-font-size:9px;"));
+                    closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#e6edf3;"
+                            + "-fx-cursor:hand; -fx-padding:0 4; -fx-font-size:10px;"));
             closeBtn.setOnMouseExited(e ->
-                    closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#6e7681;"
-                            + "-fx-cursor:hand; -fx-padding:0 2; -fx-font-size:9px;"));
+                    closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#8b949e;"
+                            + "-fx-cursor:hand; -fx-padding:0 4; -fx-font-size:10px;"));
 
             toast.getChildren().addAll(icon, msgLabel, closeBtn);
-            globalNotificationOverlay.getChildren().add(toast);
+            toastStack.getChildren().add(toast);
+
+            // Show overlay
             globalNotificationOverlay.setVisible(true);
             globalNotificationOverlay.setManaged(true);
-            // Position: bottom-right corner
-            javafx.scene.layout.StackPane.setAlignment(toast, javafx.geometry.Pos.BOTTOM_RIGHT);
-            javafx.scene.layout.StackPane.setMargin(toast, new javafx.geometry.Insets(0, 16, 16, 0));
 
-            PauseTransition autoHide = new PauseTransition(Duration.seconds(3));
-            autoHide.setOnFinished(e -> dismissToast(toast));
+            // Auto-hide after 3.5 s
+            PauseTransition autoHide = new PauseTransition(Duration.seconds(3.5));
+            autoHide.setOnFinished(e -> dismissToast(toast, finalStack));
             autoHide.play();
         });
     }
 
-    private void dismissToast(HBox toast) {
+    private void dismissToast(HBox toast, VBox toastStack) {
         if (globalNotificationOverlay == null) return;
-        globalNotificationOverlay.getChildren().remove(toast);
-        if (globalNotificationOverlay.getChildren().isEmpty()) {
+        if (toastStack != null) toastStack.getChildren().remove(toast);
+        boolean empty = toastStack == null || toastStack.getChildren().isEmpty();
+        if (empty) {
+            globalNotificationOverlay.getChildren().clear();
             globalNotificationOverlay.setVisible(false);
             globalNotificationOverlay.setManaged(false);
         }

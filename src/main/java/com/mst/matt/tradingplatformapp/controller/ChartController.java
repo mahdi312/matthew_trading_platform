@@ -250,20 +250,20 @@ public class ChartController implements Initializable {
 
     /** Javafx Popup for the autocomplete suggestion list. */
     private javafx.stage.Popup autocompletePopup;
-    private javafx.scene.control.ListView<String> autocompleteList;
+    private ListView<String> autocompleteList;
 
     /**
      * Wires an autocomplete suggestion dropdown to {@link #symbolInput}.
      * Suggestions are filtered from the current {@link #symbolCombo} items as the user types.
      */
     private void setupSymbolAutocomplete() {
-        autocompleteList = new javafx.scene.control.ListView<>();
+        autocompleteList = new ListView<>();
         autocompleteList.setStyle(
                 "-fx-background-color:#1c2128; -fx-border-color:#30363d;"
                 + "-fx-border-width:1; -fx-background-radius:0 0 6 6;");
         autocompleteList.setPrefHeight(160);
         autocompleteList.setMaxHeight(200);
-        autocompleteList.setCellFactory(lv -> new javafx.scene.control.ListCell<>() {
+        autocompleteList.setCellFactory(lv -> new ListCell<>() {
             @Override protected void updateItem(String s, boolean empty) {
                 super.updateItem(s, empty);
                 if (empty || s == null) { setText(null); setStyle(null); return; }
@@ -522,7 +522,7 @@ public class ChartController implements Initializable {
             btn.setStyle(isActive ? activeStyle() : favoriteStyle());
             Tooltip tip = new Tooltip("★ " + tf.toUpperCase()
                     + " — Right-click to remove from favorites");
-            tip.setShowDelay(javafx.util.Duration.millis(200));
+            tip.setShowDelay(Duration.millis(200));
             btn.setTooltip(tip);
 
             btn.setOnAction(e -> {
@@ -596,7 +596,7 @@ public class ChartController implements Initializable {
 
         for (String tf : allowed) {
             HBox row = new HBox(8);
-            row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            row.setAlignment(Pos.CENTER_LEFT);
             boolean isFav = favorites.contains(tf);
 
             Button starBtn = new Button(isFav ? "★" : "☆");
@@ -1001,7 +1001,7 @@ public class ChartController implements Initializable {
                     "🟢 Buying Sentiment\n"
                     + bull + " indicator(s) show bullish signals.\n"
                     + "Higher count = stronger buying pressure.");
-            buyTip.setShowDelay(javafx.util.Duration.millis(200));
+            buyTip.setShowDelay(Duration.millis(200));
             Tooltip.install(bullCircle, buyTip);
         }
 
@@ -1021,7 +1021,7 @@ public class ChartController implements Initializable {
                     "⚪ Neutral Sentiment\n"
                     + neu + " indicator(s) show no clear direction.\n"
                     + "Neutral means sideways or conflicting signals.");
-            neutTip.setShowDelay(javafx.util.Duration.millis(200));
+            neutTip.setShowDelay(Duration.millis(200));
             Tooltip.install(neutralCircle, neutTip);
         }
 
@@ -1041,7 +1041,7 @@ public class ChartController implements Initializable {
                     "🔴 Selling Sentiment\n"
                     + bear + " indicator(s) show bearish signals.\n"
                     + "Higher count = stronger selling pressure.");
-            sellTip.setShowDelay(javafx.util.Duration.millis(200));
+            sellTip.setShowDelay(Duration.millis(200));
             Tooltip.install(bearCircle, sellTip);
         }
 
@@ -1055,7 +1055,7 @@ public class ChartController implements Initializable {
                     + "🔴 Red    = Selling (bearish indicators)\n\n"
                     + "The number inside each circle shows how many\n"
                     + "weighted indicators are giving that signal.");
-            legendTip.setShowDelay(javafx.util.Duration.millis(300));
+            legendTip.setShowDelay(Duration.millis(300));
             legendTip.setPrefWidth(280);
             legendTip.setWrapText(true);
             Tooltip.install(sentimentBox, legendTip);

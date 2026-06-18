@@ -78,11 +78,14 @@ public class TradeEntryController implements Initializable {
         // Populate asset type combo
         assetTypeCombo.getItems().setAll(AssetType.values());
         assetTypeCombo.setValue(AssetType.CRYPTO);
+        styleComboBox(assetTypeCombo);
 
         // Set default date to today
         entryDatePicker.setValue(LocalDate.now());
         entryTimeField.setText(LocalTime.now()
                 .format(DateTimeFormatter.ofPattern("HH:mm")));
+        styleDatePicker(entryDatePicker);
+        styleDatePicker(exitDatePicker);
 
         // Long selected by default
         isLong = true;
@@ -90,6 +93,41 @@ public class TradeEntryController implements Initializable {
 
         // Add change listeners for live P&L preview
         addPnlListeners();
+    }
+
+    /** Apply dark theme programmatically to a ComboBox (ensures button-cell text is visible). */
+    private <T> void styleComboBox(ComboBox<T> combo) {
+        String darkCell = "-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;"
+                + "-fx-padding:4 8; -fx-font-size:13px;";
+        combo.setCellFactory(lv -> new ListCell<T>() {
+            @Override protected void updateItem(T item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.toString());
+                setStyle(empty ? "" : darkCell);
+            }
+        });
+        combo.setButtonCell(new ListCell<T>() {
+            @Override protected void updateItem(T item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.toString());
+                setStyle(darkCell);
+                // Force the combo box container dark
+                combo.setStyle("-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;"
+                        + "-fx-border-color:#30363d; -fx-border-radius:6;"
+                        + "-fx-background-radius:6;");
+            }
+        });
+    }
+
+    /** Apply dark background to a DatePicker (the popup inherits from CSS). */
+    private void styleDatePicker(DatePicker dp) {
+        if (dp == null) return;
+        dp.setStyle("-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;"
+                + "-fx-border-color:#30363d; -fx-border-radius:6;"
+                + "-fx-background-radius:6;");
+        // Ensure the text field inside is also dark
+        dp.getEditor().setStyle("-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;"
+                + "-fx-border-color:transparent; -fx-padding:6 10;");
     }
 
     // ── Direction Buttons ────────────────────────────────────
@@ -381,11 +419,17 @@ public class TradeEntryController implements Initializable {
         exitDatePicker.setValue(null);
         investedLabel.setText("$0.00");
         pnlAmountLabel.setText("$0.00");
+        pnlAmountLabel.setStyle("-fx-font-size:26px; -fx-font-weight:bold; -fx-text-fill:#8b949e;");
         pnlPercentLabel.setText("0.00%");
+        pnlPercentLabel.setStyle("-fx-font-size:26px; -fx-font-weight:bold; -fx-text-fill:#8b949e;");
         rrLabel.setText("—");
+        rrLabel.setStyle("-fx-font-size:26px; -fx-font-weight:bold; -fx-text-fill:#388bfd;");
         isLong = true;
         if (formTitleLabel != null) formTitleLabel.setText("📋 New Trade Entry");
         styleDirectionButtons();
+        // Re-apply dark theme to pickers in case JavaFX reset them
+        styleDatePicker(entryDatePicker);
+        styleDatePicker(exitDatePicker);
     }
 
     // ── Broker Import ─────────────────────────────────────────
