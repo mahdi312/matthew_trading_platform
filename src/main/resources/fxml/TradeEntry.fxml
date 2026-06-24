@@ -204,11 +204,12 @@
             <VBox spacing="6">
                 <Label text="Notes / Analysis" styleClass="label-subtitle"/>
                 <TextArea fx:id="notesArea"
-                          promptText="Trade rationale, setup description, lessons learned..."
+                          promptText="Add any notes about this trade..."
                           prefRowCount="4"
-                          style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
-                                 -fx-border-color:#30363d; -fx-border-radius:6;
-                                 -fx-background-radius:6; -fx-padding:8;"/>
+                          style="-fx-background-color:#f5f5f5; -fx-text-fill:#1a1a1a;
+                                 -fx-prompt-text-fill:#999999;
+                                 -fx-border-color:#cccccc; -fx-border-radius:6;
+                                 -fx-background-radius:6; -fx-padding:8; -fx-font-size:13px;"/>
             </VBox>
 
         </VBox>

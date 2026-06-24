@@ -32,4 +32,11 @@ public final class TimeframeInterval {
         if (timeframe == null) return Duration.ofHours(1);
         return INTERVALS.getOrDefault(timeframe.toLowerCase(), Duration.ofHours(1));
     }
+
+    /** UI / scheduler poll cadence — shorter TFs checked more often (15s–120s). */
+    public static Duration refreshPollInterval(String timeframe) {
+        Duration candle = forTimeframe(timeframe);
+        long secs = Math.max(15, Math.min(120, candle.getSeconds() / 4));
+        return Duration.ofSeconds(secs);
+    }
 }

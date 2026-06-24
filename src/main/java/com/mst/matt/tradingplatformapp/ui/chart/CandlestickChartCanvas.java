@@ -1,17 +1,24 @@
 package com.mst.matt.tradingplatformapp.ui.chart;
 
+import com.mst.matt.tradingplatformapp.model.ChartDrawing;
+import com.mst.matt.tradingplatformapp.model.ChartDrawingToolType;
 import com.mst.matt.tradingplatformapp.model.IndicatorDefinition;
 import com.mst.matt.tradingplatformapp.model.IndicatorDefinition.DisplayPane;
 import com.mst.matt.tradingplatformapp.model.OhlcvBar;
 import com.mst.matt.tradingplatformapp.service.analysis.SupportResistanceService.SRLevel;
 import com.mst.matt.tradingplatformapp.service.analysis.SupportResistanceService.SRResult;
+import com.mst.matt.tradingplatformapp.ui.chart.drawing.ChartDrawingEngine;
+import com.mst.matt.tradingplatformapp.ui.chart.drawing.DrawingRenderer;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.TextAlignment;
+import javafx.stage.Window;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -31,7 +38,7 @@ import java.util.*;
  *  ✅ Volume toggleable.
  *  ✅ Drag to pan, scroll to zoom (anchor under mouse).
  */
-public class CandlestickChartCanvas extends Canvas {
+public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine.Host {
 
     // ── Layout constants ──────────────────────────────────────
     private static final double PADDING_LEFT   = 60;
@@ -105,6 +112,12 @@ public class CandlestickChartCanvas extends Canvas {
     private boolean showCrosshair  = false;
     private double  dragStartX;
     private int     dragStartBar;
+    private boolean drawingHandledDrag;
+
+    // ── Drawing overlay ───────────────────────────────────────
+    private final ChartDrawingEngine drawingEngine = new ChartDrawingEngine(this);
+    private DrawingRenderer.RenderContext lastRenderContext;
+    private boolean snapMode;
 
     // ── Constructors ──────────────────────────────────────────
 
@@ -121,6 +134,7 @@ public class CandlestickChartCanvas extends Canvas {
     private void init() {
         setFocusTraversable(true);
         setupMouseHandlers();
+        setupKeyHandlers();
         widthProperty().addListener((o, a, b) -> render());
         heightProperty().addListener((o, a, b) -> render());
     }
@@ -187,6 +201,32 @@ public class CandlestickChartCanvas extends Canvas {
         this.axisFormatter = isDate
                 ? DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(userTimezone)
                 : DateTimeFormatter.ofPattern("MM/dd HH:mm").withZone(userTimezone);
+    }
+
+    public ChartDrawingEngine getDrawingEngine() { return drawingEngine; }
+
+    public void setDrawings(List<ChartDrawing> drawings) {
+        drawingEngine.setDrawings(drawings);
+        render();
+    }
+
+    public void setActiveDrawingTool(ChartDrawingToolType tool) {
+        drawingEngine.setActiveTool(tool);
+        render();
+    }
+
+    // ── ChartDrawingEngine.Host ─────────────────────────────
+
+    @Override public void requestRender() { render(); }
+
+    @Override public DrawingRenderer.RenderContext currentRenderContext() {
+        return lastRenderContext;
+    }
+
+    @Override public List<OhlcvBar> getBars() { return bars; }
+
+    @Override public Window getWindow() {
+        return getScene() != null ? getScene().getWindow() : null;
     }
 
     // ── Main Render ───────────────────────────────────────────
@@ -292,6 +332,12 @@ public class CandlestickChartCanvas extends Canvas {
 
         // Legend
         drawLegend(gc, layout);
+
+        // User drawings (after candles, before crosshair)
+        lastRenderContext = new DrawingRenderer.RenderContext(
+                layout.left, layout.right, layout.priceTop(), layout.priceBottom(),
+                layout.priceH, startBarIndex, visibleBars, maxPrice, minPrice, bars);
+        drawingEngine.renderDrawings(gc, lastRenderContext);
 
         // Crosshair
         if (showCrosshair) drawCrosshair(gc, layout, visible, maxPrice, minPrice);
@@ -934,11 +980,53 @@ public class CandlestickChartCanvas extends Canvas {
     // ── Mouse Handlers ────────────────────────────────────────
 
     private void setupMouseHandlers() {
-        setOnMouseMoved(e -> { mouseX = e.getX(); mouseY = e.getY(); showCrosshair = true; render(); });
-        setOnMouseDragged(this::onMouseDragged);
-        setOnMousePressed(e -> { dragStartX = e.getX(); dragStartBar = startBarIndex; });
+        setOnMouseMoved(e -> {
+            mouseX = e.getX(); mouseY = e.getY();
+            showCrosshair = true;
+            drawingEngine.setSnapEnabled(snapMode || e.isShiftDown());
+            render();
+        });
+        setOnMouseDragged(e -> {
+            drawingEngine.setSnapEnabled(snapMode || e.isShiftDown());
+            drawingHandledDrag = drawingEngine.handleMouseDragged(e, lastRenderContext);
+            if (!drawingHandledDrag && !drawingEngine.isDrawingMode()) {
+                onMouseDragged(e);
+            } else {
+                mouseX = e.getX(); mouseY = e.getY();
+            }
+        });
+        setOnMousePressed(e -> {
+            requestFocus();
+            drawingEngine.setSnapEnabled(snapMode || e.isShiftDown());
+            dragStartX = e.getX();
+            dragStartBar = startBarIndex;
+            drawingHandledDrag = drawingEngine.handleMousePressed(e, lastRenderContext);
+        });
+        setOnMouseReleased(e -> {
+            if (drawingEngine.handleMouseReleased(e, lastRenderContext)) {
+                render();
+            }
+        });
         setOnMouseExited(e  -> { showCrosshair = false; render(); });
         setOnScroll(this::onScroll);
+    }
+
+    private void setupKeyHandlers() {
+        setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.SHIFT) {
+                snapMode = true;
+                drawingEngine.setSnapEnabled(true);
+            }
+            if (e.isControlDown() && e.isShiftDown() && e.getCode() == KeyCode.T) {
+                drawingEngine.instantSaveSelectedPosition();
+            }
+        });
+        setOnKeyReleased(e -> {
+            if (e.getCode() == KeyCode.SHIFT) {
+                snapMode = false;
+                drawingEngine.setSnapEnabled(false);
+            }
+        });
     }
 
     private void onMouseDragged(MouseEvent e) {

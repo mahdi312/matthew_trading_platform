@@ -2,8 +2,10 @@ package com.mst.matt.tradingplatformapp.controller;
 
 import com.mst.matt.tradingplatformapp.model.*;
 import com.mst.matt.tradingplatformapp.model.SymbolEntry.AssetType;
+import com.mst.matt.tradingplatformapp.model.Trade.TradeDirection;
 import com.mst.matt.tradingplatformapp.repository.SymbolEntryRepository;
 import com.mst.matt.tradingplatformapp.repository.UserProfileRepository;
+import com.mst.matt.tradingplatformapp.service.ChartDrawingService;
 import com.mst.matt.tradingplatformapp.service.OhlcvStorageService;
 import com.mst.matt.tradingplatformapp.service.ProfilePersistenceService;
 import com.mst.matt.tradingplatformapp.service.analysis.AnalysisService;
@@ -18,8 +20,14 @@ import com.mst.matt.tradingplatformapp.service.price.MarketDataProvider;
 import com.mst.matt.tradingplatformapp.service.price.PriceProviderRegistry;
 import com.mst.matt.tradingplatformapp.service.price.PriceRouter;
 import com.mst.matt.tradingplatformapp.ui.IndicatorPickerDialog;
+import com.mst.matt.tradingplatformapp.service.marketdata.ChartLiveSessionService;
+import com.mst.matt.tradingplatformapp.ui.chart.ChartToastManager;
 import com.mst.matt.tradingplatformapp.ui.chart.CandlestickChartCanvas;
+import com.mst.matt.tradingplatformapp.ui.chart.DrawingToolbar;
+import com.mst.matt.tradingplatformapp.ui.chart.DrawingToolbarPane;
+import javafx.animation.KeyFrame;
 import javafx.animation.PauseTransition;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
@@ -42,11 +50,13 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.ta4j.core.BarSeries;
 
+import java.math.BigDecimal;
 import java.net.URL;
 import java.sql.SQLException;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @Component
@@ -65,10 +75,12 @@ public class ChartController implements Initializable {
     @FXML private TextField            symbolInput;
     @FXML private ComboBox<String>     symbolCombo;
     @FXML private Pane                 chartPane;
+    @FXML private StackPane             chartStack;
     @FXML private ComboBox<Integer>    barsCombo;
     @FXML private ComboBox<MarketDataProvider> chartProviderCombo;
     @FXML private Label                dataSourceLabel;
-    @FXML private StackPane            notificationOverlay;
+    @FXML private VBox                  notificationOverlay;
+    @FXML private Button                chartNotifyBellBtn;
     // Timeframe buttons — all possible timeframes
     @FXML private ToggleButton tf1m, tf3m, tf5m, tf15m, tf30m,
             tf1h, tf2h, tf4h, tf6h, tf8h, tf12h,
@@ -94,8 +106,10 @@ public class ChartController implements Initializable {
     @Autowired private ProfilePersistenceService profilePersistence;
     @Autowired private AuthService              authService;
     @Autowired private SymbolEntryRepository    symbolEntryRepository;
+    @Autowired private ChartDrawingService      chartDrawingService;
     @Autowired private com.mst.matt.tradingplatformapp.service.AppSettingsService appSettingsService;
     @Autowired private com.mst.matt.tradingplatformapp.service.marketdata.MarketDataSyncScheduler marketDataSyncScheduler;
+    @Autowired private ChartLiveSessionService chartLiveSession;
     @Autowired @org.springframework.context.annotation.Lazy
     private IndicatorMixerController indicatorMixerController;
 
@@ -115,6 +129,14 @@ public class ChartController implements Initializable {
 
     private final List<IndicatorDefinition> activeIndicators = new ArrayList<>();
 
+    private DrawingToolbarPane drawingToolbarPane;
+    private ChartToastManager toastManager;
+    private Timeline chartRefreshTimeline;
+    private Runnable onViewAllAlerts;
+    private Consumer<TradeDrawingDraft> onCreateTradeFromDrawing;
+    private Consumer<TradeDrawingDraft> onInstantSaveTradeFromDrawing;
+    private boolean chartSessionActive;
+
     @Override
     public void initialize(URL url, ResourceBundle rb) {
         // Feature 4.3: cap default bars to role limit
@@ -127,6 +149,11 @@ public class ChartController implements Initializable {
         chart.setUserTimezone(appSettingsService.getUserTimezone());
         chart.setCurrentTimeframe(currentTimeframe);
         chartPane.getChildren().add(chart);
+        setupDrawingToolbar();
+        setupNotifications();
+        setupChartAutoHide();
+        wireDrawingEngine();
+        setupKeyboardShortcuts();
 
         if (signalBar != null)
             signalBar.managedProperty().bind(signalBar.visibleProperty());
@@ -191,6 +218,189 @@ public class ChartController implements Initializable {
         if (tf1h != null) { tf1h.setSelected(true); }
     }
 
+    private void setupDrawingToolbar() {
+        if (chartStack == null) return;
+        DrawingToolbar toolbar = new DrawingToolbar();
+        drawingToolbarPane = new DrawingToolbarPane(toolbar);
+        drawingToolbarPane.attachTo(chartStack);
+        toolbar.setOnToolSelected(chart::setActiveDrawingTool);
+        toolbar.setOnDelete(() -> chart.getDrawingEngine().deleteSelected());
+    }
+
+    private void setupNotifications() {
+        if (notificationOverlay == null) return;
+        toastManager = new ChartToastManager(notificationOverlay);
+        toastManager.setOnViewAllAlerts(() -> {
+            if (onViewAllAlerts != null) onViewAllAlerts.run();
+        });
+    }
+
+    public void setOnViewAllAlerts(Runnable callback) {
+        this.onViewAllAlerts = callback;
+    }
+
+    @FXML public void onToggleChartNotifications() {
+        if (toastManager == null) return;
+        boolean next = !toastManager.isEnabled();
+        toastManager.setEnabled(next);
+        if (chartNotifyBellBtn != null) {
+            chartNotifyBellBtn.setStyle(next ? "" : "-fx-opacity:0.5;");
+        }
+    }
+
+    private void setupChartAutoHide() {
+        if (chartStack == null) return;
+        chartStack.setOnMouseEntered(e -> {
+            if (drawingToolbarPane != null) drawingToolbarPane.onChartMouseEntered();
+        });
+        chartStack.setOnMouseExited(e -> {
+            if (drawingToolbarPane != null) drawingToolbarPane.onChartMouseExited();
+        });
+    }
+
+    private void setupKeyboardShortcuts() {
+        chart.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.T && !e.isControlDown()) {
+                chart.setActiveDrawingTool(ChartDrawingToolType.TREND_LINE);
+            } else if (e.getCode() == javafx.scene.input.KeyCode.F && !e.isControlDown()) {
+                chart.setActiveDrawingTool(ChartDrawingToolType.FIB_RETRACEMENT);
+            }
+        });
+    }
+
+    /** Called when the Live Chart view becomes visible. */
+    public void onChartActivated() {
+        chartSessionActive = true;
+        chartLiveSession.activate(currentSymbol, currentTimeframe);
+        notifyChartContext();
+        startChartRefreshTimer();
+        if (activeProfile != null) {
+            loadChart();
+        }
+    }
+
+    /** Called when the user navigates away from the chart. */
+    public void onChartDeactivated() {
+        chartSessionActive = false;
+        chartLiveSession.deactivate();
+        stopChartRefreshTimer();
+    }
+
+    private void notifyChartContext() {
+        marketDataSyncScheduler.notifyChartContextChanged(currentSymbol, currentTimeframe);
+    }
+
+    private void startChartRefreshTimer() {
+        stopChartRefreshTimer();
+        long pollSec = chartLiveSession.pollInterval().getSeconds();
+        chartRefreshTimeline = new Timeline(new KeyFrame(
+                Duration.seconds(Math.max(15, pollSec)),
+                e -> {
+                    if (!chartSessionActive || activeProfile == null) return;
+                    if (chartLiveSession.isCacheStale()) {
+                        log.debug("Chart auto-refresh {}/{}", currentSymbol, currentTimeframe);
+                        loadChart();
+                    }
+                }));
+        chartRefreshTimeline.setCycleCount(Timeline.INDEFINITE);
+        chartRefreshTimeline.play();
+    }
+
+    private void stopChartRefreshTimer() {
+        if (chartRefreshTimeline != null) {
+            chartRefreshTimeline.stop();
+            chartRefreshTimeline = null;
+        }
+    }
+
+    private void updateChartSessionContext() {
+        if (chartSessionActive) {
+            chartLiveSession.updateContext(currentSymbol, currentTimeframe);
+            notifyChartContext();
+            startChartRefreshTimer();
+        }
+    }
+
+    private void wireDrawingEngine() {
+        var engine = chart.getDrawingEngine();
+        engine.setOnDrawingCreated(this::persistDrawing);
+        engine.setOnDrawingUpdated(this::persistDrawing);
+        engine.setOnDrawingDeleted(d -> {
+            if (d.getId() != null) {
+                Thread.ofVirtual().start(() -> chartDrawingService.delete(d.getId()));
+            }
+        });
+        engine.setOnCreateTradeFromDrawing(d -> {
+            TradeDrawingDraft draft = buildTradeDraft(d);
+            if (draft != null && onCreateTradeFromDrawing != null)
+                onCreateTradeFromDrawing.accept(draft);
+        });
+        engine.setOnInstantSaveTrade(d -> {
+            TradeDrawingDraft draft = buildTradeDraft(d);
+            if (draft != null && onInstantSaveTradeFromDrawing != null)
+                onInstantSaveTradeFromDrawing.accept(draft);
+        });
+    }
+
+    public void setOnCreateTradeFromDrawing(Consumer<TradeDrawingDraft> callback) {
+        this.onCreateTradeFromDrawing = callback;
+    }
+
+    public void setOnInstantSaveTradeFromDrawing(Consumer<TradeDrawingDraft> callback) {
+        this.onInstantSaveTradeFromDrawing = callback;
+    }
+
+    private void persistDrawing(ChartDrawing drawing) {
+        if (activeProfile == null) return;
+        drawing.setProfile(activeProfile);
+        drawing.setSymbol(currentSymbol);
+        drawing.setTimeframe(currentTimeframe);
+        Thread.ofVirtual().start(() -> {
+            ChartDrawing saved = chartDrawingService.save(drawing);
+            Platform.runLater(() -> {
+                if (drawing.getId() == null) drawing.setId(saved.getId());
+            });
+        });
+    }
+
+    private void loadDrawingsForChart() {
+        if (activeProfile == null) return;
+        Thread.ofVirtual().start(() -> {
+            List<ChartDrawing> list = chartDrawingService.loadDrawings(
+                    activeProfile, currentSymbol, currentTimeframe);
+            Platform.runLater(() -> chart.setDrawings(list));
+        });
+    }
+
+    private TradeDrawingDraft buildTradeDraft(ChartDrawing d) {
+        if (d == null || !d.getToolType().isPositionTool()) return null;
+        ChartDrawingProperties props = d.getProperties();
+        if (props == null || props.getEntryPrice() == null) return null;
+        TradeDirection dir = d.getToolType() == ChartDrawingToolType.LONG_POSITION
+                ? TradeDirection.LONG : TradeDirection.SHORT;
+        Trade.AssetType assetType = mapAssetClassToTradeType(
+                AssetClassDetector.detect(currentSymbol));
+        return new TradeDrawingDraft(
+                currentSymbol,
+                dir,
+                BigDecimal.valueOf(props.getEntryPrice()),
+                props.getStopLoss() != null ? BigDecimal.valueOf(props.getStopLoss()) : null,
+                props.getTakeProfit() != null ? BigDecimal.valueOf(props.getTakeProfit()) : null,
+                assetType
+        );
+    }
+
+    private static Trade.AssetType mapAssetClassToTradeType(AssetClass ac) {
+        if (ac == null) return Trade.AssetType.CRYPTO;
+        return switch (ac) {
+            case CRYPTO -> Trade.AssetType.CRYPTO;
+            case STOCK -> Trade.AssetType.STOCK;
+            case FOREX -> Trade.AssetType.FOREX;
+            case COMMODITY -> Trade.AssetType.COMMODITY;
+            case INDEX -> Trade.AssetType.INDEX;
+        };
+    }
+
     // ── ViewMode ──────────────────────────────────────────────
 
     public void setViewMode(ViewMode mode) {
@@ -218,7 +428,6 @@ public class ChartController implements Initializable {
     }
 
     public void prepareView() {
-        // Feature 1: null-guard + always re-apply role access on every navigation
         applyTimeframeAccess();
         applyViewMode();
         if (symbolInput.getText() == null || symbolInput.getText().isBlank())
@@ -227,8 +436,9 @@ public class ChartController implements Initializable {
             currentSymbol = symbolInput.getText().trim().toUpperCase();
         if (symbolCombo.getValue() == null) symbolCombo.setValue(currentSymbol);
         refreshProviderCombo();
-        // Feature 1: only load if we actually have a profile set
-        if (activeProfile != null) loadChart();
+        if (activeProfile != null) {
+            onChartActivated();
+        }
     }
 
     public void setProfile(UserProfile profile) {
@@ -685,7 +895,8 @@ public class ChartController implements Initializable {
         String sym = symbolInput.getText().trim().toUpperCase();
         if (!sym.isEmpty()) currentSymbol = sym;
         // Notify the sync scheduler so it only keeps this symbol's data fresh
-        marketDataSyncScheduler.notifyActiveSymbolChanged(currentSymbol);
+        marketDataSyncScheduler.notifyChartContextChanged(currentSymbol, currentTimeframe);
+        updateChartSessionContext();
         refreshProviderCombo();
         loadChart();
     }
@@ -745,6 +956,7 @@ public class ChartController implements Initializable {
                         chart.setLastPrice(lastPrice);
 
                     chart.setData(result.getBars(), activeIndicators, result.getSrResult());
+                    loadDrawingsForChart();
 
                     if (viewMode == ViewMode.ANALYSIS && result.getSignal() != null)
                         updateSignalBar(result.getSignal());
@@ -772,6 +984,7 @@ public class ChartController implements Initializable {
                     dataSourceLabel.setText("OHLCV via " + provider);
                     dataSourceLabel.setTooltip(new Tooltip(
                             "Last successful price provider for " + currentSymbol));
+                    chartLiveSession.recordLoaded();
                 });
             } catch (Exception e) {
                 if (completionFlag != null) completionFlag.set(true);
@@ -786,90 +999,19 @@ public class ChartController implements Initializable {
         });
     }
 
-    /**
-     * Shows a non-blocking error notification that auto-hides after 3 seconds.
-     * The notification also has an ✕ button for manual dismissal.
-     */
     private void showErrorNotification(String message) {
-        showNotification(message, "#4a1a1a", "#f85149", "⚠");
+        if (toastManager != null) toastManager.showError(message);
+        else log.warn("Notification: {}", message);
     }
 
-    /** Shows a non-blocking success/info notification (green, 3-second auto-hide). */
     private void showInfoNotification(String message) {
-        showNotification(message, "#1a3a1a", "#3fb950", "✔");
+        if (toastManager != null) toastManager.showInfo(message);
+        else log.info("Notification: {}", message);
     }
 
-    /** Shows a non-blocking warning notification (amber, 3-second auto-hide). */
     private void showWarnNotification(String message) {
-        showNotification(message, "#3a2a0a", "#e3b341", "⚠");
-    }
-
-    /**
-     * Core notification builder — non-blocking, closable, auto-hides after 3 seconds.
-     * Safe to call from any thread (marshals to FX thread automatically).
-     */
-    private void showNotification(String message, String bgColor, String accentColor, String iconText) {
-        if (notificationOverlay == null) {
-            log.warn("Notification [{}]: {}", accentColor, message);
-            return;
-        }
-        // Marshal to FX thread in case called from background thread
-        Platform.runLater(() -> {
-            // ── Compact pill toast ────────────────────────────────────────────────────
-            HBox notification = new HBox(7);
-            notification.setAlignment(Pos.CENTER_LEFT);
-            notification.setPadding(new Insets(6, 10, 6, 10));
-            notification.setMaxWidth(320);
-            notification.setStyle(
-                    "-fx-background-color:" + bgColor + ";" +
-                    "-fx-border-color:" + accentColor + ";" +
-                    "-fx-border-width:1;" +
-                    "-fx-border-radius:20;" +
-                    "-fx-background-radius:20;" +
-                    "-fx-effect:dropshadow(gaussian,rgba(0,0,0,0.45),6,0,0,2);");
-
-            Label icon = new Label(iconText);
-            icon.setStyle("-fx-text-fill:" + accentColor + "; -fx-font-size:11px;");
-
-            Label msgLabel = new Label(message);
-            msgLabel.setStyle("-fx-text-fill:#c9d1d9; -fx-font-size:11px;");
-            msgLabel.setMaxWidth(220);
-            msgLabel.setWrapText(false);
-            HBox.setHgrow(msgLabel, Priority.ALWAYS);
-
-            Button closeBtn = new Button("✕");
-            closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#6e7681;"
-                    + "-fx-cursor:hand; -fx-padding:0 2; -fx-font-size:9px;");
-            closeBtn.setOnAction(e -> dismissNotification(notification));
-            closeBtn.setOnMouseEntered(e ->
-                    closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#c9d1d9;"
-                            + "-fx-cursor:hand; -fx-padding:0 2; -fx-font-size:9px;"));
-            closeBtn.setOnMouseExited(e ->
-                    closeBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#6e7681;"
-                            + "-fx-cursor:hand; -fx-padding:0 2; -fx-font-size:9px;"));
-
-            notification.getChildren().addAll(icon, msgLabel, closeBtn);
-            notificationOverlay.getChildren().add(notification);
-            notificationOverlay.setVisible(true);
-            notificationOverlay.setManaged(true);
-            // Position: bottom-right corner
-            StackPane.setAlignment(notification, Pos.BOTTOM_RIGHT);
-            StackPane.setMargin(notification, new Insets(0, 12, 12, 0));
-
-            // Auto-hide after 3 seconds
-            PauseTransition autoHide = new PauseTransition(Duration.seconds(3));
-            autoHide.setOnFinished(e -> dismissNotification(notification));
-            autoHide.play();
-        });
-    }
-
-    private void dismissNotification(HBox notification) {
-        if (notificationOverlay == null) return;
-        notificationOverlay.getChildren().remove(notification);
-        if (notificationOverlay.getChildren().isEmpty()) {
-            notificationOverlay.setVisible(false);
-            notificationOverlay.setManaged(false);
-        }
+        if (toastManager != null) toastManager.showWarning(message);
+        else log.warn("Notification: {}", message);
     }
 
     private AnalysisResult loadAnalysisWithRetry() throws Exception {
@@ -907,6 +1049,7 @@ public class ChartController implements Initializable {
         chart.setCurrentTimeframe(tf);
         styleTimeframeButtons(src);
         refreshFavBarStyles();
+        updateChartSessionContext();
         loadChart();
     }
 

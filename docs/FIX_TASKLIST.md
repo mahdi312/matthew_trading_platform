@@ -357,3 +357,140 @@ mvn spring-boot:run
 ---
 
 *Last updated: 2026-05-19 — update Status column as tasks complete.*
+
+
+
+# Feature Clarifications & UX Improvements
+
+## 1. Chart Data Aggregation – On‑Demand & Timeframe‑Aware
+
+**Current Behaviour:**  
+Market data aggregation (OHLCV fetching, indicator computation, and analysis pipeline) may run for all symbols or multiple timeframes simultaneously, consuming unnecessary API quota and CPU resources.
+
+**Desired Behaviour:**  
+Aggregation should be **triggered only for the chart that is currently open** and strictly **based on its selected timeframe**.
+
+### How It Should Work
+
+- When a user opens the **Live Chart** view, the system starts aggregating data **only for that symbol and timeframe** (e.g., `BTCUSDT` + `1h`).
+- When the user **changes the timeframe** (e.g., from `1h` to `15m`), the aggregation engine switches to the new timeframe and begins fetching/polling accordingly.
+- **Background polling/refresh** (e.g., every 60 seconds) should respect the active timeframe – shorter timeframes refresh more frequently than longer ones.
+- If the user **navigates away** from the chart (e.g., to Dashboard or Trade Journal), aggregation should **pause or stop entirely** for that symbol/timeframe.
+- When the user **returns** to the chart, the latest cached data should be displayed immediately, and a fresh fetch should occur only if the cache is stale (based on timeframe-specific TTL).
+- **Multiple chart instances** (if supported in future) would each have their own independent aggregation cycle.
+
+### Benefits
+
+- **Reduced API load** – Fewer unnecessary calls to external providers.
+- **Lower resource usage** – CPU and memory are used only when the user is actively viewing a chart.
+- **Faster UI responsiveness** – The system is not competing with background tasks.
+- **Cost efficiency** – Rate limits and paid API tiers are consumed only for data the user actually needs.
+
+---
+
+## 2. Notification Overlay & Drawing Tools – Cleaner, Non‑Intrusive Layout
+
+**Current Problem:**  
+The notification overlay and chart drawing toolbar take up excessive screen space and obscure the price action, making the chart nearly unusable.
+
+**Desired Behaviour:**  
+Both UI elements should be **minimal, repositionable, and collapsible** so that the chart remains the primary focus.
+
+### Notification Overlay
+
+- **Design:** A subtle, semi‑transparent **banner or toast** that appears at the top‑right or bottom‑right corner of the chart area.
+- **Content:** Shows only the latest alert message (e.g., *"BTCUSDT broke above 65,000"*) with a small **dismiss (✕)** button.
+- **Multiple alerts:** Stack vertically, but limit to **3 visible** with a "View All" link that opens the Alert Manager.
+- **Auto‑dismiss:** Alerts fade out after 5–10 seconds unless the user hovers over them.
+- **Collapsible:** A small **bell icon** on the chart toolbar toggles the overlay on/off.
+
+### Drawing Tools Toolbar
+
+- **Design:** A compact **vertical toolbar** on the left‑hand side, no wider than **40–48 pixels**.
+- **Icons only:** Each tool is represented by a small icon (16×16 or 20×20 pixels) – no text labels.
+- **Grouping:** Related tools are grouped into **dropdown flyouts** (see point 3 below).
+- **Collapsible:** A small **arrow** at the top of the toolbar collapses it to a thin strip, showing only a "show" button.
+- **Draggable:** The entire toolbar can be **dragged** to any corner of the chart (top‑left, top‑right, bottom‑right) – the user chooses where it sits.
+- **Auto‑hide:** Optionally, the toolbar can **auto‑hide** when the mouse leaves the chart area and reappear on hover.
+
+### Benefits
+
+- **Unobstructed chart view** – Users see the full price action and candlesticks.
+- **Reduced visual clutter** – Only essential elements remain visible.
+- **User‑controllable** – The user decides where and when to show/hide overlays.
+
+---
+
+## 3. Drawing Tools – Grouped Dropdowns with Tooltips
+
+**Current Problem:**  
+Many drawing tools are similar in type and clutter the toolbar. Users have to remember each icon's purpose without any text labels.
+
+**Desired Behaviour:**  
+Tools are **grouped by category** into dropdown menus. Each tool icon shows a **tooltip** (name) on hover.
+
+### Proposed Grouping
+
+| Group | Tools Included | Icon / Label |
+|-------|----------------|--------------|
+| **Line** | Trend Line, Ray, Extended Line, Horizontal Line, Vertical Line | 📐 |
+| **Fib Suite** | Fib Retracement, Fib Extension, Fib Fan, Fib Time Zones, Fib Channel, Fib Speed Resistance | 🔢 |
+| **Positions** | Long Position, Short Position | 📈 / 📉 |
+| **Shapes** | Rectangle, Triangle, Ellipse, Parallel Channel, Flat Channel | ▭ |
+| **Annotations** | Text Label, Callout, Arrow, Note, Ruler | ✏️ |
+| **Utility** | Parallel Lines (copy), Mirror Tool | 🛠️ |
+
+### Interaction Behaviour
+
+- Clicking a group icon **expands a dropdown** showing all tools in that category (e.g., all line tools).
+- Selecting a tool from the dropdown sets it as the active drawing tool.
+- The group icon remains visible, but the **last‑used tool** in that group is highlighted or displayed as a small badge.
+- Hovering over **any tool icon** (group or individual) displays a **tooltip** with the tool name (e.g., *"Fibonacci Retracement"*).
+- Keyboard shortcuts can still be assigned to frequently used tools (e.g., `T` for Trend Line, `F` for Fib Retracement).
+
+### Benefits
+
+- **Cleaner toolbar** – 6 groups instead of 17+ individual icons.
+- **Discoverability** – Hover tooltips teach the user what each tool does.
+- **Faster access** – Users quickly learn which group contains their favourite tools.
+- **Scalable** – New tools can be added to existing groups without cluttering the toolbar.
+
+---
+
+## 4. Trade Journal – Note Field Text Colour Fix
+
+**Current Problem:**  
+In the **Trade Entry** form (New Trade / Edit Trade), the **Notes** field uses a white font on a white/light background, making the text invisible when the user types.
+
+**Desired Behaviour:**  
+The text colour for the `TextArea` (or `TextField`) should be **black (or a dark contrast colour)** so that the user can see what they are typing.
+
+### Implementation Notes
+
+- The Notes field should have:
+  - **Text colour:** `#000000` (black) or `#1a1a1a` (dark grey) for optimal readability.
+  - **Background:** White or very light grey (e.g., `#f5f5f5`).
+  - **Placeholder:** A light grey hint (e.g., *"Add any notes about this trade..."*) that disappears on focus.
+- This change should apply consistently across:
+  - **New Trade Entry** (`TradeEntry.fxml`)
+  - **Edit Trade** (same FXML, populated mode)
+  - Any other view that uses the same component (e.g., read‑only note display in Dashboard/Journal tables, if shown).
+
+### Benefits
+
+- **Usability** – Users can immediately see and edit their notes without switching themes or squinting.
+- **Accessibility** – High contrast improves readability for all users.
+- **Consistency** – Aligns with standard form field behaviour in most desktop applications.
+
+---
+
+## Summary of Changes
+
+| # | Feature | Change |
+|---|---------|--------|
+| 1 | Chart Aggregation | Fetch & refresh only for the active symbol/timeframe; pause when chart view is closed. |
+| 2 | Notification Overlay | Compact, dismissible, auto‑fading, collapsible, and repositionable. |
+| 3 | Drawing Toolbar | Grouped dropdowns (6 categories); tooltips on hover for names. |
+| 4 | Notes Field | Text colour changed to black for visibility against white background. |
+
+---

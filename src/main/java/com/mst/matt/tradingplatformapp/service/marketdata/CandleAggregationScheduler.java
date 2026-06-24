@@ -33,13 +33,16 @@ public class CandleAggregationScheduler {
     private final MarketDataTableRegistryRepository registryRepository;
     private final DynamicOhlcvTableService           dynamicTableService;
     private final CandleAggregationService           aggregationService;
+    private final ChartLiveSessionService            chartSession;
 
     public CandleAggregationScheduler(MarketDataTableRegistryRepository registryRepository,
                                       DynamicOhlcvTableService dynamicTableService,
-                                      CandleAggregationService aggregationService) {
+                                      CandleAggregationService aggregationService,
+                                      ChartLiveSessionService chartSession) {
         this.registryRepository = registryRepository;
         this.dynamicTableService = dynamicTableService;
         this.aggregationService = aggregationService;
+        this.chartSession = chartSession;
     }
 
     /**
@@ -48,11 +51,17 @@ public class CandleAggregationScheduler {
      */
     @Scheduled(fixedDelayString = "${app.market-data.aggregation.delay-ms:900000}")
     public void runAggregation() {
-        log.info("Starting offline candle aggregation pass…");
+        if (!chartSession.isActive()) {
+            log.debug("Bulk aggregation skipped — chart view not active");
+            return;
+        }
+        log.info("Starting chart-scoped candle aggregation for {}/{}…",
+                chartSession.getSymbol(), chartSession.getTimeframe());
         int total = 0;
         try {
             List<MarketDataTableRegistry> entries = registryRepository.findAll();
             for (MarketDataTableRegistry entry : entries) {
+                if (!chartSession.matches(entry)) continue;
                 try {
                     total += processEntry(entry);
                 } catch (Exception ex) {
@@ -63,7 +72,7 @@ public class CandleAggregationScheduler {
         } catch (Exception ex) {
             log.error("Aggregation pass failed: {}", ex.getMessage(), ex);
         }
-        log.info("Offline candle aggregation done — {} higher-TF table(s) updated.", total);
+        log.info("Chart-scoped aggregation done — {} higher-TF table(s) updated.", total);
     }
 
     /**
@@ -81,6 +90,9 @@ public class CandleAggregationScheduler {
                                           Trade.AssetType assetType,
                                           List<OhlcvBar> bars) {
         if (bars == null || bars.isEmpty()) return;
+        if (!chartSession.isActive()) return;
+        if (chartSession.getSymbol() != null
+                && !chartSession.getSymbol().equalsIgnoreCase(symbol)) return;
         String providerSegment = (provider == null || provider == MarketDataProvider.AUTO)
                 ? "" : provider.name();
         Thread.ofVirtual().start(() -> {

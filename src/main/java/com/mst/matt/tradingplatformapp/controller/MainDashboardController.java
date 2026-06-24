@@ -1,5 +1,6 @@
 package com.mst.matt.tradingplatformapp.controller;
 
+import com.mst.matt.tradingplatformapp.model.TradeDrawingDraft;
 import com.mst.matt.tradingplatformapp.model.UserProfile;
 import com.mst.matt.tradingplatformapp.model.UserProfile.ProfileAssetFocus;
 import com.mst.matt.tradingplatformapp.model.AppUser;
@@ -680,6 +681,41 @@ public class MainDashboardController implements Initializable {
         var wc = fxWeaver.load(ChartController.class);
         chartView = asParent(wc.getView().orElseThrow());
         chartCtrl = wc.getController();
+        chartCtrl.setOnCreateTradeFromDrawing(this::openTradeEntryFromDrawing);
+        chartCtrl.setOnInstantSaveTradeFromDrawing(this::instantSaveTradeFromDrawing);
+        chartCtrl.setOnViewAllAlerts(this::onNavAlerts);
+    }
+
+    private void openTradeEntryFromDrawing(TradeDrawingDraft draft) {
+        setActiveNav(navTrades);
+        if (tradeEntryView == null) {
+            var wc = fxWeaver.load(TradeEntryController.class);
+            tradeEntryView = asParent(wc.getView().orElseThrow());
+            tradeEntryCtrl = wc.getController();
+            tradeEntryCtrl.setOnSaveCallback(saved -> {
+                if (dashboardCtrl != null && activeProfile != null)
+                    dashboardCtrl.loadProfile(activeProfile);
+                onNavTrades();
+            });
+        }
+        if (activeProfile != null) tradeEntryCtrl.setProfile(activeProfile);
+        tradeEntryCtrl.setEditingTrade(null);
+        tradeEntryCtrl.initFromDrawing(draft);
+        showView(tradeEntryView);
+    }
+
+    private void instantSaveTradeFromDrawing(TradeDrawingDraft draft) {
+        if (tradeEntryCtrl == null) {
+            var wc = fxWeaver.load(TradeEntryController.class);
+            tradeEntryCtrl = wc.getController();
+            tradeEntryCtrl.setOnSaveCallback(saved -> {
+                if (dashboardCtrl != null && activeProfile != null)
+                    dashboardCtrl.loadProfile(activeProfile);
+            });
+        }
+        if (activeProfile != null) tradeEntryCtrl.setProfile(activeProfile);
+        tradeEntryCtrl.instantSaveFromDrawing(draft);
+        showInfoNotification("Trade saved from chart drawing");
     }
 
     @FXML public void onNavTrades() {
@@ -905,6 +941,9 @@ public class MainDashboardController implements Initializable {
     }
 
     private void showView(Parent view) {
+        if (chartCtrl != null && currentView == chartView && view != chartView) {
+            chartCtrl.onChartDeactivated();
+        }
         currentView = view;
         contentArea.getChildren().setAll(view);
         StackPane.setAlignment(view, javafx.geometry.Pos.TOP_LEFT);

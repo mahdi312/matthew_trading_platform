@@ -93,6 +93,15 @@ public class TradeEntryController implements Initializable {
 
         // Add change listeners for live P&L preview
         addPnlListeners();
+        styleNotesArea();
+    }
+
+    private void styleNotesArea() {
+        if (notesArea == null) return;
+        notesArea.setStyle("-fx-control-inner-background:#f5f5f5; -fx-background-color:#f5f5f5;"
+                + "-fx-text-fill:#1a1a1a; -fx-prompt-text-fill:#999999;"
+                + "-fx-border-color:#cccccc; -fx-border-radius:6;"
+                + "-fx-background-radius:6; -fx-padding:8; -fx-font-size:13px;");
     }
 
     /** Apply dark theme programmatically to a ComboBox (ensures button-cell text is visible). */
@@ -427,6 +436,7 @@ public class TradeEntryController implements Initializable {
         isLong = true;
         if (formTitleLabel != null) formTitleLabel.setText("📋 New Trade Entry");
         styleDirectionButtons();
+        styleNotesArea();
         // Re-apply dark theme to pickers in case JavaFX reset them
         styleDatePicker(entryDatePicker);
         styleDatePicker(exitDatePicker);
@@ -505,6 +515,50 @@ public class TradeEntryController implements Initializable {
         }
     }
     public void setOnSaveCallback(Consumer<Trade> cb) { this.onSaveCallback = cb; }
+
+    /** Pre-fill the form from a Long/Short position chart drawing. */
+    public void initFromDrawing(TradeDrawingDraft draft) {
+        if (draft == null) return;
+        editingTrade = null;
+        clearForm();
+        if (formTitleLabel != null) formTitleLabel.setText("📋 New Trade from Chart");
+        symbolField.setText(draft.symbol());
+        isLong = draft.direction() == TradeDirection.LONG;
+        styleDirectionButtons();
+        entryPriceField.setText(draft.entryPrice().toPlainString());
+        if (draft.stopLoss() != null)
+            stopLossField.setText(draft.stopLoss().toPlainString());
+        if (draft.takeProfit() != null)
+            takeProfitField.setText(draft.takeProfit().toPlainString());
+        if (draft.assetType() != null)
+            assetTypeCombo.setValue(draft.assetType());
+        quantityField.setText("1");
+        updatePnlPreview();
+    }
+
+    /** One-click save from chart position drawing (qty=1, OPEN status). */
+    public void instantSaveFromDrawing(TradeDrawingDraft draft) {
+        if (draft == null || currentProfile == null) return;
+        try {
+            Trade trade = new Trade();
+            trade.setProfile(currentProfile);
+            trade.setSymbol(draft.symbol());
+            trade.setAssetName(draft.symbol());
+            trade.setAssetType(draft.assetType() != null ? draft.assetType() : AssetType.CRYPTO);
+            trade.setDirection(draft.direction());
+            trade.setEntryPrice(draft.entryPrice());
+            trade.setQuantity(BigDecimal.ONE);
+            trade.setStatus(TradeStatus.OPEN);
+            trade.setEntryTime(LocalDateTime.now());
+            if (draft.stopLoss() != null) trade.setStopLoss(draft.stopLoss());
+            if (draft.takeProfit() != null) trade.setTakeProfit(draft.takeProfit());
+            Trade saved = tradeService.saveTrade(trade);
+            if (onSaveCallback != null) onSaveCallback.accept(saved);
+        } catch (Exception e) {
+            new Alert(Alert.AlertType.ERROR,
+                    "Instant save failed: " + e.getMessage()).showAndWait();
+        }
+    }
 
     private void populateForm(Trade t) {
         clearForm();
