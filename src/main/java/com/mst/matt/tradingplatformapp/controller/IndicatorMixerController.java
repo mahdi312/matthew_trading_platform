@@ -6,6 +6,7 @@ import com.mst.matt.tradingplatformapp.repository.SymbolEntryRepository;
 import com.mst.matt.tradingplatformapp.service.OhlcvStorageService;
 import com.mst.matt.tradingplatformapp.service.analysis.*;
 import com.mst.matt.tradingplatformapp.service.price.PriceRouter;
+import com.mst.matt.tradingplatformapp.ui.AutocompleteSymbolField;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
@@ -39,6 +40,8 @@ public class IndicatorMixerController implements Initializable {
     // Symbol search / select
     @FXML private TextField    mixerSymbolField;
     @FXML private ComboBox<String> mixerSymbolCombo;
+    /** Autocomplete field injected programmatically at initialize time. */
+    private AutocompleteSymbolField autocompleteField;
 
     // Preset combo
     @FXML private ComboBox<String> profilePresetCombo;
@@ -132,7 +135,32 @@ public class IndicatorMixerController implements Initializable {
                     new SpinnerValueFactory.DoubleSpinnerValueFactory(1.0, 5.0, 2.0, 0.1));
         }
 
-        // Initialize symbol search field and combo
+        // ── Wire autocomplete symbol field ──────────────────────────────────
+        // Replace the plain TextField with an AutocompleteSymbolField that
+        // queries the SymbolEntry DB as the user types.
+        // Re-create on each FXML reload (singleton bean).
+        autocompleteField = new AutocompleteSymbolField(symbolEntryRepository);
+        autocompleteField.setPrefWidth(200);
+        autocompleteField.setText(mixerSymbol);
+        autocompleteField.setOnSymbolSelected(sym -> {
+            mixerSymbol = sym.trim().toUpperCase();
+            reloadMixerIndicators();
+        });
+        // Keep plain text field in sync (for onMixerSymbolChanged handler)
+        autocompleteField.textProperty().addListener((o, a, text) -> {
+            if (text != null && !text.isBlank()) {
+                mixerSymbol = text.trim().toUpperCase();
+                if (mixerSymbolField != null) mixerSymbolField.setText(mixerSymbol);
+            }
+        });
+        if (mixerSymbolField != null && mixerSymbolField.getParent() instanceof HBox headerBox) {
+            // Replace the old TextField in the header HBox
+            int idx = headerBox.getChildren().indexOf(mixerSymbolField);
+            if (idx >= 0) {
+                headerBox.getChildren().set(idx, autocompleteField);
+            }
+        }
+        // Also wire the existing field as fallback for onMixerSymbolChanged
         if (mixerSymbolField != null) {
             mixerSymbolField.setText(mixerSymbol);
             mixerSymbolField.textProperty().addListener((o, a, text) -> {
@@ -145,7 +173,8 @@ public class IndicatorMixerController implements Initializable {
             mixerSymbolCombo.valueProperty().addListener((o, a, sym) -> {
                 if (sym != null && !sym.isBlank()) {
                     mixerSymbol = sym.trim().toUpperCase();
-                    if (mixerSymbolField != null) mixerSymbolField.setText(mixerSymbol);
+                    if (autocompleteField != null) autocompleteField.setSymbol(mixerSymbol);
+                    else if (mixerSymbolField != null) mixerSymbolField.setText(mixerSymbol);
                     reloadMixerIndicators();
                 }
             });
@@ -269,7 +298,8 @@ public class IndicatorMixerController implements Initializable {
         if (profile != null && profile.getDefaultSymbol() != null
                 && !profile.getDefaultSymbol().isBlank()) {
             mixerSymbol = profile.getDefaultSymbol().toUpperCase();
-            if (mixerSymbolField != null) mixerSymbolField.setText(mixerSymbol);
+            if (autocompleteField != null) autocompleteField.setSymbol(mixerSymbol);
+            else if (mixerSymbolField != null) mixerSymbolField.setText(mixerSymbol);
             if (mixerSymbolCombo != null) {
                 // Refresh symbol list for this profile's asset focus
                 populateMixerSymbolCombo();

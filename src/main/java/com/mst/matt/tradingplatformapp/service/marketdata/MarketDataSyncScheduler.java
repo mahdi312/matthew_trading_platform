@@ -15,8 +15,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Polls external market APIs on each registered table's timeframe interval
- * and persists results into per-symbol/provider/timeframe tables.
+ * Polls external market APIs for the <em>active chart only</em> (symbol + timeframe).
+ * Pauses entirely when the user navigates away from the Live Chart view.
  */
 @Component
 @ConditionalOnProperty(name = "app.market-data.sync.enabled", havingValue = "true", matchIfMissing = true)
@@ -28,51 +28,44 @@ public class MarketDataSyncScheduler {
     private final MarketDataSyncService syncService;
     private final MarketDataProperties properties;
     private final AppSettingsService appSettings;
+    private final ChartLiveSessionService chartSession;
 
     private volatile UserProfile activeProfile;
 
     public MarketDataSyncScheduler(MarketDataTableRegistryRepository registryRepository,
                                    MarketDataSyncService syncService,
                                    MarketDataProperties properties,
-                                   AppSettingsService appSettings) {
+                                   AppSettingsService appSettings,
+                                   ChartLiveSessionService chartSession) {
         this.registryRepository = registryRepository;
         this.syncService = syncService;
         this.properties = properties;
         this.appSettings = appSettings;
+        this.chartSession = chartSession;
     }
 
     public void setActiveProfile(UserProfile profile) {
         this.activeProfile = profile;
     }
 
-    /**
-     * Sync only tables that belong to the currently viewed symbol (or the active profile's
-     * default symbol). This prevents background bulk-loading of OHLCV data for every
-     * symbol ever registered — only the chart the user is actually looking at gets refreshed.
-     */
     @Scheduled(fixedDelay = 30_000)
     public void syncDueTables() {
         if (!properties.getDynamicTables().isEnabled() || !appSettings.isApiFetchEnabled()) {
             return;
         }
-        List<MarketDataTableRegistry> due = registryRepository.findDueForSync(LocalDateTime.now());
-        if (due.isEmpty()) {
+        if (!chartSession.isActive()) {
+            log.trace("Market data sync skipped — chart view not active");
             return;
         }
 
-        // Lazy load: only sync tables for the currently active symbol
-        // (if we know which symbol is active via the profile's default symbol)
-        String activeSymbol = (activeProfile != null && activeProfile.getDefaultSymbol() != null)
-                ? activeProfile.getDefaultSymbol().toUpperCase() : null;
+        List<MarketDataTableRegistry> due = registryRepository.findDueForSync(LocalDateTime.now());
+        if (due.isEmpty()) return;
 
-        log.debug("Market data sync tick — {} table(s) due, active symbol: {}",
-                due.size(), activeSymbol);
+        log.debug("Chart sync tick — {} due table(s) for {}/{}",
+                due.size(), chartSession.getSymbol(), chartSession.getTimeframe());
 
         for (MarketDataTableRegistry entry : due) {
-            // Skip entries for symbols not matching the currently viewed symbol
-            if (activeSymbol != null && !entry.getSymbol().equalsIgnoreCase(activeSymbol)) {
-                log.trace("Skipping background sync for {} (not the active chart symbol {})",
-                        entry.getSymbol(), activeSymbol);
+            if (!chartSession.matches(entry)) {
                 continue;
             }
             try {
@@ -83,10 +76,17 @@ public class MarketDataSyncScheduler {
         }
     }
 
-    /** Called by MainDashboardController / ChartController when the user switches symbol. */
-    public void notifyActiveSymbolChanged(String symbol) {
+    /** Called when the user changes symbol or timeframe on the open chart. */
+    public void notifyChartContextChanged(String symbol, String timeframe) {
+        chartSession.updateContext(symbol, timeframe);
         if (activeProfile != null && symbol != null) {
             activeProfile.setDefaultSymbol(symbol.toUpperCase());
         }
+    }
+
+    /** @deprecated use {@link #notifyChartContextChanged(String, String)} */
+    @Deprecated
+    public void notifyActiveSymbolChanged(String symbol) {
+        notifyChartContextChanged(symbol, chartSession.getTimeframe());
     }
 }

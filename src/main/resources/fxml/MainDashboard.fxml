@@ -74,10 +74,12 @@
                     <Insets top="24" right="24" bottom="24" left="24"/>
                 </padding>
             </StackPane>
-            <!-- Non-blocking toast notifications (auto-hide 3s, closable) -->
-            <StackPane fx:id="globalNotificationOverlay" alignment="TOP_CENTER"
-                       visible="false" managed="false" mouseTransparent="false"
-                       style="-fx-padding:12 16 0 16; -fx-background-color:transparent;"/>
+            <!-- Non-blocking toast notifications (auto-hide 3s, closable).
+                 pickOnBounds=false so transparent areas pass through mouse events.
+                 Only the visible toast pills intercept clicks. -->
+            <StackPane fx:id="globalNotificationOverlay" alignment="BOTTOM_RIGHT"
+                       visible="false" managed="false" pickOnBounds="false"
+                       style="-fx-background-color:transparent; -fx-padding:0 16 16 0;"/>
         </StackPane>
     </center>
 

@@ -69,6 +69,12 @@
             <HBox fx:id="analysisToolbar" spacing="8" alignment="CENTER_LEFT"
                   visible="false" managed="false"/>
 
+            <Button fx:id="chartNotifyBellBtn" text="🔔" styleClass="btn-secondary"
+                    onAction="#onToggleChartNotifications"
+                    style="-fx-min-width:32; -fx-padding:3 8;">
+                <tooltip><Tooltip text="Toggle chart notifications"/></tooltip>
+            </Button>
+
             <Separator orientation="VERTICAL"/>
 
             <!-- Data source -->
@@ -112,15 +118,14 @@
                style="-fx-font-size:18px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
     </HBox>
 
-    <!-- ═══════════════ Chart canvas + notification overlay ═══════════════ -->
-    <StackPane VBox.vgrow="ALWAYS">
+    <!-- ═══════════════ Chart canvas + drawing toolbar + notifications ═══════════════ -->
+    <StackPane fx:id="chartStack" VBox.vgrow="ALWAYS">
         <Pane fx:id="chartPane" style="-fx-background-color:#0d1117;"/>
-        <!-- Non-blocking notification overlay (error messages, auto-hides after 3s) -->
-        <StackPane fx:id="notificationOverlay" alignment="TOP_CENTER"
-                   visible="false" managed="false"
-                   style="-fx-padding:12 12 0 12; -fx-background-color:transparent;"
-                   mouseTransparent="false">
-        </StackPane>
+        <!-- Toast notifications (top-right, max 3) -->
+        <VBox fx:id="notificationOverlay" alignment="TOP_RIGHT"
+              visible="false" managed="false"
+              mouseTransparent="false"
+              StackPane.alignment="TOP_RIGHT"/>
     </StackPane>
 
 </VBox>

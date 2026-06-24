@@ -78,11 +78,14 @@ public class TradeEntryController implements Initializable {
         // Populate asset type combo
         assetTypeCombo.getItems().setAll(AssetType.values());
         assetTypeCombo.setValue(AssetType.CRYPTO);
+        styleComboBox(assetTypeCombo);
 
         // Set default date to today
         entryDatePicker.setValue(LocalDate.now());
         entryTimeField.setText(LocalTime.now()
                 .format(DateTimeFormatter.ofPattern("HH:mm")));
+        styleDatePicker(entryDatePicker);
+        styleDatePicker(exitDatePicker);
 
         // Long selected by default
         isLong = true;
@@ -90,6 +93,50 @@ public class TradeEntryController implements Initializable {
 
         // Add change listeners for live P&L preview
         addPnlListeners();
+        styleNotesArea();
+    }
+
+    private void styleNotesArea() {
+        if (notesArea == null) return;
+        notesArea.setStyle("-fx-control-inner-background:#f5f5f5; -fx-background-color:#f5f5f5;"
+                + "-fx-text-fill:#1a1a1a; -fx-prompt-text-fill:#999999;"
+                + "-fx-border-color:#cccccc; -fx-border-radius:6;"
+                + "-fx-background-radius:6; -fx-padding:8; -fx-font-size:13px;");
+    }
+
+    /** Apply dark theme programmatically to a ComboBox (ensures button-cell text is visible). */
+    private <T> void styleComboBox(ComboBox<T> combo) {
+        String darkCell = "-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;"
+                + "-fx-padding:4 8; -fx-font-size:13px;";
+        combo.setCellFactory(lv -> new ListCell<T>() {
+            @Override protected void updateItem(T item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.toString());
+                setStyle(empty ? "" : darkCell);
+            }
+        });
+        combo.setButtonCell(new ListCell<T>() {
+            @Override protected void updateItem(T item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.toString());
+                setStyle(darkCell);
+                // Force the combo box container dark
+                combo.setStyle("-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;"
+                        + "-fx-border-color:#30363d; -fx-border-radius:6;"
+                        + "-fx-background-radius:6;");
+            }
+        });
+    }
+
+    /** Apply dark background to a DatePicker (the popup inherits from CSS). */
+    private void styleDatePicker(DatePicker dp) {
+        if (dp == null) return;
+        dp.setStyle("-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;"
+                + "-fx-border-color:#30363d; -fx-border-radius:6;"
+                + "-fx-background-radius:6;");
+        // Ensure the text field inside is also dark
+        dp.getEditor().setStyle("-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;"
+                + "-fx-border-color:transparent; -fx-padding:6 10;");
     }
 
     // ── Direction Buttons ────────────────────────────────────
@@ -381,11 +428,18 @@ public class TradeEntryController implements Initializable {
         exitDatePicker.setValue(null);
         investedLabel.setText("$0.00");
         pnlAmountLabel.setText("$0.00");
+        pnlAmountLabel.setStyle("-fx-font-size:26px; -fx-font-weight:bold; -fx-text-fill:#8b949e;");
         pnlPercentLabel.setText("0.00%");
+        pnlPercentLabel.setStyle("-fx-font-size:26px; -fx-font-weight:bold; -fx-text-fill:#8b949e;");
         rrLabel.setText("—");
+        rrLabel.setStyle("-fx-font-size:26px; -fx-font-weight:bold; -fx-text-fill:#388bfd;");
         isLong = true;
         if (formTitleLabel != null) formTitleLabel.setText("📋 New Trade Entry");
         styleDirectionButtons();
+        styleNotesArea();
+        // Re-apply dark theme to pickers in case JavaFX reset them
+        styleDatePicker(entryDatePicker);
+        styleDatePicker(exitDatePicker);
     }
 
     // ── Broker Import ─────────────────────────────────────────
@@ -461,6 +515,50 @@ public class TradeEntryController implements Initializable {
         }
     }
     public void setOnSaveCallback(Consumer<Trade> cb) { this.onSaveCallback = cb; }
+
+    /** Pre-fill the form from a Long/Short position chart drawing. */
+    public void initFromDrawing(TradeDrawingDraft draft) {
+        if (draft == null) return;
+        editingTrade = null;
+        clearForm();
+        if (formTitleLabel != null) formTitleLabel.setText("📋 New Trade from Chart");
+        symbolField.setText(draft.symbol());
+        isLong = draft.direction() == TradeDirection.LONG;
+        styleDirectionButtons();
+        entryPriceField.setText(draft.entryPrice().toPlainString());
+        if (draft.stopLoss() != null)
+            stopLossField.setText(draft.stopLoss().toPlainString());
+        if (draft.takeProfit() != null)
+            takeProfitField.setText(draft.takeProfit().toPlainString());
+        if (draft.assetType() != null)
+            assetTypeCombo.setValue(draft.assetType());
+        quantityField.setText("1");
+        updatePnlPreview();
+    }
+
+    /** One-click save from chart position drawing (qty=1, OPEN status). */
+    public void instantSaveFromDrawing(TradeDrawingDraft draft) {
+        if (draft == null || currentProfile == null) return;
+        try {
+            Trade trade = new Trade();
+            trade.setProfile(currentProfile);
+            trade.setSymbol(draft.symbol());
+            trade.setAssetName(draft.symbol());
+            trade.setAssetType(draft.assetType() != null ? draft.assetType() : AssetType.CRYPTO);
+            trade.setDirection(draft.direction());
+            trade.setEntryPrice(draft.entryPrice());
+            trade.setQuantity(BigDecimal.ONE);
+            trade.setStatus(TradeStatus.OPEN);
+            trade.setEntryTime(LocalDateTime.now());
+            if (draft.stopLoss() != null) trade.setStopLoss(draft.stopLoss());
+            if (draft.takeProfit() != null) trade.setTakeProfit(draft.takeProfit());
+            Trade saved = tradeService.saveTrade(trade);
+            if (onSaveCallback != null) onSaveCallback.accept(saved);
+        } catch (Exception e) {
+            new Alert(Alert.AlertType.ERROR,
+                    "Instant save failed: " + e.getMessage()).showAndWait();
+        }
+    }
 
     private void populateForm(Trade t) {
         clearForm();
