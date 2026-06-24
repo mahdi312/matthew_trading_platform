@@ -404,52 +404,156 @@ To transform the charting experience from a passive viewer into a fully interact
 - **Fib Speed Resistance** – Angled support/resistance lines based on price/time speed (1x, 2x, 3x slopes).
 - **Fib Fan** – Radial lines emanating from a pivot point at Fibonacci angles.
 
-**3. Position & Risk Management Tools**
-- **Long Position** – Visual template with three draggable horizontal lines: **Entry** (green), **Stop Loss** (red), and **Take Profit** (blue). Automatically calculates and displays:
-    - Risk/Reward ratio (R:R).
-    - Position size preview (based on account risk %).
-- **Short Position** – Same as long, but with red entry and green target (inverse logic).
-- **Risk/Reward Label** – A floating annotation that displays the calculated risk/reward ratio for any highlighted trade setup.
+# Position & Risk Management Tools – Full Specification with Screenshot Integration
+
+## Overview
+
+The Long/Short Position tools transform the chart into a **trade planning cockpit**. Users can visually define entry, stop loss, and take profit levels, see the risk/reward ratio in real time, and seamlessly log the trade to the journal – **with a chart screenshot attached** for full visual context.
+
+---
+
+## 1. Position Drawing Tools
+
+### Long Position
+- Visual template with **three draggable horizontal lines**:
+  - **Entry** – Green line (default)
+  - **Stop Loss** – Red line (default)
+  - **Take Profit** – Blue line (default)
+- The user drags horizontally to set the time span; the lines extend across the chart.
+- The area between Entry and SL/TP shows a **Risk:Reward label** (e.g., `R:R = 1:2.5`).
+- Automatically calculates and displays:
+  - **Risk/Reward ratio** (R:R) – updated live as lines are dragged.
+  - **Position size preview** – based on account risk % (if configured in user settings).
+
+### Short Position
+- Same as Long Position but with **inverse logic**:
+  - **Entry** – Red line (default)
+  - **Stop Loss** – Blue line (default)
+  - **Take Profit** – Green line (default)
+- R:R label and position size preview work identically.
+
+### Standalone Tools
+- **Risk/Reward Label** – A floating annotation that displays the calculated risk/reward ratio for any highlighted trade setup (can be placed independently).
 - **Profit Target / Stop Loss** – Standalone horizontal lines with editable price labels, often used alongside existing open positions.
 
-##### Integration with Trade Journal
+---
 
-Each **Long Position** or **Short Position** drawing acts as a **live trade draft**, bridging visual planning and the trade journal.
+## 2. Trade Journal Integration
 
-###### Two‑Step Workflow (Full Control)
+Each Long/Short Position shape becomes a **live trade draft**. Users can transfer the visual setup directly into the trade journal with full data pre‑filled.
 
-1. **Trigger the transfer** – The user can either:
-    - **Right‑click** on the position shape and select **“Create Trade from Drawing”** from the context menu, **or**
-    - **Hover** over the shape; a small **“+ Trade”** icon appears near the anchor – clicking it initiates the same action.
+### Triggers
+- **Right‑click** on the position shape → select **“Create Trade from Drawing”**.
+- **Hover** over the shape → a small **“+ Trade”** icon appears near the anchor → click it.
 
-2. **Pre‑filled Trade Entry form** – The `TradeEntry` dialog (see section **2.4**) opens with the following fields automatically populated from the drawing:
+### What Happens Next
+Both actions open the **Trade Entry form** (full dialog) pre‑filled with:
 
-   | Field          | Source                               |
-      |----------------|--------------------------------------|
-   | **Symbol**     | Current chart symbol                 |
-   | **Direction**  | `LONG` or `SHORT` (as drawn)         |
-   | **Entry Price**| The drawn entry line level           |
-   | **Stop Loss**  | The drawn SL line level              |
-   | **Take Profit**| The drawn TP line level              |
-   | **Risk:Reward**| Computed and shown in the preview    |
+| Field | Source |
+|-------|--------|
+| **Symbol** | Current chart symbol |
+| **Direction** | `LONG` or `SHORT` (as drawn) |
+| **Entry Price** | Drawn entry line level |
+| **Stop Loss** | Drawn SL line level |
+| **Take Profit** | Drawn TP line level |
+| **Risk:Reward** | Computed and shown in preview |
 
-3. **User adjustments** – The trader can now:
-    - Modify any field (e.g., adjust entry, add quantity, change strategy, write notes).
-    - Use the live preview to see the updated P&L and R:R.
-    - **Save** the trade – it is persisted to the active profile’s journal.
+The user can then:
+- Adjust any field (quantity, strategy, notes, etc.).
+- Use the live preview to see updated P&L and R:R.
+- **Save** the trade – it is persisted to the active profile’s journal.
 
-###### One‑Click Workflow (Quick Logging)
+---
+
+## 3. Instant Save (Quick Logging)
 
 For fast, on‑the‑fly logging, the platform offers an **“Instant Save”** feature:
 
-- An **“Instant Save”** button (or a keyboard shortcut, e.g., `Ctrl+Shift+T`) is available directly on the position shape.
+- An **“Instant Save”** button appears on the shape (or a keyboard shortcut `Ctrl+Shift+T`).
 - Clicking it **saves the trade immediately** with sensible defaults:
-    - Quantity = `1` (or a user‑configured default)
-    - Status = `OPEN`
-    - No exit date/price (the trade is considered open)
-    - Strategy/notes are left blank (or can be filled later via edit).
+  - Quantity = `1` (or a user‑configured default)
+  - Status = `OPEN`
+  - No exit date/price (trade remains open)
+  - Strategy/notes are left blank (can be edited later)
 
-This bypasses the full entry form, allowing traders to record a planned trade in under two seconds – ideal during fast‑moving markets.
+This bypasses the full entry form, allowing traders to record a planned trade in under two seconds.
+
+---
+
+## 4. Screenshot Integration with Trade Journal
+
+When a Long/Short position is active, a **camera icon (📷)** appears:
+- Near the position shape (e.g., next to the “+ Trade” icon).
+- Or as a dedicated button in the chart toolbar when a position is selected.
+
+### Screenshot Behaviour
+
+- **Clicking the camera icon** captures the **current chart view** (including all drawings, indicators, candlesticks, and overlays) as a **PNG image**.
+- The image is **automatically attached** to the trade being created:
+  - If using **Create Trade from Drawing** (full form), the screenshot appears as an attachment in the form (e.g., a thumbnail with a preview option).
+  - If using **Instant Save**, the screenshot is saved alongside the trade record without opening the form.
+- The image is stored in the profile’s data folder:  
+  `~/.trading-platform/screenshots/YYYY-MM-DD_symbol_screenshot.png`
+- The **file path** is stored in the `trades` table (optional column `screenshot_path`).
+- In the **Trade Journal**, the trade row shows a **small camera icon** next to the entry – clicking it opens the screenshot in a preview window.
+
+### Manual Screenshot (Without Trade)
+- A general **“Take Screenshot”** button in the chart toolbar captures the chart independently (useful for sharing or saving analysis).
+
+---
+
+## 5. Complete User Workflow
+
+1. **Draw a position** – Select Long or Short from the toolbar, click and drag on the chart.
+2. **Adjust levels** – Drag the Entry, SL, or TP lines to refine the setup.
+3. **View R:R** – The risk/reward ratio updates live as you adjust.
+4. **Decide how to log**:
+   - **Full control** – Right‑click → *Create Trade from Drawing* → adjust fields → save.
+   - **Quick log** – Click the **Instant Save** button (or `Ctrl+Shift+T`).
+   - **Include screenshot** – Click the **camera icon** at any point before saving.
+5. **Trade is saved** – The trade appears in the Journal with the screenshot attached (if taken).
+
+---
+
+## 6. Data Storage & Persistence
+
+| Data | Storage Location |
+|------|------------------|
+| Drawing coordinates (entry, SL, TP) | `chart_drawings` table (JSON) |
+| Trade record (symbol, prices, direction, etc.) | `trades` table |
+| Screenshot image file | `~/.trading-platform/screenshots/` |
+| Screenshot file path | `trades.screenshot_path` column |
+| Screenshot reference in trade form | Displayed as a thumbnail in the Trade Entry form and Journal |
+
+All drawings are saved per `profileId`, `symbol`, and `timeframe` – they reload automatically when the chart is reopened.
+
+---
+
+## 7. Additional Considerations
+
+- **Screenshot Preview:** In the Trade Entry form, the screenshot is shown as a small preview. Clicking it opens a larger view.
+- **Multiple Screenshots:** The user can take multiple screenshots before saving – only the latest one is stored, or the system can allow multiple attachments (future enhancement).
+- **Storage Cleanup:** Screenshots are retained with the trade. If a trade is deleted, its associated screenshot is **not** automatically deleted (optional cleanup can be added).
+- **Offline Support:** Screenshots are saved locally; they are available offline at all times.
+
+---
+
+## Summary of Features
+
+| Feature | Description |
+|---------|-------------|
+| Long Position | Green entry, red SL, blue TP; R:R display. |
+| Short Position | Red entry, blue SL, green TP; R:R display. |
+| R:R Label | Floating annotation for any highlighted setup. |
+| Profit Target / Stop Loss | Standalone horizontal lines with editable labels. |
+| Create Trade from Drawing | Opens full Trade Entry form pre‑filled with all position data. |
+| “+ Trade” Icon | Quick hover‑triggered action to open the Trade Entry form. |
+| Instant Save (`Ctrl+Shift+T`) | Saves the trade immediately with defaults (qty=1, OPEN). |
+| Screenshot Capture (📷) | Captures the chart as a PNG and attaches it to the trade. |
+| Screenshot Preview | Thumbnail in Trade Entry form; opens larger view on click. |
+| Screenshot Storage | Image saved in `~/.trading-platform/screenshots/`; path stored in `trades.screenshot_path`. |
+
+---
 
 ---
 
