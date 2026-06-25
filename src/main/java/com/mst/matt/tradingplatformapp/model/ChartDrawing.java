@@ -1,7 +1,10 @@
 package com.mst.matt.tradingplatformapp.model;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -58,6 +61,7 @@ public class ChartDrawing {
     @Column(nullable = false, length = 50, columnDefinition = "VARCHAR(50) DEFAULT 'default'")
     @Builder.Default
     private String layoutName = "default";
+
 
     @PrePersist
     protected void onCreate() {

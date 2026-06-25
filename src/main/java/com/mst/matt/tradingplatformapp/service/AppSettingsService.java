@@ -39,6 +39,7 @@ public class AppSettingsService {
     private volatile String  defaultTimeframe   = "1h";
     private volatile String  theme              = "dark";
     private volatile String  favoriteTimeframes = "";
+
     // Global drawing defaults
     private volatile String  defaultDrawingColor       = "#58a6ff";
     private volatile double  defaultDrawingLineWidth   = 1.5;
@@ -164,6 +165,11 @@ public class AppSettingsService {
             props.setProperty(KEY_DRAW_COLOR,        defaultDrawingColor);
             props.setProperty(KEY_DRAW_LINE_WIDTH,   String.valueOf(defaultDrawingLineWidth));
             props.setProperty(KEY_DRAW_FILL_OPACITY, String.valueOf(defaultDrawingFillOpacity));
+            props.setProperty(KEY_API_FETCH, String.valueOf(apiFetchEnabled));
+            props.setProperty(KEY_TIMEZONE, timezoneId);
+            props.setProperty(KEY_DEFAULT_TF, defaultTimeframe);
+            props.setProperty(KEY_THEME, theme);
+            props.setProperty(KEY_FAV_TIMEFRAMES, favoriteTimeframes);
             try (OutputStream out = Files.newOutputStream(settingsFile)) {
                 props.store(out, "Trading Platform app settings");
             }
