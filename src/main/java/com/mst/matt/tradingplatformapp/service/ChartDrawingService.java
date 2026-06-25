@@ -203,6 +203,8 @@ public class ChartDrawingService {
                 .channelWidth(p.getChannelWidth())
                 .text(p.getText())
                 .fontSize(p.getFontSize())
+                .textBoxWidth(p.getTextBoxWidth())
+                .textBoxHeight(p.getTextBoxHeight())
                 .arrowDirection(p.getArrowDirection())
                 .mirrorAxis(p.getMirrorAxis())
                 .parallelOffset(p.getParallelOffset())

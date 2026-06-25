@@ -11,6 +11,9 @@ import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.StackPane;
 import javafx.stage.FileChooser;
 import javafx.util.Duration;
 import net.rgielen.fxweaver.core.FxmlView;
@@ -21,6 +24,9 @@ import java.io.File;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -60,8 +66,15 @@ public class TradeEntryController implements Initializable {
     @FXML private Label pnlAmountLabel;
     @FXML private Label pnlPercentLabel;
     @FXML private Label rrLabel;
-    @FXML private Label formTitleLabel;
-    @FXML private Label importStatusLabel;
+    @FXML private Label     formTitleLabel;
+    @FXML private Label     importStatusLabel;
+    // ── Screenshot field ─────────────────────────────────────
+    @FXML private StackPane screenshotPane;
+    @FXML private ImageView screenshotImageView;
+    @FXML private Label     screenshotPlaceholderLabel;
+    @FXML private Label     screenshotPathLabel;
+    @FXML private Button    uploadImageBtn;
+    @FXML private Button    clearImageBtn;
 
     // ── Spring services ─────────────────────────────────────
     @Autowired private TradeService       tradeService;
@@ -69,9 +82,12 @@ public class TradeEntryController implements Initializable {
     @Autowired private BrokerImportService brokerImportService;
 
     private UserProfile currentProfile;
-    private Trade       editingTrade;  // non-null if editing existing trade
+    private Trade       editingTrade;     // non-null if editing existing trade
     private boolean     isLong = true;
     private Consumer<Trade> onSaveCallback;
+
+    /** Currently attached screenshot path (absolute file path), or {@code null} if none. */
+    private String currentScreenshotPath;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -347,6 +363,10 @@ public class TradeEntryController implements Initializable {
             LocalTime entryTime = parseTime(entryTimeField.getText());
             trade.setEntryTime(LocalDateTime.of(entryDate, entryTime));
 
+            // Attach screenshot if present
+            if (currentScreenshotPath != null && !currentScreenshotPath.isBlank())
+                trade.setScreenshotPath(currentScreenshotPath);
+
             Trade saved = tradeService.saveTrade(trade);
 
             if (onSaveCallback != null) onSaveCallback.accept(saved);
@@ -440,6 +460,78 @@ public class TradeEntryController implements Initializable {
         // Re-apply dark theme to pickers in case JavaFX reset them
         styleDatePicker(entryDatePicker);
         styleDatePicker(exitDatePicker);
+        // Clear screenshot
+        currentScreenshotPath = null;
+        refreshScreenshotDisplay();
+    }
+
+    // ── Screenshot field ─────────────────────────────────────────────────────
+
+    /**
+     * Attaches a screenshot to the form (called automatically when opened from +Trade,
+     * or manually via upload).
+     */
+    public void setScreenshotPath(String path) {
+        currentScreenshotPath = path;
+        refreshScreenshotDisplay();
+    }
+
+    @FXML public void onUploadImage() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Select Chart Screenshot");
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.PNG", "*.JPG"));
+        File file = chooser.showOpenDialog(
+                symbolField.getScene() != null ? symbolField.getScene().getWindow() : null);
+        if (file == null) return;
+
+        try {
+            // Copy to screenshots dir with standardised name
+            String homeDir = System.getProperty("user.home");
+            Path screenshotDir = Path.of(homeDir, ".trading-platform", "screenshots");
+            Files.createDirectories(screenshotDir);
+            String sym  = symbolField.getText().trim().toUpperCase().replaceAll("[^A-Za-z0-9]", "");
+            String date = LocalDate.now().toString();
+            String dest = date + "_" + (sym.isBlank() ? "" : sym + "_") + System.currentTimeMillis() + ".png";
+            Path target = screenshotDir.resolve(dest);
+            Files.copy(file.toPath(), target, StandardCopyOption.REPLACE_EXISTING);
+            currentScreenshotPath = target.toAbsolutePath().toString();
+        } catch (Exception e) {
+            // Fallback: use original path directly
+            currentScreenshotPath = file.getAbsolutePath();
+        }
+        refreshScreenshotDisplay();
+    }
+
+    @FXML public void onClearImage() {
+        currentScreenshotPath = null;
+        refreshScreenshotDisplay();
+    }
+
+    private void refreshScreenshotDisplay() {
+        if (screenshotImageView == null) return;
+        if (currentScreenshotPath != null) {
+            try {
+                File f = new File(currentScreenshotPath);
+                if (f.exists()) {
+                    Image img = new Image(f.toURI().toString(), true);
+                    screenshotImageView.setImage(img);
+                    screenshotImageView.setVisible(true);
+                    if (screenshotPlaceholderLabel != null)
+                        screenshotPlaceholderLabel.setVisible(false);
+                    if (screenshotPathLabel != null)
+                        screenshotPathLabel.setText("📄 " + f.getName());
+                    return;
+                }
+            } catch (Exception ignored) {}
+        }
+        // No image – show placeholder
+        screenshotImageView.setImage(null);
+        screenshotImageView.setVisible(false);
+        if (screenshotPlaceholderLabel != null)
+            screenshotPlaceholderLabel.setVisible(true);
+        if (screenshotPathLabel != null)
+            screenshotPathLabel.setText("");
     }
 
     // ── Broker Import ─────────────────────────────────────────
@@ -533,6 +625,10 @@ public class TradeEntryController implements Initializable {
         if (draft.assetType() != null)
             assetTypeCombo.setValue(draft.assetType());
         quantityField.setText("1");
+        // Attach auto-captured screenshot if available
+        if (draft.screenshotPath() != null) {
+            setScreenshotPath(draft.screenshotPath());
+        }
         updatePnlPreview();
     }
 
@@ -550,8 +646,10 @@ public class TradeEntryController implements Initializable {
             trade.setQuantity(BigDecimal.ONE);
             trade.setStatus(TradeStatus.OPEN);
             trade.setEntryTime(LocalDateTime.now());
-            if (draft.stopLoss() != null) trade.setStopLoss(draft.stopLoss());
+            if (draft.stopLoss()   != null) trade.setStopLoss(draft.stopLoss());
             if (draft.takeProfit() != null) trade.setTakeProfit(draft.takeProfit());
+            // Persist the auto-captured screenshot path
+            if (draft.screenshotPath() != null) trade.setScreenshotPath(draft.screenshotPath());
             Trade saved = tradeService.saveTrade(trade);
             if (onSaveCallback != null) onSaveCallback.accept(saved);
         } catch (Exception e) {
@@ -585,6 +683,8 @@ public class TradeEntryController implements Initializable {
         notesArea.setText(t.getNotes() != null ? t.getNotes() : "");
         isLong = t.getDirection() == TradeDirection.LONG;
         styleDirectionButtons();
+        // Restore screenshot if the trade has one
+        setScreenshotPath(t.getScreenshotPath());
         updatePnlPreview();
     }
 }

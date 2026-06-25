@@ -383,6 +383,17 @@ public class ChartController implements Initializable {
      * @return the absolute path of the saved file, or {@code null} on failure.
      */
     public String captureChartScreenshot() {
+        return captureChartScreenshot(null);
+    }
+
+    /**
+     * Captures a PNG screenshot using a descriptive filename that includes the symbol.
+     * Format: {@code YYYY-MM-DD_SYMBOL_timestamp.png}
+     *
+     * @param symbol chart symbol for the filename, may be {@code null}
+     * @return the absolute path of the saved file, or {@code null} on failure.
+     */
+    public String captureChartScreenshot(String symbol) {
         try {
             javafx.scene.image.WritableImage img = chart.captureScreenshot();
             if (img == null) return null;
@@ -391,7 +402,12 @@ public class ChartController implements Initializable {
             java.io.File screenshotDir = new java.io.File(homeDir, ".trading-platform/screenshots");
             screenshotDir.mkdirs();
 
-            String fileName = "chart_" + System.currentTimeMillis() + ".png";
+            // Format: YYYY-MM-DD_SYMBOL_timestamp.png
+            String date    = java.time.LocalDate.now().toString();
+            String symPart = (symbol != null && !symbol.isBlank())
+                    ? symbol.replaceAll("[^A-Za-z0-9]", "") + "_"
+                    : "";
+            String fileName = date + "_" + symPart + System.currentTimeMillis() + ".png";
             java.io.File outFile = new java.io.File(screenshotDir, fileName);
 
             javax.imageio.ImageIO.write(
@@ -406,7 +422,7 @@ public class ChartController implements Initializable {
     }
 
     private void onCaptureScreenshot() {
-        String path = captureChartScreenshot();
+        String path = captureChartScreenshot(currentSymbol);
         if (path != null) {
             showInfoNotification("Screenshot saved: " + path);
             if (onScreenshotSaved != null) onScreenshotSaved.accept(path);
@@ -538,12 +554,16 @@ public class ChartController implements Initializable {
             refreshUndoRedoState();
         });
         engine.setOnCreateTradeFromDrawing(d -> {
-            TradeDrawingDraft draft = buildTradeDraft(d);
+            // Capture screenshot before opening trade form
+            String screenshotPath = captureChartScreenshot(currentSymbol);
+            TradeDrawingDraft draft = buildTradeDraft(d, screenshotPath);
             if (draft != null && onCreateTradeFromDrawing != null)
                 onCreateTradeFromDrawing.accept(draft);
         });
         engine.setOnInstantSaveTrade(d -> {
-            TradeDrawingDraft draft = buildTradeDraft(d);
+            // Capture screenshot for instant save
+            String screenshotPath = captureChartScreenshot(currentSymbol);
+            TradeDrawingDraft draft = buildTradeDraft(d, screenshotPath);
             if (draft != null && onInstantSaveTradeFromDrawing != null)
                 onInstantSaveTradeFromDrawing.accept(draft);
         });
@@ -601,6 +621,10 @@ public class ChartController implements Initializable {
     }
 
     private TradeDrawingDraft buildTradeDraft(ChartDrawing d) {
+        return buildTradeDraft(d, null);
+    }
+
+    private TradeDrawingDraft buildTradeDraft(ChartDrawing d, String screenshotPath) {
         if (d == null || !d.getToolType().isPositionTool()) return null;
         ChartDrawingProperties props = d.getProperties();
         if (props == null || props.getEntryPrice() == null) return null;
@@ -612,9 +636,10 @@ public class ChartController implements Initializable {
                 currentSymbol,
                 dir,
                 BigDecimal.valueOf(props.getEntryPrice()),
-                props.getStopLoss() != null ? BigDecimal.valueOf(props.getStopLoss()) : null,
+                props.getStopLoss()   != null ? BigDecimal.valueOf(props.getStopLoss())   : null,
                 props.getTakeProfit() != null ? BigDecimal.valueOf(props.getTakeProfit()) : null,
-                assetType
+                assetType,
+                screenshotPath
         );
     }
 

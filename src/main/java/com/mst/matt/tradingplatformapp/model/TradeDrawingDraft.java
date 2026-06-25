@@ -11,5 +11,14 @@ public record TradeDrawingDraft(
         BigDecimal entryPrice,
         BigDecimal stopLoss,
         BigDecimal takeProfit,
-        Trade.AssetType assetType
-) {}
+        Trade.AssetType assetType,
+        /** Absolute path to the auto-captured chart screenshot PNG, or {@code null} if not captured. */
+        String screenshotPath
+) {
+    /** Backward-compatible constructor without screenshot. */
+    public TradeDrawingDraft(String symbol, TradeDirection direction,
+                              BigDecimal entryPrice, BigDecimal stopLoss,
+                              BigDecimal takeProfit, Trade.AssetType assetType) {
+        this(symbol, direction, entryPrice, stopLoss, takeProfit, assetType, null);
+    }
+}

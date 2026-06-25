@@ -583,8 +583,13 @@ public final class DrawingRenderer {
         Color color = safeColor(props.getColor(), "#58a6ff");
         double fontSize = props.getFontSize() > 0 ? props.getFontSize() : 12;
         gc.setFont(Font.font("Segoe UI", fontSize));
-        double boxW = Math.max(60, text.length() * (fontSize * 0.65) + 16);
-        double boxH = fontSize + 12;
+        // Use stored size if available, otherwise auto-size
+        double boxW = props.getTextBoxWidth() > 0
+                ? props.getTextBoxWidth()
+                : Math.max(60, text.length() * (fontSize * 0.65) + 16);
+        double boxH = props.getTextBoxHeight() > 0
+                ? props.getTextBoxHeight()
+                : fontSize + 12;
         gc.setFill(Color.web("#1c2128ee")); gc.fillRoundRect(x, y - boxH + 4, boxW, boxH, 4, 4);
         gc.setStroke(color); gc.setLineWidth(1.2);
         gc.strokeRoundRect(x, y - boxH + 4, boxW, boxH, 4, 4);
@@ -604,7 +609,8 @@ public final class DrawingRenderer {
         double x = timeToX(pt.getTime(), ctx), y = priceToY(pt.getPrice(), ctx);
         String text = props.getText() != null ? props.getText() : "";
         Color color = safeColor(props.getColor(), "#d29922");
-        double noteW = 80, noteH = 60;
+        double noteW = props.getTextBoxWidth()  > 0 ? props.getTextBoxWidth()  : 80;
+        double noteH = props.getTextBoxHeight() > 0 ? props.getTextBoxHeight() : 60;
         gc.setFill(Color.web("#2d2a00ee")); gc.fillRoundRect(x, y, noteW, noteH, 4, 4);
         gc.setStroke(color); gc.setLineWidth(1.2); gc.strokeRoundRect(x, y, noteW, noteH, 4, 4);
         double foldSize = 10;
@@ -635,8 +641,12 @@ public final class DrawingRenderer {
             boxX = timeToX(d.getPoints().get(1).getTime(), ctx);
             boxY = priceToY(d.getPoints().get(1).getPrice(), ctx);
         } else { boxX = tipX + 40; boxY = tipY - 30; }
-        double boxW = Math.max(70, text.length() * (fontSize * 0.62) + 16);
-        double boxH = fontSize + 12;
+        double boxW = props.getTextBoxWidth() > 0
+                ? props.getTextBoxWidth()
+                : Math.max(70, text.length() * (fontSize * 0.62) + 16);
+        double boxH = props.getTextBoxHeight() > 0
+                ? props.getTextBoxHeight()
+                : fontSize + 12;
         double boxCX = boxX + boxW / 2, boxBY = boxY + boxH;
         gc.setStroke(color); gc.setLineWidth(1.5);
         gc.strokeLine(tipX, tipY, boxCX, boxBY);

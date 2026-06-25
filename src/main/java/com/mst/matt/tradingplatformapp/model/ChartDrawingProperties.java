@@ -57,6 +57,20 @@ public class ChartDrawingProperties {
     @Builder.Default
     private double fontSize = 12;
 
+    /**
+     * Text / Note box width in pixels (0 = auto-size based on text length).
+     * Persisted so the box size is restored on reload.
+     */
+    @Builder.Default
+    private double textBoxWidth = 0;
+
+    /**
+     * Text / Note box height in pixels (0 = auto-size based on font size).
+     * Persisted so the box size is restored on reload.
+     */
+    @Builder.Default
+    private double textBoxHeight = 0;
+
     /** Arrow direction: UP, DOWN, LEFT, RIGHT. */
     private String arrowDirection;
 

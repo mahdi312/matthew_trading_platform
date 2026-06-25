@@ -25,7 +25,10 @@ import java.util.function.Consumer;
  *   <li>Per-drawing property editing (colour, line weight, line style, fill opacity)</li>
  *   <li>Parallel-copy: create an offset copy of the selected line</li>
  *   <li>Mirror: reflect a drawing across a vertical or horizontal axis</li>
- *   <li>Hover highlight + quick-delete button (×)</li>
+ *   <li>Whole-body shape dragging in Select mode</li>
+ *   <li>Position tool: individual SL/TP/Entry line drag + whole-shape move</li>
+ *   <li>Stable selection-based delete button (stays visible while drawing is selected)</li>
+ *   <li>Text/Note box resize handles when selected</li>
  *   <li>Right-click → Properties | Copy | Mirror | Delete | Lock | Undo/Redo</li>
  *   <li>Global show-all / lock-all overrides</li>
  *   <li>Drawing count guard (max 200 per chart)</li>
@@ -40,8 +43,26 @@ public class ChartDrawingEngine {
         Window getWindow();
     }
 
-    private static final double HIT_THRESHOLD      = 8;
-    private static final double HOVER_DELETE_RADIUS = 10;
+    // ── Drag mode enum ────────────────────────────────────────────────────────
+    private enum DragMode {
+        NONE,
+        ANCHOR,           // dragging a specific anchor point
+        WHOLE_SHAPE,      // dragging entire shape
+        POSITION_ENTRY,   // dragging Entry line of a position tool
+        POSITION_SL,      // dragging SL line
+        POSITION_TP,      // dragging TP line
+        POSITION_WHOLE,   // dragging entire position block
+        TEXT_RESIZE_W,    // resizing text/note box – west edge (left)
+        TEXT_RESIZE_E,    // resizing text/note box – east edge (right)
+        TEXT_RESIZE_S,    // resizing text/note box – south edge (bottom)
+        TEXT_RESIZE_SE    // resizing text/note box – corner SE
+    }
+
+    private static final double HIT_THRESHOLD       = 8;
+    private static final double HOVER_DELETE_RADIUS  = 10;
+    private static final double RESIZE_HANDLE_SIZE   = 7;
+    // Pixel tolerance for position-line drag detection
+    private static final double POS_LINE_HIT         = 6;
 
     private final Host host;
     @Getter
@@ -54,11 +75,20 @@ public class ChartDrawingEngine {
     @Getter
     private ChartDrawing selected;
     private ChartDrawing inProgress;
-    private int dragAnchorIndex = -1;
+
+    // ── Drag state ────────────────────────────────────────────────────────────
+    private int      dragAnchorIndex = -1;
+    private DragMode dragMode        = DragMode.NONE;
+    private double   dragStartX, dragStartY;         // mouse position at press
+    private double[] dragStartPrices;                // snapshot of all anchor prices at press
+    private long[]   dragStartTimes;                 // snapshot of all anchor times at press
+    private double   dragStartEntry, dragStartSL, dragStartTP; // position price snapshot
+    private double   dragStartTextW, dragStartTextH;            // text box size snapshot
+
     @Setter
     private boolean snapEnabled;
     private boolean isDragging;
-    private double pressX, pressY;
+    private double  pressX, pressY;
 
     /** Drawing the mouse is currently hovering over. */
     @Getter
@@ -70,29 +100,21 @@ public class ChartDrawingEngine {
 
     // ── Global overrides ─────────────────────────────────────────────────────
     @Getter
-    private boolean showAllDrawings = true;
+    private boolean showAllDrawings      = true;
     @Getter
-    private boolean lockAllDrawings = false;
+    private boolean lockAllDrawings      = false;
     private boolean showHoverDeleteButton = true;
     private boolean confirmHoverDelete    = false;
 
     // ── Callbacks ─────────────────────────────────────────────────────────────
-    @Setter
-    private Consumer<ChartDrawing> onDrawingCreated;
-    @Setter
-    private Consumer<ChartDrawing> onDrawingUpdated;
-    @Setter
-    private Consumer<ChartDrawing> onDrawingDeleted;
-    @Setter
-    private Consumer<ChartDrawing> onCreateTradeFromDrawing;
-    @Setter
-    private Consumer<ChartDrawing> onInstantSaveTrade;
-    @Setter
-    private Runnable onSelectionChanged;
-    @Setter
-    private Consumer<ChartDrawing> onHistoryRestored;
-    @Setter
-    private Consumer<ChartDrawing> onOpenProperties;   // opens the per-drawing properties dialog
+    @Setter private Consumer<ChartDrawing> onDrawingCreated;
+    @Setter private Consumer<ChartDrawing> onDrawingUpdated;
+    @Setter private Consumer<ChartDrawing> onDrawingDeleted;
+    @Setter private Consumer<ChartDrawing> onCreateTradeFromDrawing;
+    @Setter private Consumer<ChartDrawing> onInstantSaveTrade;
+    @Setter private Runnable               onSelectionChanged;
+    @Setter private Consumer<ChartDrawing> onHistoryRestored;
+    @Setter private Consumer<ChartDrawing> onOpenProperties;
 
     private ContextMenu contextMenu;
 
@@ -175,14 +197,22 @@ public class ChartDrawingEngine {
         pressX = e.getX();
         pressY = e.getY();
         isDragging = false;
+        dragMode   = DragMode.NONE;
 
-        // Hover-delete button hit
-        if (showHoverDeleteButton && hovered != null && isHoverDeleteHit(e.getX(), e.getY(), ctx, hovered)) {
+        // ── Stable selection delete button hit (always visible when selected) ──
+        if (selected != null && isSelectionDeleteHit(e.getX(), e.getY(), ctx, selected)) {
+            doDeleteDrawing(selected);
+            return true;
+        }
+
+        // ── Hover-delete button hit (only if no selection or different drawing) ──
+        if (showHoverDeleteButton && hovered != null && hovered != selected
+                && isHoverDeleteHit(e.getX(), e.getY(), ctx, hovered)) {
             doDeleteDrawing(hovered);
             return true;
         }
 
-        // Double-click: annotation text editing
+        // ── Double-click: annotation text editing ──────────────────────────────
         if (e.getClickCount() == 2 && e.getButton() == MouseButton.PRIMARY) {
             ChartDrawing hit = hitTest(e.getX(), e.getY(), ctx);
             if (hit != null && isAnnotationTool(hit.getToolType())) {
@@ -200,12 +230,18 @@ public class ChartDrawingEngine {
                 host.requestRender();
                 return true;
             }
+            // Right-click on empty area deselects
+            if (selected != null) {
+                selected = null;
+                notifySelection();
+                host.requestRender();
+            }
             return false;
         }
 
         if (e.getButton() != MouseButton.PRIMARY) return false;
 
-        // + Trade button hit on selected position drawing
+        // ── + Trade button hit on selected position drawing ─────────────────────
         if (selected != null && selected.getToolType().isPositionTool()
                 && isTradeButtonHit(e.getX(), e.getY(), ctx)) {
             if (onCreateTradeFromDrawing != null) onCreateTradeFromDrawing.accept(selected);
@@ -213,17 +249,74 @@ public class ChartDrawingEngine {
         }
 
         if (activeTool == ChartDrawingToolType.SELECT) {
+            // ── Text/Note resize handles ──────────────────────────────────────
+            if (selected != null && isTextResizeTool(selected.getToolType())
+                    && !effectiveLock(selected)) {
+                DragMode rm = hitTextResizeHandle(selected, e.getX(), e.getY(), ctx);
+                if (rm != DragMode.NONE) {
+                    dragMode = rm;
+                    dragStartX = e.getX(); dragStartY = e.getY();
+                    dragStartTextW = selected.getProperties().getTextBoxWidth();
+                    dragStartTextH = selected.getProperties().getTextBoxHeight();
+                    preDragSnapshot = new DrawingHistoryManager.DrawingSnapshot(selected);
+                    return true;
+                }
+            }
+
+            // ── Position tool line-specific dragging ──────────────────────────
+            if (selected != null && selected.getToolType().isPositionTool()
+                    && !effectiveLock(selected)) {
+                DragMode pm = hitPositionLine(selected, e.getX(), e.getY(), ctx);
+                if (pm != DragMode.NONE) {
+                    dragMode = pm;
+                    dragStartX = e.getX(); dragStartY = e.getY();
+                    ChartDrawingProperties p = selected.getProperties();
+                    dragStartEntry = p.getEntryPrice() != null ? p.getEntryPrice() : 0;
+                    dragStartSL    = p.getStopLoss()   != null ? p.getStopLoss()   : 0;
+                    dragStartTP    = p.getTakeProfit()  != null ? p.getTakeProfit() : 0;
+                    // Also save time anchors for whole-shape move
+                    dragStartTimes  = selected.getPoints().stream().mapToLong(ChartPoint::getTimeEpoch).toArray();
+                    dragStartPrices = selected.getPoints().stream().mapToDouble(ChartPoint::getPrice).toArray();
+                    preDragSnapshot = new DrawingHistoryManager.DrawingSnapshot(selected);
+                    return true;
+                }
+            }
+
+            // ── Regular anchor drag ────────────────────────────────────────────
             int anchor = hitAnchor(selected, e.getX(), e.getY(), ctx);
             if (anchor >= 0 && selected != null && !effectiveLock(selected)) {
                 dragAnchorIndex = anchor;
+                dragMode = DragMode.ANCHOR;
                 preDragSnapshot = new DrawingHistoryManager.DrawingSnapshot(selected);
                 return true;
             }
+
+            // ── Hit-test for selection or whole-body drag ──────────────────────
             ChartDrawing hit = hitTest(e.getX(), e.getY(), ctx);
-            selected = hit;
-            notifySelection();
-            host.requestRender();
-            return hit != null;
+            if (hit != null && !effectiveLock(hit)) {
+                if (hit == selected) {
+                    // Same drawing clicked – prepare for whole-shape drag
+                    dragMode    = DragMode.WHOLE_SHAPE;
+                    dragStartX  = e.getX(); dragStartY = e.getY();
+                    dragStartTimes  = hit.getPoints().stream().mapToLong(ChartPoint::getTimeEpoch).toArray();
+                    dragStartPrices = hit.getPoints().stream().mapToDouble(ChartPoint::getPrice).toArray();
+                    preDragSnapshot = new DrawingHistoryManager.DrawingSnapshot(hit);
+                } else {
+                    selected = hit;
+                    notifySelection();
+                    host.requestRender();
+                }
+                return true;
+            }
+
+            // ── Click on empty area – deselect ────────────────────────────────
+            if (selected != null) {
+                selected = null;
+                dragMode = DragMode.NONE;
+                notifySelection();
+                host.requestRender();
+            }
+            return false;
         }
 
         // Drawing mode
@@ -250,13 +343,44 @@ public class ChartDrawingEngine {
         mouseY = e.getY();
 
         if (activeTool == ChartDrawingToolType.SELECT) {
-            if (dragAnchorIndex >= 0 && selected != null && !effectiveLock(selected)) {
+
+            // ── Text resize drag ───────────────────────────────────────────────
+            if (dragMode == DragMode.TEXT_RESIZE_E || dragMode == DragMode.TEXT_RESIZE_W
+                    || dragMode == DragMode.TEXT_RESIZE_S || dragMode == DragMode.TEXT_RESIZE_SE) {
+                if (selected != null && !effectiveLock(selected)) {
+                    applyTextResize(selected, e.getX(), e.getY());
+                    host.requestRender();
+                    return true;
+                }
+            }
+
+            // ── Position line drag ─────────────────────────────────────────────
+            if ((dragMode == DragMode.POSITION_ENTRY || dragMode == DragMode.POSITION_SL
+                    || dragMode == DragMode.POSITION_TP || dragMode == DragMode.POSITION_WHOLE)
+                    && selected != null && !effectiveLock(selected)) {
+                applyPositionDrag(selected, e.getX(), e.getY(), ctx);
+                host.requestRender();
+                return true;
+            }
+
+            // ── Anchor drag ────────────────────────────────────────────────────
+            if (dragMode == DragMode.ANCHOR && dragAnchorIndex >= 0
+                    && selected != null && !effectiveLock(selected)) {
                 ChartPoint pt = pointFromMouse(e.getX(), e.getY(), ctx);
                 selected.getPoints().set(dragAnchorIndex, pt);
                 updatePositionPricesFromAnchors(selected);
                 host.requestRender();
                 return true;
             }
+
+            // ── Whole-shape drag ───────────────────────────────────────────────
+            if (dragMode == DragMode.WHOLE_SHAPE && selected != null
+                    && !effectiveLock(selected) && dragStartTimes != null) {
+                applyWholeShapeDrag(selected, e.getX(), e.getY(), ctx);
+                host.requestRender();
+                return true;
+            }
+
             return selected != null;
         }
 
@@ -276,8 +400,26 @@ public class ChartDrawingEngine {
     }
 
     public boolean handleMouseReleased(MouseEvent e, DrawingRenderer.RenderContext ctx) {
-        if (dragAnchorIndex >= 0 && selected != null && isDragging) {
+        boolean wasDragging = isDragging;
+
+        // Handle all drag-end cases
+        if (wasDragging && selected != null && dragMode != DragMode.NONE) {
+            DragMode endedMode = dragMode;
+            dragMode        = DragMode.NONE;
             dragAnchorIndex = -1;
+            if (preDragSnapshot != null) {
+                history.recordMove(selected, preDragSnapshot);
+                preDragSnapshot = null;
+            }
+            if (onDrawingUpdated != null) onDrawingUpdated.accept(selected);
+            dragStartTimes  = null;
+            dragStartPrices = null;
+            return true;
+        }
+
+        if (dragAnchorIndex >= 0 && selected != null && wasDragging) {
+            dragAnchorIndex = -1;
+            dragMode = DragMode.NONE;
             if (preDragSnapshot != null) {
                 history.recordMove(selected, preDragSnapshot);
                 preDragSnapshot = null;
@@ -300,7 +442,9 @@ public class ChartDrawingEngine {
             host.requestRender();
             return true;
         }
+
         dragAnchorIndex = -1;
+        dragMode        = DragMode.NONE;
         preDragSnapshot = null;
         return false;
     }
@@ -308,7 +452,7 @@ public class ChartDrawingEngine {
     // ── Render ────────────────────────────────────────────────────────────────
 
     public void renderDrawings(GraphicsContext gc, DrawingRenderer.RenderContext ctx) {
-        if (!showAllDrawings) return;   // global hide
+        if (!showAllDrawings) return;
 
         for (ChartDrawing d : drawings) {
             boolean isSelected = d == selected;
@@ -320,12 +464,90 @@ public class ChartDrawingEngine {
             DrawingRenderer.render(gc, inProgress, ctx, true, true, false);
         }
 
-        // Hover-delete button overlay
-        if (showHoverDeleteButton && hovered != null && !effectiveLock(hovered)
+        // ── Stable selection delete button (shown when drawing is selected) ──
+        if (selected != null && !effectiveLock(selected)
+                && activeTool == ChartDrawingToolType.SELECT) {
+            renderSelectionDeleteButton(gc, ctx, selected);
+        }
+
+        // ── Hover-delete button (only for non-selected hovered drawings) ──
+        if (showHoverDeleteButton && hovered != null && hovered != selected
+                && !effectiveLock(hovered)
                 && activeTool == ChartDrawingToolType.SELECT) {
             renderHoverDeleteButton(gc, ctx, hovered);
         }
+
+        // ── Text/Note resize handles ──────────────────────────────────────────
+        if (selected != null && isTextResizeTool(selected.getToolType())
+                && !effectiveLock(selected)
+                && activeTool == ChartDrawingToolType.SELECT) {
+            renderTextResizeHandles(gc, ctx, selected);
+        }
     }
+
+    // ── Stable selection delete button ────────────────────────────────────────
+
+    /**
+     * Renders a stable ✕ button at the top-right of the selected drawing's bounding box.
+     * Stays visible as long as the drawing is selected.
+     */
+    private void renderSelectionDeleteButton(GraphicsContext gc,
+                                             DrawingRenderer.RenderContext ctx, ChartDrawing d) {
+        double[] pos = selectionDeletePos(ctx, d);
+        if (pos == null) return;
+        double bx = pos[0], by = pos[1];
+        double r  = HOVER_DELETE_RADIUS + 2;  // slightly larger than hover delete
+
+        gc.setFill(Color.web("#f85149ee"));
+        gc.fillOval(bx - r, by - r, r * 2, r * 2);
+        gc.setStroke(Color.web("#ffffff"));
+        gc.setLineWidth(2.0);
+        gc.strokeLine(bx - 4, by - 4, bx + 4, by + 4);
+        gc.strokeLine(bx + 4, by - 4, bx - 4, by + 4);
+    }
+
+    /** Returns the [x, y] screen position for the stable selection-delete button. */
+    private double[] selectionDeletePos(DrawingRenderer.RenderContext ctx, ChartDrawing d) {
+        if (d.getPoints() == null || d.getPoints().isEmpty()) return null;
+        // Use bounding box top-right corner
+        double maxX = Double.MIN_VALUE, minY = Double.MAX_VALUE;
+        for (ChartPoint pt : d.getPoints()) {
+            double sx = DrawingRenderer.timeToX(pt.getTime(), ctx);
+            double sy = DrawingRenderer.priceToY(pt.getPrice(), ctx);
+            if (sx > maxX) maxX = sx;
+            if (sy < minY) minY = sy;
+        }
+        // For position tools, also consider the TP line
+        if (d.getToolType().isPositionTool() && d.getProperties() != null) {
+            if (d.getPoints().size() >= 2) {
+                double rx = DrawingRenderer.timeToX(d.getPoints().get(1).getTime(), ctx);
+                if (rx > maxX) maxX = rx;
+            }
+            Double tp = d.getProperties().getTakeProfit();
+            if (tp != null) {
+                double sy = DrawingRenderer.priceToY(tp, ctx);
+                if (sy < minY) minY = sy;
+            }
+            Double sl = d.getProperties().getStopLoss();
+            if (sl != null) {
+                double sy = DrawingRenderer.priceToY(sl, ctx);
+                if (sy < minY) minY = sy;
+            }
+        }
+        // Clamp to chart area
+        maxX = Math.min(maxX, ctx.right() - 12);
+        minY = Math.max(minY, ctx.priceTop() + 12);
+        return new double[]{maxX + 14, minY - 6};
+    }
+
+    private boolean isSelectionDeleteHit(double mx, double my,
+                                         DrawingRenderer.RenderContext ctx, ChartDrawing d) {
+        double[] pos = selectionDeletePos(ctx, d);
+        if (pos == null) return false;
+        return Math.hypot(mx - pos[0], my - pos[1]) < HOVER_DELETE_RADIUS + 4;
+    }
+
+    // ── Hover delete button ───────────────────────────────────────────────────
 
     /** Renders a small × button near the hovered drawing's first anchor. */
     private void renderHoverDeleteButton(GraphicsContext gc, DrawingRenderer.RenderContext ctx,
@@ -333,7 +555,7 @@ public class ChartDrawingEngine {
         if (d.getPoints() == null || d.getPoints().isEmpty()) return;
         double[] pos = hoverDeletePos(ctx, d);
         double bx = pos[0], by = pos[1];
-        double r = HOVER_DELETE_RADIUS;
+        double r  = HOVER_DELETE_RADIUS;
 
         gc.setFill(Color.web("#f85149cc"));
         gc.fillOval(bx - r, by - r, r * 2, r * 2);
@@ -356,6 +578,229 @@ public class ChartDrawingEngine {
         return Math.hypot(mx - pos[0], my - pos[1]) < HOVER_DELETE_RADIUS + 2;
     }
 
+    // ── Text / Note resize handles ────────────────────────────────────────────
+
+    private static boolean isTextResizeTool(ChartDrawingToolType t) {
+        return t == ChartDrawingToolType.TEXT_LABEL
+                || t == ChartDrawingToolType.NOTE_ICON
+                || t == ChartDrawingToolType.CALLOUT;
+    }
+
+    /**
+     * Renders resize handles at the edges/corner of a text or note box.
+     * Handles: right (E), bottom (S), bottom-right (SE).
+     */
+    private void renderTextResizeHandles(GraphicsContext gc,
+                                          DrawingRenderer.RenderContext ctx, ChartDrawing d) {
+        if (d.getPoints() == null || d.getPoints().isEmpty()) return;
+        double ax = DrawingRenderer.timeToX(d.getPoints().getFirst().getTime(), ctx);
+        double ay = DrawingRenderer.priceToY(d.getPoints().getFirst().getPrice(), ctx);
+        double w  = getTextBoxWidth(d);
+        double h  = getTextBoxHeight(d);
+
+        // For TEXT_LABEL the box starts at (ax, ay - h + 4)
+        // For NOTE_ICON the box starts at (ax, ay)
+        double boxX, boxY;
+        if (d.getToolType() == ChartDrawingToolType.NOTE_ICON) {
+            boxX = ax; boxY = ay;
+        } else if (d.getToolType() == ChartDrawingToolType.CALLOUT && d.getPoints().size() >= 2) {
+            boxX = DrawingRenderer.timeToX(d.getPoints().get(1).getTime(), ctx);
+            boxY = DrawingRenderer.priceToY(d.getPoints().get(1).getPrice(), ctx);
+        } else {
+            boxX = ax; boxY = ay - h + 4;
+        }
+
+        double hs = RESIZE_HANDLE_SIZE;
+        // East handle (right edge centre)
+        double ex = boxX + w, ey = boxY + h / 2;
+        // South handle (bottom centre)
+        double sx = boxX + w / 2, sy = boxY + h;
+        // SE handle (bottom-right corner)
+        double sex = boxX + w, sey = boxY + h;
+
+        gc.setFill(Color.web("#388bfd"));
+        gc.setStroke(Color.web("#ffffff"));
+        gc.setLineWidth(1.0);
+        for (double[] handle : new double[][]{{ex, ey}, {sx, sy}, {sex, sey}}) {
+            gc.fillRect(handle[0] - hs / 2, handle[1] - hs / 2, hs, hs);
+            gc.strokeRect(handle[0] - hs / 2, handle[1] - hs / 2, hs, hs);
+        }
+    }
+
+    private DragMode hitTextResizeHandle(ChartDrawing d, double mx, double my,
+                                          DrawingRenderer.RenderContext ctx) {
+        if (d.getPoints() == null || d.getPoints().isEmpty()) return DragMode.NONE;
+        double ax = DrawingRenderer.timeToX(d.getPoints().getFirst().getTime(), ctx);
+        double ay = DrawingRenderer.priceToY(d.getPoints().getFirst().getPrice(), ctx);
+        double w  = getTextBoxWidth(d);
+        double h  = getTextBoxHeight(d);
+
+        double boxX, boxY;
+        if (d.getToolType() == ChartDrawingToolType.NOTE_ICON) {
+            boxX = ax; boxY = ay;
+        } else if (d.getToolType() == ChartDrawingToolType.CALLOUT && d.getPoints().size() >= 2) {
+            boxX = DrawingRenderer.timeToX(d.getPoints().get(1).getTime(), ctx);
+            boxY = DrawingRenderer.priceToY(d.getPoints().get(1).getPrice(), ctx);
+        } else {
+            boxX = ax; boxY = ay - h + 4;
+        }
+
+        double tol = RESIZE_HANDLE_SIZE;
+        double ex = boxX + w, ey = boxY + h / 2;
+        double sx = boxX + w / 2, sy = boxY + h;
+        double sex = boxX + w, sey = boxY + h;
+
+        if (Math.abs(mx - sex) < tol && Math.abs(my - sey) < tol) return DragMode.TEXT_RESIZE_SE;
+        if (Math.abs(mx - ex)  < tol && Math.abs(my - ey)  < tol) return DragMode.TEXT_RESIZE_E;
+        if (Math.abs(mx - sx)  < tol && Math.abs(my - sy)  < tol) return DragMode.TEXT_RESIZE_S;
+        return DragMode.NONE;
+    }
+
+    private void applyTextResize(ChartDrawing d, double mx, double my) {
+        double dw = mx - dragStartX;
+        double dh = my - dragStartY;
+        double minW = 40, minH = 20;
+        ChartDrawingProperties p = d.getProperties();
+        switch (dragMode) {
+            case TEXT_RESIZE_E -> p.setTextBoxWidth(Math.max(minW, dragStartTextW + dw));
+            case TEXT_RESIZE_S -> p.setTextBoxHeight(Math.max(minH, dragStartTextH + dh));
+            case TEXT_RESIZE_SE -> {
+                p.setTextBoxWidth(Math.max(minW, dragStartTextW + dw));
+                p.setTextBoxHeight(Math.max(minH, dragStartTextH + dh));
+            }
+            default -> {}
+        }
+    }
+
+    private double getTextBoxWidth(ChartDrawing d) {
+        double stored = d.getProperties().getTextBoxWidth();
+        if (stored > 0) return stored;
+        // Default widths
+        if (d.getToolType() == ChartDrawingToolType.NOTE_ICON) return 80;
+        String text = d.getProperties().getText();
+        double fs = d.getProperties().getFontSize() > 0 ? d.getProperties().getFontSize() : 12;
+        return Math.max(60, (text != null ? text.length() : 4) * (fs * 0.65) + 16);
+    }
+
+    private double getTextBoxHeight(ChartDrawing d) {
+        double stored = d.getProperties().getTextBoxHeight();
+        if (stored > 0) return stored;
+        if (d.getToolType() == ChartDrawingToolType.NOTE_ICON) return 60;
+        double fs = d.getProperties().getFontSize() > 0 ? d.getProperties().getFontSize() : 12;
+        return fs + 12;
+    }
+
+    // ── Position tool line drag ───────────────────────────────────────────────
+
+    /**
+     * Detects which part of a position drawing was clicked for dragging.
+     * Returns the appropriate DragMode.
+     */
+    private DragMode hitPositionLine(ChartDrawing d, double mx, double my,
+                                     DrawingRenderer.RenderContext ctx) {
+        if (d.getPoints().size() < 2 || d.getProperties() == null) return DragMode.NONE;
+        double x1 = DrawingRenderer.timeToX(d.getPoints().get(0).getTime(), ctx);
+        double x2 = DrawingRenderer.timeToX(d.getPoints().get(1).getTime(), ctx);
+        double left = Math.min(x1, x2), right = Math.max(x1, x2) + 60;
+        if (mx < left - 10 || mx > right) return DragMode.NONE;
+
+        ChartDrawingProperties p = d.getProperties();
+        double tol = POS_LINE_HIT;
+
+        // Check individual lines
+        if (p.getEntryPrice() != null) {
+            double yEntry = DrawingRenderer.priceToY(p.getEntryPrice(), ctx);
+            if (Math.abs(my - yEntry) < tol && mx >= left && mx <= right)
+                return DragMode.POSITION_ENTRY;
+        }
+        if (p.getStopLoss() != null) {
+            double ySL = DrawingRenderer.priceToY(p.getStopLoss(), ctx);
+            if (Math.abs(my - ySL) < tol && mx >= left && mx <= right)
+                return DragMode.POSITION_SL;
+        }
+        if (p.getTakeProfit() != null) {
+            double yTP = DrawingRenderer.priceToY(p.getTakeProfit(), ctx);
+            if (Math.abs(my - yTP) < tol && mx >= left && mx <= right)
+                return DragMode.POSITION_TP;
+        }
+
+        // Click in the body area → whole-shape drag
+        if (mx >= left && mx <= right) return DragMode.POSITION_WHOLE;
+        return DragMode.NONE;
+    }
+
+    private void applyPositionDrag(ChartDrawing d, double mx, double my,
+                                    DrawingRenderer.RenderContext ctx) {
+        double priceDelta = yToPrice(my, ctx) - yToPrice(dragStartY, ctx);
+        double timeDeltaMs = xToTimeEpoch(mx, ctx) - xToTimeEpoch(dragStartX, ctx);
+
+        ChartDrawingProperties p = d.getProperties();
+        switch (dragMode) {
+            case POSITION_ENTRY -> {
+                if (p.getEntryPrice() != null)
+                    p.setEntryPrice(dragStartEntry + priceDelta);
+            }
+            case POSITION_SL -> {
+                if (p.getStopLoss() != null)
+                    p.setStopLoss(dragStartSL + priceDelta);
+            }
+            case POSITION_TP -> {
+                if (p.getTakeProfit() != null)
+                    p.setTakeProfit(dragStartTP + priceDelta);
+            }
+            case POSITION_WHOLE -> {
+                // Move all three prices + time anchors together
+                if (p.getEntryPrice() != null) p.setEntryPrice(dragStartEntry + priceDelta);
+                if (p.getStopLoss()   != null) p.setStopLoss(dragStartSL + priceDelta);
+                if (p.getTakeProfit() != null) p.setTakeProfit(dragStartTP + priceDelta);
+                // Shift time anchors
+                List<ChartPoint> pts = d.getPoints();
+                for (int i = 0; i < pts.size() && i < dragStartTimes.length; i++) {
+                    pts.get(i).setTimeEpoch(dragStartTimes[i] + (long) timeDeltaMs);
+                }
+            }
+            default -> {}
+        }
+    }
+
+    // ── Whole-shape drag ──────────────────────────────────────────────────────
+
+    private void applyWholeShapeDrag(ChartDrawing d, double mx, double my,
+                                      DrawingRenderer.RenderContext ctx) {
+        double priceDelta  = yToPrice(my, ctx) - yToPrice(dragStartY, ctx);
+        long   timeDeltaMs = (long)(xToTimeEpoch(mx, ctx) - xToTimeEpoch(dragStartX, ctx));
+
+        List<ChartPoint> pts = d.getPoints();
+        for (int i = 0; i < pts.size() && i < dragStartTimes.length; i++) {
+            pts.get(i).setTimeEpoch(dragStartTimes[i] + timeDeltaMs);
+            pts.get(i).setPrice(dragStartPrices[i] + priceDelta);
+        }
+
+        // Also shift position prices if relevant
+        if (d.getToolType().isPositionTool() && d.getProperties() != null) {
+            ChartDrawingProperties p = d.getProperties();
+            if (p.getEntryPrice() != null) p.setEntryPrice(dragStartEntry + priceDelta);
+            if (p.getStopLoss()   != null) p.setStopLoss(dragStartSL    + priceDelta);
+            if (p.getTakeProfit() != null) p.setTakeProfit(dragStartTP  + priceDelta);
+        }
+    }
+
+    // ── Coordinate helpers (price/time from screen coords) ───────────────────
+
+    private double yToPrice(double y, DrawingRenderer.RenderContext ctx) {
+        double range = Math.max(ctx.maxPrice() - ctx.minPrice(), 1e-10);
+        return ctx.minPrice() + range * (1.0 - (y - ctx.priceTop()) / ctx.priceH());
+    }
+
+    private double xToTimeEpoch(double x, DrawingRenderer.RenderContext ctx) {
+        double barW = ctx.plotWidth() / Math.max(1, ctx.visibleBars());
+        int idx = (int)((x - ctx.left()) / barW) + ctx.startBarIndex();
+        idx = Math.max(0, Math.min(idx, host.getBars().size() - 1));
+        return host.getBars().get(idx).getOpenTime()
+                .atZone(java.time.ZoneId.systemDefault())
+                .toInstant().toEpochMilli();
+    }
+
     // ── Drawing manipulation ──────────────────────────────────────────────────
 
     public void deleteSelected() {
@@ -366,7 +811,6 @@ public class ChartDrawingEngine {
     private void doDeleteDrawing(ChartDrawing d) {
         if (d == null) return;
         if (confirmHoverDelete) {
-            // Show a brief confirmation if the user configured it
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
                     "Delete this drawing?", ButtonType.YES, ButtonType.NO);
             alert.setTitle("Delete Drawing");
@@ -392,8 +836,7 @@ public class ChartDrawingEngine {
     public void duplicateSelected() {
         if (selected == null) return;
         if (drawings.size() >= ChartDrawingService.MAX_DRAWINGS_PER_CHART) {
-            showMaxDrawingsWarning();
-            return;
+            showMaxDrawingsWarning(); return;
         }
         ChartDrawing copy = cloneDrawing(selected);
         copy.setId(null);
@@ -405,23 +848,16 @@ public class ChartDrawingEngine {
         host.requestRender();
     }
 
-    /**
-     * PARALLEL LINES — create a copy of the selected drawing offset by
-     * {@code priceDelta} in price units (positive = up).
-     */
     public void parallelCopySelected(double priceDelta) {
         if (selected == null) return;
         if (drawings.size() >= ChartDrawingService.MAX_DRAWINGS_PER_CHART) {
-            showMaxDrawingsWarning();
-            return;
+            showMaxDrawingsWarning(); return;
         }
         ChartDrawing copy = cloneDrawing(selected);
         copy.setId(null);
-        // Apply price offset to all anchor points
         for (ChartPoint pt : copy.getPoints()) {
             pt.setPrice(pt.getPrice() + priceDelta);
         }
-        // Tag the copy's properties
         copy.getProperties().setParallelOffset(priceDelta);
         drawings.add(copy);
         history.recordCreate(copy);
@@ -430,17 +866,10 @@ public class ChartDrawingEngine {
         host.requestRender();
     }
 
-    /**
-     * MIRROR — create a reflected copy of the selected drawing.
-     *
-     * @param axis     "VERTICAL" mirrors left↔right around the anchor's X;
-     *                 "HORIZONTAL" mirrors up↔down around the anchor's price.
-     */
     public void mirrorSelected(String axis) {
         if (selected == null) return;
         if (drawings.size() >= ChartDrawingService.MAX_DRAWINGS_PER_CHART) {
-            showMaxDrawingsWarning();
-            return;
+            showMaxDrawingsWarning(); return;
         }
         if (selected.getPoints() == null || selected.getPoints().isEmpty()) return;
 
@@ -449,14 +878,12 @@ public class ChartDrawingEngine {
         copy.getProperties().setMirrorAxis(axis);
 
         if ("VERTICAL".equalsIgnoreCase(axis)) {
-            // Mirror time: reflect around the first anchor's time
             long axisEpoch = selected.getPoints().getFirst().getTimeEpoch();
             for (ChartPoint pt : copy.getPoints()) {
                 long delta = pt.getTimeEpoch() - axisEpoch;
                 pt.setTimeEpoch(axisEpoch - delta);
             }
         } else {
-            // HORIZONTAL — mirror price around the first anchor's price
             double axisPrice = selected.getPoints().getFirst().getPrice();
             for (ChartPoint pt : copy.getPoints()) {
                 double delta = pt.getPrice() - axisPrice;
@@ -489,7 +916,6 @@ public class ChartDrawingEngine {
         }
     }
 
-    /** Returns true if this drawing is effectively locked (own lock OR global lock). */
     private boolean effectiveLock(ChartDrawing d) {
         return lockAllDrawings || (d != null && d.isLocked());
     }
@@ -524,7 +950,7 @@ public class ChartDrawingEngine {
     }
 
     private void openInlineTextEditor(ChartDrawing d, DrawingRenderer.RenderContext ctx,
-                                      DrawingHistoryManager.DrawingSnapshot before) {
+                                       DrawingHistoryManager.DrawingSnapshot before) {
         String current = d.getProperties().getText() != null ? d.getProperties().getText() : "";
         d.getProperties().setEditing(true);
         host.requestRender();
@@ -584,7 +1010,7 @@ public class ChartDrawingEngine {
     private ChartDrawing newDraft(ChartDrawingToolType tool, ChartPoint pt) {
         ChartDrawingProperties props = ChartDrawingProperties.defaultsFor(tool);
         if (tool.isPositionTool()) {
-            double entry = pt.getPrice();
+            double entry  = pt.getPrice();
             double offset = Math.abs(entry) * 0.02;
             if (tool == ChartDrawingToolType.LONG_POSITION) {
                 props.setEntryPrice(entry);
@@ -611,14 +1037,14 @@ public class ChartDrawingEngine {
             props.setEntryPrice(d.getPoints().getFirst().getPrice());
         }
         if (d.getPoints().size() >= 2 && props.getEntryPrice() != null) {
-            double p2 = d.getPoints().get(1).getPrice();
+            double p2    = d.getPoints().get(1).getPrice();
             double entry = props.getEntryPrice();
             if (d.getToolType() == ChartDrawingToolType.LONG_POSITION) {
                 if (p2 < entry) props.setStopLoss(p2);
-                else props.setTakeProfit(p2);
+                else            props.setTakeProfit(p2);
             } else {
                 if (p2 > entry) props.setStopLoss(p2);
-                else props.setTakeProfit(p2);
+                else            props.setTakeProfit(p2);
             }
         }
     }
@@ -645,7 +1071,8 @@ public class ChartDrawingEngine {
         return null;
     }
 
-    private boolean isNearDrawing(ChartDrawing d, double x, double y, DrawingRenderer.RenderContext ctx) {
+    private boolean isNearDrawing(ChartDrawing d, double x, double y,
+                                   DrawingRenderer.RenderContext ctx) {
         if (d.getPoints() == null || d.getPoints().isEmpty()) return false;
         if (d.getToolType().isPositionTool()) return isNearPosition(d, x, y, ctx);
 
@@ -664,19 +1091,22 @@ public class ChartDrawingEngine {
             case TEXT_LABEL, NOTE_ICON -> {
                 double ax = DrawingRenderer.timeToX(d.getPoints().getFirst().getTime(), ctx);
                 double ay = DrawingRenderer.priceToY(d.getPoints().getFirst().getPrice(), ctx);
-                return x >= ax && x <= ax + 120 && y >= ay - 25 && y <= ay + 10;
+                double w  = getTextBoxWidth(d), h = getTextBoxHeight(d);
+                // TEXT_LABEL box starts at (ax, ay-h+4)
+                double boxY = d.getToolType() == ChartDrawingToolType.NOTE_ICON ? ay : ay - h + 4;
+                return x >= ax && x <= ax + w && y >= boxY && y <= boxY + h;
             }
             case CALLOUT -> {
                 if (d.getPoints().size() < 2) {
                     double ax = DrawingRenderer.timeToX(d.getPoints().getFirst().getTime(), ctx);
                     double ay = DrawingRenderer.priceToY(d.getPoints().getFirst().getPrice(), ctx);
-                    return x >= ax && x <= ax + 120 && y >= ay - 30 && y <= ay + 5;
+                    double w = getTextBoxWidth(d), h = getTextBoxHeight(d);
+                    return x >= ax && x <= ax + w && y >= ay - 30 && y <= ay + h;
                 }
                 double bx = DrawingRenderer.timeToX(d.getPoints().get(1).getTime(), ctx);
                 double by = DrawingRenderer.priceToY(d.getPoints().get(1).getPrice(), ctx);
-                String text = d.getProperties().getText() != null ? d.getProperties().getText() : "Callout";
-                double bw = Math.max(70, text.length() * 7 + 16);
-                return x >= bx && x <= bx + bw && y >= by && y <= by + 24;
+                double w  = getTextBoxWidth(d), h = getTextBoxHeight(d);
+                return x >= bx && x <= bx + w && y >= by && y <= by + h;
             }
             default -> {
                 if (d.getPoints().size() >= 2) {
@@ -693,7 +1123,8 @@ public class ChartDrawingEngine {
         }
     }
 
-    private boolean isNearRect(ChartDrawing d, double x, double y, DrawingRenderer.RenderContext ctx) {
+    private boolean isNearRect(ChartDrawing d, double x, double y,
+                                DrawingRenderer.RenderContext ctx) {
         if (d.getPoints().size() < 2) return false;
         double x1 = DrawingRenderer.timeToX(d.getPoints().get(0).getTime(), ctx);
         double y1 = DrawingRenderer.priceToY(d.getPoints().get(0).getPrice(), ctx);
@@ -709,7 +1140,8 @@ public class ChartDrawingEngine {
                 || (x >= minX && x <= maxX && y >= minY && y <= maxY);
     }
 
-    private boolean isNearPolygon(ChartDrawing d, double x, double y, DrawingRenderer.RenderContext ctx) {
+    private boolean isNearPolygon(ChartDrawing d, double x, double y,
+                                   DrawingRenderer.RenderContext ctx) {
         List<ChartPoint> pts = d.getPoints();
         int n = pts.size();
         if (n < 2) return false;
@@ -730,7 +1162,8 @@ public class ChartDrawingEngine {
         return false;
     }
 
-    private boolean isNearEllipse(ChartDrawing d, double x, double y, DrawingRenderer.RenderContext ctx) {
+    private boolean isNearEllipse(ChartDrawing d, double x, double y,
+                                   DrawingRenderer.RenderContext ctx) {
         if (d.getPoints().size() < 2) return false;
         double x1 = DrawingRenderer.timeToX(d.getPoints().get(0).getTime(), ctx);
         double y1 = DrawingRenderer.priceToY(d.getPoints().get(0).getPrice(), ctx);
@@ -744,7 +1177,7 @@ public class ChartDrawingEngine {
     }
 
     private boolean isNearPosition(ChartDrawing d, double x, double y,
-                                   DrawingRenderer.RenderContext ctx) {
+                                    DrawingRenderer.RenderContext ctx) {
         if (d.getPoints().size() < 2) return false;
         double x1 = DrawingRenderer.timeToX(d.getPoints().get(0).getTime(), ctx);
         double x2 = DrawingRenderer.timeToX(d.getPoints().get(1).getTime(), ctx);
@@ -779,17 +1212,14 @@ public class ChartDrawingEngine {
         contextMenu = new ContextMenu();
         contextMenu.setStyle("-fx-background-color:#1c2128; -fx-border-color:#30363d;");
 
-        // ── Properties (color, line weight, style, fill opacity) ──────────────
         MenuItem propsItem = new MenuItem("🎨 Properties…");
         propsItem.setOnAction(e -> {
             if (onOpenProperties != null) onOpenProperties.accept(d);
         });
 
-        // ── Parallel copy ─────────────────────────────────────────────────────
         MenuItem parallelItem = new MenuItem("∥ Parallel Copy…");
         parallelItem.setOnAction(e -> showParallelCopyDialog(d));
 
-        // ── Mirror ────────────────────────────────────────────────────────────
         Menu mirrorMenu = new Menu("⇄ Mirror");
         MenuItem mirrorV = new MenuItem("Vertical Axis");
         mirrorV.setOnAction(e -> { selected = d; mirrorSelected("VERTICAL"); });
@@ -797,10 +1227,9 @@ public class ChartDrawingEngine {
         mirrorH.setOnAction(e -> { selected = d; mirrorSelected("HORIZONTAL"); });
         mirrorMenu.getItems().addAll(mirrorV, mirrorH);
 
-        // ── Standard items ────────────────────────────────────────────────────
-        MenuItem del = new MenuItem("🗑 Delete");
+        MenuItem del  = new MenuItem("🗑 Delete");
         del.setOnAction(e -> doDeleteDrawing(d));
-        MenuItem dup = new MenuItem("⧉ Duplicate");
+        MenuItem dup  = new MenuItem("⧉ Duplicate");
         dup.setOnAction(e -> { selected = d; duplicateSelected(); });
         MenuItem lock = new MenuItem(effectiveLock(d) ? "🔓 Unlock" : "🔒 Lock");
         lock.setOnAction(e -> { selected = d; toggleLockSelected(); });
@@ -819,7 +1248,6 @@ public class ChartDrawingEngine {
                 new SeparatorMenuItem(),
                 undoItem, redoItem);
 
-        // Annotation text editing
         if (isAnnotationTool(d.getToolType())) {
             MenuItem editText = new MenuItem("✏ Edit Text");
             editText.setOnAction(e -> startTextEditing(d, host.currentRenderContext()));
@@ -827,7 +1255,6 @@ public class ChartDrawingEngine {
             contextMenu.getItems().add(1, new SeparatorMenuItem());
         }
 
-        // Position tools: trade shortcuts
         if (d.getToolType().isPositionTool()) {
             MenuItem trade = new MenuItem("📈 Create Trade from Drawing");
             trade.setOnAction(e -> { if (onCreateTradeFromDrawing != null) onCreateTradeFromDrawing.accept(d); });
@@ -839,7 +1266,6 @@ public class ChartDrawingEngine {
         contextMenu.show(host.getWindow(), screenX, screenY);
     }
 
-    /** Shows a small dialog to collect the price-offset for a parallel copy. */
     private void showParallelCopyDialog(ChartDrawing d) {
         TextInputDialog dlg = new TextInputDialog("0");
         dlg.setTitle("Parallel Copy");
@@ -853,9 +1279,7 @@ public class ChartDrawingEngine {
                 double offset = Double.parseDouble(txt.trim());
                 selected = d;
                 parallelCopySelected(offset);
-            } catch (NumberFormatException ex) {
-                // ignore invalid input
-            }
+            } catch (NumberFormatException ex) { /* ignore */ }
         });
     }
 
@@ -878,7 +1302,9 @@ public class ChartDrawingEngine {
         if (onSelectionChanged != null) onSelectionChanged.run();
     }
 
-    private static double distToSegment(double px, double py, double x1, double y1, double x2, double y2) {
+    private static double distToSegment(double px, double py,
+                                         double x1, double y1,
+                                         double x2, double y2) {
         double dx = x2 - x1, dy = y2 - y1;
         double lenSq = dx * dx + dy * dy;
         if (lenSq < 1e-10) return Math.hypot(px - x1, py - y1);
@@ -904,6 +1330,8 @@ public class ChartDrawingEngine {
                 .channelWidth(srcProps.getChannelWidth())
                 .text(srcProps.getText())
                 .fontSize(srcProps.getFontSize())
+                .textBoxWidth(srcProps.getTextBoxWidth())
+                .textBoxHeight(srcProps.getTextBoxHeight())
                 .build();
         return ChartDrawing.builder()
                 .profile(src.getProfile())
@@ -917,7 +1345,6 @@ public class ChartDrawingEngine {
     }
 
     private static void offsetCopyPoints(ChartDrawing copy) {
-        // Offset time by 1 candle width (use 1 hour as approximation)
         long oneHour = 3_600_000L;
         for (ChartPoint pt : copy.getPoints()) {
             pt.setTimeEpoch(pt.getTimeEpoch() + oneHour);
