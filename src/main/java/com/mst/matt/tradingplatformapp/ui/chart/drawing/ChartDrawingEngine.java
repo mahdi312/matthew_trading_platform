@@ -8,6 +8,8 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
 import javafx.stage.Window;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -42,18 +44,24 @@ public class ChartDrawingEngine {
     private static final double HOVER_DELETE_RADIUS = 10;
 
     private final Host host;
+    @Getter
     private final List<ChartDrawing> drawings = new ArrayList<>();
+    @Getter
     private final DrawingHistoryManager history = new DrawingHistoryManager();
 
+    @Getter
     private ChartDrawingToolType activeTool = ChartDrawingToolType.SELECT;
+    @Getter
     private ChartDrawing selected;
     private ChartDrawing inProgress;
     private int dragAnchorIndex = -1;
+    @Setter
     private boolean snapEnabled;
     private boolean isDragging;
     private double pressX, pressY;
 
     /** Drawing the mouse is currently hovering over. */
+    @Getter
     private ChartDrawing hovered;
     private double mouseX, mouseY;
 
@@ -61,19 +69,29 @@ public class ChartDrawingEngine {
     private DrawingHistoryManager.DrawingSnapshot preDragSnapshot;
 
     // ── Global overrides ─────────────────────────────────────────────────────
+    @Getter
     private boolean showAllDrawings = true;
+    @Getter
     private boolean lockAllDrawings = false;
     private boolean showHoverDeleteButton = true;
     private boolean confirmHoverDelete    = false;
 
     // ── Callbacks ─────────────────────────────────────────────────────────────
+    @Setter
     private Consumer<ChartDrawing> onDrawingCreated;
+    @Setter
     private Consumer<ChartDrawing> onDrawingUpdated;
+    @Setter
     private Consumer<ChartDrawing> onDrawingDeleted;
+    @Setter
     private Consumer<ChartDrawing> onCreateTradeFromDrawing;
+    @Setter
     private Consumer<ChartDrawing> onInstantSaveTrade;
+    @Setter
     private Runnable onSelectionChanged;
+    @Setter
     private Consumer<ChartDrawing> onHistoryRestored;
+    @Setter
     private Consumer<ChartDrawing> onOpenProperties;   // opens the per-drawing properties dialog
 
     private ContextMenu contextMenu;
@@ -94,27 +112,11 @@ public class ChartDrawingEngine {
         if (selected != null && !drawings.contains(selected)) selected = null;
     }
 
-    public List<ChartDrawing> getDrawings() { return drawings; }
-
     public void setActiveTool(ChartDrawingToolType tool) {
         this.activeTool = tool != null ? tool : ChartDrawingToolType.SELECT;
         inProgress = null;
         if (tool != ChartDrawingToolType.SELECT) selected = null;
     }
-
-    public ChartDrawingToolType getActiveTool() { return activeTool; }
-    public void setSnapEnabled(boolean snap)    { this.snapEnabled = snap; }
-    public ChartDrawing getSelected()           { return selected; }
-    public ChartDrawing getHovered()            { return hovered; }
-
-    public void setOnDrawingCreated(Consumer<ChartDrawing> c)         { onDrawingCreated = c; }
-    public void setOnDrawingUpdated(Consumer<ChartDrawing> c)         { onDrawingUpdated = c; }
-    public void setOnDrawingDeleted(Consumer<ChartDrawing> c)         { onDrawingDeleted = c; }
-    public void setOnCreateTradeFromDrawing(Consumer<ChartDrawing> c) { onCreateTradeFromDrawing = c; }
-    public void setOnInstantSaveTrade(Consumer<ChartDrawing> c)       { onInstantSaveTrade = c; }
-    public void setOnSelectionChanged(Runnable r)                     { onSelectionChanged = r; }
-    public void setOnHistoryRestored(Consumer<ChartDrawing> c)        { onHistoryRestored = c; }
-    public void setOnOpenProperties(Consumer<ChartDrawing> c)         { onOpenProperties = c; }
 
     // ── Global drawing settings ───────────────────────────────────────────────
 
@@ -127,9 +129,6 @@ public class ChartDrawingEngine {
         host.requestRender();
     }
 
-    public boolean isShowAllDrawings() { return showAllDrawings; }
-    public boolean isLockAllDrawings() { return lockAllDrawings; }
-
     /** Directly triggers a re-render from external code. */
     public void requestRender() { host.requestRender(); }
 
@@ -139,8 +138,6 @@ public class ChartDrawingEngine {
     public boolean isDrawingMode() {
         return activeTool != ChartDrawingToolType.SELECT;
     }
-
-    public DrawingHistoryManager getHistory() { return history; }
 
     // ── Undo / Redo ───────────────────────────────────────────────────────────
 
@@ -290,7 +287,7 @@ public class ChartDrawingEngine {
         }
 
         if (inProgress != null && activeTool != ChartDrawingToolType.SELECT) {
-            if (inProgress.getPoints().size() >= 1 && inProgress.getToolType().requiredPoints() > 1) {
+            if (!inProgress.getPoints().isEmpty() && inProgress.getToolType().requiredPoints() > 1) {
                 ChartPoint pt = pointFromMouse(e.getX(), e.getY(), ctx);
                 int numPts = inProgress.getPoints().size();
                 if (numPts < 2) inProgress.getPoints().add(pt);
