@@ -72,6 +72,7 @@ public class DrawingHistoryManager {
         // Properties snapshot
         public final String color;
         public final double lineWidth;
+        public final String lineStyle;
         public final double fillOpacity;
         public final Double entryPrice;
         public final Double stopLoss;
@@ -88,6 +89,7 @@ public class DrawingHistoryManager {
             ChartDrawingProperties p = d.getProperties();
             this.color        = p != null ? p.getColor() : null;
             this.lineWidth    = p != null ? p.getLineWidth() : 1.5;
+            this.lineStyle    = p != null ? p.getLineStyle() : "SOLID";
             this.fillOpacity  = p != null ? p.getFillOpacity() : 0.12;
             this.entryPrice   = p != null ? p.getEntryPrice() : null;
             this.stopLoss     = p != null ? p.getStopLoss() : null;
@@ -105,6 +107,7 @@ public class DrawingHistoryManager {
             ChartDrawingProperties p = d.getProperties();
             this.color        = p != null ? p.getColor() : null;
             this.lineWidth    = p != null ? p.getLineWidth() : 1.5;
+            this.lineStyle    = p != null ? p.getLineStyle() : "SOLID";
             this.fillOpacity  = p != null ? p.getFillOpacity() : 0.12;
             this.entryPrice   = p != null ? p.getEntryPrice() : null;
             this.stopLoss     = p != null ? p.getStopLoss() : null;
@@ -117,7 +120,7 @@ public class DrawingHistoryManager {
             if (pts == null) return new ArrayList<>();
             List<ChartPoint> copy = new ArrayList<>(pts.size());
             for (ChartPoint pt : pts) {
-                copy.add(ChartPoint.builder().time(pt.getTime()).price(pt.getPrice()).build());
+                copy.add(ChartPoint.ofEpoch(pt.getTimeEpoch(), pt.getPrice()));
             }
             return copy;
         }
@@ -246,6 +249,7 @@ public class DrawingHistoryManager {
             if (p != null) {
                 if (snap.color != null) p.setColor(snap.color);
                 p.setLineWidth(snap.lineWidth);
+                if (snap.lineStyle != null) p.setLineStyle(snap.lineStyle);
                 p.setFillOpacity(snap.fillOpacity);
                 p.setEntryPrice(snap.entryPrice);
                 p.setStopLoss(snap.stopLoss);

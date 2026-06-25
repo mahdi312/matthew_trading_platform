@@ -76,6 +76,13 @@ public class Trade {
     @Column
     private String strategy;              // User label: "Ichimoku Breakout", etc.
 
+    /**
+     * Optional path to a chart screenshot captured at the time this trade was created.
+     * Stored as an absolute file path, e.g. ~/.trading-platform/screenshots/trade_123.png
+     */
+    @Column(length = 512)
+    private String screenshotPath;
+
     // ── Calculated fields (updated on save) ───────────────────────
 
     @Column(precision = 20, scale = 8)

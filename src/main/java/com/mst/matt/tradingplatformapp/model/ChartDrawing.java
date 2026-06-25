@@ -1,18 +1,18 @@
 package com.mst.matt.tradingplatformapp.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-// Note: @Builder.Default on createdAt ensures it is never null even when
-// constructed via the Lombok builder (before @PrePersist fires).
-
+/**
+ * Persistent chart drawing entity.
+ *
+ * <p>Timestamps are stored as {@code long} (epoch milliseconds) to avoid
+ * {@code InaccessibleObjectException} when Gson reflects into {@code LocalDateTime}
+ * fields on newer JVMs with strong module encapsulation.
+ */
 @Entity
 @Table(name = "chart_drawings",
         indexes = @Index(name = "idx_drawing_profile_sym_tf",
@@ -41,7 +41,7 @@ public class ChartDrawing {
     @Column(nullable = false, length = 40)
     private ChartDrawingToolType toolType;
 
-    /** JSON array of {time, price} anchor points. */
+    /** JSON array of {time, price} anchor points. time is stored as epoch-millis (long). */
     @Column(nullable = false, columnDefinition = "TEXT")
     private String pointsJson;
 
@@ -52,21 +52,22 @@ public class ChartDrawing {
     @Column(nullable = false)
     private boolean locked;
 
-    /** Added @Builder.Default so Lombok builder never leaves this null before @PrePersist. */
-    @Column(nullable = false, columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+    /**
+     * Creation timestamp stored as epoch milliseconds.
+     * Replaces the former {@code LocalDateTime createdAt} field to avoid
+     * Gson / Java-module reflection errors with {@code java.time.LocalDateTime}.
+     */
+    @Column(nullable = false)
     @Builder.Default
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private long createdAtEpoch = 0L;
 
-    /** Layout name for grouping drawings; defaults to "default" to satisfy any NOT NULL column. */
-    @Column(nullable = false, length = 50, columnDefinition = "VARCHAR(50) DEFAULT 'default'")
-    @Builder.Default
-    private String layoutName = "default";
-
+    /** Named layout this drawing belongs to – null means it is part of the active (default) set. */
+    @Column(length = 100)
+    private String layoutName;
 
     @PrePersist
     protected void onCreate() {
-        if (createdAt == null) createdAt = LocalDateTime.now();
-        if (layoutName == null || layoutName.isBlank()) layoutName = "default";
+        if (createdAtEpoch == 0L) createdAtEpoch = System.currentTimeMillis();
     }
 
     /** Transient parsed points — not persisted. */

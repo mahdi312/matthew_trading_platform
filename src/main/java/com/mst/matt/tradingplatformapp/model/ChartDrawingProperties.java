@@ -12,11 +12,20 @@ import lombok.NoArgsConstructor;
 @Builder
 public class ChartDrawingProperties {
 
+    // ── Visual Properties ──────────────────────────────────────────────────────
+
     @Builder.Default
     private String color = "#58a6ff";
 
     @Builder.Default
     private double lineWidth = 1.5;
+
+    /**
+     * Line style: SOLID, DASHED, DOTTED, DASH_DOT.
+     * Stored as a string for easy JSON round-trip.
+     */
+    @Builder.Default
+    private String lineStyle = "SOLID";
 
     @Builder.Default
     private double fillOpacity = 0.12;
@@ -27,13 +36,19 @@ public class ChartDrawingProperties {
     @Builder.Default
     private boolean extendRight = false;
 
+    // ── Position tools ─────────────────────────────────────────────────────────
+
     /** Position tools: entry / SL / TP price levels. */
     private Double entryPrice;
     private Double stopLoss;
     private Double takeProfit;
 
+    // ── Channel ────────────────────────────────────────────────────────────────
+
     /** Channel width in price units. */
     private Double channelWidth;
+
+    // ── Annotations ────────────────────────────────────────────────────────────
 
     /** Text annotation content. */
     private String text;
@@ -64,6 +79,22 @@ public class ChartDrawingProperties {
     @com.fasterxml.jackson.annotation.JsonIgnore
     private boolean editing = false;
 
+    // ── Mirror / Copy metadata ─────────────────────────────────────────────────
+
+    /**
+     * For MIRROR copies: axis type that was used ("VERTICAL" or "HORIZONTAL").
+     * Informational only — the reflected drawing is independent after creation.
+     */
+    private String mirrorAxis;
+
+    /**
+     * For PARALLEL_LINES copies: the offset in price units from the source line.
+     * Stored for display / slider adjustment after creation.
+     */
+    private Double parallelOffset;
+
+    // ── Factory ───────────────────────────────────────────────────────────────
+
     public static ChartDrawingProperties defaultsFor(ChartDrawingToolType type) {
         ChartDrawingProperties p = ChartDrawingProperties.builder().build();
         if (type == ChartDrawingToolType.LONG_POSITION) {
@@ -91,5 +122,16 @@ public class ChartDrawingProperties {
             p.setText("Callout");
         }
         return p;
+    }
+
+    /** Returns JavaFX {@code double[]} dash pattern from the lineStyle string. */
+    public double[] getDashPattern() {
+        if (lineStyle == null) return new double[0];
+        return switch (lineStyle) {
+            case "DASHED"   -> new double[]{8, 5};
+            case "DOTTED"   -> new double[]{2, 4};
+            case "DASH_DOT" -> new double[]{8, 4, 2, 4};
+            default          -> new double[0];  // SOLID
+        };
     }
 }

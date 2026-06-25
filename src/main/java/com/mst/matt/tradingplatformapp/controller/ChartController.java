@@ -7,6 +7,9 @@ import com.mst.matt.tradingplatformapp.repository.SymbolEntryRepository;
 import com.mst.matt.tradingplatformapp.repository.UserProfileRepository;
 import com.mst.matt.tradingplatformapp.service.ChartDrawingService;
 import com.mst.matt.tradingplatformapp.service.OhlcvStorageService;
+import com.mst.matt.tradingplatformapp.ui.chart.DrawingPropertiesDialog;
+import com.mst.matt.tradingplatformapp.ui.chart.GlobalDrawingSettingsDialog;
+import com.mst.matt.tradingplatformapp.ui.chart.LayoutManagerDialog;
 import com.mst.matt.tradingplatformapp.service.ProfilePersistenceService;
 import com.mst.matt.tradingplatformapp.service.analysis.AnalysisService;
 import com.mst.matt.tradingplatformapp.service.analysis.AnalysisService.AnalysisResult;
@@ -58,6 +61,9 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+// Screenshot imports (only used if javafx-swing is on classpath)
+// javax.imageio.ImageIO and javafx.embed.swing.SwingFXUtils are used inside captureChartScreenshot()
 
 @Component
 @FxmlView("/fxml/ChartView.fxml")
@@ -136,6 +142,12 @@ public class ChartController implements Initializable {
     private Consumer<TradeDrawingDraft> onCreateTradeFromDrawing;
     private Consumer<TradeDrawingDraft> onInstantSaveTradeFromDrawing;
     private boolean chartSessionActive;
+
+    /** Current global drawing settings (persisted via AppSettingsService). */
+    private GlobalDrawingSettings drawingSettings = new GlobalDrawingSettings();
+
+    /** Screenshot callback – receives the PNG file path after capture. */
+    private Consumer<String> onScreenshotSaved;
 
     @Override
     public void initialize(URL url, ResourceBundle rb) {
@@ -226,10 +238,181 @@ public class ChartController implements Initializable {
         toolbar.setOnToolSelected(chart::setActiveDrawingTool);
         toolbar.setOnDelete(() -> chart.getDrawingEngine().deleteSelected());
 
-        // Wire undo/redo buttons in the toolbar
-        // (toolbar keeps a reference; wireDrawingEngine() calls refreshUndoRedoState() after each action)
+        // Undo / Redo
         toolbar.setOnUndo(() -> chart.getDrawingEngine().undo());
         toolbar.setOnRedo(() -> chart.getDrawingEngine().redo());
+
+        // Save / Load / Delete Layout
+        toolbar.setOnSaveLayout(this::onSaveLayout);
+        toolbar.setOnLoadLayout(this::onLoadLayout);
+        toolbar.setOnDeleteLayout(this::onDeleteLayout);
+
+        // Global drawing settings
+        toolbar.setOnDrawingSettings(this::onOpenDrawingSettings);
+
+        // Show / Hide all drawings
+        toolbar.setOnToggleShowAll(() -> {
+            var engine = chart.getDrawingEngine();
+            engine.setShowAllDrawings(!engine.isShowAllDrawings());
+            drawingSettings.setShowAllDrawings(engine.isShowAllDrawings());
+            persistDrawingSettings();
+            showInfoNotification(engine.isShowAllDrawings()
+                    ? "All drawings shown." : "All drawings hidden.");
+        });
+
+        // Lock / Unlock all drawings
+        toolbar.setOnToggleLockAll(() -> {
+            var engine = chart.getDrawingEngine();
+            engine.setLockAllDrawings(!engine.isLockAllDrawings());
+            drawingSettings.setLockAllDrawings(engine.isLockAllDrawings());
+            persistDrawingSettings();
+            showInfoNotification(engine.isLockAllDrawings()
+                    ? "All drawings locked." : "All drawings unlocked.");
+        });
+
+        // Screenshot
+        toolbar.setOnScreenshot(this::onCaptureScreenshot);
+    }
+
+    public void setOnScreenshotSaved(Consumer<String> cb) { this.onScreenshotSaved = cb; }
+
+    // ── Drawing Layout helpers ────────────────────────────────────────────────
+
+    private void onSaveLayout() {
+        if (activeProfile == null) { showWarnNotification("No active profile."); return; }
+        var engine = chart.getDrawingEngine();
+        List<ChartDrawing> drawings = new ArrayList<>(engine.getDrawings());
+        Thread.ofVirtual().start(() -> {
+            var layouts = chartDrawingService.listLayouts(activeProfile, currentSymbol, currentTimeframe);
+            javafx.application.Platform.runLater(() ->
+                    LayoutManagerDialog.showSave(
+                            chart.getScene() != null ? chart.getScene().getWindow() : null,
+                            layouts,
+                            name -> Thread.ofVirtual().start(() -> {
+                                chartDrawingService.saveLayout(
+                                        activeProfile, currentSymbol, currentTimeframe, name, drawings);
+                                javafx.application.Platform.runLater(() ->
+                                        showInfoNotification("Layout \"" + name + "\" saved."));
+                            })));
+        });
+    }
+
+    private void onLoadLayout() {
+        if (activeProfile == null) { showWarnNotification("No active profile."); return; }
+        Thread.ofVirtual().start(() -> {
+            var layouts = chartDrawingService.listLayouts(activeProfile, currentSymbol, currentTimeframe);
+            javafx.application.Platform.runLater(() ->
+                    LayoutManagerDialog.showLoad(
+                            chart.getScene() != null ? chart.getScene().getWindow() : null,
+                            layouts,
+                            name -> Thread.ofVirtual().start(() -> {
+                                List<ChartDrawing> loaded = chartDrawingService.loadLayout(
+                                        activeProfile, currentSymbol, currentTimeframe, name);
+                                javafx.application.Platform.runLater(() -> {
+                                    chart.setDrawings(loaded);
+                                    showInfoNotification("Layout \"" + name + "\" loaded ("
+                                            + loaded.size() + " drawings).");
+                                });
+                            })));
+        });
+    }
+
+    private void onDeleteLayout() {
+        if (activeProfile == null) { showWarnNotification("No active profile."); return; }
+        Thread.ofVirtual().start(() -> {
+            var layouts = chartDrawingService.listLayouts(activeProfile, currentSymbol, currentTimeframe);
+            javafx.application.Platform.runLater(() ->
+                    LayoutManagerDialog.showDelete(
+                            chart.getScene() != null ? chart.getScene().getWindow() : null,
+                            layouts,
+                            name -> Thread.ofVirtual().start(() -> {
+                                chartDrawingService.deleteLayout(
+                                        activeProfile, currentSymbol, currentTimeframe, name);
+                                javafx.application.Platform.runLater(() ->
+                                        showInfoNotification("Layout \"" + name + "\" deleted."));
+                            })));
+        });
+    }
+
+    // ── Global Drawing Settings ───────────────────────────────────────────────
+
+    private void onOpenDrawingSettings() {
+        GlobalDrawingSettingsDialog.show(
+                drawingSettings,
+                chart.getScene() != null ? chart.getScene().getWindow() : null,
+                updated -> {
+                    drawingSettings = updated;
+                    chart.getDrawingEngine().applyGlobalSettings(updated);
+                    persistDrawingSettings();
+                    showInfoNotification("Drawing settings saved.");
+                });
+    }
+
+    private void persistDrawingSettings() {
+        // Persist via a lightweight JSON string in user prefs
+        // (AppSettingsService can store arbitrary String keys)
+        try {
+            com.google.gson.Gson gson = new com.google.gson.GsonBuilder().create();
+            String json = gson.toJson(drawingSettings);
+            appSettingsService.setSetting("drawingSettings", json);
+        } catch (Exception e) {
+            log.warn("Failed to persist drawing settings: {}", e.getMessage());
+        }
+    }
+
+    private void loadDrawingSettings() {
+        try {
+            String json = appSettingsService.getSetting("drawingSettings");
+            if (json != null && !json.isBlank()) {
+                com.google.gson.Gson gson = new com.google.gson.GsonBuilder().create();
+                drawingSettings = gson.fromJson(json, GlobalDrawingSettings.class);
+                if (drawingSettings == null) drawingSettings = new GlobalDrawingSettings();
+                chart.getDrawingEngine().applyGlobalSettings(drawingSettings);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to load drawing settings: {}", e.getMessage());
+        }
+    }
+
+    // ── Screenshot ────────────────────────────────────────────────────────────
+
+    /**
+     * Captures a PNG screenshot of the chart and saves it under
+     * {@code ~/.trading-platform/screenshots/}.
+     *
+     * @return the absolute path of the saved file, or {@code null} on failure.
+     */
+    public String captureChartScreenshot() {
+        try {
+            javafx.scene.image.WritableImage img = chart.captureScreenshot();
+            if (img == null) return null;
+
+            String homeDir = System.getProperty("user.home");
+            java.io.File screenshotDir = new java.io.File(homeDir, ".trading-platform/screenshots");
+            screenshotDir.mkdirs();
+
+            String fileName = "chart_" + System.currentTimeMillis() + ".png";
+            java.io.File outFile = new java.io.File(screenshotDir, fileName);
+
+            javax.imageio.ImageIO.write(
+                    javafx.embed.swing.SwingFXUtils.fromFXImage(img, null),
+                    "PNG", outFile);
+
+            return outFile.getAbsolutePath();
+        } catch (Exception ex) {
+            log.warn("Screenshot capture failed: {}", ex.getMessage());
+            return null;
+        }
+    }
+
+    private void onCaptureScreenshot() {
+        String path = captureChartScreenshot();
+        if (path != null) {
+            showInfoNotification("Screenshot saved: " + path);
+            if (onScreenshotSaved != null) onScreenshotSaved.accept(path);
+        } else {
+            showErrorNotification("Screenshot capture failed.");
+        }
     }
 
     private void setupNotifications() {
@@ -357,7 +540,6 @@ public class ChartController implements Initializable {
             refreshUndoRedoState();
         });
         engine.setOnHistoryRestored(d -> {
-            // After undo/redo, persist the restored state
             if (d != null) persistDrawing(d);
             refreshUndoRedoState();
         });
@@ -370,6 +552,17 @@ public class ChartController implements Initializable {
             TradeDrawingDraft draft = buildTradeDraft(d);
             if (draft != null && onInstantSaveTradeFromDrawing != null)
                 onInstantSaveTradeFromDrawing.accept(draft);
+        });
+
+        // Per-drawing properties dialog
+        engine.setOnOpenProperties(d -> {
+            DrawingPropertiesDialog.show(
+                    d,
+                    chart.getScene() != null ? chart.getScene().getWindow() : null,
+                    updated -> {
+                        persistDrawing(updated);
+                        chart.getDrawingEngine().requestRender();
+                    });
         });
     }
 
@@ -492,6 +685,8 @@ public class ChartController implements Initializable {
             if (symbolInput != null) symbolInput.setText(currentSymbol);
             if (symbolCombo != null) symbolCombo.setValue(currentSymbol);
         }
+        // Load persisted global drawing settings for this session
+        loadDrawingSettings();
         // Feature 5: reload symbol list for this profile's asset focus
         refreshSymbolList(profile);
         refreshProviderCombo();
