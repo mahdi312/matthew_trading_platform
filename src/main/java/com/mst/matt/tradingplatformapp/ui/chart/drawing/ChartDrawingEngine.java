@@ -3,7 +3,12 @@ package com.mst.matt.tradingplatformapp.ui.chart.drawing;
 import com.mst.matt.tradingplatformapp.model.*;
 import com.mst.matt.tradingplatformapp.service.ChartDrawingService;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
@@ -106,6 +111,10 @@ public class ChartDrawingEngine {
     private boolean showHoverDeleteButton = true;
     private boolean confirmHoverDelete    = false;
 
+    /** Current per-profile drawing settings used for defaulting new drawings. */
+    @Getter
+    private GlobalDrawingSettings currentDrawingSettings = new GlobalDrawingSettings();
+
     // ── Callbacks ─────────────────────────────────────────────────────────────
     @Setter private Consumer<ChartDrawing> onDrawingCreated;
     @Setter private Consumer<ChartDrawing> onDrawingUpdated;
@@ -144,6 +153,7 @@ public class ChartDrawingEngine {
 
     public void applyGlobalSettings(GlobalDrawingSettings s) {
         if (s == null) return;
+        this.currentDrawingSettings = s;
         this.showAllDrawings       = s.isShowAllDrawings();
         this.lockAllDrawings       = s.isLockAllDrawings();
         this.showHoverDeleteButton = s.isShowHoverDeleteButton();
@@ -549,13 +559,19 @@ public class ChartDrawingEngine {
 
     // ── Hover delete button ───────────────────────────────────────────────────
 
-    /** Renders a small × button near the hovered drawing's first anchor. */
+    /**
+     * Renders a small × button at the SAME location as the selection delete button
+     * (top-right of bounding box) for consistency.  The button is slightly smaller
+     * than the selection one so the user can visually distinguish the two states.
+     */
     private void renderHoverDeleteButton(GraphicsContext gc, DrawingRenderer.RenderContext ctx,
                                          ChartDrawing d) {
         if (d.getPoints() == null || d.getPoints().isEmpty()) return;
-        double[] pos = hoverDeletePos(ctx, d);
+        // Re-use the same bounding-box position as the selection delete button
+        double[] pos = selectionDeletePos(ctx, d);
+        if (pos == null) return;
         double bx = pos[0], by = pos[1];
-        double r  = HOVER_DELETE_RADIUS;
+        double r  = HOVER_DELETE_RADIUS;  // same radius, slightly less opaque
 
         gc.setFill(Color.web("#f85149cc"));
         gc.fillOval(bx - r, by - r, r * 2, r * 2);
@@ -565,17 +581,21 @@ public class ChartDrawingEngine {
         gc.strokeLine(bx + 4, by - 4, bx - 4, by + 4);
     }
 
+    /**
+     * Returns the hover-delete button position — identical to the selection-delete
+     * position so the button never "jumps" when the user clicks to select.
+     */
     private double[] hoverDeletePos(DrawingRenderer.RenderContext ctx, ChartDrawing d) {
-        double x = DrawingRenderer.timeToX(d.getPoints().getFirst().getTime(), ctx);
-        double y = DrawingRenderer.priceToY(d.getPoints().getFirst().getPrice(), ctx);
-        return new double[]{x - 12, y - 12};
+        // Delegate to the same bounding-box calculation used for the selection delete
+        return selectionDeletePos(ctx, d);
     }
 
     private boolean isHoverDeleteHit(double mx, double my, DrawingRenderer.RenderContext ctx,
                                      ChartDrawing d) {
         if (d.getPoints() == null || d.getPoints().isEmpty()) return false;
         double[] pos = hoverDeletePos(ctx, d);
-        return Math.hypot(mx - pos[0], my - pos[1]) < HOVER_DELETE_RADIUS + 2;
+        if (pos == null) return false;
+        return Math.hypot(mx - pos[0], my - pos[1]) < HOVER_DELETE_RADIUS + 4;
     }
 
     // ── Text / Note resize handles ────────────────────────────────────────────
@@ -675,19 +695,31 @@ public class ChartDrawingEngine {
     private double getTextBoxWidth(ChartDrawing d) {
         double stored = d.getProperties().getTextBoxWidth();
         if (stored > 0) return stored;
-        // Default widths
-        if (d.getToolType() == ChartDrawingToolType.NOTE_ICON) return 80;
+        // Default widths — NOTE_ICON uses a wider default for readability
+        if (d.getToolType() == ChartDrawingToolType.NOTE_ICON) return 120;
         String text = d.getProperties().getText();
         double fs = d.getProperties().getFontSize() > 0 ? d.getProperties().getFontSize() : 12;
-        return Math.max(60, (text != null ? text.length() : 4) * (fs * 0.65) + 16);
+        // Wrap long text: cap auto-width at 240 px
+        int len = (text != null ? text.length() : 4);
+        return Math.min(240, Math.max(80, len * (fs * 0.62) + 16));
     }
 
     private double getTextBoxHeight(ChartDrawing d) {
         double stored = d.getProperties().getTextBoxHeight();
         if (stored > 0) return stored;
-        if (d.getToolType() == ChartDrawingToolType.NOTE_ICON) return 60;
+        // NOTE_ICON: taller default to show a meaningful preview
+        if (d.getToolType() == ChartDrawingToolType.NOTE_ICON) return 80;
+        // TEXT_LABEL: compute height based on wrapped lines
+        String text = d.getProperties().getText();
         double fs = d.getProperties().getFontSize() > 0 ? d.getProperties().getFontSize() : 12;
-        return fs + 12;
+        double boxW = getTextBoxWidth(d);
+        double charW = fs * 0.62;
+        int charsPerLine = Math.max(1, (int)((boxW - 16) / charW));
+        int lineCount = (int) Math.ceil((double)(text != null ? text.length() : 4) / charsPerLine);
+        // Also count explicit newlines
+        if (text != null) lineCount += (int) text.chars().filter(c -> c == '\n').count();
+        lineCount = Math.max(1, lineCount);
+        return Math.max(fs + 12, lineCount * (fs + 4) + 10);
     }
 
     // ── Position tool line drag ───────────────────────────────────────────────
@@ -932,21 +964,86 @@ public class ChartDrawingEngine {
         }
     }
 
+    /**
+     * Opens a full-featured multi-line text editor for a Note drawing.
+     * The dialog shows the complete text in a scrollable TextArea, supports
+     * word-wrap, and lets the user resize the note's bounding box.
+     */
     private void openNoteEditDialog(ChartDrawing d, DrawingHistoryManager.DrawingSnapshot before) {
         String current = d.getProperties().getText() != null ? d.getProperties().getText() : "";
-        TextInputDialog dialog = new TextInputDialog(current);
-        dialog.setTitle("Edit Note");
-        dialog.setHeaderText("Enter note content:");
-        dialog.setContentText("Note:");
+
+        Stage stage = new Stage();
+        stage.setTitle("✏ Edit Note");
+        stage.setResizable(true);
         if (host.getWindow() != null) {
-            try { dialog.initOwner(host.getWindow()); } catch (Exception ignored) {}
+            try { stage.initOwner(host.getWindow()); } catch (Exception ignored) {}
+            stage.initModality(Modality.APPLICATION_MODAL);
         }
-        dialog.showAndWait().ifPresent(newText -> {
-            d.getProperties().setText(newText);
+
+        // ── Text area (multi-line, wrapping) ───────────────────────────────────
+        TextArea textArea = new TextArea(current);
+        textArea.setWrapText(true);
+        textArea.setPrefRowCount(8);
+        textArea.setPrefColumnCount(40);
+        textArea.setStyle("-fx-control-inner-background:#161b22; -fx-text-fill:#e6edf3;"
+                + "-fx-background-color:#161b22; -fx-border-color:#30363d;"
+                + "-fx-font-size:13px; -fx-padding:8;");
+
+        // ── Char counter ───────────────────────────────────────────────────────
+        Label counter = new Label("0 chars");
+        counter.setStyle("-fx-text-fill:#8b949e; -fx-font-size:11px;");
+        textArea.textProperty().addListener((obs, o, n) ->
+                counter.setText((n == null ? 0 : n.length()) + " chars"));
+        counter.setText(current.length() + " chars");
+
+        // ── Buttons ────────────────────────────────────────────────────────────
+        Button saveBtn   = new Button("💾 Save");
+        Button cancelBtn = new Button("✕ Cancel");
+        saveBtn.setStyle("-fx-background-color:#2a623d; -fx-text-fill:#e6edf3;"
+                + "-fx-border-color:#3fb950; -fx-border-radius:4; -fx-background-radius:4;"
+                + "-fx-padding:6 16; -fx-cursor:hand;");
+        cancelBtn.setStyle("-fx-background-color:#21262d; -fx-text-fill:#8b949e;"
+                + "-fx-border-color:#30363d; -fx-border-radius:4; -fx-background-radius:4;"
+                + "-fx-padding:6 16; -fx-cursor:hand;");
+
+        saveBtn.setOnAction(e -> {
+            d.getProperties().setText(textArea.getText());
             history.recordModify(d, before);
             if (onDrawingUpdated != null) onDrawingUpdated.accept(d);
             host.requestRender();
+            stage.close();
         });
+        cancelBtn.setOnAction(e -> stage.close());
+
+        // ── Layout ─────────────────────────────────────────────────────────────
+        HBox btnBar = new HBox(8, counter, new Region(), saveBtn, cancelBtn);
+        HBox.setHgrow(btnBar.getChildren().get(1), Priority.ALWAYS);
+        btnBar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        btnBar.setPadding(new Insets(8, 0, 0, 0));
+
+        Label hint = new Label("Tip: Shift+Enter for new line. Text wraps to fit the note box.");
+        hint.setStyle("-fx-text-fill:#8b949e; -fx-font-size:10px;");
+        hint.setWrapText(true);
+
+        VBox root = new VBox(8, textArea, hint, btnBar);
+        root.setPadding(new Insets(12));
+        root.setStyle("-fx-background-color:#0d1117;");
+        VBox.setVgrow(textArea, Priority.ALWAYS);
+
+        Scene scene = new Scene(root, 460, 280);
+        scene.setFill(javafx.scene.paint.Color.web("#0d1117"));
+        // Keyboard shortcut: Ctrl+Enter = Save
+        scene.setOnKeyPressed(ev -> {
+            if (ev.isControlDown()
+                    && ev.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                saveBtn.fire();
+            } else if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                cancelBtn.fire();
+            }
+        });
+
+        stage.setScene(scene);
+        stage.showAndWait();
     }
 
     private void openInlineTextEditor(ChartDrawing d, DrawingRenderer.RenderContext ctx,
@@ -954,20 +1051,78 @@ public class ChartDrawingEngine {
         String current = d.getProperties().getText() != null ? d.getProperties().getText() : "";
         d.getProperties().setEditing(true);
         host.requestRender();
-        TextInputDialog dialog = new TextInputDialog(current);
-        dialog.setTitle("Edit " + d.getToolType().displayName());
-        dialog.setHeaderText("Enter label text:");
-        dialog.setContentText("Text:");
+
+        Stage stage = new Stage();
+        stage.setTitle("✏ Edit " + d.getToolType().displayName());
+        stage.setResizable(true);
         if (host.getWindow() != null) {
-            try { dialog.initOwner(host.getWindow()); } catch (Exception ignored) {}
+            try { stage.initOwner(host.getWindow()); } catch (Exception ignored) {}
+            stage.initModality(Modality.APPLICATION_MODAL);
         }
-        dialog.showAndWait().ifPresent(newText -> {
+
+        // Multi-line TextArea with word-wrap
+        TextArea textArea = new TextArea(current);
+        textArea.setWrapText(true);
+        textArea.setPrefRowCount(5);
+        textArea.setPrefColumnCount(35);
+        textArea.setStyle("-fx-control-inner-background:#161b22; -fx-text-fill:#e6edf3;"
+                + "-fx-background-color:#161b22; -fx-border-color:#30363d;"
+                + "-fx-font-size:13px; -fx-padding:8;");
+
+        Button saveBtn   = new Button("💾 Save");
+        Button cancelBtn = new Button("✕ Cancel");
+        saveBtn.setStyle("-fx-background-color:#2a623d; -fx-text-fill:#e6edf3;"
+                + "-fx-border-color:#3fb950; -fx-border-radius:4; -fx-background-radius:4;"
+                + "-fx-padding:6 16; -fx-cursor:hand;");
+        cancelBtn.setStyle("-fx-background-color:#21262d; -fx-text-fill:#8b949e;"
+                + "-fx-border-color:#30363d; -fx-border-radius:4; -fx-background-radius:4;"
+                + "-fx-padding:6 16; -fx-cursor:hand;");
+
+        saveBtn.setOnAction(e -> {
+            String newText = textArea.getText();
             d.getProperties().setText(newText.isBlank() ? "Text" : newText);
+            d.getProperties().setEditing(false);
             history.recordModify(d, before);
             if (onDrawingUpdated != null) onDrawingUpdated.accept(d);
+            host.requestRender();
+            stage.close();
         });
-        d.getProperties().setEditing(false);
-        host.requestRender();
+        cancelBtn.setOnAction(e -> {
+            d.getProperties().setEditing(false);
+            host.requestRender();
+            stage.close();
+        });
+        stage.setOnHidden(e -> {
+            d.getProperties().setEditing(false);
+            host.requestRender();
+        });
+
+        HBox btnBar = new HBox(8, new Region(), saveBtn, cancelBtn);
+        HBox.setHgrow(btnBar.getChildren().get(0), Priority.ALWAYS);
+        btnBar.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
+        btnBar.setPadding(new Insets(8, 0, 0, 0));
+
+        Label hint = new Label("Ctrl+Enter to save · Esc to cancel · Shift+Enter for new line");
+        hint.setStyle("-fx-text-fill:#8b949e; -fx-font-size:10px;");
+
+        VBox root = new VBox(8, textArea, hint, btnBar);
+        root.setPadding(new Insets(12));
+        root.setStyle("-fx-background-color:#0d1117;");
+        VBox.setVgrow(textArea, Priority.ALWAYS);
+
+        Scene scene = new Scene(root, 380, 220);
+        scene.setFill(javafx.scene.paint.Color.web("#0d1117"));
+        scene.setOnKeyPressed(ev -> {
+            if (ev.isControlDown()
+                    && ev.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                saveBtn.fire();
+            } else if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                cancelBtn.fire();
+            }
+        });
+
+        stage.setScene(scene);
+        stage.showAndWait();
     }
 
     private static boolean isAnnotationTool(ChartDrawingToolType t) {
@@ -1008,7 +1163,8 @@ public class ChartDrawingEngine {
     }
 
     private ChartDrawing newDraft(ChartDrawingToolType tool, ChartPoint pt) {
-        ChartDrawingProperties props = ChartDrawingProperties.defaultsFor(tool);
+        // Issue 7.2: pass current per-profile settings so defaults reflect the profile
+        ChartDrawingProperties props = ChartDrawingProperties.defaultsFor(tool, currentDrawingSettings);
         if (tool.isPositionTool()) {
             double entry  = pt.getPrice();
             double offset = Math.abs(entry) * 0.02;

@@ -86,6 +86,16 @@ public class UserProfile {
     @Column(length = 1024)
     private String watchlist;
 
+    /**
+     * Per-profile drawing settings stored as a JSON blob.
+     * Contains default colours, line widths, styles, fill opacity, etc.
+     * Null means "use application defaults" ({@link GlobalDrawingSettings}).
+     *
+     * <p>Issue 7.1 fix: drawing settings are now scoped to the profile, not to the machine.
+     */
+    @Column(columnDefinition = "TEXT")
+    private String drawingSettingsJson;
+
     @OneToMany(mappedBy = "profile", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Trade> trades;
 

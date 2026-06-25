@@ -10,11 +10,20 @@ import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
+import javafx.scene.effect.DropShadow;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.layout.StackPane;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.ScrollEvent;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 import javafx.util.Duration;
 import net.rgielen.fxweaver.core.FxmlView;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -520,7 +529,19 @@ public class TradeEntryController implements Initializable {
                     if (screenshotPlaceholderLabel != null)
                         screenshotPlaceholderLabel.setVisible(false);
                     if (screenshotPathLabel != null)
-                        screenshotPathLabel.setText("📄 " + f.getName());
+                        screenshotPathLabel.setText("📄 " + f.getName() + "  🔍 Click to enlarge");
+                    // Wire click-to-enlarge on the thumbnail
+                    screenshotImageView.setOnMouseClicked(ev -> {
+                        if (ev.getButton() == MouseButton.PRIMARY) openScreenshotPreview();
+                    });
+                    screenshotImageView.setStyle("-fx-cursor: hand;");
+                    if (screenshotPane != null) {
+                        screenshotPane.setOnMouseClicked(ev -> {
+                            if (ev.getButton() == MouseButton.PRIMARY
+                                    && screenshotImageView.isVisible()) openScreenshotPreview();
+                        });
+                        screenshotPane.setStyle("-fx-cursor: hand;");
+                    }
                     return;
                 }
             } catch (Exception ignored) {}
@@ -528,10 +549,162 @@ public class TradeEntryController implements Initializable {
         // No image – show placeholder
         screenshotImageView.setImage(null);
         screenshotImageView.setVisible(false);
+        screenshotImageView.setOnMouseClicked(null);
+        screenshotImageView.setStyle("");
+        if (screenshotPane != null) {
+            screenshotPane.setOnMouseClicked(null);
+            screenshotPane.setStyle("");
+        }
         if (screenshotPlaceholderLabel != null)
             screenshotPlaceholderLabel.setVisible(true);
         if (screenshotPathLabel != null)
             screenshotPathLabel.setText("");
+    }
+
+    /**
+     * Opens a resizable pop-up dialog showing the screenshot at a large size.
+     * The dialog includes:
+     *   • Scroll/pan capability via a ScrollPane
+     *   • Zoom in / out buttons (+/- keys also work)
+     *   • A Close button
+     *   • Mouse-scroll to zoom
+     */
+    private void openScreenshotPreview() {
+        if (currentScreenshotPath == null) return;
+        File f = new File(currentScreenshotPath);
+        if (!f.exists()) return;
+
+        Image img;
+        try {
+            img = new Image(f.toURI().toString());
+        } catch (Exception ex) {
+            return;
+        }
+
+        Stage dialog = new Stage(StageStyle.DECORATED);
+        dialog.initModality(Modality.APPLICATION_MODAL);
+        dialog.setTitle("📸 Screenshot – " + f.getName());
+        dialog.setResizable(true);
+
+        // ── Image view with zoom support ──────────────────────────────────
+        ImageView bigView = new ImageView(img);
+        bigView.setPreserveRatio(true);
+        bigView.setSmooth(true);
+        // Start at a sensible initial size (fit within ~800×600)
+        double initW = Math.min(img.getWidth(),  800);
+        double initH = Math.min(img.getHeight(), 600);
+        bigView.setFitWidth(initW);
+        bigView.setFitHeight(initH);
+
+        StackPane imgContainer = new StackPane(bigView);
+        imgContainer.setStyle("-fx-background-color:#0d1117;");
+
+        ScrollPane scroll = new ScrollPane(imgContainer);
+        scroll.setStyle("-fx-background-color:#0d1117; -fx-background:#0d1117;");
+        scroll.setPannable(true);
+        scroll.setFitToWidth(false);
+        scroll.setFitToHeight(false);
+
+        // ── Zoom helpers ──────────────────────────────────────────────────
+        final double[] scale = {1.0};   // mutable holder
+        Runnable applyZoom = () -> {
+            double s = scale[0];
+            bigView.setFitWidth(img.getWidth() * s);
+            bigView.setFitHeight(img.getHeight() * s);
+        };
+        Runnable zoomIn  = () -> { scale[0] = Math.min(scale[0] * 1.2, 8.0); applyZoom.run(); };
+        Runnable zoomOut = () -> { scale[0] = Math.max(scale[0] / 1.2, 0.1); applyZoom.run(); };
+        Runnable fitWin  = () -> {
+            double ww = dialog.getScene() != null ? dialog.getScene().getWidth()  - 40 : 800;
+            double wh = dialog.getScene() != null ? dialog.getScene().getHeight() - 80 : 560;
+            double s  = Math.min(ww / img.getWidth(), wh / img.getHeight());
+            scale[0]  = Math.max(0.05, s);
+            applyZoom.run();
+        };
+
+        // Scroll-wheel zoom
+        scroll.addEventFilter(ScrollEvent.SCROLL, ev -> {
+            if (ev.isControlDown() || true) {   // always zoom on wheel in preview
+                if (ev.getDeltaY() > 0) zoomIn.run(); else zoomOut.run();
+                ev.consume();
+            }
+        });
+
+        // ── Toolbar ────────────────────────────────────────────────────────
+        Button zoomInBtn  = toolButton("🔍+", "#21262d");
+        Button zoomOutBtn = toolButton("🔍-", "#21262d");
+        Button fitBtn     = toolButton("⊡ Fit", "#21262d");
+        Button closeBtn   = toolButton("✕ Close", "#4a1a1a");
+
+        zoomInBtn .setOnAction(e -> zoomIn.run());
+        zoomOutBtn.setOnAction(e -> zoomOut.run());
+        fitBtn    .setOnAction(e -> fitWin.run());
+        closeBtn  .setOnAction(e -> dialog.close());
+
+        HBox toolbar = new HBox(8, zoomInBtn, zoomOutBtn, fitBtn,
+                new Region(), closeBtn);
+        HBox.setHgrow(toolbar.getChildren().get(3), Priority.ALWAYS);
+        toolbar.setAlignment(Pos.CENTER_LEFT);
+        toolbar.setPadding(new Insets(8, 12, 8, 12));
+        toolbar.setStyle("-fx-background-color:#161b22; -fx-border-color:#30363d;"
+                + "-fx-border-width:0 0 1 0;");
+
+        VBox root = new VBox(toolbar, scroll);
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+        root.setStyle("-fx-background-color:#0d1117;");
+
+        javafx.scene.Scene scene = new javafx.scene.Scene(root,
+                Math.min(img.getWidth() + 40, 960),
+                Math.min(img.getHeight() + 80, 720));
+        scene.setFill(Color.web("#0d1117"));
+
+        // Keyboard shortcuts in the preview window
+        scene.setOnKeyPressed(ev -> {
+            switch (ev.getCode()) {
+                case EQUALS, PLUS  -> zoomIn.run();
+                case MINUS         -> zoomOut.run();
+                case F             -> fitWin.run();
+                case ESCAPE        -> dialog.close();
+                default            -> {}
+            }
+        });
+
+        dialog.setScene(scene);
+
+        // Add a drop shadow effect to the image
+        bigView.setEffect(new DropShadow(12, Color.web("#000000aa")));
+
+        // After the dialog is shown, fit the image properly
+        dialog.setOnShown(ev -> fitWin.run());
+        dialog.show();
+    }
+
+    /** Helper to create a styled toolbar button for the preview dialog. */
+    private static Button toolButton(String text, String bgColor) {
+        Button btn = new Button(text);
+        btn.setStyle("-fx-background-color:" + bgColor + "; -fx-text-fill:#e6edf3;"
+                + "-fx-border-color:#30363d; -fx-border-radius:4; -fx-background-radius:4;"
+                + "-fx-padding:4 10; -fx-cursor:hand; -fx-font-size:12px;");
+        btn.setOnMouseEntered(e -> btn.setStyle(btn.getStyle()
+                .replace(bgColor, adjustBrightness(bgColor))));
+        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color:" + bgColor
+                + "; -fx-text-fill:#e6edf3;"
+                + "-fx-border-color:#30363d; -fx-border-radius:4; -fx-background-radius:4;"
+                + "-fx-padding:4 10; -fx-cursor:hand; -fx-font-size:12px;"));
+        return btn;
+    }
+
+    private static String adjustBrightness(String hex) {
+        // Lighten the colour slightly for hover feedback
+        try {
+            Color c = Color.web(hex);
+            return String.format("#%02x%02x%02x",
+                    (int) Math.min(255, c.getRed()   * 255 + 30),
+                    (int) Math.min(255, c.getGreen() * 255 + 30),
+                    (int) Math.min(255, c.getBlue()  * 255 + 30));
+        } catch (Exception ex) {
+            return hex;
+        }
     }
 
     // ── Broker Import ─────────────────────────────────────────

@@ -334,7 +334,7 @@ public class ChartController implements Initializable {
         });
     }
 
-    // ── Global Drawing Settings ───────────────────────────────────────────────
+    // ── Global Drawing Settings (per-profile) ────────────────────────────────
 
     private void onOpenDrawingSettings() {
         GlobalDrawingSettingsDialog.show(
@@ -348,29 +348,57 @@ public class ChartController implements Initializable {
                 });
     }
 
+    /**
+     * Persists drawing settings to the active profile's {@code drawingSettingsJson}
+     * column so each profile has its own independent settings (Issue 7.1).
+     *
+     * <p>Falls back to {@code AppSettingsService} if no active profile is set (legacy path).
+     */
     private void persistDrawingSettings() {
-        // Persist via a lightweight JSON string in user prefs
-        // (AppSettingsService can store arbitrary String keys)
         try {
             com.google.gson.Gson gson = new com.google.gson.GsonBuilder().create();
             String json = gson.toJson(drawingSettings);
-            appSettingsService.setSetting("drawingSettings", json);
+            if (activeProfile != null) {
+                // ── Per-profile persistence (primary path) ──────────────────────
+                activeProfile.setDrawingSettingsJson(json);
+                profileRepository.save(activeProfile);
+            } else {
+                // ── Fallback: machine-level settings ───────────────────────────
+                appSettingsService.setSetting("drawingSettings", json);
+            }
         } catch (Exception e) {
             log.warn("Failed to persist drawing settings: {}", e.getMessage());
         }
     }
 
+    /**
+     * Loads drawing settings for the current profile.
+     * If the profile has no saved settings yet, falls back to the machine-level
+     * setting in {@code AppSettingsService} for backward compatibility (Issue 7.1).
+     */
     private void loadDrawingSettings() {
         try {
-            String json = appSettingsService.getSetting("drawingSettings");
+            String json = null;
+            if (activeProfile != null && activeProfile.getDrawingSettingsJson() != null
+                    && !activeProfile.getDrawingSettingsJson().isBlank()) {
+                // ── Per-profile settings (primary path) ────────────────────────
+                json = activeProfile.getDrawingSettingsJson();
+            } else {
+                // ── Machine-level fallback (backward compat) ───────────────────
+                json = appSettingsService.getSetting("drawingSettings");
+            }
+
             if (json != null && !json.isBlank()) {
                 com.google.gson.Gson gson = new com.google.gson.GsonBuilder().create();
                 drawingSettings = gson.fromJson(json, GlobalDrawingSettings.class);
                 if (drawingSettings == null) drawingSettings = new GlobalDrawingSettings();
-                chart.getDrawingEngine().applyGlobalSettings(drawingSettings);
+            } else {
+                drawingSettings = new GlobalDrawingSettings();
             }
+            chart.getDrawingEngine().applyGlobalSettings(drawingSettings);
         } catch (Exception e) {
             log.warn("Failed to load drawing settings: {}", e.getMessage());
+            drawingSettings = new GlobalDrawingSettings();
         }
     }
 
@@ -536,6 +564,8 @@ public class ChartController implements Initializable {
     private void wireDrawingEngine() {
         var engine = chart.getDrawingEngine();
         engine.setOnDrawingCreated(d -> {
+            // Issue 7.2: apply current profile's default settings to the new drawing
+            applyDrawingDefaults(d);
             persistDrawing(d);
             refreshUndoRedoState();
         });
@@ -578,6 +608,67 @@ public class ChartController implements Initializable {
                         chart.getDrawingEngine().requestRender();
                     });
         });
+    }
+
+    /**
+     * Issue 7.2: applies the current profile's default drawing settings to a
+     * newly created drawing BEFORE it is persisted.
+     *
+     * <p>Only sets the property if the drawing is still using the hard-coded
+     * per-type default (i.e. the user hasn't already customised it in the
+     * current interaction).  Position-tool colours are left unchanged so the
+     * green/red entry/SL/TP visual language is preserved.
+     */
+    private void applyDrawingDefaults(ChartDrawing d) {
+        if (d == null || drawingSettings == null) return;
+        ChartDrawingProperties props = d.getProperties();
+        if (props == null) return;
+        ChartDrawingToolType type = d.getToolType();
+
+        // Position tools keep their semantic colours (green entry, red SL, blue TP)
+        if (type != null && type.isPositionTool()) return;
+
+        // Choose the appropriate default colour based on tool category
+        String defaultColor;
+        if (type == ChartDrawingToolType.FIB_RETRACEMENT
+                || type == ChartDrawingToolType.FIB_EXTENSION
+                || type == ChartDrawingToolType.FIB_FAN
+                || type == ChartDrawingToolType.FIB_CHANNEL
+                || type == ChartDrawingToolType.FIB_TIME_ZONES
+                || type == ChartDrawingToolType.FIB_SPEED_RESISTANCE) {
+            defaultColor = drawingSettings.getDefaultFibColor() != null
+                    ? drawingSettings.getDefaultFibColor() : "#d29922";
+        } else if (type == ChartDrawingToolType.NOTE_ICON) {
+            defaultColor = drawingSettings.getDefaultAnnotationColor() != null
+                    ? drawingSettings.getDefaultAnnotationColor() : "#d29922";
+        } else if (type == ChartDrawingToolType.TEXT_LABEL
+                || type == ChartDrawingToolType.CALLOUT) {
+            defaultColor = drawingSettings.getDefaultAnnotationColor() != null
+                    ? drawingSettings.getDefaultAnnotationColor() : "#e6edf3";
+        } else if (type == ChartDrawingToolType.RECTANGLE
+                || type == ChartDrawingToolType.ELLIPSE
+                || type == ChartDrawingToolType.TRIANGLE
+                || type == ChartDrawingToolType.FLAT_CHANNEL
+                || type == ChartDrawingToolType.PARALLEL_CHANNEL) {
+            defaultColor = drawingSettings.getDefaultShapeColor() != null
+                    ? drawingSettings.getDefaultShapeColor() : "#58a6ff";
+        } else {
+            defaultColor = drawingSettings.getDefaultLineColor() != null
+                    ? drawingSettings.getDefaultLineColor() : "#58a6ff";
+        }
+
+        // Apply defaults (colour, width, style, fill)
+        if (defaultColor != null) props.setColor(defaultColor);
+        if (drawingSettings.getDefaultLineWidth() > 0) {
+            props.setLineWidth(drawingSettings.getDefaultLineWidth());
+        }
+        if (drawingSettings.getDefaultLineStyle() != null
+                && !drawingSettings.getDefaultLineStyle().isBlank()) {
+            props.setLineStyle(drawingSettings.getDefaultLineStyle());
+        }
+        if (drawingSettings.getDefaultFillOpacity() >= 0) {
+            props.setFillOpacity(drawingSettings.getDefaultFillOpacity());
+        }
     }
 
     /** Refreshes the undo/redo button enabled state in the toolbar. */
@@ -704,7 +795,7 @@ public class ChartController implements Initializable {
             if (symbolInput != null) symbolInput.setText(currentSymbol);
             if (symbolCombo != null) symbolCombo.setValue(currentSymbol);
         }
-        // Load persisted global drawing settings for this session
+        // Issue 7.1: reload per-profile drawing settings whenever profile switches
         loadDrawingSettings();
         // Feature 5: reload symbol list for this profile's asset focus
         refreshSymbolList(profile);
