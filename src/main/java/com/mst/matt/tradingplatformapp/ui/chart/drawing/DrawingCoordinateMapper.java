@@ -4,7 +4,6 @@ import com.mst.matt.tradingplatformapp.model.ChartPoint;
 import com.mst.matt.tradingplatformapp.model.OhlcvBar;
 
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.List;
 
 /** Converts between screen coordinates and absolute price-time units. */
@@ -70,9 +69,6 @@ public final class DrawingCoordinateMapper {
         if (bars == null || bars.isEmpty() || pt == null) return pt;
         int idx = timeToBarIndex(bars, pt.getTime());
         OhlcvBar bar = bars.get(Math.max(0, Math.min(bars.size() - 1, idx)));
-        return ChartPoint.builder()
-                .time(bar.getOpenTime())
-                .price(snapPrice(bar, pt.getPrice()))
-                .build();
+        return ChartPoint.of(bar.getOpenTime(), snapPrice(bar, pt.getPrice()));
     }
 }

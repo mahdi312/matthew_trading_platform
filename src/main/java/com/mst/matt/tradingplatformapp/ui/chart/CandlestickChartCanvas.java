@@ -215,6 +215,19 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         render();
     }
 
+    /**
+     * Captures a screenshot of the current chart canvas as a WritableImage.
+     *
+     * @return a {@link javafx.scene.image.WritableImage} of the canvas contents,
+     *         or {@code null} if the canvas has no content.
+     */
+    public javafx.scene.image.WritableImage captureScreenshot() {
+        double w = getWidth(), h = getHeight();
+        if (w <= 0 || h <= 0) return null;
+        javafx.scene.image.WritableImage img = new javafx.scene.image.WritableImage((int) w, (int) h);
+        return snapshot(new javafx.scene.SnapshotParameters(), img);
+    }
+
     // ── ChartDrawingEngine.Host ─────────────────────────────
 
     @Override public void requestRender() { render(); }
@@ -984,6 +997,8 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
             mouseX = e.getX(); mouseY = e.getY();
             showCrosshair = true;
             drawingEngine.setSnapEnabled(snapMode || e.isShiftDown());
+            // Update hover state (for highlight + quick-delete button)
+            drawingEngine.handleMouseMoved(e, lastRenderContext);
             render();
         });
         setOnMouseDragged(e -> {
@@ -1012,13 +1027,50 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
     }
 
     private void setupKeyHandlers() {
+        // Single, authoritative key-pressed handler for all chart keyboard shortcuts.
+        // Uses setOnKeyPressed (not addEventHandler) because ChartController adds
+        // additional shortcuts via addEventHandler which does NOT override this one.
         setOnKeyPressed(e -> {
-            if (e.getCode() == KeyCode.SHIFT) {
-                snapMode = true;
-                drawingEngine.setSnapEnabled(true);
-            }
-            if (e.isControlDown() && e.isShiftDown() && e.getCode() == KeyCode.T) {
-                drawingEngine.instantSaveSelectedPosition();
+            switch (e.getCode()) {
+                case SHIFT -> {
+                    snapMode = true;
+                    drawingEngine.setSnapEnabled(true);
+                }
+                case Z -> {
+                    if (e.isControlDown() || e.isMetaDown()) {
+                        if (e.isShiftDown()) {
+                            // Ctrl+Shift+Z = Redo (macOS convention)
+                            drawingEngine.redo();
+                        } else {
+                            // Ctrl+Z = Undo (Windows/Linux/macOS)
+                            drawingEngine.undo();
+                        }
+                        e.consume();
+                    }
+                }
+                case Y -> {
+                    // Ctrl+Y = Redo (Windows/Linux)
+                    if (e.isControlDown() || e.isMetaDown()) {
+                        drawingEngine.redo();
+                        e.consume();
+                    }
+                }
+                case T -> {
+                    // Ctrl+Shift+T = Instant save trade from selected position drawing
+                    if ((e.isControlDown() || e.isMetaDown()) && e.isShiftDown()) {
+                        drawingEngine.instantSaveSelectedPosition();
+                        e.consume();
+                    }
+                }
+                case DELETE, BACK_SPACE -> {
+                    // Delete key = delete selected drawing (when chart has focus)
+                    if (drawingEngine.getSelected() != null
+                            && !drawingEngine.getSelected().isLocked()) {
+                        drawingEngine.deleteSelected();
+                        e.consume();
+                    }
+                }
+                default -> {}
             }
         });
         setOnKeyReleased(e -> {
