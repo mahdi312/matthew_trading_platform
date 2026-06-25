@@ -215,6 +215,19 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         render();
     }
 
+    /**
+     * Captures a screenshot of the current chart canvas as a WritableImage.
+     *
+     * @return a {@link javafx.scene.image.WritableImage} of the canvas contents,
+     *         or {@code null} if the canvas has no content.
+     */
+    public javafx.scene.image.WritableImage captureScreenshot() {
+        double w = getWidth(), h = getHeight();
+        if (w <= 0 || h <= 0) return null;
+        javafx.scene.image.WritableImage img = new javafx.scene.image.WritableImage((int) w, (int) h);
+        return snapshot(new javafx.scene.SnapshotParameters(), img);
+    }
+
     // ── ChartDrawingEngine.Host ─────────────────────────────
 
     @Override public void requestRender() { render(); }
@@ -984,6 +997,8 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
             mouseX = e.getX(); mouseY = e.getY();
             showCrosshair = true;
             drawingEngine.setSnapEnabled(snapMode || e.isShiftDown());
+            // Update hover state (for highlight + quick-delete button)
+            drawingEngine.handleMouseMoved(e, lastRenderContext);
             render();
         });
         setOnMouseDragged(e -> {

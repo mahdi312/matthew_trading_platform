@@ -3,10 +3,16 @@ package com.mst.matt.tradingplatformapp.model;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Persistent chart drawing entity.
+ *
+ * <p>Timestamps are stored as {@code long} (epoch milliseconds) to avoid
+ * {@code InaccessibleObjectException} when Gson reflects into {@code LocalDateTime}
+ * fields on newer JVMs with strong module encapsulation.
+ */
 @Entity
 @Table(name = "chart_drawings",
         indexes = @Index(name = "idx_drawing_profile_sym_tf",
@@ -35,7 +41,7 @@ public class ChartDrawing {
     @Column(nullable = false, length = 40)
     private ChartDrawingToolType toolType;
 
-    /** JSON array of {time, price} anchor points. */
+    /** JSON array of {time, price} anchor points. time is stored as epoch-millis (long). */
     @Column(nullable = false, columnDefinition = "TEXT")
     private String pointsJson;
 
@@ -46,12 +52,22 @@ public class ChartDrawing {
     @Column(nullable = false)
     private boolean locked;
 
+    /**
+     * Creation timestamp stored as epoch milliseconds.
+     * Replaces the former {@code LocalDateTime createdAt} field to avoid
+     * Gson / Java-module reflection errors with {@code java.time.LocalDateTime}.
+     */
     @Column(nullable = false)
-    private LocalDateTime createdAt;
+    @Builder.Default
+    private long createdAtEpoch = 0L;
+
+    /** Named layout this drawing belongs to – null means it is part of the active (default) set. */
+    @Column(length = 100)
+    private String layoutName;
 
     @PrePersist
     protected void onCreate() {
-        if (createdAt == null) createdAt = LocalDateTime.now();
+        if (createdAtEpoch == 0L) createdAtEpoch = System.currentTimeMillis();
     }
 
     /** Transient parsed points — not persisted. */

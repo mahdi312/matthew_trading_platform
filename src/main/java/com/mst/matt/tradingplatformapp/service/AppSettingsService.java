@@ -35,6 +35,10 @@ public class AppSettingsService {
     private volatile String  theme             = "dark";
     private volatile String  favoriteTimeframes = "";
 
+    /** Arbitrary key→value store for extension settings (e.g. drawingSettings JSON). */
+    private final java.util.concurrent.ConcurrentHashMap<String, String> extraSettings
+            = new java.util.concurrent.ConcurrentHashMap<>();
+
     @PostConstruct
     void load() {
         if (!Files.exists(settingsFile)) {
@@ -48,6 +52,14 @@ public class AppSettingsService {
             defaultTimeframe = props.getProperty(KEY_DEFAULT_TF, "1h");
             theme            = props.getProperty(KEY_THEME, "dark");
             favoriteTimeframes = props.getProperty(KEY_FAV_TIMEFRAMES, "");
+            // Load extra / extension settings
+            for (String key : props.stringPropertyNames()) {
+                if (!key.equals(KEY_API_FETCH) && !key.equals(KEY_TIMEZONE)
+                        && !key.equals(KEY_DEFAULT_TF) && !key.equals(KEY_THEME)
+                        && !key.equals(KEY_FAV_TIMEFRAMES)) {
+                    extraSettings.put(key, props.getProperty(key));
+                }
+            }
         } catch (IOException e) {
             log.warn("Could not load app settings: {}", e.getMessage());
         }
@@ -114,6 +126,24 @@ public class AppSettingsService {
         persist();
     }
 
+    // ── Generic extension settings ────────────────────────────
+
+    /**
+     * Reads an arbitrary setting by key. Returns {@code null} if not set.
+     */
+    public String getSetting(String key) {
+        return extraSettings.get(key);
+    }
+
+    /**
+     * Stores an arbitrary setting by key and persists immediately.
+     */
+    public synchronized void setSetting(String key, String value) {
+        if (value == null) extraSettings.remove(key);
+        else extraSettings.put(key, value);
+        persist();
+    }
+
     // ── Persistence ───────────────────────────────────────────
 
     private void persist() {
@@ -125,6 +155,8 @@ public class AppSettingsService {
             props.setProperty(KEY_DEFAULT_TF,     defaultTimeframe);
             props.setProperty(KEY_THEME,          theme);
             props.setProperty(KEY_FAV_TIMEFRAMES, favoriteTimeframes);
+            // Persist extra settings
+            extraSettings.forEach(props::setProperty);
             try (OutputStream out = Files.newOutputStream(settingsFile)) {
                 props.store(out, "Trading Platform app settings");
             }
