@@ -777,6 +777,8 @@ public final class DrawingRenderer {
             gc.setFill(Color.web("#0d1117"));
             gc.setFont(FONT_SMALL);
             gc.fillText("+ Trade", right + 8, yEntry + 4);
+            // Render individual line anchors for Entry, SL, TP
+            renderPositionLineAnchors(gc, d, ctx);
         }
     }
 
@@ -811,8 +813,10 @@ public final class DrawingRenderer {
         Font font = Font.font("Segoe UI", fontSize);
         gc.setFont(font);
 
-        double boxW = Math.max(60, text.length() * (fontSize * 0.65) + 16);
-        double boxH = fontSize + 12;
+        // Use stored dimensions if set, otherwise auto-compute
+        double boxW = (props.getBoxWidth() > 0) ? props.getBoxWidth()
+                : Math.max(60, text.length() * (fontSize * 0.65) + 16);
+        double boxH = (props.getBoxHeight() > 0) ? props.getBoxHeight() : fontSize + 12;
 
         // Background
         gc.setFill(Color.web("#1c2128ee"));
@@ -821,12 +825,17 @@ public final class DrawingRenderer {
         gc.setStroke(color);
         gc.setLineWidth(1.2);
         gc.strokeRoundRect(x, y - boxH + 4, boxW, boxH, 4, 4);
-        // Text
+        // Text (clip to box)
+        gc.save();
+        gc.beginPath();
+        gc.rect(x + 2, y - boxH + 4, boxW - 4, boxH);
+        gc.clip();
         gc.setFill(Color.web("#e6edf3"));
         gc.setTextAlign(TextAlignment.LEFT);
         gc.fillText(text, x + 8, y);
+        gc.restore();
 
-        // Editing cursor indicator (blink via property flag)
+        // Editing cursor indicator
         if (props.isEditing()) {
             double cursorX = x + 8 + text.length() * (fontSize * 0.6);
             gc.setStroke(Color.web("#e6edf3"));
@@ -848,7 +857,8 @@ public final class DrawingRenderer {
         String text = props.getText() != null ? props.getText() : "";
         Color color = safeColor(props.getColor(), "#d29922");
 
-        double noteW = 80, noteH = 60;
+        double noteW = (props.getBoxWidth()  > 0) ? props.getBoxWidth()  : 80;
+        double noteH = (props.getBoxHeight() > 0) ? props.getBoxHeight() : 60;
 
         // Note background (yellow-tinted)
         gc.setFill(Color.web("#2d2a00ee"));
@@ -1010,6 +1020,13 @@ public final class DrawingRenderer {
     // ─────────────────────────────────────────────────────────────────────────
 
     private static void drawAnchors(GraphicsContext gc, ChartDrawing d, RenderContext ctx) {
+        // For text/note tools, draw resize handles at corners of the bounding box
+        if (d.getToolType() == ChartDrawingToolType.TEXT_LABEL
+                || d.getToolType() == ChartDrawingToolType.NOTE_ICON
+                || d.getToolType() == ChartDrawingToolType.CALLOUT) {
+            drawTextResizeHandles(gc, d, ctx);
+            return;
+        }
         gc.setFill(Color.web("#ffffff"));
         gc.setStroke(Color.web("#388bfd"));
         gc.setLineWidth(1.5);
@@ -1019,6 +1036,96 @@ public final class DrawingRenderer {
             gc.fillOval(x - 4, y - 4, 8, 8);
             gc.strokeOval(x - 4, y - 4, 8, 8);
         }
+    }
+
+    /**
+     * Draws corner resize handles around a text box so the user can drag to resize it.
+     * Handles are placed at top-left, top-right, bottom-left, bottom-right of the rendered box.
+     */
+    private static void drawTextResizeHandles(GraphicsContext gc, ChartDrawing d, RenderContext ctx) {
+        if (d.getPoints().isEmpty()) return;
+        double[] bb = ChartDrawingEngine.getDrawingBoundingBox(d, ctx);
+        if (bb == null) return;
+        double minX = bb[0], minY = bb[1], maxX = bb[2], maxY = bb[3];
+
+        // Selection border
+        gc.setStroke(Color.web("#388bfd88"));
+        gc.setLineWidth(1.0);
+        gc.setLineDashes(4, 3);
+        gc.strokeRect(minX, minY, maxX - minX, maxY - minY);
+        gc.setLineDashes();
+
+        // 4 corner resize handles
+        gc.setFill(Color.web("#ffffff"));
+        gc.setStroke(Color.web("#388bfd"));
+        gc.setLineWidth(1.5);
+        double[][] corners = {
+                {minX, minY}, {maxX, minY}, {minX, maxY}, {maxX, maxY}
+        };
+        for (double[] c : corners) {
+            gc.fillRect(c[0] - 4, c[1] - 4, 8, 8);
+            gc.strokeRect(c[0] - 4, c[1] - 4, 8, 8);
+        }
+        // Also mid-right handle for width resizing
+        double midY = (minY + maxY) / 2;
+        gc.fillRect(maxX - 4, midY - 4, 8, 8);
+        gc.strokeRect(maxX - 4, midY - 4, 8, 8);
+        // Mid-bottom handle for height resizing
+        double midX = (minX + maxX) / 2;
+        gc.fillRect(midX - 4, maxY - 4, 8, 8);
+        gc.strokeRect(midX - 4, maxY - 4, 8, 8);
+    }
+
+    /**
+     * Renders the stable delete (×) button at the top-right of the selected drawing's bounding box.
+     * Called from ChartDrawingEngine.renderDrawings() only for the selected drawing.
+     */
+    public static void renderDeleteButton(GraphicsContext gc, ChartDrawing d, RenderContext ctx) {
+        if (d == null || d.getPoints() == null || d.getPoints().isEmpty()) return;
+        double[] bb = ChartDrawingEngine.getDrawingBoundingBox(d, ctx);
+        if (bb == null) return;
+        double btnX = bb[2] + 4;
+        double btnY = bb[1] - 20;
+        // Background pill
+        gc.setFill(Color.web("#f85149ee"));
+        gc.fillRoundRect(btnX, btnY, 20, 20, 6, 6);
+        // × symbol
+        gc.setFill(Color.web("#ffffff"));
+        gc.setFont(Font.font("Segoe UI", 13));
+        gc.setTextAlign(javafx.scene.text.TextAlignment.CENTER);
+        gc.fillText("×", btnX + 10, btnY + 15);
+        gc.setTextAlign(javafx.scene.text.TextAlignment.LEFT);
+    }
+
+    /**
+     * Renders drag anchors on the Entry, SL, and TP lines of a selected position drawing.
+     * These small triangles/handles indicate the user can drag individual lines.
+     */
+    public static void renderPositionLineAnchors(GraphicsContext gc, ChartDrawing d,
+                                                  RenderContext ctx) {
+        if (d == null || d.getProperties() == null || d.getPoints().size() < 2) return;
+        ChartDrawingProperties props = d.getProperties();
+        double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double x2 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double midX = (x1 + x2) / 2;
+
+        gc.setLineWidth(1.5);
+        if (props.getEntryPrice() != null) {
+            drawLineAnchorHandle(gc, midX, priceToY(props.getEntryPrice(), ctx), "#3fb950");
+        }
+        if (props.getStopLoss() != null) {
+            drawLineAnchorHandle(gc, midX, priceToY(props.getStopLoss(), ctx), "#f85149");
+        }
+        if (props.getTakeProfit() != null) {
+            drawLineAnchorHandle(gc, midX, priceToY(props.getTakeProfit(), ctx), "#388bfd");
+        }
+    }
+
+    private static void drawLineAnchorHandle(GraphicsContext gc, double x, double y, String colorHex) {
+        gc.setFill(Color.web(colorHex));
+        gc.setStroke(Color.web("#ffffff"));
+        gc.fillOval(x - 5, y - 5, 10, 10);
+        gc.strokeOval(x - 5, y - 5, 10, 10);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

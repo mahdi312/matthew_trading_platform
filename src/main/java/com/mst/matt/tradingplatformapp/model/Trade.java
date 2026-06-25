@@ -87,6 +87,9 @@ public class Trade {
     @Column(precision = 20, scale = 8)
     private BigDecimal totalInvested;      // entryPrice × quantity
 
+    @Column(length = 512)
+    private String screenshotPath;           // Path to chart screenshot PNG
+
     @Column
     private LocalDateTime createdAt;
 

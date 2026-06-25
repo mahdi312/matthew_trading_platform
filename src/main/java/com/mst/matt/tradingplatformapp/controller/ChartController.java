@@ -336,6 +336,12 @@ public class ChartController implements Initializable {
 
     private void wireDrawingEngine() {
         var engine = chart.getDrawingEngine();
+        // Apply global drawing defaults from AppSettingsService
+        engine.setGlobalDrawingDefaults(
+                appSettingsService.getDefaultDrawingColor(),
+                appSettingsService.getDefaultDrawingLineWidth(),
+                appSettingsService.getDefaultDrawingFillOpacity()
+        );
         engine.setOnDrawingCreated(d -> {
             persistDrawing(d);
             refreshUndoRedoState();

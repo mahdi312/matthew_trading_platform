@@ -46,6 +46,17 @@ public class ChartDrawingProperties {
     private String arrowDirection;
 
     /**
+     * Text box dimensions (for TEXT_LABEL, NOTE_ICON, CALLOUT).
+     * Stored as screen-independent units — pixel size at 1:1 scale.
+     * 0 means "auto" (computed from text length).
+     */
+    @Builder.Default
+    private double boxWidth = 0;
+
+    @Builder.Default
+    private double boxHeight = 0;
+
+    /**
      * True when the annotation is currently being edited (in-place text editing mode).
      * Session-only flag — excluded from JSON persistence via @JsonIgnore.
      */

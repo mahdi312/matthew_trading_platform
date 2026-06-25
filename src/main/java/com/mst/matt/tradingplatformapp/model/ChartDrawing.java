@@ -7,6 +7,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+// Note: @Builder.Default on createdAt ensures it is never null even when
+// constructed via the Lombok builder (before @PrePersist fires).
+
 @Entity
 @Table(name = "chart_drawings",
         indexes = @Index(name = "idx_drawing_profile_sym_tf",
@@ -46,12 +49,20 @@ public class ChartDrawing {
     @Column(nullable = false)
     private boolean locked;
 
-    @Column(nullable = false)
-    private LocalDateTime createdAt;
+    /** Added @Builder.Default so Lombok builder never leaves this null before @PrePersist. */
+    @Column(nullable = false, columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+    @Builder.Default
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+    /** Layout name for grouping drawings; defaults to "default" to satisfy any NOT NULL column. */
+    @Column(nullable = false, length = 50, columnDefinition = "VARCHAR(50) DEFAULT 'default'")
+    @Builder.Default
+    private String layoutName = "default";
 
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) createdAt = LocalDateTime.now();
+        if (layoutName == null || layoutName.isBlank()) layoutName = "default";
     }
 
     /** Transient parsed points — not persisted. */
