@@ -104,6 +104,45 @@
                        styleClass="label-muted" style="-fx-wrap-text:true;"/>
             </VBox>
 
+            <!-- ════ TOUCH &amp; INPUT SENSITIVITY SECTION ════ -->
+            <VBox styleClass="card" spacing="14">
+                <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+                <Label text="🖱 Touch &amp; Input Sensitivity" styleClass="label-subtitle"/>
+                <Separator/>
+
+                <Label text="Zoom Sensitivity" styleClass="label-subtitle"/>
+                <Label text="Controls how fast the chart zooms when pinching or scrolling. Lower = gentler zoom."
+                       styleClass="label-muted" style="-fx-wrap-text:true;"/>
+                <HBox spacing="12" alignment="CENTER_LEFT">
+                    <Slider fx:id="zoomSensitivitySlider"
+                            min="0.1" max="1.0" value="0.5"
+                            blockIncrement="0.05" majorTickUnit="0.25"
+                            showTickLabels="true" showTickMarks="true"
+                            snapToTicks="false"
+                            prefWidth="300"
+                            style="-fx-padding:4 0;"/>
+                    <Label fx:id="zoomSensitivityLabel" text="0.50" styleClass="label-muted"
+                           style="-fx-min-width:40; -fx-font-size:12px;"/>
+                </HBox>
+
+                <Separator/>
+
+                <Label text="Pan Sensitivity" styleClass="label-subtitle"/>
+                <Label text="Controls how fast the chart pans when dragging. Lower = slower, more precise panning."
+                       styleClass="label-muted" style="-fx-wrap-text:true;"/>
+                <HBox spacing="12" alignment="CENTER_LEFT">
+                    <Slider fx:id="panSensitivitySlider"
+                            min="0.1" max="1.0" value="0.5"
+                            blockIncrement="0.05" majorTickUnit="0.25"
+                            showTickLabels="true" showTickMarks="true"
+                            snapToTicks="false"
+                            prefWidth="300"
+                            style="-fx-padding:4 0;"/>
+                    <Label fx:id="panSensitivityLabel" text="0.50" styleClass="label-muted"
+                           style="-fx-min-width:40; -fx-font-size:12px;"/>
+                </HBox>
+            </VBox>
+
             <!-- ════ DATA &amp; NETWORK SECTION ════ -->
             <VBox styleClass="card" spacing="14">
                 <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>

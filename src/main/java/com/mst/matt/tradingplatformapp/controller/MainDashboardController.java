@@ -409,32 +409,48 @@ public class MainDashboardController implements Initializable {
             }
         }
 
-        if (dashboardCtrl != null)  dashboardCtrl.loadProfile(profile);
-        if (chartCtrl      != null) chartCtrl.setProfile(profile);
-        if (tradeEntryCtrl != null) tradeEntryCtrl.setProfile(profile);
-        if (alertsCtrl     != null) alertsCtrl.setProfile(profile);
-        if (mixerCtrl      != null) mixerCtrl.setProfile(profile);
-        if (exportCtrl     != null) exportCtrl.setProfile(profile);
-        if (yearlyProfitCtrl != null) yearlyProfitCtrl.setProfile(profile);
+        // ── Push new profile to ALL already-loaded controllers immediately ────
+        if (dashboardCtrl      != null) dashboardCtrl.loadProfile(profile);
+        if (chartCtrl          != null) chartCtrl.setProfile(profile);
+        if (tradeEntryCtrl     != null) tradeEntryCtrl.setProfile(profile);
+        if (alertsCtrl         != null) alertsCtrl.setProfile(profile);
+        if (mixerCtrl          != null) mixerCtrl.setProfile(profile);
+        if (exportCtrl         != null) exportCtrl.setProfile(profile);
+        if (yearlyProfitCtrl   != null) yearlyProfitCtrl.setProfile(profile);
         if (profileSettingsCtrl != null) profileSettingsCtrl.setProfile(profile);
 
         refreshAlertBadge();
         updateStatusBar("Profile: " + profile.getName());
         showInfoNotification("Switched to profile: " + profile.getName());
 
-        // Reload the currently visible view in-place instead of always navigating to dashboard.
-        // This fixes the bug where switching profile while on the chart caused a stale/blank chart.
+        // ── Refresh the currently visible view IN-PLACE ───────────────────────
+        // This ensures the displayed data updates immediately without forcing the
+        // user to navigate away and back.
         Platform.runLater(() -> {
             if (chartView != null && currentView == chartView) {
-                // Chart view is active — reload chart for new profile immediately
+                // Chart view: reload drawings / bars for the new profile
                 chartCtrl.prepareView();
+
             } else if (fundamentalsView != null && currentView == fundamentalsView) {
                 yearlyProfitCtrl.prepareView();
+
+            } else if (alertsView != null && currentView == alertsView) {
+                alertsCtrl.setProfile(profile);  // re-push to force refresh
+
+            } else if (exportView != null && currentView == exportView) {
+                exportCtrl.setProfile(profile);
+
+            } else if (mixerView != null && currentView == mixerView) {
+                mixerCtrl.setProfile(profile);
+
             } else if (tradeEntryView != null && currentView == tradeEntryView) {
-                // Trade entry is open — stay on it; profile already set above
+                // Trade entry is open — profile already set above, nothing else needed
             } else {
-                // Default: navigate to dashboard overview
-                onNavDashboard();
+                // Default (dashboard, journal, portfolio): force a full data reload
+                ensureDashboardLoaded();
+                dashboardCtrl.loadProfile(profile);
+                // Keep the user on whichever dashboard sub-view they were on
+                showView(dashboardView);
             }
         });
     }
@@ -815,6 +831,12 @@ public class MainDashboardController implements Initializable {
             profileSettingsCtrl.setOnTimezoneChanged(zone -> {
                 if (chartCtrl != null) chartCtrl.applyTimezone(zone);
             });
+            // Wire sensitivity change callback → ChartController canvas
+            profileSettingsCtrl.setOnSensitivityChanged(values -> {
+                if (chartCtrl != null && values != null && values.length >= 2) {
+                    chartCtrl.applySensitivity(values[0], values[1]);
+                }
+            });
         }
         if (activeProfile != null) profileSettingsCtrl.setProfile(activeProfile);
         showView(settingsView);
@@ -949,6 +971,12 @@ public class MainDashboardController implements Initializable {
         StackPane.setAlignment(view, javafx.geometry.Pos.TOP_LEFT);
         VBox.setVgrow(view, Priority.ALWAYS);
         HBox.setHgrow(view, Priority.ALWAYS);
+        // Chart view needs zero padding so the toolbar and chart fill the full content area
+        if (chartView != null && view == chartView) {
+            contentArea.setPadding(javafx.geometry.Insets.EMPTY);
+        } else {
+            contentArea.setPadding(new javafx.geometry.Insets(24));
+        }
     }
 
     private void setActiveNav(Button active) {

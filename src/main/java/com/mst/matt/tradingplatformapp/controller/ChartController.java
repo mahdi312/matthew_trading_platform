@@ -37,6 +37,7 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -87,6 +88,7 @@ public class ChartController implements Initializable {
     @FXML private Label                dataSourceLabel;
     @FXML private VBox                  notificationOverlay;
     @FXML private Button                chartNotifyBellBtn;
+    @FXML private Button                fullscreenBtn;
     // Timeframe buttons — all possible timeframes
     @FXML private ToggleButton tf1m, tf3m, tf5m, tf15m, tf30m,
             tf1h, tf2h, tf4h, tf6h, tf8h, tf12h,
@@ -143,6 +145,16 @@ public class ChartController implements Initializable {
     private Consumer<TradeDrawingDraft> onInstantSaveTradeFromDrawing;
     private boolean chartSessionActive;
 
+    /** Fullscreen state tracking */
+    private boolean fullscreenActive = false;
+    /** Reference to the scene's original content for fullscreen restore */
+    private javafx.scene.Parent fullscreenOriginalParent;
+    private javafx.scene.layout.StackPane fullscreenOverlay;
+    /** Original parent of chartStack before entering fullscreen */
+    private javafx.scene.layout.Pane fullscreenChartStackOriginalParent;
+    /** Original index of chartStack in its parent before entering fullscreen */
+    private int fullscreenChartStackOriginalIndex = -1;
+
     /** Current global drawing settings (persisted via AppSettingsService). */
     private GlobalDrawingSettings drawingSettings = new GlobalDrawingSettings();
 
@@ -160,6 +172,13 @@ public class ChartController implements Initializable {
         // Apply user's configured timezone (falls back to system default)
         chart.setUserTimezone(appSettingsService.getUserTimezone());
         chart.setCurrentTimeframe(currentTimeframe);
+        // Apply persisted sensitivity settings
+        try {
+            String zs = appSettingsService.getSetting("zoomSensitivity");
+            String ps = appSettingsService.getSetting("panSensitivity");
+            if (zs != null && !zs.isBlank()) chart.setZoomSensitivity(Double.parseDouble(zs));
+            if (ps != null && !ps.isBlank()) chart.setPanSensitivity(Double.parseDouble(ps));
+        } catch (Exception ignored) {}
         chartPane.getChildren().add(chart);
         setupDrawingToolbar();
         setupNotifications();
@@ -334,7 +353,7 @@ public class ChartController implements Initializable {
         });
     }
 
-    // ── Global Drawing Settings ───────────────────────────────────────────────
+    // ── Global Drawing Settings (per-profile) ────────────────────────────────
 
     private void onOpenDrawingSettings() {
         GlobalDrawingSettingsDialog.show(
@@ -348,29 +367,57 @@ public class ChartController implements Initializable {
                 });
     }
 
+    /**
+     * Persists drawing settings to the active profile's {@code drawingSettingsJson}
+     * column so each profile has its own independent settings (Issue 7.1).
+     *
+     * <p>Falls back to {@code AppSettingsService} if no active profile is set (legacy path).
+     */
     private void persistDrawingSettings() {
-        // Persist via a lightweight JSON string in user prefs
-        // (AppSettingsService can store arbitrary String keys)
         try {
             com.google.gson.Gson gson = new com.google.gson.GsonBuilder().create();
             String json = gson.toJson(drawingSettings);
-            appSettingsService.setSetting("drawingSettings", json);
+            if (activeProfile != null) {
+                // ── Per-profile persistence (primary path) ──────────────────────
+                activeProfile.setDrawingSettingsJson(json);
+                profileRepository.save(activeProfile);
+            } else {
+                // ── Fallback: machine-level settings ───────────────────────────
+                appSettingsService.setSetting("drawingSettings", json);
+            }
         } catch (Exception e) {
             log.warn("Failed to persist drawing settings: {}", e.getMessage());
         }
     }
 
+    /**
+     * Loads drawing settings for the current profile.
+     * If the profile has no saved settings yet, falls back to the machine-level
+     * setting in {@code AppSettingsService} for backward compatibility (Issue 7.1).
+     */
     private void loadDrawingSettings() {
         try {
-            String json = appSettingsService.getSetting("drawingSettings");
+            String json = null;
+            if (activeProfile != null && activeProfile.getDrawingSettingsJson() != null
+                    && !activeProfile.getDrawingSettingsJson().isBlank()) {
+                // ── Per-profile settings (primary path) ────────────────────────
+                json = activeProfile.getDrawingSettingsJson();
+            } else {
+                // ── Machine-level fallback (backward compat) ───────────────────
+                json = appSettingsService.getSetting("drawingSettings");
+            }
+
             if (json != null && !json.isBlank()) {
                 com.google.gson.Gson gson = new com.google.gson.GsonBuilder().create();
                 drawingSettings = gson.fromJson(json, GlobalDrawingSettings.class);
                 if (drawingSettings == null) drawingSettings = new GlobalDrawingSettings();
-                chart.getDrawingEngine().applyGlobalSettings(drawingSettings);
+            } else {
+                drawingSettings = new GlobalDrawingSettings();
             }
+            chart.getDrawingEngine().applyGlobalSettings(drawingSettings);
         } catch (Exception e) {
             log.warn("Failed to load drawing settings: {}", e.getMessage());
+            drawingSettings = new GlobalDrawingSettings();
         }
     }
 
@@ -462,6 +509,264 @@ public class ChartController implements Initializable {
         });
     }
 
+    // ── Fullscreen ────────────────────────────────────────────────────────────
+
+    /**
+     * Toggles fullscreen mode for the chart.
+     * In fullscreen: the chart stack fills the entire stage window (no sidebar/header).
+     * A floating toolbar overlay with TF buttons + bars combo remains visible.
+     * Press F11 or click the button again to exit.
+     */
+    @FXML public void onToggleFullscreen() {
+        if (fullscreenActive) {
+            exitFullscreen();
+        } else {
+            enterFullscreen();
+        }
+    }
+
+    private void enterFullscreen() {
+        if (chartStack == null || chartStack.getScene() == null) return;
+        javafx.stage.Stage stage = (javafx.stage.Stage) chartStack.getScene().getWindow();
+        if (stage == null) return;
+
+        fullscreenActive = true;
+        if (fullscreenBtn != null) {
+            fullscreenBtn.setText("✕");
+            fullscreenBtn.setTooltip(new Tooltip("Exit fullscreen (F11 or Esc)"));
+        }
+
+        // Save the original scene root so we can restore it on exit
+        javafx.scene.Scene scene = stage.getScene();
+        fullscreenOriginalParent = (javafx.scene.Parent) scene.getRoot();
+
+        // Build a fullscreen overlay StackPane that holds the chart + floating toolbar
+        fullscreenOverlay = new javafx.scene.layout.StackPane();
+        fullscreenOverlay.setStyle("-fx-background-color:#0d1117;");
+
+        // Save original parent + index so we can precisely restore on exit
+        if (chartStack.getParent() instanceof javafx.scene.layout.Pane origParent) {
+            fullscreenChartStackOriginalParent = origParent;
+            fullscreenChartStackOriginalIndex  = origParent.getChildren().indexOf(chartStack);
+            origParent.getChildren().remove(chartStack);
+        } else {
+            fullscreenChartStackOriginalParent = null;
+            fullscreenChartStackOriginalIndex  = -1;
+        }
+        fullscreenOverlay.getChildren().add(chartStack);
+
+        // Re-bind chart canvas to overlay size
+        chart.widthProperty().unbind();
+        chart.heightProperty().unbind();
+        chart.widthProperty().bind(fullscreenOverlay.widthProperty());
+        chart.heightProperty().bind(fullscreenOverlay.heightProperty());
+
+        // Build floating toolbar overlay (timeframe buttons + bars combo)
+        HBox floatingBar = buildFullscreenFloatingBar();
+        StackPane.setAlignment(floatingBar, javafx.geometry.Pos.TOP_CENTER);
+        floatingBar.setMouseTransparent(false);
+        fullscreenOverlay.getChildren().add(floatingBar);
+
+        // Replace the scene root with the overlay — this takes chartStack with it
+        scene.setRoot(fullscreenOverlay);
+        stage.setFullScreen(true);
+        stage.setFullScreenExitHint("Press F11 or Esc to exit fullscreen");
+
+        // Register F11/Escape on the new scene root
+        fullscreenOverlay.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.F11
+                    || e.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                exitFullscreen();
+                e.consume();
+            }
+        });
+        fullscreenOverlay.requestFocus();
+    }
+
+    private void exitFullscreen() {
+        if (!fullscreenActive || fullscreenOverlay == null) return;
+        fullscreenActive = false;
+
+        if (fullscreenBtn != null) {
+            fullscreenBtn.setText("⛶");
+            fullscreenBtn.setTooltip(new Tooltip("Toggle fullscreen (F11)"));
+        }
+
+        javafx.stage.Stage stage = (javafx.stage.Stage) fullscreenOverlay.getScene().getWindow();
+        if (stage != null) stage.setFullScreen(false);
+
+        // Restore original scene root
+        if (fullscreenOriginalParent != null && stage != null) {
+            // Remove chartStack from overlay BEFORE restoring the root,
+            // so it is available to be re-inserted into its original parent.
+            fullscreenOverlay.getChildren().remove(chartStack);
+
+            // Restore scene root (this brings the full layout back into the scene graph)
+            stage.getScene().setRoot(fullscreenOriginalParent);
+
+            // Re-insert chartStack into its exact original position
+            restoreChartStackToParent();
+
+            // Re-bind chart canvas back to chartPane (not the overlay)
+            chart.widthProperty().unbind();
+            chart.heightProperty().unbind();
+            chart.widthProperty().bind(chartPane.widthProperty());
+            chart.heightProperty().bind(chartPane.heightProperty());
+
+            // Force a layout pass + re-render so the chart is visible immediately
+            javafx.application.Platform.runLater(() -> {
+                fullscreenOriginalParent.layout();
+                // Ensure the BorderPane top (header bar) is still visible after restoring
+                if (fullscreenOriginalParent instanceof javafx.scene.layout.BorderPane bp) {
+                    javafx.scene.Node topNode = bp.getTop();
+                    if (topNode != null) {
+                        topNode.setVisible(true);
+                        topNode.setManaged(true);
+                    }
+                }
+                // CandlestickChartCanvas extends Canvas (not Region), so requestLayout()
+                // does not exist — render() redraws the canvas immediately instead.
+                chart.render();
+            });
+        }
+        fullscreenOverlay = null;
+        fullscreenOriginalParent = null;
+        fullscreenChartStackOriginalParent = null;
+        fullscreenChartStackOriginalIndex  = -1;
+    }
+
+    private void restoreChartStackToParent() {
+        if (chartStack == null) return;
+
+        // ── Primary path: use the saved parent + index (most precise) ──────────
+        if (fullscreenChartStackOriginalParent != null) {
+            if (!fullscreenChartStackOriginalParent.getChildren().contains(chartStack)) {
+                int idx = fullscreenChartStackOriginalIndex;
+                int size = fullscreenChartStackOriginalParent.getChildren().size();
+                if (idx >= 0 && idx <= size) {
+                    fullscreenChartStackOriginalParent.getChildren().add(idx, chartStack);
+                } else {
+                    fullscreenChartStackOriginalParent.getChildren().add(chartStack);
+                }
+                // Restore VBox grow constraint
+                if (fullscreenChartStackOriginalParent instanceof VBox) {
+                    VBox.setVgrow(chartStack, Priority.ALWAYS);
+                }
+            }
+            return;
+        }
+
+        // ── Fallback: walk up from chartPane to find the ChartView VBox ─────────
+        Node node = chartPane;
+        while (node != null && !(node instanceof VBox)) {
+            node = node.getParent();
+        }
+        if (node instanceof VBox vbox) {
+            if (!vbox.getChildren().contains(chartStack)) {
+                vbox.getChildren().add(chartStack);
+                VBox.setVgrow(chartStack, Priority.ALWAYS);
+            }
+        }
+    }
+
+    /**
+     * Builds the floating toolbar displayed during fullscreen mode.
+     * Contains timeframe favorites + bars combo + exit fullscreen button.
+     */
+    private HBox buildFullscreenFloatingBar() {
+        HBox bar = new HBox(8);
+        bar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        bar.setMaxHeight(40);
+        bar.setStyle(
+                "-fx-background-color:#1c2128cc;"
+                + "-fx-border-color:#30363d;"
+                + "-fx-border-width:0 0 1 0;"
+                + "-fx-padding:5 12;"
+                + "-fx-background-radius:0;"
+        );
+
+        // Timeframe favorite buttons (mirrored from favTfBar)
+        List<String> allowed   = authService.allowedTimeframes();
+        List<String> favorites = authService.getFavoriteTimeframes();
+        ToggleGroup tg = new ToggleGroup();
+        for (String tf : favorites) {
+            if (!allowed.contains(tf)) continue;
+            ToggleButton btn = new ToggleButton(tf.toUpperCase());
+            btn.setToggleGroup(tg);
+            btn.setUserData(tf);
+            boolean isActive = tf.equalsIgnoreCase(currentTimeframe);
+            btn.setSelected(isActive);
+            btn.setStyle(isActive
+                    ? "-fx-background-color:#1f6feb;-fx-text-fill:white;-fx-background-radius:6;-fx-padding:4 8;"
+                    : "-fx-background-color:#21262d;-fx-text-fill:#e6edf3;-fx-background-radius:6;-fx-padding:4 8;");
+            btn.setOnAction(e -> {
+                if (!btn.isSelected()) { btn.setSelected(true); return; }
+                String selectedTf = (String) btn.getUserData();
+                currentTimeframe = selectedTf;
+                chart.setCurrentTimeframe(selectedTf);
+                // Update button styles in floating bar
+                for (Node n : bar.getChildren()) {
+                    if (n instanceof ToggleButton tb) {
+                        String t = (String) tb.getUserData();
+                        if (t != null) {
+                            tb.setStyle(t.equalsIgnoreCase(selectedTf)
+                                    ? "-fx-background-color:#1f6feb;-fx-text-fill:white;-fx-background-radius:6;-fx-padding:4 8;"
+                                    : "-fx-background-color:#21262d;-fx-text-fill:#e6edf3;-fx-background-radius:6;-fx-padding:4 8;");
+                        }
+                    }
+                }
+                refreshFavBarStyles();
+                loadChart();
+            });
+            bar.getChildren().add(btn);
+        }
+
+        bar.getChildren().add(new javafx.scene.control.Separator(javafx.geometry.Orientation.VERTICAL));
+
+        // Bars combo (read-only display + change)
+        Label barsLabel = new Label("Bars:");
+        barsLabel.setStyle("-fx-text-fill:#8b949e; -fx-font-size:12px;");
+        ComboBox<Integer> floatingBarsCombo = new ComboBox<>();
+        floatingBarsCombo.setItems(barsCombo.getItems());
+        floatingBarsCombo.setValue(currentBars);
+        floatingBarsCombo.setStyle("-fx-background-color:#21262d; -fx-text-fill:#e6edf3;");
+        floatingBarsCombo.setPrefWidth(80);
+        floatingBarsCombo.setButtonCell(new ListCell<>() {
+            @Override protected void updateItem(Integer item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? "" : String.valueOf(item));
+            }
+        });
+        floatingBarsCombo.setCellFactory(lv -> new ListCell<>() {
+            @Override protected void updateItem(Integer item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? "" : String.valueOf(item));
+            }
+        });
+        floatingBarsCombo.valueProperty().addListener((o, a, n) -> {
+            if (n != null) {
+                currentBars = Math.min(n, authService.maxCandles());
+                if (chart != null) chart.setPreferredVisibleBars(currentBars);
+                barsCombo.setValue(currentBars);
+                loadChartWithTimeout();
+            }
+        });
+        bar.getChildren().addAll(barsLabel, floatingBarsCombo);
+
+        // Spacer
+        Pane spacer = new Pane();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        bar.getChildren().add(spacer);
+
+        // Exit fullscreen button
+        Button exitBtn = new Button("✕ Exit Fullscreen");
+        exitBtn.setStyle("-fx-background-color:#30363d;-fx-text-fill:#e6edf3;-fx-background-radius:6;-fx-padding:4 10;-fx-cursor:hand;");
+        exitBtn.setOnAction(e -> exitFullscreen());
+        bar.getChildren().add(exitBtn);
+
+        return bar;
+    }
+
     private void setupKeyboardShortcuts() {
         // Use addEventHandler (not setOnKeyPressed) to avoid overwriting the
         // undo/redo / delete shortcuts already registered in CandlestickChartCanvas.setupKeyHandlers()
@@ -474,7 +779,17 @@ public class ChartController implements Initializable {
                 case H -> chart.setActiveDrawingTool(ChartDrawingToolType.HORIZONTAL_LINE);
                 case V -> chart.setActiveDrawingTool(ChartDrawingToolType.VERTICAL_LINE);
                 case R -> chart.setActiveDrawingTool(ChartDrawingToolType.RECTANGLE);
-                case ESCAPE -> chart.setActiveDrawingTool(ChartDrawingToolType.SELECT);
+                case ESCAPE -> {
+                    if (fullscreenActive) {
+                        exitFullscreen();
+                    } else {
+                        chart.setActiveDrawingTool(ChartDrawingToolType.SELECT);
+                    }
+                }
+                case F11 -> {
+                    onToggleFullscreen();
+                    e.consume();
+                }
                 default -> {}
             }
         });
@@ -536,6 +851,8 @@ public class ChartController implements Initializable {
     private void wireDrawingEngine() {
         var engine = chart.getDrawingEngine();
         engine.setOnDrawingCreated(d -> {
+            // Issue 7.2: apply current profile's default settings to the new drawing
+            applyDrawingDefaults(d);
             persistDrawing(d);
             refreshUndoRedoState();
         });
@@ -578,6 +895,67 @@ public class ChartController implements Initializable {
                         chart.getDrawingEngine().requestRender();
                     });
         });
+    }
+
+    /**
+     * Issue 7.2: applies the current profile's default drawing settings to a
+     * newly created drawing BEFORE it is persisted.
+     *
+     * <p>Only sets the property if the drawing is still using the hard-coded
+     * per-type default (i.e. the user hasn't already customised it in the
+     * current interaction).  Position-tool colours are left unchanged so the
+     * green/red entry/SL/TP visual language is preserved.
+     */
+    private void applyDrawingDefaults(ChartDrawing d) {
+        if (d == null || drawingSettings == null) return;
+        ChartDrawingProperties props = d.getProperties();
+        if (props == null) return;
+        ChartDrawingToolType type = d.getToolType();
+
+        // Position tools keep their semantic colours (green entry, red SL, blue TP)
+        if (type != null && type.isPositionTool()) return;
+
+        // Choose the appropriate default colour based on tool category
+        String defaultColor;
+        if (type == ChartDrawingToolType.FIB_RETRACEMENT
+                || type == ChartDrawingToolType.FIB_EXTENSION
+                || type == ChartDrawingToolType.FIB_FAN
+                || type == ChartDrawingToolType.FIB_CHANNEL
+                || type == ChartDrawingToolType.FIB_TIME_ZONES
+                || type == ChartDrawingToolType.FIB_SPEED_RESISTANCE) {
+            defaultColor = drawingSettings.getDefaultFibColor() != null
+                    ? drawingSettings.getDefaultFibColor() : "#d29922";
+        } else if (type == ChartDrawingToolType.NOTE_ICON) {
+            defaultColor = drawingSettings.getDefaultAnnotationColor() != null
+                    ? drawingSettings.getDefaultAnnotationColor() : "#d29922";
+        } else if (type == ChartDrawingToolType.TEXT_LABEL
+                || type == ChartDrawingToolType.CALLOUT) {
+            defaultColor = drawingSettings.getDefaultAnnotationColor() != null
+                    ? drawingSettings.getDefaultAnnotationColor() : "#e6edf3";
+        } else if (type == ChartDrawingToolType.RECTANGLE
+                || type == ChartDrawingToolType.ELLIPSE
+                || type == ChartDrawingToolType.TRIANGLE
+                || type == ChartDrawingToolType.FLAT_CHANNEL
+                || type == ChartDrawingToolType.PARALLEL_CHANNEL) {
+            defaultColor = drawingSettings.getDefaultShapeColor() != null
+                    ? drawingSettings.getDefaultShapeColor() : "#58a6ff";
+        } else {
+            defaultColor = drawingSettings.getDefaultLineColor() != null
+                    ? drawingSettings.getDefaultLineColor() : "#58a6ff";
+        }
+
+        // Apply defaults (colour, width, style, fill)
+        if (defaultColor != null) props.setColor(defaultColor);
+        if (drawingSettings.getDefaultLineWidth() > 0) {
+            props.setLineWidth(drawingSettings.getDefaultLineWidth());
+        }
+        if (drawingSettings.getDefaultLineStyle() != null
+                && !drawingSettings.getDefaultLineStyle().isBlank()) {
+            props.setLineStyle(drawingSettings.getDefaultLineStyle());
+        }
+        if (drawingSettings.getDefaultFillOpacity() >= 0) {
+            props.setFillOpacity(drawingSettings.getDefaultFillOpacity());
+        }
     }
 
     /** Refreshes the undo/redo button enabled state in the toolbar. */
@@ -680,6 +1058,18 @@ public class ChartController implements Initializable {
         if (chart != null) chart.setUserTimezone(zone);
     }
 
+    /**
+     * Apply zoom and pan sensitivity values from Settings to the chart canvas.
+     * @param zoomSensitivity 0.1–1.0 (lower = gentler zoom)
+     * @param panSensitivity  0.1–1.0 (lower = slower pan)
+     */
+    public void applySensitivity(double zoomSensitivity, double panSensitivity) {
+        if (chart != null) {
+            chart.setZoomSensitivity(zoomSensitivity);
+            chart.setPanSensitivity(panSensitivity);
+        }
+    }
+
     public void prepareView() {
         applyTimeframeAccess();
         applyViewMode();
@@ -704,7 +1094,7 @@ public class ChartController implements Initializable {
             if (symbolInput != null) symbolInput.setText(currentSymbol);
             if (symbolCombo != null) symbolCombo.setValue(currentSymbol);
         }
-        // Load persisted global drawing settings for this session
+        // Issue 7.1: reload per-profile drawing settings whenever profile switches
         loadDrawingSettings();
         // Feature 5: reload symbol list for this profile's asset focus
         refreshSymbolList(profile);
@@ -743,6 +1133,7 @@ public class ChartController implements Initializable {
                 currentSymbol = selected;
                 hideAutocomplete();
                 refreshProviderCombo();
+                syncSymbolComboToCurrentSymbol();  // Feature 3
                 loadChart();
             }
         });
@@ -817,6 +1208,7 @@ public class ChartController implements Initializable {
                         currentSymbol = selected;
                         hideAutocomplete();
                         refreshProviderCombo();
+                        syncSymbolComboToCurrentSymbol();  // Feature 3
                         loadChart();
                     }
                     e.consume();
@@ -962,7 +1354,8 @@ public class ChartController implements Initializable {
 
     /**
      * Rebuilds the favorites bar with ToggleButtons for each favorited timeframe.
-     * Shows nothing if no favorites are selected yet.
+     * Favorites are displayed in canonical timeframe order (1m → 3m → … → 1mo).
+     * Shows a hint label if no favorites are selected yet.
      */
     private void rebuildFavoritesBar(List<String> allowed, List<String> favorites) {
         if (favTfBar == null) return;
@@ -976,8 +1369,17 @@ public class ChartController implements Initializable {
             return;
         }
 
+        // Sort favorites by their position in the canonical ALL_TIMEFRAMES list so
+        // they always appear in logical order (1m → 5m → 1h → 4h → 1D …)
+        List<String> sortedFavorites = favorites.stream()
+                .sorted(Comparator.comparingInt(tf -> {
+                    int idx = ALL_TIMEFRAMES.indexOf(tf.toLowerCase());
+                    return idx < 0 ? Integer.MAX_VALUE : idx;
+                }))
+                .collect(Collectors.toList());
+
         ToggleGroup tg = new ToggleGroup();
-        for (String tf : favorites) {
+        for (String tf : sortedFavorites) {
             if (!allowed.contains(tf)) continue;
             ToggleButton btn = new ToggleButton(tf.toUpperCase());
             btn.setToggleGroup(tg);
@@ -1153,7 +1555,29 @@ public class ChartController implements Initializable {
         marketDataSyncScheduler.notifyChartContextChanged(currentSymbol, currentTimeframe);
         updateChartSessionContext();
         refreshProviderCombo();
+        // Feature 3: sync the symbol combo box to the loaded symbol immediately so the
+        // combo box always reflects what is currently displayed on the chart.
+        syncSymbolComboToCurrentSymbol();
         loadChart();
+    }
+
+    /**
+     * Feature 3: Ensures the symbol combo-box selected value matches {@link #currentSymbol}.
+     *
+     * <p>If the symbol is not yet in the combo's item list (e.g. a custom symbol typed
+     * in the search field), it is inserted at position 0 so it is always visible and
+     * selectable by the user.
+     */
+    private void syncSymbolComboToCurrentSymbol() {
+        if (symbolCombo == null || currentSymbol == null || currentSymbol.isBlank()) return;
+        // Already in sync — skip to avoid triggering the value-change listener needlessly
+        if (currentSymbol.equalsIgnoreCase(symbolCombo.getValue())) return;
+
+        if (!symbolCombo.getItems().contains(currentSymbol)) {
+            // Insert the custom symbol at the top of the list so the user can re-select it later
+            symbolCombo.getItems().add(0, currentSymbol);
+        }
+        symbolCombo.setValue(currentSymbol);
     }
 
     /**
@@ -1471,20 +1895,26 @@ public class ChartController implements Initializable {
         };
     }
 
+    /**
+     * T-5: All toolbar buttons use at least 44px height to meet touch-friendly target sizes.
+     */
     private String activeStyle() {
         return "-fx-background-color:#1f6feb;-fx-text-fill:white;"
-                + "-fx-background-radius:6;-fx-padding:4 8;-fx-cursor:hand;";
+                + "-fx-background-radius:6;-fx-padding:4 10;"
+                + "-fx-min-height:44;-fx-cursor:hand;";
     }
 
-    /** Feature 2: style for favorited timeframes — gold tint. */
+    /** Style for favorited timeframes — gold tint; touch-friendly height. */
     private String favoriteStyle() {
         return "-fx-background-color:#b08800;-fx-text-fill:white;"
-                + "-fx-background-radius:6;-fx-padding:4 8;-fx-cursor:hand;";
+                + "-fx-background-radius:6;-fx-padding:4 10;"
+                + "-fx-min-height:44;-fx-cursor:hand;";
     }
 
     private String inactiveStyle() {
         return "-fx-background-color:#21262d;-fx-text-fill:#e6edf3;"
-                + "-fx-background-radius:6;-fx-padding:4 8;-fx-cursor:hand;";
+                + "-fx-background-radius:6;-fx-padding:4 10;"
+                + "-fx-min-height:44;-fx-cursor:hand;";
     }
 
     private String fmtPrice(double p) {

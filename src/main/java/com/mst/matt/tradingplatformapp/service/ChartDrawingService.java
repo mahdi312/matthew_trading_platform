@@ -38,26 +38,50 @@ public class ChartDrawingService {
 
     /**
      * Loads the "active" (no named layout) drawings for a symbol/timeframe.
+     *
+     * <p><b>Bug fix — LazyInitializationException:</b>
+     * The {@code ChartDrawing.profile} association is {@code LAZY}-loaded.  After the
+     * Hibernate session that ran the repository query is closed, any code path that
+     * calls {@code drawing.getProfile()} (e.g. inside old {@code equals()}) will
+     * throw {@code LazyInitializationException}.
+     *
+     * <p>Defense-in-depth: we force the proxy to initialise by touching
+     * {@code d.getProfile().getId()} inside the same transaction so the identifier is
+     * available in the detached state without needing the session again.  The primary
+     * fix is the safe {@code equals()/hashCode()} override in {@link com.mst.matt.tradingplatformapp.model.ChartDrawing}
+     * which no longer touches the proxy at all.
      */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<ChartDrawing> loadDrawings(UserProfile profile, String symbol, String timeframe) {
         if (profile == null) return List.of();
         List<ChartDrawing> list =
                 repository.findByProfileAndSymbolAndTimeframeAndLayoutNameIsNullOrderByCreatedAtEpochAsc(
                         profile, symbol, timeframe);
-        list.forEach(ChartDrawingService::hydrate);
+        // Force proxy initialisation while the session is still open
+        list.forEach(d -> {
+            if (d.getProfile() != null) d.getProfile().getId();
+            ChartDrawingService.hydrate(d);
+        });
         return list;
     }
 
     /**
      * Loads drawings belonging to a specific named layout.
+     *
+     * <p>Same proxy-initialisation guard as {@link #loadDrawings}.
      */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<ChartDrawing> loadLayout(UserProfile profile, String symbol,
                                          String timeframe, String layoutName) {
         if (profile == null || layoutName == null) return List.of();
         List<ChartDrawing> list =
                 repository.findByProfileAndSymbolAndTimeframeAndLayoutNameOrderByCreatedAtEpochAsc(
                         profile, symbol, timeframe, layoutName);
-        list.forEach(ChartDrawingService::hydrate);
+        // Force proxy initialisation while the session is still open
+        list.forEach(d -> {
+            if (d.getProfile() != null) d.getProfile().getId();
+            ChartDrawingService.hydrate(d);
+        });
         return list;
     }
 

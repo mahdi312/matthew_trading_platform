@@ -61,7 +61,11 @@ public class DrawingToolbar extends VBox {
         }
     }
 
-    private static final double BTN = 28;
+    /**
+     * T-5: Minimum button dimension — 44×44px meets Apple HIG / Google Material
+     * touch target guidelines so finger taps land reliably on all buttons.
+     */
+    private static final double BTN = 44;
 
     // ── Callbacks ─────────────────────────────────────────────────────────────
     private Consumer<ChartDrawingToolType> onToolSelected;
@@ -92,10 +96,10 @@ public class DrawingToolbar extends VBox {
 
     public DrawingToolbar() {
         setAlignment(Pos.TOP_CENTER);
-        setSpacing(3);
-        setPadding(new Insets(4, 3, 4, 3));
-        setPrefWidth(40);
-        setMaxWidth(48);
+        setSpacing(4);
+        setPadding(new Insets(6, 4, 6, 4));
+        setPrefWidth(56);
+        setMaxWidth(64);
         applyPanelStyle(false);
 
         // ── Select button ────────────────────────────────────────────────────
@@ -262,15 +266,16 @@ public class DrawingToolbar extends VBox {
     }
 
     private static String baseBtnStyle() {
+        // T-5: font size bumped to 14px for clear icon rendering inside the 44×44 touch area
         return "-fx-background-color:#21262d; -fx-text-fill:#e6edf3;"
-                + "-fx-font-size:11px; -fx-background-radius:4; -fx-cursor:hand;"
-                + "-fx-padding:2;";
+                + "-fx-font-size:14px; -fx-background-radius:6; -fx-cursor:hand;"
+                + "-fx-padding:4;";
     }
 
     private void styleActive(Button btn, boolean active) {
         btn.setStyle(active
                 ? "-fx-background-color:#388bfd; -fx-text-fill:#ffffff;"
-                + "-fx-font-size:11px; -fx-background-radius:4; -fx-cursor:hand; -fx-padding:2;"
+                + "-fx-font-size:14px; -fx-background-radius:6; -fx-cursor:hand; -fx-padding:4;"
                 : baseBtnStyle());
     }
 

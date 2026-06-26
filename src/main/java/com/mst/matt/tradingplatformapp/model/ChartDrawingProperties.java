@@ -98,8 +98,39 @@ public class ChartDrawingProperties {
 
     // ── Factory ───────────────────────────────────────────────────────────────
 
+    /**
+     * Returns default properties for the given tool type using hard-coded defaults.
+     * Prefer {@link #defaultsFor(ChartDrawingToolType, GlobalDrawingSettings)} when
+     * per-profile settings are available.
+     */
     public static ChartDrawingProperties defaultsFor(ChartDrawingToolType type) {
+        return defaultsFor(type, null);
+    }
+
+    /**
+     * Returns default properties for the given tool type, applying any per-profile
+     * settings from {@code globalSettings}.  If {@code globalSettings} is null the
+     * method falls back to the hard-coded colour palette (Issue 7.2 fix).
+     *
+     * @param type           the drawing tool type
+     * @param globalSettings optional per-profile drawing settings (may be null)
+     */
+    public static ChartDrawingProperties defaultsFor(ChartDrawingToolType type,
+                                                      GlobalDrawingSettings globalSettings) {
         ChartDrawingProperties p = ChartDrawingProperties.builder().build();
+
+        // ── Apply global line width, style and fill from profile settings ──────
+        if (globalSettings != null) {
+            if (globalSettings.getDefaultLineWidth() > 0)
+                p.setLineWidth(globalSettings.getDefaultLineWidth());
+            if (globalSettings.getDefaultLineStyle() != null
+                    && !globalSettings.getDefaultLineStyle().isBlank())
+                p.setLineStyle(globalSettings.getDefaultLineStyle());
+            if (globalSettings.getDefaultFillOpacity() >= 0)
+                p.setFillOpacity(globalSettings.getDefaultFillOpacity());
+        }
+
+        // ── Per-type semantic colours (position tools always keep their colours) ──
         if (type == ChartDrawingToolType.LONG_POSITION) {
             p.setColor("#3fb950");
         } else if (type == ChartDrawingToolType.SHORT_POSITION) {
@@ -110,19 +141,37 @@ public class ChartDrawingProperties {
                 || type == ChartDrawingToolType.FIB_CHANNEL
                 || type == ChartDrawingToolType.FIB_TIME_ZONES
                 || type == ChartDrawingToolType.FIB_SPEED_RESISTANCE) {
-            p.setColor("#d29922");
+            p.setColor(globalSettings != null && globalSettings.getDefaultFibColor() != null
+                    ? globalSettings.getDefaultFibColor() : "#d29922");
         } else if (type == ChartDrawingToolType.HORIZONTAL_LINE
                 || type == ChartDrawingToolType.PROFIT_TARGET_LINE) {
-            p.setColor("#388bfd");
+            p.setColor(globalSettings != null && globalSettings.getDefaultLineColor() != null
+                    ? globalSettings.getDefaultLineColor() : "#388bfd");
         } else if (type == ChartDrawingToolType.STOP_LOSS_LINE) {
-            p.setColor("#f85149");
+            p.setColor("#f85149");   // always red for stop-loss visual clarity
         } else if (type == ChartDrawingToolType.NOTE_ICON) {
-            p.setColor("#d29922");
+            p.setColor(globalSettings != null && globalSettings.getDefaultAnnotationColor() != null
+                    ? globalSettings.getDefaultAnnotationColor() : "#d29922");
             p.setText("");
         } else if (type == ChartDrawingToolType.TEXT_LABEL) {
+            p.setColor(globalSettings != null && globalSettings.getDefaultAnnotationColor() != null
+                    ? globalSettings.getDefaultAnnotationColor() : "#e6edf3");
             p.setText("Text");
         } else if (type == ChartDrawingToolType.CALLOUT) {
+            p.setColor(globalSettings != null && globalSettings.getDefaultAnnotationColor() != null
+                    ? globalSettings.getDefaultAnnotationColor() : "#58a6ff");
             p.setText("Callout");
+        } else if (type == ChartDrawingToolType.RECTANGLE
+                || type == ChartDrawingToolType.ELLIPSE
+                || type == ChartDrawingToolType.TRIANGLE
+                || type == ChartDrawingToolType.FLAT_CHANNEL
+                || type == ChartDrawingToolType.PARALLEL_CHANNEL) {
+            p.setColor(globalSettings != null && globalSettings.getDefaultShapeColor() != null
+                    ? globalSettings.getDefaultShapeColor() : "#58a6ff");
+        } else {
+            // Default line tools
+            p.setColor(globalSettings != null && globalSettings.getDefaultLineColor() != null
+                    ? globalSettings.getDefaultLineColor() : "#58a6ff");
         }
         return p;
     }

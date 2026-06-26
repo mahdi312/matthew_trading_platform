@@ -543,8 +543,16 @@ public final class DrawingRenderer {
         }
         gc.setLineWidth(1.5);
         drawPriceLine(gc, left, right, yEntry, "#3fb950", "Entry " + formatPrice(entry));
-        if (sl != null) drawPriceLine(gc, left, right, priceToY(sl, ctx), "#f85149", "SL " + formatPrice(sl));
-        if (tp != null) drawPriceLine(gc, left, right, priceToY(tp, ctx), "#388bfd", "TP " + formatPrice(tp));
+        if (sl != null) {
+            double slPct = entry != 0 ? (sl - entry) / entry * 100.0 : 0;
+            String slLabel = String.format("SL  %s  (%.2f%%)", formatPrice(sl), slPct);
+            drawPriceLine(gc, left, right, priceToY(sl, ctx), "#f85149", slLabel);
+        }
+        if (tp != null) {
+            double tpPct = entry != 0 ? (tp - entry) / entry * 100.0 : 0;
+            String tpLabel = String.format("TP  %s  (+%.2f%%)", formatPrice(tp), Math.abs(tpPct));
+            drawPriceLine(gc, left, right, priceToY(tp, ctx), "#388bfd", tpLabel);
+        }
         if (sl != null && tp != null) {
             double risk = Math.abs(entry - sl), reward = Math.abs(tp - entry);
             if (risk > 0) {
@@ -583,22 +591,41 @@ public final class DrawingRenderer {
         Color color = safeColor(props.getColor(), "#58a6ff");
         double fontSize = props.getFontSize() > 0 ? props.getFontSize() : 12;
         gc.setFont(Font.font("Segoe UI", fontSize));
-        // Use stored size if available, otherwise auto-size
+
+        // ── Compute wrapped lines ──────────────────────────────────────────────
         double boxW = props.getTextBoxWidth() > 0
                 ? props.getTextBoxWidth()
-                : Math.max(60, text.length() * (fontSize * 0.65) + 16);
-        double boxH = props.getTextBoxHeight() > 0
+                : Math.max(80, Math.min(text.length() * (fontSize * 0.65) + 16, 240));
+        double charW = fontSize * 0.62;
+        int charsPerLine = Math.max(1, (int)((boxW - 16) / charW));
+        java.util.List<String> lines = wrapText(text, charsPerLine);
+
+        double lineH = fontSize + 4;
+        double boxH  = props.getTextBoxHeight() > 0
                 ? props.getTextBoxHeight()
-                : fontSize + 12;
-        gc.setFill(Color.web("#1c2128ee")); gc.fillRoundRect(x, y - boxH + 4, boxW, boxH, 4, 4);
+                : Math.max(lineH + 10, lines.size() * lineH + 10);
+        double boxY  = y - boxH + 4;
+
+        gc.setFill(Color.web("#1c2128ee")); gc.fillRoundRect(x, boxY, boxW, boxH, 4, 4);
         gc.setStroke(color); gc.setLineWidth(1.2);
-        gc.strokeRoundRect(x, y - boxH + 4, boxW, boxH, 4, 4);
+        gc.strokeRoundRect(x, boxY, boxW, boxH, 4, 4);
+
+        // ── Render each wrapped line ───────────────────────────────────────────
         gc.setFill(Color.web("#e6edf3")); gc.setTextAlign(TextAlignment.LEFT);
-        gc.fillText(text, x + 8, y);
+        double maxVisibleLines = Math.floor((boxH - 10) / lineH);
+        int renderCount = (int) Math.min(lines.size(), maxVisibleLines);
+        for (int i = 0; i < renderCount; i++) {
+            gc.fillText(lines.get(i), x + 8, boxY + 4 + lineH * (i + 1) - 2);
+        }
+        // Show "…" indicator if text is clipped
+        if (lines.size() > renderCount) {
+            gc.setFill(Color.web("#8b949e"));
+            gc.fillText("…", x + boxW - 18, boxY + boxH - 5);
+        }
+
         if (props.isEditing()) {
-            double cursorX = x + 8 + text.length() * (fontSize * 0.6);
             gc.setStroke(Color.web("#e6edf3")); gc.setLineWidth(1.5);
-            gc.strokeLine(cursorX, y - boxH + 6, cursorX, y - 2);
+            gc.strokeLine(x + 8, boxY + 4, x + 8, boxY + boxH - 4);
         }
     }
 
@@ -609,23 +636,57 @@ public final class DrawingRenderer {
         double x = timeToX(pt.getTime(), ctx), y = priceToY(pt.getPrice(), ctx);
         String text = props.getText() != null ? props.getText() : "";
         Color color = safeColor(props.getColor(), "#d29922");
-        double noteW = props.getTextBoxWidth()  > 0 ? props.getTextBoxWidth()  : 80;
-        double noteH = props.getTextBoxHeight() > 0 ? props.getTextBoxHeight() : 60;
+        double noteW = props.getTextBoxWidth()  > 0 ? props.getTextBoxWidth()  : 120;
+        double noteH = props.getTextBoxHeight() > 0 ? props.getTextBoxHeight() : 80;
+
         gc.setFill(Color.web("#2d2a00ee")); gc.fillRoundRect(x, y, noteW, noteH, 4, 4);
         gc.setStroke(color); gc.setLineWidth(1.2); gc.strokeRoundRect(x, y, noteW, noteH, 4, 4);
-        double foldSize = 10;
+
+        // Folded corner decoration
+        double foldSize = 12;
         gc.setFill(color.deriveColor(0, 1, 0.6, 0.8));
         gc.fillPolygon(new double[]{x + noteW - foldSize, x + noteW, x + noteW},
                        new double[]{y, y, y + foldSize}, 3);
-        gc.setFill(Color.web("#e6edf3cc")); gc.setFont(Font.font("Segoe UI", 10)); gc.setTextAlign(TextAlignment.LEFT);
+        // Fold shadow line
+        gc.setStroke(color.deriveColor(0, 1, 0.4, 0.5));
+        gc.setLineWidth(0.8);
+        gc.strokeLine(x + noteW - foldSize, y, x + noteW - foldSize, y + foldSize);
+        gc.strokeLine(x + noteW - foldSize, y + foldSize, x + noteW, y + foldSize);
+
+        // ── Render preview text with word-wrap ────────────────────────────────
+        double fontSize = 10;
+        gc.setFont(Font.font("Segoe UI", fontSize));
+        gc.setFill(Color.web("#e6edf3cc"));
+        gc.setTextAlign(TextAlignment.LEFT);
+
+        double charW = fontSize * 0.62;
+        int charsPerLine = Math.max(1, (int)((noteW - 14) / charW));
+        double lineH = fontSize + 3;
+        double usableH = noteH - 10;  // leave top/bottom padding
+        int maxLines = (int)(usableH / lineH);
+
         if (!text.isBlank()) {
-            String preview = text.length() > 24 ? text.substring(0, 24) + "…" : text;
-            if (preview.length() > 12) {
-                gc.fillText(preview.substring(0, Math.min(12, preview.length())), x + 5, y + 16);
-                gc.fillText(preview.substring(Math.min(12, preview.length())), x + 5, y + 28);
-            } else { gc.fillText(preview, x + 5, y + 16); }
-        } else { gc.fillText("✏ Note", x + 8, y + 22); }
-        if (props.isEditing()) { gc.setStroke(color); gc.strokeRoundRect(x + 1, y + 1, noteW - 2, noteH - 2, 4, 4); }
+            java.util.List<String> lines = wrapText(text, charsPerLine);
+            int renderCount = Math.min(lines.size(), maxLines);
+            for (int i = 0; i < renderCount; i++) {
+                gc.fillText(lines.get(i), x + 6, y + 6 + lineH * (i + 1));
+            }
+            // Show "…" if text was clipped
+            if (lines.size() > renderCount) {
+                gc.setFill(Color.web("#d29922cc"));
+                gc.fillText("…", x + noteW - 16, y + noteH - 6);
+            }
+        } else {
+            // Placeholder hint
+            gc.setFill(Color.web("#d29922aa"));
+            gc.fillText("✏ Double-click to edit", x + 6, y + 18);
+        }
+
+        if (props.isEditing()) {
+            gc.setStroke(color.deriveColor(0, 1, 1, 1.0));
+            gc.setLineWidth(2.0);
+            gc.strokeRoundRect(x + 1, y + 1, noteW - 2, noteH - 2, 4, 4);
+        }
     }
 
     private static void drawCallout(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
@@ -641,12 +702,19 @@ public final class DrawingRenderer {
             boxX = timeToX(d.getPoints().get(1).getTime(), ctx);
             boxY = priceToY(d.getPoints().get(1).getPrice(), ctx);
         } else { boxX = tipX + 40; boxY = tipY - 30; }
+
+        // ── Compute wrapped lines ──────────────────────────────────────────────
         double boxW = props.getTextBoxWidth() > 0
                 ? props.getTextBoxWidth()
-                : Math.max(70, text.length() * (fontSize * 0.62) + 16);
-        double boxH = props.getTextBoxHeight() > 0
+                : Math.max(80, Math.min(text.length() * (fontSize * 0.62) + 16, 200));
+        double charW = fontSize * 0.62;
+        int charsPerLine = Math.max(1, (int)((boxW - 16) / charW));
+        java.util.List<String> lines = wrapText(text, charsPerLine);
+        double lineH = fontSize + 4;
+        double boxH  = props.getTextBoxHeight() > 0
                 ? props.getTextBoxHeight()
-                : fontSize + 12;
+                : Math.max(lineH + 10, lines.size() * lineH + 10);
+
         double boxCX = boxX + boxW / 2, boxBY = boxY + boxH;
         gc.setStroke(color); gc.setLineWidth(1.5);
         gc.strokeLine(tipX, tipY, boxCX, boxBY);
@@ -656,12 +724,23 @@ public final class DrawingRenderer {
         gc.setFill(color); gc.fillOval(tipX - 3, tipY - 3, 6, 6);
         gc.setFill(Color.web("#1c2128ee")); gc.fillRoundRect(boxX, boxY, boxW, boxH, 4, 4);
         gc.setStroke(color); gc.setLineWidth(1.2); gc.strokeRoundRect(boxX, boxY, boxW, boxH, 4, 4);
-        gc.setFill(Color.web("#e6edf3")); gc.setFont(Font.font("Segoe UI", fontSize)); gc.setTextAlign(TextAlignment.LEFT);
-        gc.fillText(text, boxX + 8, boxY + fontSize + 1);
+
+        // Render wrapped lines
+        gc.setFill(Color.web("#e6edf3")); gc.setFont(Font.font("Segoe UI", fontSize));
+        gc.setTextAlign(TextAlignment.LEFT);
+        double maxVisibleLines = Math.floor((boxH - 10) / lineH);
+        int renderCount = (int) Math.min(lines.size(), maxVisibleLines);
+        for (int i = 0; i < renderCount; i++) {
+            gc.fillText(lines.get(i), boxX + 8, boxY + 4 + lineH * (i + 1) - 2);
+        }
+        if (lines.size() > renderCount) {
+            gc.setFill(Color.web("#8b949e"));
+            gc.fillText("…", boxX + boxW - 18, boxY + boxH - 5);
+        }
+
         if (props.isEditing()) {
-            double cursorX = boxX + 8 + text.length() * (fontSize * 0.6);
             gc.setStroke(Color.web("#e6edf3")); gc.setLineWidth(1.5);
-            gc.strokeLine(cursorX, boxY + 3, cursorX, boxY + boxH - 3);
+            gc.strokeLine(boxX + 8, boxY + 4, boxX + 8, boxY + boxH - 4);
         }
     }
 
@@ -742,5 +821,54 @@ public final class DrawingRenderer {
         if (Math.abs(p) >= 1000) return String.format("%.2f", p);
         if (Math.abs(p) >= 1)    return String.format("%.4f", p);
         return String.format("%.6f", p);
+    }
+
+    /**
+     * Wraps {@code text} into lines of at most {@code maxChars} characters.
+     * Honours existing newlines in the text. Words that exceed maxChars are
+     * split hard.
+     *
+     * @param text      the raw text to wrap (may contain {@code \n})
+     * @param maxChars  maximum characters per line
+     * @return ordered list of display lines
+     */
+    static java.util.List<String> wrapText(String text, int maxChars) {
+        if (text == null || text.isBlank()) return java.util.List.of("");
+        maxChars = Math.max(1, maxChars);
+        java.util.List<String> result = new java.util.ArrayList<>();
+        // Split on explicit newlines first
+        for (String para : text.split("\n", -1)) {
+            if (para.isEmpty()) { result.add(""); continue; }
+            String[] words = para.split(" ", -1);
+            StringBuilder cur = new StringBuilder();
+            for (String word : words) {
+                // Hard-split words longer than maxChars
+                while (word.length() > maxChars) {
+                    int rem = maxChars - cur.length();
+                    if (cur.length() > 0 && rem > 0) {
+                        cur.append(word, 0, rem);
+                        result.add(cur.toString()); cur.setLength(0);
+                        word = word.substring(rem);
+                    } else if (cur.length() == 0) {
+                        result.add(word.substring(0, maxChars));
+                        word = word.substring(maxChars);
+                    } else {
+                        result.add(cur.toString()); cur.setLength(0);
+                    }
+                }
+                if (word.isEmpty()) continue;
+                if (cur.length() == 0) {
+                    cur.append(word);
+                } else if (cur.length() + 1 + word.length() <= maxChars) {
+                    cur.append(' ').append(word);
+                } else {
+                    result.add(cur.toString());
+                    cur.setLength(0);
+                    cur.append(word);
+                }
+            }
+            if (cur.length() > 0) result.add(cur.toString());
+        }
+        return result;
     }
 }

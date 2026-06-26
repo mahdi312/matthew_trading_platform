@@ -73,7 +73,7 @@
     </HBox>
 
     <!-- Recent Trades / Trade Journal -->
-    <VBox fx:id="tradesSection" styleClass="card" VBox.vgrow="ALWAYS" spacing="12" minHeight="420">
+    <VBox fx:id="tradesSection" styleClass="card" VBox.vgrow="ALWAYS" spacing="12" minHeight="200">
         <HBox alignment="CENTER_LEFT" spacing="12">
             <Label fx:id="tradesSectionTitle" text="Recent Trades" styleClass="label-title" style="-fx-font-size:14px;"/>
             <Pane HBox.hgrow="ALWAYS"/>
@@ -86,26 +86,36 @@
                  style="-fx-background-color:#161b22; -fx-tab-min-width:120px;">
             <tabs>
                 <Tab fx:id="myTradesTab" text="📋 My Trades">
-                    <TableView fx:id="recentTradesTable" minHeight="340"
-                               style="-fx-background-color:#161b22; -fx-border-color:#30363d; -fx-border-width:1;">
-                        <placeholder>
-                            <Label text="📋 No trades yet — click '+ New Trade' to get started."
-                                   style="-fx-text-fill:#8b949e; -fx-font-size:13px;"/>
-                        </placeholder>
-                        <columns>
-                            <TableColumn fx:id="colDate"    text="DATE"     prefWidth="130"/>
-                            <TableColumn fx:id="colSymbol"  text="SYMBOL"   prefWidth="100"/>
-                            <TableColumn fx:id="colType"    text="TYPE"     prefWidth="70"/>
-                            <TableColumn fx:id="colDir"     text="DIR"      prefWidth="60"/>
-                            <TableColumn fx:id="colEntry"   text="ENTRY"    prefWidth="110"/>
-                            <TableColumn fx:id="colExit"    text="EXIT"     prefWidth="110"/>
-                            <TableColumn fx:id="colQty"     text="QTY"      prefWidth="90"/>
-                            <TableColumn fx:id="colPnl"     text="P&amp;L $" prefWidth="100"/>
-                            <TableColumn fx:id="colPnlPct"  text="P&amp;L %" prefWidth="90"/>
-                            <TableColumn fx:id="colStatus"  text="STATUS"   prefWidth="80"/>
-                            <TableColumn fx:id="colActions" text="ACTIONS"  prefWidth="100"/>
-                        </columns>
-                    </TableView>
+                    <!-- Wrap table in ScrollPane so it is always scrollable and fits window -->
+                    <ScrollPane fitToWidth="true" fitToHeight="false"
+                                hbarPolicy="AS_NEEDED" vbarPolicy="AS_NEEDED"
+                                style="-fx-background-color:#161b22; -fx-background:#161b22;"
+                                VBox.vgrow="ALWAYS">
+                        <TableView fx:id="recentTradesTable"
+                                   maxHeight="1.7976931348623157E308"
+                                   style="-fx-background-color:#161b22; -fx-border-color:#30363d; -fx-border-width:1;">
+                            <placeholder>
+                                <Label text="📋 No trades yet — click '+ New Trade' to get started."
+                                       style="-fx-text-fill:#8b949e; -fx-font-size:13px;"/>
+                            </placeholder>
+                            <columnResizePolicy>
+                                <TableView fx:constant="CONSTRAINED_RESIZE_POLICY"/>
+                            </columnResizePolicy>
+                            <columns>
+                                <TableColumn fx:id="colDate"    text="DATE"     minWidth="100" prefWidth="130"/>
+                                <TableColumn fx:id="colSymbol"  text="SYMBOL"   minWidth="80"  prefWidth="100"/>
+                                <TableColumn fx:id="colType"    text="TYPE"     minWidth="60"  prefWidth="70"/>
+                                <TableColumn fx:id="colDir"     text="DIR"      minWidth="50"  prefWidth="60"/>
+                                <TableColumn fx:id="colEntry"   text="ENTRY"    minWidth="80"  prefWidth="110"/>
+                                <TableColumn fx:id="colExit"    text="EXIT"     minWidth="80"  prefWidth="110"/>
+                                <TableColumn fx:id="colQty"     text="QTY"      minWidth="60"  prefWidth="90"/>
+                                <TableColumn fx:id="colPnl"     text="P&amp;L $" minWidth="80" prefWidth="100"/>
+                                <TableColumn fx:id="colPnlPct"  text="P&amp;L %" minWidth="70" prefWidth="90"/>
+                                <TableColumn fx:id="colStatus"  text="STATUS"   minWidth="60"  prefWidth="80"/>
+                                <TableColumn fx:id="colActions" text="ACTIONS"  minWidth="80"  prefWidth="100"/>
+                            </columns>
+                        </TableView>
+                    </ScrollPane>
                 </Tab>
                 <!-- Dynamic broker tabs are added programmatically in DashboardController -->
             </tabs>

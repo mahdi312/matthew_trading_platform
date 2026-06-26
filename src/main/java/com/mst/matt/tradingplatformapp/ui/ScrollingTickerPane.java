@@ -84,6 +84,7 @@ public class ScrollingTickerPane extends StackPane {
             loopWidth = 0;
             return;
         }
+        // Keep only the first set of nodes (one copy of the symbol row)
         int half = symbolOrder.isEmpty() ? 0 : symbolOrder.size() * 2;
         while (track.getChildren().size() > half && half > 0) {
             track.getChildren().remove(track.getChildren().size() - 1);
@@ -94,8 +95,21 @@ public class ScrollingTickerPane extends StackPane {
         if (loopWidth <= 0) {
             loopWidth = symbolOrder.size() * 160.0;
         }
-        List<javafx.scene.Node> copy = new ArrayList<>(track.getChildren());
-        track.getChildren().addAll(copy);
+        // Build a fresh list of cloned label nodes for the second loop copy;
+        // we must NOT add the existing nodes (duplicate children error).
+        List<javafx.scene.Node> clone = new ArrayList<>();
+        for (String key : symbolOrder) {
+            Label orig = labels.get(key);
+            if (orig == null) continue;
+            Label dup = new Label(orig.getText());
+            dup.getStyleClass().addAll(orig.getStyleClass());
+            dup.setMinWidth(javafx.scene.layout.Region.USE_PREF_SIZE);
+            clone.add(dup);
+            Label sep = new Label("   │   ");
+            sep.setStyle("-fx-text-fill:#30363d; -fx-font-size:11px;");
+            clone.add(sep);
+        }
+        track.getChildren().addAll(clone);
         track.applyCss();
         track.layout();
         loopWidth = track.getWidth() / 2.0;

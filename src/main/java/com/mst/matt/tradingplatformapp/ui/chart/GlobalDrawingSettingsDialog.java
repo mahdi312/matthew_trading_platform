@@ -29,8 +29,8 @@ public class GlobalDrawingSettingsDialog {
         final GlobalDrawingSettings settings = current;
 
         Dialog<ButtonType> dialog = new Dialog<>();
-        dialog.setTitle("Global Drawing Settings");
-        dialog.setHeaderText(null);
+        dialog.setTitle("Drawing Settings (Per Profile)");
+        dialog.setHeaderText("Settings are saved per profile and applied to new drawings");
         if (owner != null) {
             try { dialog.initOwner(owner); } catch (Exception ignored) {}
         }

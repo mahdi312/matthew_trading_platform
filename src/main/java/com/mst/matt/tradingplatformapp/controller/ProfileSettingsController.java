@@ -58,6 +58,15 @@ public class ProfileSettingsController {
     @FXML private ToggleButton lightThemeBtn;
     @FXML private ToggleGroup themeGroup;
 
+    // ── Sensitivity sliders ───────────────────────────────────
+    @FXML private javafx.scene.control.Slider zoomSensitivitySlider;
+    @FXML private javafx.scene.control.Label  zoomSensitivityLabel;
+    @FXML private javafx.scene.control.Slider panSensitivitySlider;
+    @FXML private javafx.scene.control.Label  panSensitivityLabel;
+
+    /** Callback to apply changed sensitivity values to the live chart canvas. */
+    private java.util.function.Consumer<double[]> onSensitivityChanged;
+
     // ── Spring services ────────────────────────────────────────
     @Autowired private UserProfileRepository profileRepository;
     @Autowired private AppSettingsService appSettings;
@@ -114,6 +123,54 @@ public class ProfileSettingsController {
 
         // Favorite timeframes pane
         buildFavoritesPane();
+
+        // ── Sensitivity sliders ───────────────────────────────
+        initSensitivitySliders();
+    }
+
+    private void initSensitivitySliders() {
+        if (zoomSensitivitySlider != null) {
+            double zoomVal = parseSensitivity(appSettings.getSetting("zoomSensitivity"), 0.4);
+            zoomSensitivitySlider.setValue(zoomVal);
+            updateSensitivityLabel(zoomSensitivityLabel, zoomVal);
+            zoomSensitivitySlider.valueProperty().addListener((o, a, n) -> {
+                double v = Math.round(n.doubleValue() * 100.0) / 100.0;
+                updateSensitivityLabel(zoomSensitivityLabel, v);
+                // Live preview — notify chart immediately
+                if (onSensitivityChanged != null) {
+                    double panVal = panSensitivitySlider != null
+                            ? panSensitivitySlider.getValue() : 0.6;
+                    onSensitivityChanged.accept(new double[]{v, panVal});
+                }
+            });
+        }
+        if (panSensitivitySlider != null) {
+            double panVal = parseSensitivity(appSettings.getSetting("panSensitivity"), 0.6);
+            panSensitivitySlider.setValue(panVal);
+            updateSensitivityLabel(panSensitivityLabel, panVal);
+            panSensitivitySlider.valueProperty().addListener((o, a, n) -> {
+                double v = Math.round(n.doubleValue() * 100.0) / 100.0;
+                updateSensitivityLabel(panSensitivityLabel, v);
+                if (onSensitivityChanged != null) {
+                    double zoomVal = zoomSensitivitySlider != null
+                            ? zoomSensitivitySlider.getValue() : 0.4;
+                    onSensitivityChanged.accept(new double[]{zoomVal, v});
+                }
+            });
+        }
+    }
+
+    private void updateSensitivityLabel(javafx.scene.control.Label lbl, double v) {
+        if (lbl != null) lbl.setText(String.format("%.2f", v));
+    }
+
+    private double parseSensitivity(String s, double def) {
+        if (s == null || s.isBlank()) return def;
+        try { return Double.parseDouble(s); } catch (NumberFormatException e) { return def; }
+    }
+
+    public void setOnSensitivityChanged(java.util.function.Consumer<double[]> cb) {
+        this.onSensitivityChanged = cb;
     }
 
     // ── Timezone ─────────────────────────────────────────────
@@ -290,6 +347,18 @@ public class ProfileSettingsController {
         if (lightThemeBtn != null) lightThemeBtn.setSelected(!dark);
         updateThemeBtnStyles();
 
+        // Sensitivity sliders
+        if (zoomSensitivitySlider != null) {
+            double zv = parseSensitivity(appSettings.getSetting("zoomSensitivity"), 0.4);
+            zoomSensitivitySlider.setValue(zv);
+            updateSensitivityLabel(zoomSensitivityLabel, zv);
+        }
+        if (panSensitivitySlider != null) {
+            double pv = parseSensitivity(appSettings.getSetting("panSensitivity"), 0.6);
+            panSensitivitySlider.setValue(pv);
+            updateSensitivityLabel(panSensitivityLabel, pv);
+        }
+
         savedLabel.setText("");
     }
 
@@ -359,6 +428,22 @@ public class ProfileSettingsController {
         // Theme
         if (darkThemeBtn != null) {
             appSettings.setTheme(darkThemeBtn.isSelected() ? "dark" : "light");
+        }
+
+        // Sensitivity
+        if (zoomSensitivitySlider != null) {
+            double zv = Math.round(zoomSensitivitySlider.getValue() * 100.0) / 100.0;
+            appSettings.setSetting("zoomSensitivity", String.valueOf(zv));
+        }
+        if (panSensitivitySlider != null) {
+            double pv = Math.round(panSensitivitySlider.getValue() * 100.0) / 100.0;
+            appSettings.setSetting("panSensitivity", String.valueOf(pv));
+        }
+        // Notify chart canvas of the new values
+        if (onSensitivityChanged != null) {
+            double zv = zoomSensitivitySlider != null ? zoomSensitivitySlider.getValue() : 0.4;
+            double pv = panSensitivitySlider  != null ? panSensitivitySlider.getValue()  : 0.6;
+            onSensitivityChanged.accept(new double[]{zv, pv});
         }
 
         // Profile save
