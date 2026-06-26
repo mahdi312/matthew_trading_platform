@@ -127,6 +127,7 @@
                     visible="false" managed="false">
                 <tooltip><Tooltip text="Run technical analysis"/></tooltip>
             </Button>
+
             <Separator orientation="VERTICAL"/>
 
             <!-- Fullscreen toggle (also activated by F11) -->
