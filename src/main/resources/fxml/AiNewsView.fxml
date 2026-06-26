@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<!--
+    AI News & Insights Tab
+    ══════════════════════
+    Provides AI-generated investment recommendations, news aggregation,
+    and sentiment analysis for any symbol or market query.
+-->
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.mst.matt.tradingplatformapp.controller.AiNewsController"
+      spacing="0"
+      maxWidth="Infinity" maxHeight="Infinity"
+      style="-fx-background-color:#0d1117;">
+
+    <!-- ══ Header / Search bar ══════════════════════════════════════════════ -->
+    <VBox spacing="0"
+          style="-fx-background-color:#161b22; -fx-border-color:#30363d; -fx-border-width:0 0 1 0;">
+        <padding><Insets top="16" right="20" bottom="16" left="20"/></padding>
+
+        <HBox alignment="CENTER_LEFT" spacing="10">
+            <Label text="🤖 AI News &amp; Insights"
+                   style="-fx-font-size:18px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
+            <Label text="Powered by market data &amp; AI analysis"
+                   style="-fx-font-size:11px; -fx-text-fill:#8b949e;"/>
+        </HBox>
+
+        <VBox spacing="0">
+            <padding><Insets top="12" bottom="0" left="0" right="0"/></padding>
+
+            <!-- Search row -->
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <Label text="🔍" style="-fx-font-size:14px; -fx-text-fill:#8b949e;"/>
+                <TextField fx:id="searchField"
+                           promptText="Search: NVDA, BTCUSDT, AI sector, market sentiment…"
+                           HBox.hgrow="ALWAYS"
+                           style="-fx-background-color:#21262d; -fx-text-fill:#e6edf3;
+                                  -fx-border-color:#30363d; -fx-border-radius:6;
+                                  -fx-background-radius:6; -fx-padding:8 12;
+                                  -fx-font-size:13px;"/>
+                <Button fx:id="getInsightsBtn" text="✦ Get Insights"
+                        onAction="#onGetInsights"
+                        style="-fx-background-color:#1f6feb; -fx-text-fill:white;
+                               -fx-background-radius:6; -fx-padding:8 18;
+                               -fx-font-size:13px; -fx-cursor:hand; -fx-font-weight:bold;"/>
+                <Button text="↺ Refresh"
+                        onAction="#onRefresh"
+                        style="-fx-background-color:#21262d; -fx-text-fill:#e6edf3;
+                               -fx-background-radius:6; -fx-padding:8 14;
+                               -fx-font-size:12px; -fx-cursor:hand;
+                               -fx-border-color:#30363d; -fx-border-radius:6; -fx-border-width:1;">
+                    <tooltip><Tooltip text="Refresh (clears cache for current symbol)"/></tooltip>
+                </Button>
+                <ProgressIndicator fx:id="loadingSpinner" prefWidth="22" prefHeight="22"
+                                   visible="false" managed="false"/>
+            </HBox>
+
+            <!-- Status / error label -->
+            <Label fx:id="statusLabel" text=""
+                   style="-fx-text-fill:#8b949e; -fx-font-size:11px; -fx-padding:4 0 0 26;"/>
+        </VBox>
+    </VBox>
+
+    <!-- ══ Main content (scrollable) ════════════════════════════════════════ -->
+    <ScrollPane fx:id="contentScrollPane" fitToWidth="true"
+                hbarPolicy="NEVER" vbarPolicy="AS_NEEDED"
+                VBox.vgrow="ALWAYS"
+                style="-fx-background-color:#0d1117; -fx-background:#0d1117;">
+
+        <VBox spacing="16" VBox.vgrow="ALWAYS"
+              style="-fx-background-color:#0d1117;">
+            <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+
+            <!-- Empty state (shown before first search) -->
+            <VBox fx:id="resultPanel" spacing="16" visible="false" managed="false">
+
+                <!-- ── Sentiment summary ─────────────────────────────────── -->
+                <HBox alignment="CENTER_LEFT" spacing="12">
+                    <Label fx:id="sentimentLabel" text="Overall Sentiment:"
+                           style="-fx-text-fill:#8b949e; -fx-font-size:13px;"/>
+                    <Label fx:id="sentimentBadge" text="— NEUTRAL"
+                           style="-fx-text-fill:#8b949e; -fx-font-size:13px;
+                                  -fx-background-color:#21262d; -fx-background-radius:12;
+                                  -fx-padding:3 10; -fx-border-color:#30363d;
+                                  -fx-border-radius:12; -fx-border-width:1;"/>
+                </HBox>
+
+                <!-- ── Latest News ───────────────────────────────────────── -->
+                <VBox spacing="8">
+                    <Label text="📰 Latest News"
+                           style="-fx-font-size:14px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
+                    <VBox fx:id="newsContainer" spacing="6">
+                        <!-- News cards injected programmatically -->
+                    </VBox>
+                </VBox>
+
+                <!-- ── AI Recommendation ─────────────────────────────────── -->
+                <VBox spacing="8"
+                      style="-fx-background-color:#161b22; -fx-background-radius:8;
+                             -fx-border-color:#30363d; -fx-border-radius:8; -fx-border-width:1;">
+                    <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+
+                    <HBox alignment="CENTER_LEFT" spacing="8">
+                        <Label text="💡" style="-fx-font-size:14px;"/>
+                        <Label fx:id="recommendationLabel" text="AI Recommendation"
+                               style="-fx-font-size:14px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
+                    </HBox>
+                    <Label fx:id="recommendationText" text=""
+                           wrapText="true"
+                           style="-fx-text-fill:#c9d1d9; -fx-font-size:13px; -fx-line-spacing:3;"/>
+                </VBox>
+
+                <!-- ── Risk Warning ──────────────────────────────────────── -->
+                <VBox spacing="8"
+                      style="-fx-background-color:#2b1a1a; -fx-background-radius:8;
+                             -fx-border-color:#f8514955; -fx-border-radius:8; -fx-border-width:1;">
+                    <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
+
+                    <HBox alignment="CENTER_LEFT" spacing="8">
+                        <Label text="⚠" style="-fx-font-size:13px; -fx-text-fill:#f85149;"/>
+                        <Label fx:id="riskLabel" text="Risk Factors"
+                               style="-fx-font-size:13px; -fx-font-weight:bold; -fx-text-fill:#f85149;"/>
+                    </HBox>
+                    <Label fx:id="riskText" text=""
+                           wrapText="true"
+                           style="-fx-text-fill:#e6b8b8; -fx-font-size:12px; -fx-line-spacing:2;"/>
+                </VBox>
+
+                <!-- ── Footer: Generated at ─────────────────────────────── -->
+                <Label fx:id="generatedAtLabel" text=""
+                       style="-fx-text-fill:#484f58; -fx-font-size:10px;"/>
+
+            </VBox>
+
+            <!-- ── Welcome / empty state ─────────────────────────────────── -->
+            <VBox alignment="CENTER" spacing="14"
+                  style="-fx-background-color:#161b22; -fx-background-radius:12;
+                         -fx-border-color:#30363d; -fx-border-radius:12; -fx-border-width:1;">
+                <padding><Insets top="40" right="30" bottom="40" left="30"/></padding>
+
+                <Label text="🤖" style="-fx-font-size:40px;"/>
+                <Label text="AI-Powered Market Insights"
+                       style="-fx-font-size:16px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
+                <Label text="Search for any symbol (NVDA, BTCUSDT) or ask a market question."
+                       style="-fx-font-size:12px; -fx-text-fill:#8b949e;" wrapText="true"/>
+
+                <!-- Quick-access chips — wire to #onQuickSearch via userData -->
+                <HBox spacing="8" alignment="CENTER">
+                    <Button text="NVDA" onAction="#onQuickSearch"
+                            userData="NVDA"
+                            style="-fx-background-color:#21262d; -fx-text-fill:#8b949e;
+                                   -fx-background-radius:20; -fx-padding:4 14; -fx-cursor:hand;
+                                   -fx-border-color:#30363d; -fx-border-radius:20; -fx-border-width:1;"/>
+                    <Button text="BTCUSDT" onAction="#onQuickSearch"
+                            userData="BTCUSDT"
+                            style="-fx-background-color:#21262d; -fx-text-fill:#8b949e;
+                                   -fx-background-radius:20; -fx-padding:4 14; -fx-cursor:hand;
+                                   -fx-border-color:#30363d; -fx-border-radius:20; -fx-border-width:1;"/>
+                    <Button text="AI sector" onAction="#onQuickSearch"
+                            userData="AI sector"
+                            style="-fx-background-color:#21262d; -fx-text-fill:#8b949e;
+                                   -fx-background-radius:20; -fx-padding:4 14; -fx-cursor:hand;
+                                   -fx-border-color:#30363d; -fx-border-radius:20; -fx-border-width:1;"/>
+                    <Button text="Market sentiment" onAction="#onQuickSearch"
+                            userData="Market sentiment"
+                            style="-fx-background-color:#21262d; -fx-text-fill:#8b949e;
+                                   -fx-background-radius:20; -fx-padding:4 14; -fx-cursor:hand;
+                                   -fx-border-color:#30363d; -fx-border-radius:20; -fx-border-width:1;"/>
+                </HBox>
+            </VBox>
+
+        </VBox>
+    </ScrollPane>
+
+</VBox>

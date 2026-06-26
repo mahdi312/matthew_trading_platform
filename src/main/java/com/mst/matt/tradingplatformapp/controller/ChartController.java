@@ -145,13 +145,17 @@ public class ChartController implements Initializable {
     private Consumer<TradeDrawingDraft> onInstantSaveTradeFromDrawing;
     private boolean chartSessionActive;
 
-    /** Fullscreen state tracking */
+    /** Fullscreen state tracking — single source of truth.
+     *  Use {@code isFullscreen} as the authoritative flag; {@code fullscreenActive}
+     *  is kept for legacy callers but must stay in sync. */
+    private boolean isFullscreen = false;
+    /** @deprecated use {@link #isFullscreen} instead */
     private boolean fullscreenActive = false;
     /** Reference to the scene's original content for fullscreen restore */
-    private javafx.scene.Parent fullscreenOriginalParent;
-    private javafx.scene.layout.StackPane fullscreenOverlay;
+    private javafx.scene.Parent fullscreenOriginalParent = null;
+    private javafx.scene.layout.StackPane fullscreenOverlay = null;
     /** Original parent of chartStack before entering fullscreen */
-    private javafx.scene.layout.Pane fullscreenChartStackOriginalParent;
+    private javafx.scene.layout.Pane fullscreenChartStackOriginalParent = null;
     /** Original index of chartStack in its parent before entering fullscreen */
     private int fullscreenChartStackOriginalIndex = -1;
 
@@ -165,6 +169,10 @@ public class ChartController implements Initializable {
     public void initialize(URL url, ResourceBundle rb) {
         // Feature 4.3: cap default bars to role limit
         currentBars = Math.min(defaultBars, authService.maxCandles());
+
+        // Register staleness warning callback (Fix 2)
+        ohlcvStorageService.setOnStaleDataWarning((symbolTf, msg) ->
+                javafx.application.Platform.runLater(() -> showWarnNotification("⚠ " + msg)));
 
         chart = new CandlestickChartCanvas();
         chart.widthProperty().bind(chartPane.widthProperty());
@@ -518,7 +526,7 @@ public class ChartController implements Initializable {
      * Press F11 or click the button again to exit.
      */
     @FXML public void onToggleFullscreen() {
-        if (fullscreenActive) {
+        if (isFullscreen) {
             exitFullscreen();
         } else {
             enterFullscreen();
@@ -526,19 +534,26 @@ public class ChartController implements Initializable {
     }
 
     private void enterFullscreen() {
+        // Guard: prevent double-enter which would corrupt the saved parent reference
+        if (isFullscreen) return;
         if (chartStack == null || chartStack.getScene() == null) return;
         javafx.stage.Stage stage = (javafx.stage.Stage) chartStack.getScene().getWindow();
         if (stage == null) return;
 
+        // Save original parent BEFORE modifying the scene graph (critical order)
+        javafx.scene.Scene scene = chartStack.getScene();
+        fullscreenOriginalParent = (javafx.scene.Parent) scene.getRoot();
+
+        isFullscreen = true;
         fullscreenActive = true;
         if (fullscreenBtn != null) {
             fullscreenBtn.setText("✕");
             fullscreenBtn.setTooltip(new Tooltip("Exit fullscreen (F11 or Esc)"));
         }
 
-        // Save the original scene root so we can restore it on exit
+        // fullscreenOriginalParent was already set above BEFORE this block.
+        // Use the already-stored scene reference.
         javafx.scene.Scene scene = stage.getScene();
-        fullscreenOriginalParent = (javafx.scene.Parent) scene.getRoot();
 
         // Build a fullscreen overlay StackPane (outer container for key events / focus)
         fullscreenOverlay = new javafx.scene.layout.StackPane();
@@ -561,7 +576,7 @@ public class ChartController implements Initializable {
         fullscreenVBox.setStyle("-fx-background-color:#0d1117;");
         VBox.setVgrow(chartStack, Priority.ALWAYS);
 
-        // Save original parent + index so we can precisely restore on exit
+        // Save original chartStack parent + index so we can precisely restore on exit
         if (chartStack.getParent() instanceof javafx.scene.layout.Pane origParent) {
             fullscreenChartStackOriginalParent = origParent;
             fullscreenChartStackOriginalIndex  = origParent.getChildren().indexOf(chartStack);
@@ -599,7 +614,18 @@ public class ChartController implements Initializable {
     }
 
     private void exitFullscreen() {
-        if (!fullscreenActive || fullscreenOverlay == null) return;
+        // Guard: prevent double-exit which caused the NPE on fullscreenOriginalParent.layout()
+        if (!isFullscreen || fullscreenOriginalParent == null) {
+            // Already exited or never properly entered — just reset state and return
+            isFullscreen = false;
+            fullscreenActive = false;
+            fullscreenOverlay = null;
+            fullscreenOriginalParent = null;
+            fullscreenChartStackOriginalParent = null;
+            fullscreenChartStackOriginalIndex  = -1;
+            return;
+        }
+        isFullscreen = false;
         fullscreenActive = false;
 
         if (fullscreenBtn != null) {
@@ -607,17 +633,19 @@ public class ChartController implements Initializable {
             fullscreenBtn.setTooltip(new Tooltip("Toggle fullscreen (F11)"));
         }
 
-        javafx.stage.Stage stage = (javafx.stage.Stage) fullscreenOverlay.getScene().getWindow();
+        javafx.stage.Stage stage = (fullscreenOverlay != null && fullscreenOverlay.getScene() != null)
+                ? (javafx.stage.Stage) fullscreenOverlay.getScene().getWindow()
+                : null;
         if (stage != null) stage.setFullScreen(false);
 
         // Restore original scene root
-        if (fullscreenOriginalParent != null && stage != null) {
+        if (stage != null) {
             // Remove chartStack from wherever it currently is (fullscreenVBox inside overlay)
             // so it is available to be re-inserted into its original parent.
-            if (chartStack.getParent() != null
+            if (chartStack != null && chartStack.getParent() != null
                     && chartStack.getParent() instanceof javafx.scene.layout.Pane fsParent) {
                 fsParent.getChildren().remove(chartStack);
-            } else {
+            } else if (fullscreenOverlay != null) {
                 fullscreenOverlay.getChildren().remove(chartStack);
             }
 
@@ -633,15 +661,20 @@ public class ChartController implements Initializable {
             chart.widthProperty().bind(chartPane.widthProperty());
             chart.heightProperty().bind(chartPane.heightProperty());
 
+            // Capture a local reference before nulling out the field (used in lambda below)
+            final javafx.scene.Parent localOrigParent = fullscreenOriginalParent;
+
             // Force a layout pass + re-render so the chart is visible immediately
             javafx.application.Platform.runLater(() -> {
-                fullscreenOriginalParent.layout();
-                // Ensure the BorderPane top (header bar) is still visible after restoring
-                if (fullscreenOriginalParent instanceof javafx.scene.layout.BorderPane bp) {
-                    javafx.scene.Node topNode = bp.getTop();
-                    if (topNode != null) {
-                        topNode.setVisible(true);
-                        topNode.setManaged(true);
+                if (localOrigParent != null) {
+                    localOrigParent.layout();
+                    // Ensure the BorderPane top (header bar) is still visible after restoring
+                    if (localOrigParent instanceof javafx.scene.layout.BorderPane bp) {
+                        javafx.scene.Node topNode = bp.getTop();
+                        if (topNode != null) {
+                            topNode.setVisible(true);
+                            topNode.setManaged(true);
+                        }
                     }
                 }
                 // CandlestickChartCanvas extends Canvas (not Region), so requestLayout()
@@ -803,7 +836,7 @@ public class ChartController implements Initializable {
                 case V -> chart.setActiveDrawingTool(ChartDrawingToolType.VERTICAL_LINE);
                 case R -> chart.setActiveDrawingTool(ChartDrawingToolType.RECTANGLE);
                 case ESCAPE -> {
-                    if (fullscreenActive) {
+                    if (isFullscreen) {
                         exitFullscreen();
                     } else {
                         chart.setActiveDrawingTool(ChartDrawingToolType.SELECT);
@@ -817,6 +850,9 @@ public class ChartController implements Initializable {
             }
         });
     }
+
+    /** Returns the currently displayed symbol. */
+    public String getCurrentSymbol() { return currentSymbol; }
 
     /** Called when the Live Chart view becomes visible. */
     public void onChartActivated() {
@@ -1566,6 +1602,8 @@ public class ChartController implements Initializable {
         profilePersistence.saveAsync(activeProfile);
         showInfoNotification("Provider changed to " + chosen.getLabel() + " — refreshing chart…");
         Thread.ofVirtual().start(() -> {
+            // Fix 2: Invalidate the in-memory cache so the new provider fetches fresh data
+            ohlcvStorageService.invalidateCache(currentSymbol, currentTimeframe);
             ohlcvStorageService.refreshBars(currentSymbol, currentTimeframe, currentBars, activeProfile);
             loadChart();
         });

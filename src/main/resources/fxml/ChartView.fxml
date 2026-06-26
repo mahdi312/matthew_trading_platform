@@ -173,8 +173,12 @@
     </HBox>
 
     <!-- ═══════════════ Chart canvas + drawing toolbar + notifications ═══════════════ -->
-    <StackPane fx:id="chartStack" VBox.vgrow="ALWAYS">
-        <Pane fx:id="chartPane" style="-fx-background-color:#0d1117;"/>
+    <!-- VBox.vgrow=ALWAYS ensures the chart fills all remaining vertical space.
+         maxHeight=Infinity prevents JavaFX from capping the StackPane height.
+         The chartPane Pane's width/height are bound to chartStack in ChartController. -->
+    <StackPane fx:id="chartStack" VBox.vgrow="ALWAYS" maxHeight="Infinity">
+        <Pane fx:id="chartPane" style="-fx-background-color:#0d1117;"
+              maxWidth="Infinity" maxHeight="Infinity"/>
         <!-- Toast notifications (top-right, max 3) -->
         <VBox fx:id="notificationOverlay" alignment="TOP_RIGHT"
               visible="false" managed="false"

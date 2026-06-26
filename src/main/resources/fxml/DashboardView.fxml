@@ -7,7 +7,8 @@
 <?import javafx.scene.canvas.Canvas?>
 <VBox xmlns:fx="http://javafx.com/fxml"
       fx:controller="com.mst.matt.tradingplatformapp.controller.DashboardController"
-      styleClass="scene-root" spacing="20">
+      styleClass="scene-root" spacing="20"
+      maxWidth="Infinity" maxHeight="Infinity">
 
     <!-- Top Stat Cards -->
     <HBox fx:id="statsSection" spacing="16">
@@ -60,10 +61,13 @@
                 <Button text="3M" styleClass="btn-secondary" style="-fx-padding:4 10;" onAction="#onFilter3M"/>
                 <Button text="ALL" styleClass="btn-blue" style="-fx-padding:4 10;" onAction="#onFilterAll"/>
             </HBox>
+            <!-- Canvas is resized programmatically in DashboardController
+                 to fill the available width; prefWidth/prefHeight set initial render size -->
             <Canvas
                     fx:id="equityCanvas"
-                    width="700"
-                    height="200"/>
+                    width="0"
+                    height="200"
+                    VBox.vgrow="ALWAYS"/>
         </VBox>
 
         <VBox styleClass="card" prefWidth="280" spacing="12">
