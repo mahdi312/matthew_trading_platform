@@ -27,6 +27,7 @@ import javafx.stage.Window;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.Collections;
 
 /**
  * Professional candlestick chart rendered on a JavaFX Canvas.
@@ -98,7 +99,12 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
     // ── View state — all relative to full bars list ───────────
     /**
      * Index (into {@link #bars}) of the first visible bar.
-     * INVARIANT: 0 ≤ startBarIndex ≤ bars.size() - visibleBars
+     * <p>Fix 2: The startBarIndex may now be <b>negative</b> (empty space left of the first
+     * candle) or greater than {@code bars.size() - visibleBars} (empty space right of the
+     * last candle), allowing users to pan into blank space for annotations, notes, and
+     * projections.  The render loop clips the visible window to valid bar indices, so only
+     * the bars that actually exist are drawn.
+     * <p>Extended pan range = ±25% of the total bar count.
      */
     private int    startBarIndex = 0;
 
@@ -107,6 +113,12 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
      * INVARIANT: 1 ≤ visibleBars ≤ bars.size()
      */
     private int    visibleBars   = 100;
+
+    /**
+     * Fix 2: Fraction of the total bar count added as empty-space padding on each side.
+     * At 0.25 a 200-bar dataset allows panning 50 bars left and 50 bars right of the data.
+     */
+    private static final double PAN_MARGIN_FRAC = 0.25;
 
     // ── Overlays ──────────────────────────────────────────────
     private boolean showVolume    = true;
@@ -332,12 +344,26 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         }
 
         // ── Clamp view window ──────────────────────────────────
-        visibleBars   = Math.max(1, Math.min(visibleBars, bars.size()));
-        startBarIndex = Math.max(0, Math.min(startBarIndex, bars.size() - visibleBars));
-        int endBarIndex = startBarIndex + visibleBars - 1;  // inclusive, absolute index
+        visibleBars = Math.max(1, Math.min(visibleBars, bars.size()));
+
+        // Fix 2: Allow startBarIndex to extend beyond data bounds so users can pan into
+        // empty space on both sides for annotations, trend-line projections, and notes.
+        // panMargin = 25% of the total bar count (at least 10 bars each side).
+        int panMargin = Math.max(10, (int)(bars.size() * PAN_MARGIN_FRAC));
+        int minStart = -panMargin;                              // empty space left of first candle
+        int maxStart = bars.size() - visibleBars + panMargin;  // empty space right of last candle
+        startBarIndex = Math.max(minStart, Math.min(startBarIndex, maxStart));
+
+        // Actual data bar indices that are visible (clipped to data bounds)
+        int dataStart = Math.max(0, startBarIndex);
+        int dataEnd   = Math.min(bars.size() - 1, startBarIndex + visibleBars - 1);
+        int endBarIndex = startBarIndex + visibleBars - 1;  // may point beyond data bounds
 
         // Visible sub-list — used ONLY for drawing candles and volume
-        List<OhlcvBar> visible = bars.subList(startBarIndex, endBarIndex + 1);
+        // Guard against empty or out-of-bounds slice when panning into empty space
+        List<OhlcvBar> visible = (dataStart <= dataEnd)
+                ? bars.subList(dataStart, dataEnd + 1)
+                : Collections.emptyList();
 
         // ── Layout ────────────────────────────────────────────
         // Count sub-pane indicators
@@ -366,20 +392,20 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         double maxPrice = visible.stream().mapToDouble(b -> b.getHigh().doubleValue()).max().orElse(1);
         double minPrice = visible.stream().mapToDouble(b -> b.getLow().doubleValue()).min().orElse(0);
 
-        // Extend price range for price-pane indicator series
+        // Extend price range for price-pane indicator series (use clipped data indices)
         for (IndicatorDefinition def : indicators) {
             if (!def.isVisible() || def.getPane() != DisplayPane.PRICE) continue;
-            extendPriceRange(def, startBarIndex, endBarIndex);
+            extendPriceRange(def, dataStart, dataEnd);
         }
         // Extend for the indicator's own range
         for (IndicatorDefinition def : indicators) {
             if (!def.isVisible() || def.getPane() != DisplayPane.PRICE) continue;
-            maxPrice = Math.max(maxPrice, visibleMax(def.getSeries(), startBarIndex, endBarIndex));
-            minPrice = Math.min(minPrice, visibleMin(def.getSeries(), startBarIndex, endBarIndex));
+            maxPrice = Math.max(maxPrice, visibleMax(def.getSeries(), dataStart, dataEnd));
+            minPrice = Math.min(minPrice, visibleMin(def.getSeries(), dataStart, dataEnd));
             // Also check extra series (e.g. Bollinger upper)
             for (List<Double> extra : def.getExtraSeries().values()) {
-                maxPrice = Math.max(maxPrice, visibleMax(extra, startBarIndex, endBarIndex));
-                minPrice = Math.min(minPrice, visibleMin(extra, startBarIndex, endBarIndex));
+                maxPrice = Math.max(maxPrice, visibleMax(extra, dataStart, dataEnd));
+                minPrice = Math.min(minPrice, visibleMin(extra, dataStart, dataEnd));
             }
         }
         double pad = (maxPrice - minPrice) * 0.05;
@@ -407,6 +433,8 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         drawGrid(gc, layout, maxPrice, minPrice, visibleBars);
 
         // Price-pane indicators (fills first, then lines)
+        // Pass startBarIndex (which may be negative) and visibleBars; each drawing helper
+        // performs its own clamp when indexing into the data arrays.
         drawPricePaneIndicatorFills(gc, layout, maxPrice, minPrice, startBarIndex, endBarIndex, visibleBars);
         drawPricePaneIndicatorLines(gc, layout, maxPrice, minPrice, startBarIndex, endBarIndex, visibleBars);
 
@@ -418,14 +446,14 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
             if (srDef != null) drawSupportResistance(gc, layout, maxPrice, minPrice);
         }
 
-        // Candles
-        drawCandles(gc, layout, visible, maxPrice, minPrice);
+        // Candles — draw at the correct horizontal offset when startBarIndex < 0
+        drawCandles(gc, layout, visible, maxPrice, minPrice, startBarIndex, visibleBars);
 
         // Last price line
         drawLastPriceLine(gc, layout, maxPrice, minPrice, visible);
 
-        // Volume
-        if (showVolume) drawVolume(gc, layout, visible, maxVol);
+        // Volume — same horizontal offset logic
+        if (showVolume) drawVolume(gc, layout, visible, maxVol, startBarIndex, visibleBars);
 
         // Sub-pane indicators
         drawSubPaneIndicators(gc, layout, startBarIndex, endBarIndex, visibleBars);
@@ -477,14 +505,26 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
 
     // ── Draw: Candles ─────────────────────────────────────────
 
+    /**
+     * Fix 2: Draw candles with correct horizontal offset when startBarIndex < 0 or > data bounds.
+     * When panning into empty space, the first visible candle is offset from the left edge.
+     *
+     * @param startBarIndexArg the (possibly-negative) view start bar index
+     * @param totalVisibleBars total visible bar slots (including empty space)
+     */
     private void drawCandles(GraphicsContext gc, ChartLayout l,
-                             List<OhlcvBar> visible, double maxP, double minP) {
-        int n    = visible.size();
-        double barW  = l.plotWidth() / n;
+                             List<OhlcvBar> visible, double maxP, double minP,
+                             int startBarIndexArg, int totalVisibleBars) {
+        if (visible == null || visible.isEmpty()) return;
+        int n    = totalVisibleBars;  // total slots across the chart width
+        double barW  = l.plotWidth() / Math.max(1, n);
         double bodyW = Math.max(1.5, barW * 0.65);
         double wickW = Math.max(1.0, bodyW * 0.25);
 
-        for (int i = 0; i < n; i++) {
+        // Offset in slots from the left edge where the actual data starts
+        int dataSlotOffset = (startBarIndexArg < 0) ? -startBarIndexArg : 0;
+
+        for (int i = 0; i < visible.size(); i++) {
             OhlcvBar bar = visible.get(i);
             double o  = bar.getOpen().doubleValue();
             double hi = bar.getHigh().doubleValue();
@@ -492,7 +532,9 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
             double c  = bar.getClose().doubleValue();
             boolean bull = c >= o;
 
-            double cx       = l.left + (i + 0.5) * barW;
+            // Slot index from the left edge of the chart
+            int slot = dataSlotOffset + i;
+            double cx       = l.left + (slot + 0.5) * barW;
             double topWick  = priceToY(hi, maxP, minP, l);
             double botWick  = priceToY(lo, maxP, minP, l);
             double bodyTop  = priceToY(Math.max(o, c), maxP, minP, l);
@@ -532,20 +574,28 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
 
     // ── Draw: Volume ──────────────────────────────────────────
 
+    /**
+     * Fix 2: Draw volume bars with the same horizontal offset as candles.
+     */
     private void drawVolume(GraphicsContext gc, ChartLayout l,
-                            List<OhlcvBar> visible, double maxVol) {
-        if (l.volH <= 0) return;
-        int n    = visible.size();
-        double barW    = l.plotWidth() / n;
+                            List<OhlcvBar> visible, double maxVol,
+                            int startBarIndexArg, int totalVisibleBars) {
+        if (l.volH <= 0 || visible == null || visible.isEmpty()) return;
+        int n    = totalVisibleBars;
+        double barW    = l.plotWidth() / Math.max(1, n);
         double volBarW = Math.max(1.5, barW * 0.7);
         double volTop  = l.volTop();
 
-        for (int i = 0; i < n; i++) {
+        // Offset in slots from the left edge where data starts
+        int dataSlotOffset = (startBarIndexArg < 0) ? -startBarIndexArg : 0;
+
+        for (int i = 0; i < visible.size(); i++) {
             OhlcvBar bar = visible.get(i);
             double vol  = bar.getVolume().doubleValue();
             boolean bull = bar.getClose().compareTo(bar.getOpen()) >= 0;
             double barH = (vol / maxVol) * l.volH;
-            double x    = l.left + (i + 0.5) * barW - volBarW / 2;
+            int slot = dataSlotOffset + i;
+            double x    = l.left + (slot + 0.5) * barW - volBarW / 2;
             double y    = volTop + l.volH - barH;
             gc.setFill(bull ? VOL_BULL : VOL_BEAR);
             gc.fillRect(x, y, volBarW, barH);
@@ -582,12 +632,13 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
                               List<Double> upper, List<Double> lower,
                               double maxP, double minP, int start, int n, Color fill) {
         if (upper == null || lower == null || upper.isEmpty() || lower.isEmpty()) return;
-        double barW = l.plotWidth() / n;
+        double barW = l.plotWidth() / Math.max(1, n);
         gc.setFill(fill);
         gc.beginPath();
         boolean started = false;
         for (int i = 0; i < n; i++) {
             int idx = start + i;
+            if (idx < 0) continue;  // Fix 2: skip empty space before data
             if (idx >= upper.size()) break;
             double v = upper.get(idx);
             if (Double.isNaN(v)) { started = false; continue; }
@@ -598,6 +649,7 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         }
         for (int i = n - 1; i >= 0; i--) {
             int idx = start + i;
+            if (idx < 0) continue;  // Fix 2: skip empty space before data
             if (idx >= lower.size()) continue;
             double v = lower.get(idx);
             if (Double.isNaN(v)) continue;
@@ -615,9 +667,10 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         List<Double> spanA = def.getExtraSeries("spanA");
         List<Double> spanB = def.getExtraSeries("spanB");
         if (spanA == null || spanB == null) return;
-        double barW = l.plotWidth() / n;
+        double barW = l.plotWidth() / Math.max(1, n);
         for (int i = 0; i < n - 1; i++) {
             int idx = start + i;
+            if (idx < 0) continue;  // Fix 2: skip empty space before data
             if (idx >= spanA.size() || idx >= spanB.size()) break;
             double a = spanA.get(idx), b = spanB.get(idx);
             if (Double.isNaN(a) || Double.isNaN(b)) continue;
@@ -700,11 +753,12 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
                              int start, int n, double maxP, double minP) {
         List<Double> series = def.getSeries();
         if (series == null || series.isEmpty()) return;
-        double barW = l.plotWidth() / n;
+        double barW = l.plotWidth() / Math.max(1, n);
         double r    = Math.max(2.0, def.getLineWeight() + 1.0);
         gc.setFill(Color.web(def.getColor()));
         for (int i = 0; i < n; i++) {
             int idx = start + i;
+            if (idx < 0) continue;  // Fix 2: skip empty space before data
             if (idx >= series.size()) break;
             double v = series.get(idx);
             if (Double.isNaN(v)) continue;
@@ -814,6 +868,7 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         if (hist != null) {
             for (int i = 0; i < n; i++) {
                 int idx = start + i;
+                if (idx < 0) continue;  // Fix 2: skip empty space before data
                 if (idx >= hist.size()) break;
                 double v = hist.get(idx);
                 if (Double.isNaN(v)) continue;
@@ -950,17 +1005,28 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
 
     // ── Draw: Time Axis ───────────────────────────────────────
 
+    /**
+     * Fix 2: The time axis must account for the extended pan range.
+     * When startBarIndex is negative, visible data bars start at a non-zero slot offset.
+     * {@code visible} always contains only actual data bars; {@code totalVisibleBars} is
+     * the total slot count (including empty space). {@code dataSlotOffset} is the number
+     * of empty slots before the first data bar.
+     */
     private void drawTimeAxis(GraphicsContext gc, ChartLayout l, List<OhlcvBar> visible, double w) {
         gc.setFill(TEXT_DIM);
         gc.setFont(FONT_SMALL);
         gc.setTextAlign(TextAlignment.CENTER);
+        if (visible == null || visible.isEmpty()) return;
+        int totalSlots = visibleBars;  // total bar slots across the chart width
+        int dataSlotOffset = (startBarIndex < 0) ? -startBarIndex : 0;
         int n    = visible.size();
-        int step = Math.max(1, n / 8);
-        double barW = l.plotWidth() / n;
+        int step = Math.max(1, Math.max(n, totalSlots) / 8);
+        double barW = l.plotWidth() / Math.max(1, totalSlots);
         for (int i = 0; i < n; i += step) {
             OhlcvBar bar = visible.get(i);
             if (bar.getOpenTime() == null) continue;
-            double x = l.left + (i + 0.5) * barW;
+            int slot = dataSlotOffset + i;
+            double x = l.left + (slot + 0.5) * barW;
             // Convert bar time (assumed UTC / server-stored) to user's local timezone
             String label = bar.getOpenTime().atZone(ZoneId.of("UTC"))
                     .format(axisFormatter);
@@ -1005,11 +1071,14 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         gc.setTextAlign(TextAlignment.LEFT);
         gc.fillText(fmtPrice(price), l.right + 4, mouseY + 4);
 
-        // Candle tooltip
-        int n    = visible.size();
-        double barW = l.plotWidth() / Math.max(1, n);
-        int barIdx  = Math.max(0, Math.min(n - 1, (int)((mouseX - l.left) / barW)));
-        if (barIdx < n) {
+        // Candle tooltip — Fix 2: account for the data slot offset when startBarIndex < 0
+        int totalSlots = visibleBars;
+        int dataSlotOffsetCross = (startBarIndex < 0) ? -startBarIndex : 0;
+        int n    = visible != null ? visible.size() : 0;
+        double barW = l.plotWidth() / Math.max(1, totalSlots);
+        int slotIdx = (int)((mouseX - l.left) / barW);
+        int barIdx  = slotIdx - dataSlotOffsetCross;  // index into visible data list
+        if (barIdx >= 0 && barIdx < n && visible != null) {
             OhlcvBar bar = visible.get(barIdx);
             drawTooltip(gc, bar, mouseX, l.priceTop() + 4);
             if (bar.getOpenTime() != null) {
@@ -1203,7 +1272,10 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
             double dx  = (tp.getX() - touchPanStartX) * panSensitivity;
             double barW = (getWidth() - PADDING_LEFT - PADDING_RIGHT) / Math.max(1, visibleBars);
             int shift = (int)(dx / barW);
-            startBarIndex = Math.max(0, Math.min(bars.size() - visibleBars, touchPanStartBar - shift));
+            // Fix 2: Allow panning into extended empty space on both sides
+            int singleTouchPanMargin = Math.max(10, (int)(bars.size() * PAN_MARGIN_FRAC));
+            startBarIndex = Math.max(-singleTouchPanMargin,
+                    Math.min(bars.size() - visibleBars + singleTouchPanMargin, touchPanStartBar - shift));
             mouseX = tp.getX(); mouseY = tp.getY();
             render();
             e.consume();
@@ -1355,8 +1427,11 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
                     double plotW = getWidth() - PADDING_LEFT - PADDING_RIGHT;
                     double barW  = plotW / Math.max(1, visibleBars);
                     int    shift = (int) ((newMidX - twoFingerPanStartX) / barW);
-                    startBarIndex = Math.max(0,
-                            Math.min(bars.size() - visibleBars, twoFingerPanStartBar - shift));
+                    // Fix 2: Allow panning into extended empty space on both sides
+                    int twoFingPanMargin = Math.max(10, (int)(bars.size() * PAN_MARGIN_FRAC));
+                    startBarIndex = Math.max(-twoFingPanMargin,
+                            Math.min(bars.size() - visibleBars + twoFingPanMargin,
+                                    twoFingerPanStartBar - shift));
                 }
 
                 mouseX = newMidX;
@@ -1394,14 +1469,16 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         setOnSwipeLeft(e -> {
             if (bars == null || bars.isEmpty()) return;
             int shift = Math.max(1, visibleBars / 5);
-            startBarIndex = Math.min(bars.size() - visibleBars, startBarIndex + shift);
+            int swipeMargin = Math.max(10, (int)(bars.size() * PAN_MARGIN_FRAC));
+            startBarIndex = Math.min(bars.size() - visibleBars + swipeMargin, startBarIndex + shift);
             render();
             e.consume();
         });
         setOnSwipeRight(e -> {
             if (bars == null || bars.isEmpty()) return;
             int shift = Math.max(1, visibleBars / 5);
-            startBarIndex = Math.max(0, startBarIndex - shift);
+            int swipeMargin = Math.max(10, (int)(bars.size() * PAN_MARGIN_FRAC));
+            startBarIndex = Math.max(-swipeMargin, startBarIndex - shift);
             render();
             e.consume();
         });
@@ -1434,7 +1511,10 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         double plotW = getWidth() - PADDING_LEFT - PADDING_RIGHT;
         double barW  = plotW / Math.max(1, visibleBars);
         int    shift = (int) ((currentX - dragStartX) / barW);
-        startBarIndex = Math.max(0, Math.min(bars.size() - visibleBars, dragStartBar - shift));
+        // Fix 2: Allow panning into empty space beyond data bounds
+        int touchPanMargin = Math.max(10, (int)(bars.size() * PAN_MARGIN_FRAC));
+        startBarIndex = Math.max(-touchPanMargin,
+                Math.min(bars.size() - visibleBars + touchPanMargin, dragStartBar - shift));
     }
 
     private void onMouseDragged(MouseEvent e) {
@@ -1444,7 +1524,10 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         double dx   = (e.getX() - dragStartX) * panSensitivity;
         double barW = (getWidth() - PADDING_LEFT - PADDING_RIGHT) / Math.max(1, visibleBars);
         int shift   = (int)(dx / barW);
-        startBarIndex = Math.max(0, Math.min(bars.size() - visibleBars, dragStartBar - shift));
+        // Fix 2: Allow panning into empty space beyond data bounds
+        int panMargin2 = Math.max(10, (int)(bars.size() * PAN_MARGIN_FRAC));
+        startBarIndex = Math.max(-panMargin2,
+                Math.min(bars.size() - visibleBars + panMargin2, dragStartBar - shift));
 
         // ── Vertical pan (price axis) ─────────────────────────
         // dy > 0 → dragged downward → shift visible price window down (show higher prices)
@@ -1492,11 +1575,14 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
 
         // Recalculate startBarIndex so that the anchor bar stays under the mouse.
         // When zooming out fully (visibleBars == bars.size()), force startBarIndex = 0.
+        // Fix 2: Preserve extended pan range after zoom
+        int scrollPanMargin = Math.max(10, (int)(bars.size() * PAN_MARGIN_FRAC));
         if (visibleBars >= bars.size()) {
             startBarIndex = 0;
         } else {
             int newStart = anchor - (int) Math.round(fraction * visibleBars);
-            startBarIndex = Math.max(0, Math.min(bars.size() - visibleBars, newStart));
+            startBarIndex = Math.max(-scrollPanMargin,
+                    Math.min(bars.size() - visibleBars + scrollPanMargin, newStart));
         }
         render();
     }
@@ -1505,7 +1591,8 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
 
     /**
      * Draws a line series from a list that covers the FULL bar history.
-     * {@code start} is the absolute index of the first visible bar.
+     * {@code start} is the absolute index of the first visible bar (may be negative when
+     * panning into empty space left of the data — Fix 2).
      */
     private void drawLineSeriesAbsolute(GraphicsContext gc, ChartLayout l,
                                         List<Double> series, int start, int n,
@@ -1517,9 +1604,10 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         gc.setLineDashes();
         gc.beginPath();
         boolean started = false;
-        double barW = l.plotWidth() / n;
+        double barW = l.plotWidth() / Math.max(1, n);
         for (int i = 0; i < n; i++) {
             int idx = start + i;
+            if (idx < 0) continue;             // Fix 2: skip empty space left of data
             if (idx >= series.size()) break;
             double val = series.get(idx);
             if (Double.isNaN(val)) { started = false; continue; }
