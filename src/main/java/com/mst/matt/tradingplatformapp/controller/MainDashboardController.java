@@ -831,6 +831,12 @@ public class MainDashboardController implements Initializable {
             profileSettingsCtrl.setOnTimezoneChanged(zone -> {
                 if (chartCtrl != null) chartCtrl.applyTimezone(zone);
             });
+            // Wire sensitivity change callback → ChartController canvas
+            profileSettingsCtrl.setOnSensitivityChanged(values -> {
+                if (chartCtrl != null && values != null && values.length >= 2) {
+                    chartCtrl.applySensitivity(values[0], values[1]);
+                }
+            });
         }
         if (activeProfile != null) profileSettingsCtrl.setProfile(activeProfile);
         showView(settingsView);

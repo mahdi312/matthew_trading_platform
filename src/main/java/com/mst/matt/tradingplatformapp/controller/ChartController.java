@@ -150,6 +150,10 @@ public class ChartController implements Initializable {
     /** Reference to the scene's original content for fullscreen restore */
     private javafx.scene.Parent fullscreenOriginalParent;
     private javafx.scene.layout.StackPane fullscreenOverlay;
+    /** Original parent of chartStack before entering fullscreen */
+    private javafx.scene.layout.Pane fullscreenChartStackOriginalParent;
+    /** Original index of chartStack in its parent before entering fullscreen */
+    private int fullscreenChartStackOriginalIndex = -1;
 
     /** Current global drawing settings (persisted via AppSettingsService). */
     private GlobalDrawingSettings drawingSettings = new GlobalDrawingSettings();
@@ -168,6 +172,13 @@ public class ChartController implements Initializable {
         // Apply user's configured timezone (falls back to system default)
         chart.setUserTimezone(appSettingsService.getUserTimezone());
         chart.setCurrentTimeframe(currentTimeframe);
+        // Apply persisted sensitivity settings
+        try {
+            String zs = appSettingsService.getSetting("zoomSensitivity");
+            String ps = appSettingsService.getSetting("panSensitivity");
+            if (zs != null && !zs.isBlank()) chart.setZoomSensitivity(Double.parseDouble(zs));
+            if (ps != null && !ps.isBlank()) chart.setPanSensitivity(Double.parseDouble(ps));
+        } catch (Exception ignored) {}
         chartPane.getChildren().add(chart);
         setupDrawingToolbar();
         setupNotifications();
@@ -533,9 +544,14 @@ public class ChartController implements Initializable {
         fullscreenOverlay = new javafx.scene.layout.StackPane();
         fullscreenOverlay.setStyle("-fx-background-color:#0d1117;");
 
-        // Move chartStack out of the chart VBox into the overlay
-        if (chartStack.getParent() != null) {
-            ((javafx.scene.layout.Pane) chartStack.getParent()).getChildren().remove(chartStack);
+        // Save original parent + index so we can precisely restore on exit
+        if (chartStack.getParent() instanceof javafx.scene.layout.Pane origParent) {
+            fullscreenChartStackOriginalParent = origParent;
+            fullscreenChartStackOriginalIndex  = origParent.getChildren().indexOf(chartStack);
+            origParent.getChildren().remove(chartStack);
+        } else {
+            fullscreenChartStackOriginalParent = null;
+            fullscreenChartStackOriginalIndex  = -1;
         }
         fullscreenOverlay.getChildren().add(chartStack);
 
@@ -581,30 +597,65 @@ public class ChartController implements Initializable {
 
         // Restore original scene root
         if (fullscreenOriginalParent != null && stage != null) {
-            // Remove chartStack from overlay
+            // Remove chartStack from overlay BEFORE restoring the root,
+            // so it is available to be re-inserted into its original parent.
             fullscreenOverlay.getChildren().remove(chartStack);
 
-            // Restore scene root
+            // Restore scene root (this brings the full layout back into the scene graph)
             stage.getScene().setRoot(fullscreenOriginalParent);
 
-            // Find the VBox in the chart view and re-add chartStack
+            // Re-insert chartStack into its exact original position
             restoreChartStackToParent();
 
-            // Re-bind chart canvas to chartPane
+            // Re-bind chart canvas back to chartPane (not the overlay)
             chart.widthProperty().unbind();
             chart.heightProperty().unbind();
             chart.widthProperty().bind(chartPane.widthProperty());
             chart.heightProperty().bind(chartPane.heightProperty());
+
+            // Force a layout pass + re-render so the chart is visible immediately
+            javafx.application.Platform.runLater(() -> {
+                fullscreenOriginalParent.layout();
+                // Ensure the BorderPane top (header bar) is still visible after restoring
+                if (fullscreenOriginalParent instanceof javafx.scene.layout.BorderPane bp) {
+                    javafx.scene.Node topNode = bp.getTop();
+                    if (topNode != null) {
+                        topNode.setVisible(true);
+                        topNode.setManaged(true);
+                    }
+                }
+                chart.requestLayout();
+                chart.render();
+            });
         }
         fullscreenOverlay = null;
         fullscreenOriginalParent = null;
+        fullscreenChartStackOriginalParent = null;
+        fullscreenChartStackOriginalIndex  = -1;
     }
 
     private void restoreChartStackToParent() {
-        // The ChartView VBox is the parent of the ScrollPane (toolbar), signalBar, and chartStack.
-        // We need to find the VBox root of ChartView and re-add chartStack.
         if (chartStack == null) return;
-        // The VBox is the root of ChartView.fxml — accessed via chartPane's grandparent
+
+        // ── Primary path: use the saved parent + index (most precise) ──────────
+        if (fullscreenChartStackOriginalParent != null) {
+            if (!fullscreenChartStackOriginalParent.getChildren().contains(chartStack)) {
+                int idx = fullscreenChartStackOriginalIndex;
+                int size = fullscreenChartStackOriginalParent.getChildren().size();
+                if (idx >= 0 && idx <= size) {
+                    fullscreenChartStackOriginalParent.getChildren().add(idx, chartStack);
+                } else {
+                    fullscreenChartStackOriginalParent.getChildren().add(chartStack);
+                }
+                // Restore VBox grow constraint
+                if (fullscreenChartStackOriginalParent instanceof VBox) {
+                    VBox.setVgrow(chartStack, Priority.ALWAYS);
+                }
+            }
+            return;
+        }
+
+        // ── Fallback: walk up from chartPane to find the ChartView VBox ─────────
         Node node = chartPane;
         while (node != null && !(node instanceof VBox)) {
             node = node.getParent();
@@ -1004,6 +1055,18 @@ public class ChartController implements Initializable {
     /** Apply updated timezone from settings to the chart canvas. */
     public void applyTimezone(ZoneId zone) {
         if (chart != null) chart.setUserTimezone(zone);
+    }
+
+    /**
+     * Apply zoom and pan sensitivity values from Settings to the chart canvas.
+     * @param zoomSensitivity 0.1–1.0 (lower = gentler zoom)
+     * @param panSensitivity  0.1–1.0 (lower = slower pan)
+     */
+    public void applySensitivity(double zoomSensitivity, double panSensitivity) {
+        if (chart != null) {
+            chart.setZoomSensitivity(zoomSensitivity);
+            chart.setPanSensitivity(panSensitivity);
+        }
     }
 
     public void prepareView() {

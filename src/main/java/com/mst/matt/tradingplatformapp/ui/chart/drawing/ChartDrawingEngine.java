@@ -391,7 +391,10 @@ public class ChartDrawingEngine {
                 return true;
             }
 
-            return selected != null;
+            // No active drag mode in SELECT mode → do NOT consume the event.
+            // This allows the chart to pan when the user drags on empty space
+            // even if a drawing is currently selected.
+            return false;
         }
 
         if (inProgress != null && !inProgress.getPoints().isEmpty()) {
