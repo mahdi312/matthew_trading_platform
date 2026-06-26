@@ -968,10 +968,19 @@ public class MainDashboardController implements Initializable {
         }
         currentView = view;
         contentArea.getChildren().setAll(view);
+        // Fix 5: Always anchor the view at the top-left so the toolbar is always visible
+        // regardless of which tab is selected.  Explicit MAX size ensures the view never
+        // overflows or under-sizes the content area, preventing the sidebar from shifting.
         StackPane.setAlignment(view, javafx.geometry.Pos.TOP_LEFT);
         VBox.setVgrow(view, Priority.ALWAYS);
         HBox.setHgrow(view, Priority.ALWAYS);
-        // Chart view needs zero padding so the toolbar and chart fill the full content area
+        if (view instanceof Region r) {
+            r.setMaxWidth(Double.MAX_VALUE);
+            r.setMaxHeight(Double.MAX_VALUE);
+        }
+        // Chart/Analysis view needs zero padding so the toolbar and chart fill the full
+        // content area.  Fix 4: this applies equally when coming from CHART or ANALYSIS mode
+        // so the toolbar is always visible at the top edge.
         if (chartView != null && view == chartView) {
             contentArea.setPadding(javafx.geometry.Insets.EMPTY);
         } else {

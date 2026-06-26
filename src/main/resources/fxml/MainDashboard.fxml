@@ -54,7 +54,8 @@
                     onAction="#onNavDashboard"/>
             <Button fx:id="navChart" text="📈" styleClass="nav-item" onAction="#onNavChart"/>
             <Button fx:id="navTrades" text="📋" styleClass="nav-item" onAction="#onNavTrades"/>
-            <Button fx:id="navAnalysis" text="🧠" styleClass="nav-item" onAction="#onNavAnalysis"/>
+            <!-- Fix 6: Updated Analysis tab icon to a magnifying glass for clarity -->
+            <Button fx:id="navAnalysis" text="🔍" styleClass="nav-item" onAction="#onNavAnalysis"/>
             <Button fx:id="navAlerts" text="🔔" styleClass="nav-item" onAction="#onNavAlerts"/>
             <Button fx:id="navMixer" text="🎚" styleClass="nav-item" onAction="#onNavMixer"/>
             <Button fx:id="navPortfolio" text="💼" styleClass="nav-item" onAction="#onNavPortfolio"/>

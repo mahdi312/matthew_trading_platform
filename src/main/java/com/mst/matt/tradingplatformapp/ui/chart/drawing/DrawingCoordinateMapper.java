@@ -40,11 +40,18 @@ public final class DrawingCoordinateMapper {
         return maxPrice - (y - priceTop) / priceH * range;
     }
 
+    /**
+     * Fix 2: Convert screen x-coordinate to an absolute bar index.
+     * The returned index may be negative (empty space before data) or beyond bars.size()-1
+     * (empty space after data) when the user has panned into the extended margin.
+     */
     public static int xToBarIndex(double x, double left, double plotWidth,
                                   int startBarIndex, int visibleBars) {
         double barW = plotWidth / Math.max(1, visibleBars);
         int rel = (int) ((x - left) / barW);
-        return Math.max(0, Math.min(visibleBars - 1, rel)) + startBarIndex;
+        // Clamp rel to the visible slot range, then offset by startBarIndex
+        rel = Math.max(0, Math.min(visibleBars - 1, rel));
+        return rel + startBarIndex;
     }
 
     /** Snap to nearest OHLC of the bar at the given index. */

@@ -2,9 +2,13 @@
 
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
+<!-- Fix 5: maxWidth/maxHeight=Infinity ensures this VBox always fills the entire
+     content area regardless of which tab (Live Chart or Analysis) is active, keeping
+     the tab bar (sidebar nav) and toolbar at a fixed, consistent position. -->
 <VBox xmlns:fx="http://javafx.com/fxml"
       fx:controller="com.mst.matt.tradingplatformapp.controller.ChartController"
-      styleClass="scene-root" spacing="0">
+      styleClass="scene-root" spacing="0"
+      maxWidth="Infinity" maxHeight="Infinity">
 
     <!-- ═══════════════ Toolbar ═══════════════ -->
     <!--
@@ -16,8 +20,11 @@
         – Reduced ComboBox widths to leave more room for the TF-favorites bar.
         – Analyze button moved to a visible position (right of Refresh).
     -->
+    <!-- Fix 4: toolbar is pinned at the top with a fixed height.  maxHeight matches
+         prefHeight so JavaFX never allows the VBox to shrink the toolbar row — it always
+         occupies exactly 46 px regardless of the view mode (CHART or ANALYSIS). -->
     <ScrollPane fitToHeight="true" hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
-                minHeight="46" prefHeight="46"
+                minHeight="46" prefHeight="46" maxHeight="46"
                 style="-fx-background-color:#1c2128; -fx-background:#1c2128;
                        -fx-border-color:#30363d; -fx-border-width:0 0 1 0;">
         <HBox alignment="CENTER_LEFT" spacing="6"

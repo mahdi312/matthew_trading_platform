@@ -540,9 +540,26 @@ public class ChartController implements Initializable {
         javafx.scene.Scene scene = stage.getScene();
         fullscreenOriginalParent = (javafx.scene.Parent) scene.getRoot();
 
-        // Build a fullscreen overlay StackPane that holds the chart + floating toolbar
+        // Build a fullscreen overlay StackPane (outer container for key events / focus)
         fullscreenOverlay = new javafx.scene.layout.StackPane();
         fullscreenOverlay.setStyle("-fx-background-color:#0d1117;");
+
+        // Fix 1: Use a VBox inside the overlay so the floating toolbar and the chart canvas
+        // are stacked vertically with a clear gap between them — the chart never starts
+        // behind/underneath the timeframe bar.
+        HBox floatingBar = buildFullscreenFloatingBar();
+        floatingBar.setMouseTransparent(false);
+
+        // 10 px spacer between toolbar and chart canvas (Fix 1)
+        javafx.scene.layout.Region barGap = new javafx.scene.layout.Region();
+        barGap.setMinHeight(10);
+        barGap.setMaxHeight(10);
+        barGap.setPrefHeight(10);
+        barGap.setStyle("-fx-background-color:#0d1117;");
+
+        VBox fullscreenVBox = new VBox();
+        fullscreenVBox.setStyle("-fx-background-color:#0d1117;");
+        VBox.setVgrow(chartStack, Priority.ALWAYS);
 
         // Save original parent + index so we can precisely restore on exit
         if (chartStack.getParent() instanceof javafx.scene.layout.Pane origParent) {
@@ -553,19 +570,17 @@ public class ChartController implements Initializable {
             fullscreenChartStackOriginalParent = null;
             fullscreenChartStackOriginalIndex  = -1;
         }
-        fullscreenOverlay.getChildren().add(chartStack);
 
-        // Re-bind chart canvas to overlay size
+        fullscreenVBox.getChildren().addAll(floatingBar, barGap, chartStack);
+        fullscreenOverlay.getChildren().add(fullscreenVBox);
+
+        // Re-bind chart canvas to the VBox width and to remaining height
+        // (after the toolbar + gap are subtracted).
         chart.widthProperty().unbind();
         chart.heightProperty().unbind();
         chart.widthProperty().bind(fullscreenOverlay.widthProperty());
-        chart.heightProperty().bind(fullscreenOverlay.heightProperty());
-
-        // Build floating toolbar overlay (timeframe buttons + bars combo)
-        HBox floatingBar = buildFullscreenFloatingBar();
-        StackPane.setAlignment(floatingBar, javafx.geometry.Pos.TOP_CENTER);
-        floatingBar.setMouseTransparent(false);
-        fullscreenOverlay.getChildren().add(floatingBar);
+        // Height is managed by VBox.vgrow=ALWAYS; bind canvas height to chartStack
+        chart.heightProperty().bind(chartStack.heightProperty());
 
         // Replace the scene root with the overlay — this takes chartStack with it
         scene.setRoot(fullscreenOverlay);
@@ -597,9 +612,14 @@ public class ChartController implements Initializable {
 
         // Restore original scene root
         if (fullscreenOriginalParent != null && stage != null) {
-            // Remove chartStack from overlay BEFORE restoring the root,
+            // Remove chartStack from wherever it currently is (fullscreenVBox inside overlay)
             // so it is available to be re-inserted into its original parent.
-            fullscreenOverlay.getChildren().remove(chartStack);
+            if (chartStack.getParent() != null
+                    && chartStack.getParent() instanceof javafx.scene.layout.Pane fsParent) {
+                fsParent.getChildren().remove(chartStack);
+            } else {
+                fullscreenOverlay.getChildren().remove(chartStack);
+            }
 
             // Restore scene root (this brings the full layout back into the scene graph)
             stage.getScene().setRoot(fullscreenOriginalParent);
@@ -676,6 +696,8 @@ public class ChartController implements Initializable {
         HBox bar = new HBox(8);
         bar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         bar.setMaxHeight(40);
+        // Fix 1: The floating bar is placed at TOP_CENTER with a bottom margin (padding)
+        // so there is a visible gap between the bar and the chart canvas below it.
         bar.setStyle(
                 "-fx-background-color:#1c2128cc;"
                 + "-fx-border-color:#30363d;"
@@ -683,6 +705,7 @@ public class ChartController implements Initializable {
                 + "-fx-padding:5 12;"
                 + "-fx-background-radius:0;"
         );
+
 
         // Timeframe favorite buttons (mirrored from favTfBar)
         List<String> allowed   = authService.allowedTimeframes();
