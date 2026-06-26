@@ -86,6 +86,15 @@
                     style="-fx-min-width:70;"/>
             <Button fx:id="analyzeBtn" text="Analyze" styleClass="btn-primary" onAction="#onAnalyze"
                     style="-fx-min-width:70;" visible="false" managed="false"/>
+
+            <Separator orientation="VERTICAL"/>
+
+            <!-- Fullscreen toggle (also activated by F11) -->
+            <Button fx:id="fullscreenBtn" text="⛶" styleClass="btn-secondary"
+                    onAction="#onToggleFullscreen"
+                    style="-fx-min-width:32; -fx-padding:3 8; -fx-font-size:14px;">
+                <tooltip><Tooltip text="Toggle fullscreen (F11)"/></tooltip>
+            </Button>
         </HBox>
     </ScrollPane>
 

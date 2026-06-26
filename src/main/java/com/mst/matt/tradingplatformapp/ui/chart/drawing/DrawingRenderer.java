@@ -543,8 +543,16 @@ public final class DrawingRenderer {
         }
         gc.setLineWidth(1.5);
         drawPriceLine(gc, left, right, yEntry, "#3fb950", "Entry " + formatPrice(entry));
-        if (sl != null) drawPriceLine(gc, left, right, priceToY(sl, ctx), "#f85149", "SL " + formatPrice(sl));
-        if (tp != null) drawPriceLine(gc, left, right, priceToY(tp, ctx), "#388bfd", "TP " + formatPrice(tp));
+        if (sl != null) {
+            double slPct = entry != 0 ? (sl - entry) / entry * 100.0 : 0;
+            String slLabel = String.format("SL  %s  (%.2f%%)", formatPrice(sl), slPct);
+            drawPriceLine(gc, left, right, priceToY(sl, ctx), "#f85149", slLabel);
+        }
+        if (tp != null) {
+            double tpPct = entry != 0 ? (tp - entry) / entry * 100.0 : 0;
+            String tpLabel = String.format("TP  %s  (+%.2f%%)", formatPrice(tp), Math.abs(tpPct));
+            drawPriceLine(gc, left, right, priceToY(tp, ctx), "#388bfd", tpLabel);
+        }
         if (sl != null && tp != null) {
             double risk = Math.abs(entry - sl), reward = Math.abs(tp - entry);
             if (risk > 0) {

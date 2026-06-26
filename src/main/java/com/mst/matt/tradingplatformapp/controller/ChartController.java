@@ -37,6 +37,7 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -87,6 +88,7 @@ public class ChartController implements Initializable {
     @FXML private Label                dataSourceLabel;
     @FXML private VBox                  notificationOverlay;
     @FXML private Button                chartNotifyBellBtn;
+    @FXML private Button                fullscreenBtn;
     // Timeframe buttons — all possible timeframes
     @FXML private ToggleButton tf1m, tf3m, tf5m, tf15m, tf30m,
             tf1h, tf2h, tf4h, tf6h, tf8h, tf12h,
@@ -142,6 +144,12 @@ public class ChartController implements Initializable {
     private Consumer<TradeDrawingDraft> onCreateTradeFromDrawing;
     private Consumer<TradeDrawingDraft> onInstantSaveTradeFromDrawing;
     private boolean chartSessionActive;
+
+    /** Fullscreen state tracking */
+    private boolean fullscreenActive = false;
+    /** Reference to the scene's original content for fullscreen restore */
+    private javafx.scene.Parent fullscreenOriginalParent;
+    private javafx.scene.layout.StackPane fullscreenOverlay;
 
     /** Current global drawing settings (persisted via AppSettingsService). */
     private GlobalDrawingSettings drawingSettings = new GlobalDrawingSettings();
@@ -462,6 +470,223 @@ public class ChartController implements Initializable {
         });
     }
 
+    // ── Fullscreen ────────────────────────────────────────────────────────────
+
+    /**
+     * Toggles fullscreen mode for the chart.
+     * In fullscreen: the chart stack fills the entire stage window (no sidebar/header).
+     * A floating toolbar overlay with TF buttons + bars combo remains visible.
+     * Press F11 or click the button again to exit.
+     */
+    @FXML public void onToggleFullscreen() {
+        if (fullscreenActive) {
+            exitFullscreen();
+        } else {
+            enterFullscreen();
+        }
+    }
+
+    private void enterFullscreen() {
+        if (chartStack == null || chartStack.getScene() == null) return;
+        javafx.stage.Stage stage = (javafx.stage.Stage) chartStack.getScene().getWindow();
+        if (stage == null) return;
+
+        fullscreenActive = true;
+        if (fullscreenBtn != null) {
+            fullscreenBtn.setText("✕");
+            fullscreenBtn.setTooltip(new Tooltip("Exit fullscreen (F11 or Esc)"));
+        }
+
+        // Save the original scene root so we can restore it on exit
+        javafx.scene.Scene scene = stage.getScene();
+        fullscreenOriginalParent = (javafx.scene.Parent) scene.getRoot();
+
+        // Build a fullscreen overlay StackPane that holds the chart + floating toolbar
+        fullscreenOverlay = new javafx.scene.layout.StackPane();
+        fullscreenOverlay.setStyle("-fx-background-color:#0d1117;");
+
+        // Move chartStack out of the chart VBox into the overlay
+        if (chartStack.getParent() != null) {
+            ((javafx.scene.layout.Pane) chartStack.getParent()).getChildren().remove(chartStack);
+        }
+        fullscreenOverlay.getChildren().add(chartStack);
+
+        // Re-bind chart canvas to overlay size
+        chart.widthProperty().unbind();
+        chart.heightProperty().unbind();
+        chart.widthProperty().bind(fullscreenOverlay.widthProperty());
+        chart.heightProperty().bind(fullscreenOverlay.heightProperty());
+
+        // Build floating toolbar overlay (timeframe buttons + bars combo)
+        HBox floatingBar = buildFullscreenFloatingBar();
+        StackPane.setAlignment(floatingBar, javafx.geometry.Pos.TOP_CENTER);
+        floatingBar.setMouseTransparent(false);
+        fullscreenOverlay.getChildren().add(floatingBar);
+
+        // Replace the scene root with the overlay — this takes chartStack with it
+        scene.setRoot(fullscreenOverlay);
+        stage.setFullScreen(true);
+        stage.setFullScreenExitHint("Press F11 or Esc to exit fullscreen");
+
+        // Register F11/Escape on the new scene root
+        fullscreenOverlay.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.F11
+                    || e.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                exitFullscreen();
+                e.consume();
+            }
+        });
+        fullscreenOverlay.requestFocus();
+    }
+
+    private void exitFullscreen() {
+        if (!fullscreenActive || fullscreenOverlay == null) return;
+        fullscreenActive = false;
+
+        if (fullscreenBtn != null) {
+            fullscreenBtn.setText("⛶");
+            fullscreenBtn.setTooltip(new Tooltip("Toggle fullscreen (F11)"));
+        }
+
+        javafx.stage.Stage stage = (javafx.stage.Stage) fullscreenOverlay.getScene().getWindow();
+        if (stage != null) stage.setFullScreen(false);
+
+        // Restore original scene root
+        if (fullscreenOriginalParent != null && stage != null) {
+            // Remove chartStack from overlay
+            fullscreenOverlay.getChildren().remove(chartStack);
+
+            // Restore scene root
+            stage.getScene().setRoot(fullscreenOriginalParent);
+
+            // Find the VBox in the chart view and re-add chartStack
+            restoreChartStackToParent();
+
+            // Re-bind chart canvas to chartPane
+            chart.widthProperty().unbind();
+            chart.heightProperty().unbind();
+            chart.widthProperty().bind(chartPane.widthProperty());
+            chart.heightProperty().bind(chartPane.heightProperty());
+        }
+        fullscreenOverlay = null;
+        fullscreenOriginalParent = null;
+    }
+
+    private void restoreChartStackToParent() {
+        // The ChartView VBox is the parent of the ScrollPane (toolbar), signalBar, and chartStack.
+        // We need to find the VBox root of ChartView and re-add chartStack.
+        if (chartStack == null) return;
+        // The VBox is the root of ChartView.fxml — accessed via chartPane's grandparent
+        Node node = chartPane;
+        while (node != null && !(node instanceof VBox)) {
+            node = node.getParent();
+        }
+        if (node instanceof VBox vbox) {
+            if (!vbox.getChildren().contains(chartStack)) {
+                vbox.getChildren().add(chartStack);
+                VBox.setVgrow(chartStack, Priority.ALWAYS);
+            }
+        }
+    }
+
+    /**
+     * Builds the floating toolbar displayed during fullscreen mode.
+     * Contains timeframe favorites + bars combo + exit fullscreen button.
+     */
+    private HBox buildFullscreenFloatingBar() {
+        HBox bar = new HBox(8);
+        bar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        bar.setMaxHeight(40);
+        bar.setStyle(
+                "-fx-background-color:#1c2128cc;"
+                + "-fx-border-color:#30363d;"
+                + "-fx-border-width:0 0 1 0;"
+                + "-fx-padding:5 12;"
+                + "-fx-background-radius:0;"
+        );
+
+        // Timeframe favorite buttons (mirrored from favTfBar)
+        List<String> allowed   = authService.allowedTimeframes();
+        List<String> favorites = authService.getFavoriteTimeframes();
+        ToggleGroup tg = new ToggleGroup();
+        for (String tf : favorites) {
+            if (!allowed.contains(tf)) continue;
+            ToggleButton btn = new ToggleButton(tf.toUpperCase());
+            btn.setToggleGroup(tg);
+            btn.setUserData(tf);
+            boolean isActive = tf.equalsIgnoreCase(currentTimeframe);
+            btn.setSelected(isActive);
+            btn.setStyle(isActive
+                    ? "-fx-background-color:#1f6feb;-fx-text-fill:white;-fx-background-radius:6;-fx-padding:4 8;"
+                    : "-fx-background-color:#21262d;-fx-text-fill:#e6edf3;-fx-background-radius:6;-fx-padding:4 8;");
+            btn.setOnAction(e -> {
+                if (!btn.isSelected()) { btn.setSelected(true); return; }
+                String selectedTf = (String) btn.getUserData();
+                currentTimeframe = selectedTf;
+                chart.setCurrentTimeframe(selectedTf);
+                // Update button styles in floating bar
+                for (Node n : bar.getChildren()) {
+                    if (n instanceof ToggleButton tb) {
+                        String t = (String) tb.getUserData();
+                        if (t != null) {
+                            tb.setStyle(t.equalsIgnoreCase(selectedTf)
+                                    ? "-fx-background-color:#1f6feb;-fx-text-fill:white;-fx-background-radius:6;-fx-padding:4 8;"
+                                    : "-fx-background-color:#21262d;-fx-text-fill:#e6edf3;-fx-background-radius:6;-fx-padding:4 8;");
+                        }
+                    }
+                }
+                refreshFavBarStyles();
+                loadChart();
+            });
+            bar.getChildren().add(btn);
+        }
+
+        bar.getChildren().add(new javafx.scene.control.Separator(javafx.geometry.Orientation.VERTICAL));
+
+        // Bars combo (read-only display + change)
+        Label barsLabel = new Label("Bars:");
+        barsLabel.setStyle("-fx-text-fill:#8b949e; -fx-font-size:12px;");
+        ComboBox<Integer> floatingBarsCombo = new ComboBox<>();
+        floatingBarsCombo.setItems(barsCombo.getItems());
+        floatingBarsCombo.setValue(currentBars);
+        floatingBarsCombo.setStyle("-fx-background-color:#21262d; -fx-text-fill:#e6edf3;");
+        floatingBarsCombo.setPrefWidth(80);
+        floatingBarsCombo.setButtonCell(new ListCell<>() {
+            @Override protected void updateItem(Integer item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? "" : String.valueOf(item));
+            }
+        });
+        floatingBarsCombo.setCellFactory(lv -> new ListCell<>() {
+            @Override protected void updateItem(Integer item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? "" : String.valueOf(item));
+            }
+        });
+        floatingBarsCombo.valueProperty().addListener((o, a, n) -> {
+            if (n != null) {
+                currentBars = Math.min(n, authService.maxCandles());
+                if (chart != null) chart.setPreferredVisibleBars(currentBars);
+                barsCombo.setValue(currentBars);
+                loadChartWithTimeout();
+            }
+        });
+        bar.getChildren().addAll(barsLabel, floatingBarsCombo);
+
+        // Spacer
+        Pane spacer = new Pane();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        bar.getChildren().add(spacer);
+
+        // Exit fullscreen button
+        Button exitBtn = new Button("✕ Exit Fullscreen");
+        exitBtn.setStyle("-fx-background-color:#30363d;-fx-text-fill:#e6edf3;-fx-background-radius:6;-fx-padding:4 10;-fx-cursor:hand;");
+        exitBtn.setOnAction(e -> exitFullscreen());
+        bar.getChildren().add(exitBtn);
+
+        return bar;
+    }
+
     private void setupKeyboardShortcuts() {
         // Use addEventHandler (not setOnKeyPressed) to avoid overwriting the
         // undo/redo / delete shortcuts already registered in CandlestickChartCanvas.setupKeyHandlers()
@@ -474,7 +699,17 @@ public class ChartController implements Initializable {
                 case H -> chart.setActiveDrawingTool(ChartDrawingToolType.HORIZONTAL_LINE);
                 case V -> chart.setActiveDrawingTool(ChartDrawingToolType.VERTICAL_LINE);
                 case R -> chart.setActiveDrawingTool(ChartDrawingToolType.RECTANGLE);
-                case ESCAPE -> chart.setActiveDrawingTool(ChartDrawingToolType.SELECT);
+                case ESCAPE -> {
+                    if (fullscreenActive) {
+                        exitFullscreen();
+                    } else {
+                        chart.setActiveDrawingTool(ChartDrawingToolType.SELECT);
+                    }
+                }
+                case F11 -> {
+                    onToggleFullscreen();
+                    e.consume();
+                }
                 default -> {}
             }
         });
