@@ -965,6 +965,12 @@ public class MainDashboardController implements Initializable {
         StackPane.setAlignment(view, javafx.geometry.Pos.TOP_LEFT);
         VBox.setVgrow(view, Priority.ALWAYS);
         HBox.setHgrow(view, Priority.ALWAYS);
+        // Chart view needs zero padding so the toolbar and chart fill the full content area
+        if (chartView != null && view == chartView) {
+            contentArea.setPadding(javafx.geometry.Insets.EMPTY);
+        } else {
+            contentArea.setPadding(new javafx.geometry.Insets(24));
+        }
     }
 
     private void setActiveNav(Button active) {

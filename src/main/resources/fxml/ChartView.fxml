@@ -129,7 +129,14 @@
                     visible="false" managed="false">
                 <tooltip><Tooltip text="Run technical analysis"/></tooltip>
             </Button>
+            <Separator orientation="VERTICAL"/>
 
+            <!-- Fullscreen toggle (also activated by F11) -->
+            <Button fx:id="fullscreenBtn" text="⛶" styleClass="btn-secondary"
+                    onAction="#onToggleFullscreen"
+                    style="-fx-min-width:32; -fx-padding:3 8; -fx-font-size:14px;">
+                <tooltip><Tooltip text="Toggle fullscreen (F11)"/></tooltip>
+            </Button>
         </HBox>
     </ScrollPane>
 
