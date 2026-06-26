@@ -10,8 +10,10 @@
             prefHeight="900">
 
     <top>
-        <VBox>
-            <HBox styleClass="header-bar" alignment="CENTER_LEFT" spacing="16">
+        <!-- Header wrapper — always visible, never managed=false -->
+        <VBox visible="true" managed="true" style="-fx-background-color:#161b22;">
+            <HBox styleClass="header-bar" alignment="CENTER_LEFT" spacing="16"
+                  visible="true" managed="true">
                 <Label text="📈 Trading Intelligence Platform" styleClass="header-title"/>
                 <Pane HBox.hgrow="ALWAYS"/>
 
@@ -36,7 +38,8 @@
                 <Button text="↩ Sign Out" styleClass="btn-secondary" onAction="#onLogout"/>
             </HBox>
 
-            <StackPane fx:id="tickerContainer" prefHeight="36" minHeight="10" maxHeight="36"/>
+            <StackPane fx:id="tickerContainer" prefHeight="36" minHeight="10" maxHeight="36"
+                       visible="true" managed="true"/>
         </VBox>
     </top>
 

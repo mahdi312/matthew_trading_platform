@@ -457,6 +457,12 @@ public class DashboardController implements Initializable {
     // ── Trades Table ──────────────────────────────────────────
 
     private void setupTradeTable() {
+        // Allow table to expand to its computed size so all rows are visible
+        recentTradesTable.setPrefHeight(javafx.scene.layout.Region.USE_COMPUTED_SIZE);
+        recentTradesTable.setMinHeight(0);
+        // Make the table fill the width of its container
+        VBox.setVgrow(recentTradesTable, javafx.scene.layout.Priority.ALWAYS);
+
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("MM/dd HH:mm");
 
         colDate.setCellValueFactory(c ->

@@ -147,6 +147,20 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
     /** Visible-bars count captured at the start of a zoom gesture. */
     private int     zoomStartBars   = 0;
 
+    // ── Sensitivity settings ─────────────────────────────────
+    /**
+     * Zoom sensitivity multiplier (0.1 – 1.0).
+     * At 1.0 the full ZoomEvent factor is applied; at 0.1 only 10% is applied per event.
+     * Default 0.4 — noticeably gentler than the old 1.0 behaviour.
+     */
+    private double zoomSensitivity  = 0.4;
+    /**
+     * Pan sensitivity multiplier (0.1 – 1.0).
+     * Scales the pixel delta before converting to bar shift.
+     * Default 0.6 — a bit gentler than 1:1.
+     */
+    private double panSensitivity   = 0.6;
+
     // ── Drawing overlay ───────────────────────────────────────
     private final ChartDrawingEngine drawingEngine = new ChartDrawingEngine(this);
     private DrawingRenderer.RenderContext lastRenderContext;
@@ -236,6 +250,25 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
                 ? DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(userTimezone)
                 : DateTimeFormatter.ofPattern("MM/dd HH:mm").withZone(userTimezone);
     }
+
+    /**
+     * Sets the zoom sensitivity (0.1 = very slow, 1.0 = full speed).
+     * Applied to both mouse-wheel scroll zoom and touch pinch-zoom.
+     */
+    public void setZoomSensitivity(double v) {
+        this.zoomSensitivity = Math.max(0.05, Math.min(1.0, v));
+    }
+
+    /**
+     * Sets the pan sensitivity (0.1 = very slow, 1.0 = 1:1 with pixel delta).
+     * Applied to both mouse drag and single-finger touch pan.
+     */
+    public void setPanSensitivity(double v) {
+        this.panSensitivity = Math.max(0.05, Math.min(1.0, v));
+    }
+
+    public double getZoomSensitivity() { return zoomSensitivity; }
+    public double getPanSensitivity()  { return panSensitivity; }
 
     public ChartDrawingEngine getDrawingEngine() { return drawingEngine; }
 
@@ -1043,8 +1076,17 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         setOnMouseDragged(e -> {
             drawingEngine.setSnapEnabled(snapMode || e.isShiftDown());
             drawingHandledDrag = drawingEngine.handleMouseDragged(e, lastRenderContext);
-            if (!drawingHandledDrag && !drawingEngine.isDrawingMode()) {
-                onMouseDragged(e);
+            if (!drawingHandledDrag) {
+                // Drawing engine did not consume the drag.
+                // In SELECT mode: pan the chart (only with primary button).
+                // In drawing mode: do nothing (drawing engine handles the event via
+                //   handleMouseDragged returning true once a point is in progress).
+                if (!drawingEngine.isDrawingMode()
+                        && e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                    onMouseDragged(e);
+                } else {
+                    mouseX = e.getX(); mouseY = e.getY();
+                }
             } else {
                 mouseX = e.getX(); mouseY = e.getY();
             }
@@ -1085,11 +1127,13 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         });
         setOnZoom(e -> {
             if (bars == null || bars.isEmpty()) return;
-            double factor = e.getZoomFactor();
-            if (factor <= 0 || Double.isNaN(factor)) return;
-            // factor > 1.0 means fingers moving apart (zoom IN → fewer visible bars)
-            // factor < 1.0 means fingers pinching together (zoom OUT → more visible bars)
-            int newVisible = (int) Math.round(visibleBars / factor);
+            double rawFactor = e.getZoomFactor();
+            if (rawFactor <= 0 || Double.isNaN(rawFactor)) return;
+            // Dampen the zoom factor toward 1.0 using the sensitivity multiplier.
+            // factor > 1.0 = zoom IN (fingers apart), < 1.0 = zoom OUT (fingers together)
+            double dampedFactor = 1.0 + (rawFactor - 1.0) * zoomSensitivity;
+            dampedFactor = Math.max(0.1, dampedFactor); // safety floor
+            int newVisible = (int) Math.round(visibleBars / dampedFactor);
             newVisible = Math.max(5, Math.min(bars.size(), newVisible));
             // Keep the center of the view anchored
             int midAnchor = startBarIndex + visibleBars / 2;
@@ -1134,7 +1178,7 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
                 return;
             }
 
-            double dx  = tp.getX() - touchPanStartX;
+            double dx  = (tp.getX() - touchPanStartX) * panSensitivity;
             double barW = (getWidth() - PADDING_LEFT - PADDING_RIGHT) / Math.max(1, visibleBars);
             int shift = (int)(dx / barW);
             startBarIndex = Math.max(0, Math.min(bars.size() - visibleBars, touchPanStartBar - shift));
@@ -1205,7 +1249,7 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
 
     private void onMouseDragged(MouseEvent e) {
         if (bars == null || bars.isEmpty()) return;
-        double dx   = e.getX() - dragStartX;
+        double dx   = (e.getX() - dragStartX) * panSensitivity;
         double barW = (getWidth() - PADDING_LEFT - PADDING_RIGHT) / Math.max(1, visibleBars);
         int shift   = (int)(dx / barW);
         startBarIndex = Math.max(0, Math.min(bars.size() - visibleBars, dragStartBar - shift));
@@ -1227,12 +1271,14 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         anchor = Math.max(0, Math.min(bars.size() - 1, anchor));
 
         // Zoom in = scroll up (deltaY > 0), zoom out = scroll down (deltaY < 0)
+        // Scale the zoom step by zoomSensitivity so the slider controls scroll zoom too.
+        double zoomStep = 0.12 * zoomSensitivity;   // at sensitivity=1.0 → 12% change; at 0.4 → ~5%
         if (delta < 0) {
             // Zoom OUT — always allow, expand visible range
-            visibleBars = Math.min(bars.size(), (int) Math.ceil(visibleBars * 1.15));
+            visibleBars = Math.min(bars.size(), (int) Math.ceil(visibleBars * (1.0 + zoomStep)));
         } else {
             // Zoom IN — limit to minimum 5 bars
-            visibleBars = Math.max(5, (int) Math.floor(visibleBars * 0.87));
+            visibleBars = Math.max(5, (int) Math.floor(visibleBars * (1.0 - zoomStep)));
         }
 
         // Final clamp: visibleBars must be in [1, bars.size()]
