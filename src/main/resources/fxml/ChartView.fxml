@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.scene.layout.*?>
 <?import javafx.scene.control.*?>
-<?import javafx.geometry.*?>
-
+<?import javafx.scene.layout.*?>
 <VBox xmlns:fx="http://javafx.com/fxml"
       fx:controller="com.mst.matt.tradingplatformapp.controller.ChartController"
       styleClass="scene-root" spacing="0">
@@ -78,8 +76,8 @@
             <!-- ── Bars group ─────────────────────────────────────────────── -->
             <Label text="Bars" styleClass="label-muted"
                    style="-fx-font-size:10px; -fx-text-fill:#8b949e;"/>
-            <ComboBox fx:id="barsCombo" prefWidth="72" maxWidth="80"
-                      style="-fx-font-size:12px;"/>
+            <ComboBox fx:id="barsCombo" prefWidth="85" maxWidth="90"
+                      style="-fx-font-size:9px;"/>
 
             <Separator orientation="VERTICAL" style="-fx-padding:0 2;"/>
 

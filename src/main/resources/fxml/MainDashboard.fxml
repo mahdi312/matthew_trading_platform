@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
-<?import javafx.geometry.*?>
-
+<?import javafx.scene.layout.*?>
 <BorderPane xmlns:fx="http://javafx.com/fxml"
             fx:controller="com.mst.matt.tradingplatformapp.controller.MainDashboardController"
             styleClass="scene-root"
@@ -37,7 +36,7 @@
                 <Button text="↩ Sign Out" styleClass="btn-secondary" onAction="#onLogout"/>
             </HBox>
 
-            <StackPane fx:id="tickerContainer" prefHeight="36" maxHeight="36"/>
+            <StackPane fx:id="tickerContainer" prefHeight="36" minHeight="10" maxHeight="36"/>
         </VBox>
     </top>
 
@@ -94,7 +93,7 @@
             <Separator orientation="VERTICAL"/>
             <Label fx:id="lastUpdateLabel" text="Last update: —" styleClass="label-muted"/>
             <Pane HBox.hgrow="ALWAYS"/>
-            <Label fx:id="versionLabel" text="v1.0.0" styleClass="label-muted"/>
+            <Label fx:id="versionLabel" text="v1.0.8" styleClass="label-muted"/>
         </HBox>
     </bottom>
 
