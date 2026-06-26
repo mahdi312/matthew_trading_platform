@@ -19,9 +19,6 @@ import javafx.scene.input.TouchEvent;
 import javafx.scene.input.TouchPoint;
 import javafx.scene.input.ZoomEvent;
 import javafx.scene.input.SwipeEvent;
-import javafx.scene.input.TouchEvent;
-import javafx.scene.input.TouchPoint;
-import javafx.scene.input.ZoomEvent;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.TextAlignment;
@@ -119,7 +116,9 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
     private double  mouseX, mouseY;
     private boolean showCrosshair  = false;
     private double  dragStartX;
+    private double  dragStartY;
     private int     dragStartBar;
+    private double  dragStartPriceOffset;
     private boolean drawingHandledDrag;
 
     // ── Touch / gesture state ─────────────────────────────────
@@ -161,6 +160,15 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
      */
     private double panSensitivity   = 0.6;
 
+    /**
+     * Vertical pan offset as a fraction of the visible price range.
+     * Positive = shift price window upward (show lower prices); negative = downward.
+     * Reset to 0 whenever new data is loaded.
+     */
+    private double  priceOffsetPct = 0.0;
+
+
+
     // ── Drawing overlay ───────────────────────────────────────
     private final ChartDrawingEngine drawingEngine = new ChartDrawingEngine(this);
     private DrawingRenderer.RenderContext lastRenderContext;
@@ -181,8 +189,9 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
     private void init() {
         setFocusTraversable(true);
         setupMouseHandlers();
-        setupKeyHandlers();
         setupTouchHandlers();
+        setupKeyHandlers();
+        setupTouchHandlers2();
         widthProperty().addListener((o, a, b) -> render());
         heightProperty().addListener((o, a, b) -> render());
     }
@@ -214,6 +223,7 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
             visibleBars   = Math.min(preferredVisibleBars, bars.size());
             startBarIndex = Math.max(0, bars.size() - visibleBars);
         }
+        priceOffsetPct = 0.0;  // reset vertical pan when new data arrives
         render();
     }
 
@@ -376,6 +386,16 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         maxPrice += pad;
         minPrice -= pad;
         if (maxPrice == minPrice) { maxPrice += 1; minPrice -= 1; }
+
+        // ── Apply vertical pan offset ──────────────────────────
+        // priceOffsetPct > 0 → user dragged down → shift window down (show higher prices)
+        // priceOffsetPct < 0 → user dragged up   → shift window up   (show lower prices)
+        if (priceOffsetPct != 0.0) {
+            double priceRange = maxPrice - minPrice;
+            double shift = priceRange * priceOffsetPct;
+            maxPrice -= shift;
+            minPrice -= shift;
+        }
 
         double maxVol = visible.stream().mapToDouble(b -> b.getVolume().doubleValue()).max().orElse(1);
 
@@ -1095,7 +1115,9 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
             requestFocus();
             drawingEngine.setSnapEnabled(snapMode || e.isShiftDown());
             dragStartX = e.getX();
+            dragStartY = e.getY();
             dragStartBar = startBarIndex;
+            dragStartPriceOffset = priceOffsetPct;
             drawingHandledDrag = drawingEngine.handleMousePressed(e, lastRenderContext);
         });
         setOnMouseReleased(e -> {
@@ -1247,12 +1269,196 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         });
     }
 
+    // ── Touch Handlers (T-1 … T-4) ───────────────────────────────────────────
+
+    /**
+     * Wires all touch-screen gestures to the chart canvas:
+     * <ul>
+     *   <li>T-1  Pinch-to-zoom — two-finger spread/pinch adjusts {@code visibleBars}.</li>
+     *   <li>T-2  Two-finger pan — drag with two fingers to pan the chart.</li>
+     *   <li>T-3  One-finger drag in Select mode — delegates to {@link ChartDrawingEngine}.</li>
+     *   <li>T-4  Axis swipe — left/right swipes pan the time axis independently.</li>
+     * </ul>
+     */
+    private void setupTouchHandlers2() {
+        // ── T-1 / T-2: track active touch count via TOUCH_PRESSED / RELEASED ──
+        setOnTouchPressed(e -> {
+            activeTouchCount = e.getTouchCount();
+            if (activeTouchCount == 2) {
+                // Record initial two-finger state for both pinch and pan
+                TouchPoint t0 = e.getTouchPoints().get(0);
+                TouchPoint t1 = e.getTouchPoints().get(1);
+                double dx = t1.getX() - t0.getX();
+                double dy = t1.getY() - t0.getY();
+                pinchStartDist    = Math.sqrt(dx * dx + dy * dy);
+                pinchStartVisible = visibleBars;
+                touchMidX         = (t0.getX() + t1.getX()) / 2.0;
+                touchMidY         = (t0.getY() + t1.getY()) / 2.0;
+                twoFingerPanStartBar = startBarIndex;
+                twoFingerPanStartX   = touchMidX;
+            } else if (activeTouchCount == 1) {
+                // Treat single-finger press like a mouse press for drawing interaction
+                TouchPoint t = e.getTouchPoints().get(0);
+                dragStartX   = t.getX();
+                dragStartBar = startBarIndex;
+            }
+            e.consume();
+        });
+
+        setOnTouchReleased(e -> {
+            activeTouchCount = e.getTouchCount();
+            if (activeTouchCount == 0) {
+                pinchStartDist = 0;
+            }
+            e.consume();
+        });
+
+        setOnTouchMoved(e -> {
+            activeTouchCount = e.getTouchCount();
+
+            if (activeTouchCount == 2) {
+                TouchPoint t0 = e.getTouchPoints().get(0);
+                TouchPoint t1 = e.getTouchPoints().get(1);
+
+                // ── T-1: Pinch-to-zoom ────────────────────────────────
+                double dx      = t1.getX() - t0.getX();
+                double dy      = t1.getY() - t0.getY();
+                double curDist = Math.sqrt(dx * dx + dy * dy);
+                if (pinchStartDist > 0 && curDist > 0) {
+                    double scale = pinchStartDist / curDist; // >1 = zoom in (fingers apart)
+                    int newVisible = (int) Math.round(pinchStartVisible * scale);
+                    if (bars != null) {
+                        newVisible = Math.max(5, Math.min(bars.size(), newVisible));
+                    } else {
+                        newVisible = Math.max(5, newVisible);
+                    }
+                    // Keep midpoint anchor stationary while zooming
+                    double midFraction = (bars != null && bars.size() > 0)
+                            ? Math.max(0.0, Math.min(1.0,
+                                (touchMidX - PADDING_LEFT) / (getWidth() - PADDING_LEFT - PADDING_RIGHT)))
+                            : 0.5;
+                    int anchor = startBarIndex + (int) Math.round(midFraction * visibleBars);
+                    visibleBars = newVisible;
+                    if (bars != null) {
+                        if (visibleBars >= bars.size()) {
+                            startBarIndex = 0;
+                        } else {
+                            int newStart = anchor - (int) Math.round(midFraction * visibleBars);
+                            startBarIndex = Math.max(0, Math.min(bars.size() - visibleBars, newStart));
+                        }
+                    }
+                }
+
+                // ── T-2: Two-finger pan ───────────────────────────────
+                double newMidX = (t0.getX() + t1.getX()) / 2.0;
+                if (bars != null && !bars.isEmpty()) {
+                    double plotW = getWidth() - PADDING_LEFT - PADDING_RIGHT;
+                    double barW  = plotW / Math.max(1, visibleBars);
+                    int    shift = (int) ((newMidX - twoFingerPanStartX) / barW);
+                    startBarIndex = Math.max(0,
+                            Math.min(bars.size() - visibleBars, twoFingerPanStartBar - shift));
+                }
+
+                mouseX = newMidX;
+                mouseY = (t0.getY() + t1.getY()) / 2.0;
+                render();
+
+            } else if (activeTouchCount == 1) {
+                // ── T-3: Single-finger drag (drawing move or chart pan) ──
+                TouchPoint t = e.getTouchPoints().get(0);
+                if (drawingEngine.getActiveTool() == ChartDrawingToolType.SELECT) {
+                    // Simulate mouse drag for drawing engine
+                    MouseEvent syntheticDrag = new MouseEvent(
+                            MouseEvent.MOUSE_DRAGGED,
+                            t.getX(), t.getY(), t.getSceneX(), t.getScreenY(),
+                            javafx.scene.input.MouseButton.PRIMARY, 1,
+                            false, false, false, false,
+                            true, false, false, false, false, false, null);
+                    boolean handled = drawingEngine.handleMouseDragged(syntheticDrag, lastRenderContext);
+                    if (!handled) {
+                        // Pan the chart with a single finger when not dragging a drawing
+                        onSingleTouchDrag(t.getX());
+                    }
+                } else {
+                    onSingleTouchDrag(t.getX());
+                }
+                mouseX = t.getX();
+                mouseY = t.getY();
+                showCrosshair = true;
+                render();
+            }
+            e.consume();
+        });
+
+        // ── T-4: Axis swipe — JavaFX SwipeEvent for quick flings ──
+        setOnSwipeLeft(e -> {
+            if (bars == null || bars.isEmpty()) return;
+            int shift = Math.max(1, visibleBars / 5);
+            startBarIndex = Math.min(bars.size() - visibleBars, startBarIndex + shift);
+            render();
+            e.consume();
+        });
+        setOnSwipeRight(e -> {
+            if (bars == null || bars.isEmpty()) return;
+            int shift = Math.max(1, visibleBars / 5);
+            startBarIndex = Math.max(0, startBarIndex - shift);
+            render();
+            e.consume();
+        });
+
+        // JavaFX built-in ZoomEvent — fires on trackpad pinch gestures (macOS / Windows Precision)
+        setOnZoom(e -> {
+            if (bars == null || bars.isEmpty()) return;
+            double factor  = e.getZoomFactor(); // >1 = zoom in
+            int    newVis  = (int) Math.round(visibleBars / factor);
+            newVis = Math.max(5, Math.min(bars.size(), newVis));
+            double plotW   = getWidth() - PADDING_LEFT - PADDING_RIGHT;
+            double relX    = e.getX() - PADDING_LEFT;
+            double frac    = (plotW > 0) ? Math.max(0, Math.min(1, relX / plotW)) : 0.5;
+            int    anchor  = startBarIndex + (int) Math.round(frac * visibleBars);
+            visibleBars    = newVis;
+            if (visibleBars >= bars.size()) {
+                startBarIndex = 0;
+            } else {
+                int newStart = anchor - (int) Math.round(frac * visibleBars);
+                startBarIndex = Math.max(0, Math.min(bars.size() - visibleBars, newStart));
+            }
+            render();
+            e.consume();
+        });
+    }
+
+    /** Pans the chart from a single touch drag (used when not dragging a drawing). */
+    private void onSingleTouchDrag(double currentX) {
+        if (bars == null || bars.isEmpty()) return;
+        double plotW = getWidth() - PADDING_LEFT - PADDING_RIGHT;
+        double barW  = plotW / Math.max(1, visibleBars);
+        int    shift = (int) ((currentX - dragStartX) / barW);
+        startBarIndex = Math.max(0, Math.min(bars.size() - visibleBars, dragStartBar - shift));
+    }
+
     private void onMouseDragged(MouseEvent e) {
         if (bars == null || bars.isEmpty()) return;
+
+        // ── Horizontal pan (time axis) ────────────────────────
         double dx   = (e.getX() - dragStartX) * panSensitivity;
         double barW = (getWidth() - PADDING_LEFT - PADDING_RIGHT) / Math.max(1, visibleBars);
         int shift   = (int)(dx / barW);
         startBarIndex = Math.max(0, Math.min(bars.size() - visibleBars, dragStartBar - shift));
+
+        // ── Vertical pan (price axis) ─────────────────────────
+        // dy > 0 → dragged downward → shift visible price window down (show higher prices)
+        // dy < 0 → dragged upward   → shift visible price window up (show lower prices)
+        double plotH = getHeight() - PADDING_TOP - PADDING_BOTTOM;
+        if (plotH > 0) {
+            double dy = e.getY() - dragStartY;
+            // One pixel of drag = one pixel / plotH fraction of the visible range
+            double deltaFraction = dy / plotH;
+            priceOffsetPct = dragStartPriceOffset + deltaFraction;
+            // Clamp so the chart cannot be panned too far off-screen (± 80% of range)
+            priceOffsetPct = Math.max(-0.8, Math.min(0.8, priceOffsetPct));
+        }
+
         mouseX = e.getX(); mouseY = e.getY();
         render();
     }

@@ -624,7 +624,8 @@ public class ChartController implements Initializable {
                         topNode.setManaged(true);
                     }
                 }
-                chart.requestLayout();
+                // CandlestickChartCanvas extends Canvas (not Region), so requestLayout()
+                // does not exist — render() redraws the canvas immediately instead.
                 chart.render();
             });
         }

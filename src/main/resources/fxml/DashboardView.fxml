@@ -92,7 +92,6 @@
                                 style="-fx-background-color:#161b22; -fx-background:#161b22;"
                                 VBox.vgrow="ALWAYS">
                         <TableView fx:id="recentTradesTable"
-                                   prefHeight="USE_COMPUTED_SIZE"
                                    maxHeight="1.7976931348623157E308"
                                    style="-fx-background-color:#161b22; -fx-border-color:#30363d; -fx-border-width:1;">
                             <placeholder>
