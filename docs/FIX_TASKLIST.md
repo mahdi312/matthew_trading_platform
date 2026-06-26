@@ -1433,5 +1433,367 @@ Store all time coordinates as `long` values (milliseconds since epoch) in the `p
 | 11 | Screenshot for trades | Camera button on positions → attach screenshot to trade. |
 
 ---
+Fix 1 – Delete Button Position Consistency
+File: ChartDrawingEngine.java
+hoverDeletePos() now delegates to selectionDeletePos() so both hover and selection delete buttons appear at the exact
+same bounding-box top-right position. No more jumping. Hit area enlarged to HOVER_DELETE_RADIUS + 4 for easier clicking.
 
-*End of Specifications*
+Fix 2 – Screenshot Preview Click-to-Enlarge
+File: TradeEntryController.java
+Click on any screenshot thumbnail opens a dedicated Stage dialog with a zoomable, scrollable preview. Features: Zoom
+In/Out/Fit buttons, mouse-scroll zoom, keyboard shortcuts (+/-/F/Esc), hand cursor on the thumbnail, and "🔍 Click to
+enlarge" hint.
+
+Fix 3 – Note Box Full Text + Multi-line Editor
+Files: DrawingRenderer.java, ChartDrawingEngine.java
+Note preview now renders word-wrapped lines that fill the box height with a … overflow indicator. Double-click opens a
+proper multi-line TextArea popup (not single-line TextInputDialog), with Ctrl+Enter=Save / Esc=Cancel shortcuts. Default
+size 120×80 px.
+
+Fix 4 – TextBox/TextLabel Word Wrap
+Files: DrawingRenderer.java, ChartDrawingEngine.java
+New wrapText() utility wraps text to fit box width, honouring \n and splitting overlong words. drawTextLabel(),
+drawCallout(), and drawNoteIcon() all use it. getTextBoxHeight() auto-calculates from line count. … shown when clipped.
+
+Fix 5 – Profile Switching Immediate Refresh
+File: MainDashboardController.java
+switchProfile() detects the currently visible view and refreshes in-place: Chart→prepareView(),
+Alerts/Export/Mixer→re-push profile, Dashboard/Journal/Portfolio→loadProfile()+showView(). No more stale data after
+switching profiles.
+
+Fix 6 – Chart Toolbox Layout & Positioning
+File: ChartView.fxml
+Redesigned toolbar with logical groups: Symbol | TF Favorites | Bars | Indicators | Bell | Source → Actions. Pane(
+hgrow=ALWAYS) spacer right-aligns Refresh/Analyze. Compact padding (3px vertical), smaller ComboBoxes (110/72/140px),
+ScrollPane wrapper prevents clipping at any width.
+
+Fix 7 – Per-User Drawing Settings & Persistence
+Files: UserProfile.java, ChartController.java, ChartDrawingProperties.java, ChartDrawingEngine.java,
+GlobalDrawingSettingsDialog.java
+
+7.1: Added drawingSettingsJson TEXT column to user_profiles (auto-migrated). Settings now saved/loaded per-profile
+instead of machine-wide. Profile switch loads new profile's settings.
+7.2: ChartDrawingProperties.defaultsFor(type, settings) overload applies profile defaults at creation time.
+Position-tool semantic colours (green/red) always preserved. Existing drawings unaffected.
+
+🖐️ NEW: Touch Support for Chart
+
+T‑1 -->    Pinch‑to‑zoom -->    Two‑finger gesture zooms in/out on the chart (both time and price axes).
+
+T‑2 -->        Two‑finger pan -->    Drag with two fingers to pan the chart view (time and price).
+
+T‑3 -->     Touch drag for drawing objects -->    When in Select mode, dragging a drawing with one finger moves it (or
+its anchors).
+
+T‑4 -->    Scrolling the chart axes -->    Swipe up/down on price axis, left/right on time axis to scroll independently.
+
+T‑5 -->  Touch‑friendly toolbar -->    Buttons and controls must be large enough (≥44×44px) for finger taps.
+
+```markdown
+# Issues to Fix (Immediate)
+
+## 1. Profile Bar (with Admin) Hidden in Chart View
+
+**Issue:** The profile selector/admin bar at the top of the chart view is no longer visible after recent changes.
+
+**Fix:** Restore the profile bar visibility in `ChartView.fxml` (or `MainDashboard.fxml`). Ensure the profile selector,
+admin controls, and any associated header elements are rendered above the chart area.
+
+---
+
+## 2. Chart Volume Sub‑Pane Not Visible
+
+**Issue:** The volume indicator is hidden because the chart canvas is too large and pushes the volume pane off‑screen.
+
+**Fix:**
+
+- Reduce the default chart canvas size or make the volume sub‑pane resizable.
+- Ensure the volume pane has a **fixed minimum height** (e.g., 60–80px) and is positioned below the main chart.
+- If necessary, add a toggle to show/hide the volume pane.
+
+---
+
+## 2.1 Fullscreen Mode for Chart
+
+**Requirement:** Add a **fullscreen toggle** for the chart view, accessible via:
+
+- A **fullscreen icon** in the chart toolbar.
+- A **keyboard shortcut** (e.g., `F11`).
+
+**In Fullscreen Mode:**
+
+- The chart occupies the entire screen (no window borders, no navigation sidebar).
+- The **timeframe buttons** and **bar count control** must remain visible as an overlay (e.g., a floating toolbar) at
+  the top or bottom of the chart.
+- Press `F11` or the icon again to exit fullscreen.
+
+---
+
+## 3. Duplicate Children Error in `ScrollingTickerPane`
+
+**Error:**
+```
+
+java.lang.IllegalArgumentException: Children: duplicate children added: parent = HBox@4dce43ad
+at com.mst.matt.tradingplatformapp.ui.ScrollingTickerPane.rebuildLoop(ScrollingTickerPane.java:98)
+at com.mst.matt.tradingplatformapp.ui.ScrollingTickerPane.setSymbols(ScrollingTickerPane.java:78)
+
+```
+
+**Fix:** In `ScrollingTickerPane.rebuildLoop()`, ensure the `HBox` children are **cleared** before adding new nodes.
+
+**Implementation:**
+```java
+private void rebuildLoop() {
+    hbox.getChildren().clear(); // Clear before adding
+    // ... add new children
+}
+```
+
+---
+
+## 4. Touch Interaction Broken on Chart
+
+**Current Issues:**
+
+- Touching **up** zooms in; touching **down** zooms out – incorrect gesture mapping.
+- When trying to **draw a shape** with touch, zooming also triggers simultaneously.
+- Scrolling the chart axes (swipe up/down on price axis, left/right on time axis) does **not** work.
+
+**Desired Touch Behaviour:**
+
+| Gesture                                      | Action                                      |
+|----------------------------------------------|---------------------------------------------|
+| **Pinch (two fingers out)**                  | Zoom in                                     |
+| **Pinch (two fingers in)**                   | Zoom out                                    |
+| **Single‑finger drag**                       | Pan the chart (both axes)                   |
+| **Swipe up/down on price axis**              | Scroll the price axis independently         |
+| **Swipe left/right on time axis**            | Scroll the time axis independently          |
+| **Single‑finger tap + drag (on shape)**      | Move the selected shape (if in Select mode) |
+| **Single‑finger drag (drawing tool active)** | Create the shape (no zoom interference)     |
+
+**Fix:**
+
+- Separate touch events: **pinch** for zoom, **single finger** for pan and drawing.
+- Ensure **drawing tools** do not trigger zoom or pan gestures.
+- Map axis swipes to scroll independently.
+
+---
+
+## Summary of Tasks
+
+| #   | Task                                                                                                    |
+|-----|---------------------------------------------------------------------------------------------------------|
+| 1   | Restore profile bar visibility in chart view.                                                           |
+| 2   | Fix volume sub‑pane size/position.                                                                      |
+| 2.1 | Add fullscreen toggle with `F11` and floating toolbar.                                                  |
+| 3   | Clear `HBox` children before rebuilding `ScrollingTickerPane`.                                          |
+| 4   | Fix touch gestures: pinch for zoom, single‑finger for pan/drawing, axis swipes to scroll independently. |
+
+---
+
+5. # Feature: Show Percentages on Long/Short Position Lines
+
+## Requirement
+
+When a **Long Position** or **Short Position** is drawn on the chart, the **Stop Loss** and **Take Profit** lines should
+display **both the price level and the percentage difference from the entry price**.
+
+---
+
+## Desired Behaviour
+
+### Long Position (Entry = Green, SL = Red, TP = Blue)
+
+- Each line label shows:
+    - **Entry:** `Entry: 65,000.00` (no percentage needed)
+    - **Stop Loss:** `SL: 63,000.00 (-3.08%)`
+    - **Take Profit:** `TP: 68,000.00 (+4.62%)`
+
+### Short Position (Entry = Red, SL = Blue, TP = Green)
+
+- **Entry:** `Entry: 65,000.00`
+- **Stop Loss:** `SL: 67,000.00 (+3.08%)`
+- **Take Profit:** `TP: 62,000.00 (-4.62%)`
+
+---
+
+## Calculation
+
+| Line              | Percentage Formula                                                             |
+|-------------------|--------------------------------------------------------------------------------|
+| **Take Profit %** | `((TP - Entry) / Entry) × 100` (Long) / `((Entry - TP) / Entry) × 100` (Short) |
+| **Stop Loss %**   | `((SL - Entry) / Entry) × 100` (Long) / `((Entry - SL) / Entry) × 100` (Short) |
+
+- Positive percentage = profit side.
+- Negative percentage = loss side.
+- Show with **two decimal places** and a `+`/`‑` sign.
+
+---
+
+All 6 issues have been implemented and pushed to `genspark_ai_developer`. Here's a summary of every change made:
+
+---
+
+## Summary of Changes
+
+### Issue #1 — Profile Bar Visibility in Chart View
+
+**File:** `MainDashboardController.java`
+
+- Modified `showView()` to **remove the 24px contentArea padding** when the chart view is active, and restore it for all
+  other views. This ensures the ChartView toolbar (symbol, TF controls) is never clipped or pushed off-screen.
+
+---
+
+### Issue #2 — Volume Sub-Pane Min Height
+
+**File:** `CandlestickChartCanvas.java`
+
+- Added `VOL_MIN_HEIGHT = 70.0` constant.
+- Changed the volume height calculation to `Math.max(VOL_MIN_HEIGHT, totalH * VOL_FRAC)` — the volume pane is now
+  guaranteed at least **70px** regardless of chart height or number of sub-pane indicators.
+
+---
+
+### Issue #2.1 — Fullscreen Mode
+
+**Files:** `ChartView.fxml`, `ChartController.java`
+
+- Added **⛶ fullscreen button** to the chart toolbar with `onToggleFullscreen` handler.
+- `enterFullscreen()`: replaces the scene root with a new `StackPane` overlay containing the chart + a **floating HBox
+  toolbar** (timeframe favorites, bars combo, exit button). Sets `Stage.setFullScreen(true)`.
+- `exitFullscreen()`: restores the original scene root, moves `chartStack` back into the ChartView VBox, rebinds canvas
+  size.
+- **F11** key triggers toggle; **Escape** exits fullscreen.
+
+---
+
+### Issue #3 — ScrollingTickerPane Duplicate Children
+
+**File:** `ScrollingTickerPane.java`
+
+- `rebuildLoop()` now creates **fresh cloned `Label` nodes** for the second scrolling loop copy instead of re-adding
+  existing children. This eliminates the `IllegalArgumentException: Children: duplicate children added`.
+
+---
+
+### Issue #4 — Touch Interaction
+
+**File:** `CandlestickChartCanvas.java`
+
+- Added imports: `TouchEvent`, `TouchPoint`, `ZoomEvent`.
+- Added `setupTouchHandlers()` called from `init()`:
+    - **`ZoomEvent`** (JavaFX pinch gesture): fingers apart = zoom in (fewer bars), fingers together = zoom out —
+      correct direction.
+    - **Single-finger `TouchMoved`**: pans the chart (same logic as mouse drag).
+    - **Drawing tool active**: touch does NOT trigger pan/zoom — lets drawing engine handle input cleanly.
+
+---
+
+### Issue #5 — Long/Short Position SL/TP Labels with % Difference
+
+**File:** `DrawingRenderer.java`
+
+- `drawPosition()` now formats SL and TP labels with both **price level and percentage from entry**:
+    - SL: `SL  49000.00  (-2.00%)`
+    - TP: `TP  52000.00  (+4.00%)`
+
+---
+
+### Branch & Commit
+
+- Branch: **`genspark_ai_developer`**
+- Commit: `fix: resolve 6 chart/UI issues`
+- Pushed to: `https://github.com/mahdi312/matthew_trading_platform.git`
+
+# Issues to Fix
+
+---
+
+## 1. Fullscreen Mode – Chart Disappears After Exit
+
+**Issue:** After exiting fullscreen mode, the chart area becomes blank or hidden.
+
+**Fix:** Ensure the chart container is **re‑attached** or **re‑sized** properly when exiting fullscreen. Verify that the
+`CandlestickChartCanvas` is still part of the scene graph and has the correct width/height bindings restored.
+
+---
+
+## 2. Recent Trades Table – Not Fitting & Not Scrollable
+
+**Issue:** The recent trades table in the Dashboard view:
+
+- Does not fit within the window.
+- Trades are not scrollable (user cannot see all trades).
+
+**Fix:**
+
+- Place the `TableView` inside a **ScrollPane**.
+- Set `TableView.setPrefHeight(Region.USE_COMPUTED_SIZE)` and allow vertical scrolling.
+- Ensure the table column widths are **responsive** (e.g., use percentage widths or `ColumnConstraints`).
+- The table should occupy available space without overflowing the window.
+
+---
+
+## 3. Touch Sensitivity Too High
+
+**Issue:** Touch gestures (pinch, pan, drag) are overly sensitive – small movements cause large zoom/pan changes.
+
+**Fix:**
+
+- Reduce the **zoom sensitivity multiplier** (e.g., from 1.2× to 1.05× per pinch step).
+- Reduce **pan sensitivity** – scale the drag delta by a factor (e.g., 0.8×).
+- Add a **configurable sensitivity slider** in Settings for user preference.
+
+---
+
+## 4. Header Bar (Title, Admin, Profile Selector, Settings) Hidden
+
+**Issue:** The top header bar containing:
+
+- "Trading Intelligence Platform" title
+- Admin controls
+- Profile selector
+- Settings button
+
+…is not visible in the window or chart panel.
+
+**Fix:**
+
+- Ensure the header bar is **not overridden** or set to `visible="false"` in FXML.
+- Check that the header is **not hidden behind** the chart or toolbar.
+- Verify that the `VBox`/`BorderPane` layout correctly stacks:
+    - **Top:** Header bar
+    - **Center:** Chart / content
+- If the header was inadvertently removed, restore it from the original FXML or version control.
+
+---
+
+5. # Bug Fix: Mouse Panning (Scroll Axes) Not Working
+
+## Issue
+
+When clicking and dragging on the chart, the **time axis** and **price axis** do **not** scroll/pan. The chart remains
+fixed, and no mouse‑driven panning occurs.
+
+## Desired Behaviour
+
+- **Click + Drag** on the chart should **pan** the view (both axes).
+- If the user drags **horizontally**, the time axis scrolls left/right.
+- If the user drags **vertically**, the price axis scrolls up/down.
+- Panning should only work in **Select mode** (when no drawing tool is active).
+- Mouse wheel should still zoom (scroll to zoom) – this is already working.
+
+## Summary of Tasks
+
+| # | Task                                                                        |
+|---|-----------------------------------------------------------------------------|
+| 1 | Fix chart re‑attachment after fullscreen exit.                              |
+| 2 | Add `ScrollPane` to recent trades table; make columns responsive.           |
+| 3 | Reduce touch sensitivity multiplier for zoom and pan.                       |
+| 4 | Restore visibility of the top header bar (title, admin, profile, settings). |
+
+---
+
+*End of issues*
