@@ -60,6 +60,8 @@
             <Button fx:id="navMixer" text="🎚" styleClass="nav-item" onAction="#onNavMixer"/>
             <Button fx:id="navPortfolio" text="💼" styleClass="nav-item" onAction="#onNavPortfolio"/>
             <Button fx:id="navFundamentals" text="📑" styleClass="nav-item" onAction="#onNavFundamentals"/>
+            <!-- AI News & Insights tab -->
+            <Button fx:id="navAiNews" text="🤖" styleClass="nav-item" onAction="#onNavAiNews"/>
 
             <Pane VBox.vgrow="ALWAYS"/>
 

@@ -79,11 +79,19 @@ public class DashboardController implements Initializable {
     public void initialize(URL url, ResourceBundle rb) {
         setupTradeTable();
         applyViewMode();
-        // Canvas auto-resizes: bind width to parent
+        // Canvas auto-resizes: bind width to parent VBox when scene is ready
         equityCanvas.widthProperty().addListener((o,a,b) ->
                 drawEquityCurve(currentEquityCurve));
         equityCanvas.heightProperty().addListener((o,a,b) ->
                 drawEquityCurve(currentEquityCurve));
+        // Responsive: bind canvas width to its parent container once added to scene
+        equityCanvas.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null && equityCanvas.getParent() instanceof Region parent) {
+                equityCanvas.widthProperty().bind(parent.widthProperty());
+            }
+        });
+        // Also bind TableView column fill to parent
+        recentTradesTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
     }
 
     public void loadProfile(UserProfile profile) {

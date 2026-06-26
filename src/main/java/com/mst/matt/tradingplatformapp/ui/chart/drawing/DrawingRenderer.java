@@ -327,9 +327,11 @@ public final class DrawingRenderer {
         gc.strokeLine(x1, priceToY(p0, ctx), x2, priceToY(p1, ctx));
         gc.setLineWidth(props.getLineWidth());
 
+        // Use custom levels if set, otherwise fall back to defaults + extension levels
+        double[] levels = resolveCustomFibLevels(props, FIB_RETRACE_LEVELS);
         String[] levelColors = {"#e6edf3","#d29922","#22c55e","#3b82f6","#ef4444","#a855f7","#e6edf3"};
-        for (int i = 0; i < FIB_RETRACE_LEVELS.length; i++) {
-            double level = FIB_RETRACE_LEVELS[i];
+        for (int i = 0; i < levels.length; i++) {
+            double level = levels[i];
             double price = p0 + (p1 - p0) * level;
             double y = priceToY(price, ctx);
             if (y < ctx.priceTop - 5 || y > ctx.priceBottom + 5) continue;
@@ -344,20 +346,37 @@ public final class DrawingRenderer {
             gc.fillText(formatPrice(price), ctx.right - 2, y - 3);
         }
         gc.setTextAlign(TextAlignment.LEFT);
-        for (double level : FIB_RETRACE_EXT) {
-            double price = p0 + (p1 - p0) * level;
-            double y = priceToY(price, ctx);
-            if (y < ctx.priceTop - 5 || y > ctx.priceBottom + 5) continue;
-            gc.setStroke(base.deriveColor(0, 1, 1, 0.4));
-            gc.setLineDashes(2, 5);
-            gc.strokeLine(Math.min(x1, x2), y, ctx.right, y);
-            gc.setLineDashes();
-            gc.setFill(base.deriveColor(0, 1, 1, 0.7));
-            gc.fillText(String.format("%.1f%%  %s", level * 100, formatPrice(price)), Math.min(x1, x2) + 2, y - 3);
+        // Extension levels only rendered when using default levels (not custom)
+        if (props.getCustomFibLevels() == null || props.getCustomFibLevels().isEmpty()) {
+            for (double level : FIB_RETRACE_EXT) {
+                double price = p0 + (p1 - p0) * level;
+                double y = priceToY(price, ctx);
+                if (y < ctx.priceTop - 5 || y > ctx.priceBottom + 5) continue;
+                gc.setStroke(base.deriveColor(0, 1, 1, 0.4));
+                gc.setLineDashes(2, 5);
+                gc.strokeLine(Math.min(x1, x2), y, ctx.right, y);
+                gc.setLineDashes();
+                gc.setFill(base.deriveColor(0, 1, 1, 0.7));
+                gc.fillText(String.format("%.1f%%  %s", level * 100, formatPrice(price)), Math.min(x1, x2) + 2, y - 3);
+            }
         }
         gc.setFill(base);
         gc.fillOval(x1 - 3, priceToY(p0, ctx) - 3, 6, 6);
         gc.fillOval(x2 - 3, priceToY(p1, ctx) - 3, 6, 6);
+    }
+
+    /**
+     * Returns the effective Fibonacci levels array.
+     * If the drawing has custom levels set, those are used; otherwise the default array is returned.
+     */
+    private static double[] resolveCustomFibLevels(ChartDrawingProperties props, double[] defaults) {
+        if (props == null || props.getCustomFibLevels() == null || props.getCustomFibLevels().isEmpty()) {
+            return defaults;
+        }
+        return props.getCustomFibLevels().stream()
+                .sorted()
+                .mapToDouble(Double::doubleValue)
+                .toArray();
     }
 
     private static void drawFibExtension(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
@@ -378,8 +397,9 @@ public final class DrawingRenderer {
         gc.setLineDashes();
         String[] extColors = {"#22c55e","#3b82f6","#d29922","#ef4444","#a855f7","#e06c75"};
         double xFrom = d.getPoints().size() >= 3 ? xC : xB;
-        for (int i = 0; i < FIB_EXT_LEVELS.length; i++) {
-            double mult = FIB_EXT_LEVELS[i];
+        double[] effectiveExtLevels = resolveCustomFibLevels(props, FIB_EXT_LEVELS);
+        for (int i = 0; i < effectiveExtLevels.length; i++) {
+            double mult = effectiveExtLevels[i];
             double price = pC + swing * mult;
             double y = priceToY(price, ctx);
             if (y < ctx.priceTop - 5 || y > ctx.priceBottom + 5) continue;

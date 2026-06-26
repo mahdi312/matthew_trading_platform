@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 /** Visual and tool-specific properties stored as JSON on {@link ChartDrawing}. */
 @Data
 @NoArgsConstructor
@@ -95,6 +97,15 @@ public class ChartDrawingProperties {
      * Stored for display / slider adjustment after creation.
      */
     private Double parallelOffset;
+
+    // ── Fibonacci custom levels ────────────────────────────────────────────────
+
+    /**
+     * User-defined Fibonacci levels in the 0.0–4.0+ range (e.g. 0.236, 0.5, 1.0).
+     * When {@code null} or empty, the tool uses its built-in default levels.
+     * Persisted as a JSON array, e.g. {@code [0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0]}.
+     */
+    private List<Double> customFibLevels;
 
     // ── Factory ───────────────────────────────────────────────────────────────
 

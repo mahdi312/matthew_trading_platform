@@ -57,7 +57,8 @@ public class MainDashboardController implements Initializable {
     @FXML private Button alertBellBtn;
     @FXML private Button navDashboard, navChart, navTrades,
             navAnalysis, navAlerts, navMixer,
-            navPortfolio, navFundamentals, navExport, navSettings;
+            navPortfolio, navFundamentals, navExport, navSettings,
+            navAiNews;
 
     @Autowired private FxWeaver              fxWeaver;
     @Autowired private UserProfileRepository profileRepository;
@@ -69,7 +70,8 @@ public class MainDashboardController implements Initializable {
     @Autowired private AuthService           authService;
 
     private Parent dashboardView, chartView, tradeEntryView,
-            alertsView, mixerView, exportView, fundamentalsView, settingsView, adminView;
+            alertsView, mixerView, exportView, fundamentalsView, settingsView, adminView,
+            aiNewsView;
 
     /** Callback invoked on logout — provided by StageInitializer. */
     private Runnable onLogout;
@@ -83,6 +85,7 @@ public class MainDashboardController implements Initializable {
     private YearlyProfitController           yearlyProfitCtrl;
     private ProfileSettingsController        profileSettingsCtrl;
     private AdminUserManagementController    adminCtrl;
+    private AiNewsController                 aiNewsCtrl;
 
     private UserProfile activeProfile;
     private ScrollingTickerPane scrollingTicker;
@@ -129,6 +132,8 @@ public class MainDashboardController implements Initializable {
         setNavVisible(navAlerts,       authService.canSeeTab("ALERTS"));
         setNavVisible(navExport,       authService.canSeeTab("EXPORT"));
         setNavVisible(navFundamentals, authService.canSeeTab("FUNDAMENTALS"));
+        // AI News & Insights — always visible for all roles
+        if (navAiNews != null) { navAiNews.setVisible(true); navAiNews.setManaged(true); }
         // Settings always visible; admin panel shown only to ADMIN
         if (navSettings != null) { navSettings.setVisible(true); navSettings.setManaged(true); }
     }
@@ -148,6 +153,7 @@ public class MainDashboardController implements Initializable {
         setNavTip(navMixer, "Indicator Mixer");
         setNavTip(navPortfolio, "Portfolio");
         setNavTip(navFundamentals, "Yearly Profit");
+        setNavTip(navAiNews, "AI News & Insights");
         setNavTip(navExport, "Export Excel");
         setNavTip(navSettings, "Settings");
         if (watchlistMenuBtn != null) {
@@ -215,7 +221,7 @@ public class MainDashboardController implements Initializable {
 
     private void expandNavLabels(boolean expanded, double btnWidth) {
         for (Button b : List.of(navDashboard, navChart, navTrades, navAnalysis,
-                navAlerts, navMixer, navPortfolio, navFundamentals, navExport, navSettings)) {
+                navAlerts, navMixer, navPortfolio, navFundamentals, navAiNews, navExport, navSettings)) {
             if (b == null) continue;
             String label = (String) b.getProperties().get("navLabel");
             if (label == null) label = (String) b.getUserData();
@@ -793,6 +799,29 @@ public class MainDashboardController implements Initializable {
         showView(exportView);
     }
 
+    @FXML public void onNavAiNews() {
+        setActiveNav(navAiNews);
+        if (aiNewsView == null) {
+            var wc = fxWeaver.load(AiNewsController.class);
+            aiNewsView = asParent(wc.getView().orElseThrow());
+            aiNewsCtrl = wc.getController();
+        }
+        // Pre-fill with current chart symbol if chart is loaded
+        if (aiNewsCtrl != null && chartCtrl != null) {
+            // Pass current symbol to AI news tab
+            String sym = getCurrentChartSymbol();
+            if (sym != null && !sym.isBlank()) aiNewsCtrl.setCurrentSymbol(sym);
+        }
+        showView(aiNewsView);
+    }
+
+    /** Returns the currently loaded chart symbol (best-effort). */
+    private String getCurrentChartSymbol() {
+        try {
+            return chartCtrl != null ? chartCtrl.getCurrentSymbol() : null;
+        } catch (Exception e) { return null; }
+    }
+
     @FXML public void onNavFundamentals() {
         setActiveNav(navFundamentals);
         if (fundamentalsView == null) {
@@ -991,7 +1020,7 @@ public class MainDashboardController implements Initializable {
     private void setActiveNav(Button active) {
         List.of(navDashboard, navChart, navTrades, navAnalysis,
                         navAlerts, navMixer, navPortfolio, navFundamentals,
-                        navExport, navSettings)
+                        navAiNews, navExport, navSettings)
                 .forEach(b -> {
                     if (b == null) return;
                     b.getStyleClass().remove("nav-item-active");
