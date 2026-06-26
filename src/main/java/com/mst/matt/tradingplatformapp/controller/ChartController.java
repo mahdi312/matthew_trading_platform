@@ -834,6 +834,7 @@ public class ChartController implements Initializable {
                 currentSymbol = selected;
                 hideAutocomplete();
                 refreshProviderCombo();
+                syncSymbolComboToCurrentSymbol();  // Feature 3
                 loadChart();
             }
         });
@@ -908,6 +909,7 @@ public class ChartController implements Initializable {
                         currentSymbol = selected;
                         hideAutocomplete();
                         refreshProviderCombo();
+                        syncSymbolComboToCurrentSymbol();  // Feature 3
                         loadChart();
                     }
                     e.consume();
@@ -1053,7 +1055,8 @@ public class ChartController implements Initializable {
 
     /**
      * Rebuilds the favorites bar with ToggleButtons for each favorited timeframe.
-     * Shows nothing if no favorites are selected yet.
+     * Favorites are displayed in canonical timeframe order (1m → 3m → … → 1mo).
+     * Shows a hint label if no favorites are selected yet.
      */
     private void rebuildFavoritesBar(List<String> allowed, List<String> favorites) {
         if (favTfBar == null) return;
@@ -1067,8 +1070,17 @@ public class ChartController implements Initializable {
             return;
         }
 
+        // Sort favorites by their position in the canonical ALL_TIMEFRAMES list so
+        // they always appear in logical order (1m → 5m → 1h → 4h → 1D …)
+        List<String> sortedFavorites = favorites.stream()
+                .sorted(Comparator.comparingInt(tf -> {
+                    int idx = ALL_TIMEFRAMES.indexOf(tf.toLowerCase());
+                    return idx < 0 ? Integer.MAX_VALUE : idx;
+                }))
+                .collect(Collectors.toList());
+
         ToggleGroup tg = new ToggleGroup();
-        for (String tf : favorites) {
+        for (String tf : sortedFavorites) {
             if (!allowed.contains(tf)) continue;
             ToggleButton btn = new ToggleButton(tf.toUpperCase());
             btn.setToggleGroup(tg);
@@ -1244,7 +1256,29 @@ public class ChartController implements Initializable {
         marketDataSyncScheduler.notifyChartContextChanged(currentSymbol, currentTimeframe);
         updateChartSessionContext();
         refreshProviderCombo();
+        // Feature 3: sync the symbol combo box to the loaded symbol immediately so the
+        // combo box always reflects what is currently displayed on the chart.
+        syncSymbolComboToCurrentSymbol();
         loadChart();
+    }
+
+    /**
+     * Feature 3: Ensures the symbol combo-box selected value matches {@link #currentSymbol}.
+     *
+     * <p>If the symbol is not yet in the combo's item list (e.g. a custom symbol typed
+     * in the search field), it is inserted at position 0 so it is always visible and
+     * selectable by the user.
+     */
+    private void syncSymbolComboToCurrentSymbol() {
+        if (symbolCombo == null || currentSymbol == null || currentSymbol.isBlank()) return;
+        // Already in sync — skip to avoid triggering the value-change listener needlessly
+        if (currentSymbol.equalsIgnoreCase(symbolCombo.getValue())) return;
+
+        if (!symbolCombo.getItems().contains(currentSymbol)) {
+            // Insert the custom symbol at the top of the list so the user can re-select it later
+            symbolCombo.getItems().add(0, currentSymbol);
+        }
+        symbolCombo.setValue(currentSymbol);
     }
 
     /**
@@ -1562,20 +1596,26 @@ public class ChartController implements Initializable {
         };
     }
 
+    /**
+     * T-5: All toolbar buttons use at least 44px height to meet touch-friendly target sizes.
+     */
     private String activeStyle() {
         return "-fx-background-color:#1f6feb;-fx-text-fill:white;"
-                + "-fx-background-radius:6;-fx-padding:4 8;-fx-cursor:hand;";
+                + "-fx-background-radius:6;-fx-padding:4 10;"
+                + "-fx-min-height:44;-fx-cursor:hand;";
     }
 
-    /** Feature 2: style for favorited timeframes — gold tint. */
+    /** Style for favorited timeframes — gold tint; touch-friendly height. */
     private String favoriteStyle() {
         return "-fx-background-color:#b08800;-fx-text-fill:white;"
-                + "-fx-background-radius:6;-fx-padding:4 8;-fx-cursor:hand;";
+                + "-fx-background-radius:6;-fx-padding:4 10;"
+                + "-fx-min-height:44;-fx-cursor:hand;";
     }
 
     private String inactiveStyle() {
         return "-fx-background-color:#21262d;-fx-text-fill:#e6edf3;"
-                + "-fx-background-radius:6;-fx-padding:4 8;-fx-cursor:hand;";
+                + "-fx-background-radius:6;-fx-padding:4 10;"
+                + "-fx-min-height:44;-fx-cursor:hand;";
     }
 
     private String fmtPrice(double p) {
