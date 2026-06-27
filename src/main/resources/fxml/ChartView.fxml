@@ -2,33 +2,24 @@
 
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
-<!-- Fix 5: maxWidth/maxHeight=Infinity ensures this VBox always fills the entire
-     content area regardless of which tab (Live Chart or Analysis) is active, keeping
-     the tab bar (sidebar nav) and toolbar at a fixed, consistent position. -->
-<VBox xmlns:fx="http://javafx.com/fxml"
-      fx:controller="com.mst.matt.tradingplatformapp.controller.ChartController"
-      styleClass="scene-root" spacing="0"
-      maxWidth="Infinity" maxHeight="Infinity">
+<!-- BorderPane keeps the symbol/toolbar row pinned at the top; chart fills center only. -->
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:id="chartRoot"
+            fx:controller="com.mst.matt.tradingplatformapp.controller.ChartController"
+            styleClass="scene-root"
+            maxWidth="Infinity" maxHeight="Infinity"
+            minWidth="0" minHeight="0">
 
-    <!-- ═══════════════ Toolbar ═══════════════ -->
-    <!--
-        Layout fix (Issue 6):
-        – Wrap the entire toolbar in a ScrollPane so it stays accessible at any
-          window width without clipping.
-        – Group logically-related controls into labelled HBox clusters separated
-          by thin vertical Separators.
-        – Reduced ComboBox widths to leave more room for the TF-favorites bar.
-        – Analyze button moved to a visible position (right of Refresh).
-    -->
-    <!-- Fix 4: toolbar is pinned at the top with a fixed height.  maxHeight matches
-         prefHeight so JavaFX never allows the VBox to shrink the toolbar row — it always
-         occupies exactly 46 px regardless of the view mode (CHART or ANALYSIS). -->
-    <ScrollPane fitToHeight="true" hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
-                minHeight="46" prefHeight="46" maxHeight="46"
-                style="-fx-background-color:#1c2128; -fx-background:#1c2128;
-                       -fx-border-color:#30363d; -fx-border-width:0 0 1 0;">
-        <HBox alignment="CENTER_LEFT" spacing="6"
-              style="-fx-background-color:#1c2128; -fx-padding:5 10 5 10;">
+    <top>
+        <VBox spacing="0">
+            <!-- Toolbar: fixed height, horizontal scroll when window is narrow -->
+            <ScrollPane fx:id="chartToolbarScroll"
+                        fitToHeight="true" hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
+                        minHeight="46" prefHeight="46" maxHeight="46"
+                        style="-fx-background-color:#1c2128; -fx-background:#1c2128;
+                               -fx-border-color:#30363d; -fx-border-width:0 0 1 0;">
+                <HBox alignment="CENTER_LEFT" spacing="6"
+                      style="-fx-background-color:#1c2128; -fx-padding:5 10 5 10;">
 
             <!-- ── Symbol group ───────────────────────────────────────────── -->
             <Label text="Symbol" styleClass="label-muted"
@@ -143,47 +134,48 @@
                     style="-fx-min-width:32; -fx-padding:3 8; -fx-font-size:14px;">
                 <tooltip><Tooltip text="Toggle fullscreen (F11)"/></tooltip>
             </Button>
-        </HBox>
-    </ScrollPane>
+                </HBox>
+            </ScrollPane>
 
-    <!-- ═══════════════ Signal bar (analysis mode only) ═══════════════ -->
-    <HBox fx:id="signalBar" alignment="CENTER_LEFT" spacing="12"
-          visible="false" managed="false"
-          style="-fx-background-color:#161b22; -fx-border-color:#30363d;
-                 -fx-border-width:0 0 1 0; -fx-padding:7 16 7 16;">
-        <Label fx:id="signalLabel" text="" style="-fx-font-weight:bold; -fx-font-size:14px;"/>
-        <Label fx:id="confidenceLabel" text="" styleClass="label-subtitle"/>
-        <Separator orientation="VERTICAL"/>
-        <Label text="Best Buy:" styleClass="label-muted"/>
-        <Label fx:id="bestBuyLabel" text="—" style="-fx-text-fill:#3fb950; -fx-font-weight:bold;"/>
-        <Label text="Best Sell:" styleClass="label-muted"/>
-        <Label fx:id="bestSellLabel" text="—" style="-fx-text-fill:#f85149; -fx-font-weight:bold;"/>
-        <Separator orientation="VERTICAL"/>
-        <Label text="Sentiment:" styleClass="label-muted"/>
-        <HBox fx:id="sentimentBox" spacing="6" alignment="CENTER_LEFT">
-            <Label fx:id="bullCircle"    text="0" styleClass="sentiment-circle-buying"/>
-            <Label fx:id="neutralCircle" text="0" styleClass="sentiment-circle-neutral"/>
-            <Label fx:id="bearCircle"    text="0" styleClass="sentiment-circle-selling"/>
-        </HBox>
-        <Label fx:id="bullBearLabel" text="" styleClass="label-subtitle"
-               visible="false" managed="false"/>
-        <Pane HBox.hgrow="ALWAYS"/>
-        <Label fx:id="currentPriceChartLabel" text=""
-               style="-fx-font-size:18px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
-    </HBox>
+            <!-- Signal bar (analysis mode only) -->
+            <HBox fx:id="signalBar" alignment="CENTER_LEFT" spacing="12"
+                  visible="false" managed="false"
+                  style="-fx-background-color:#161b22; -fx-border-color:#30363d;
+                         -fx-border-width:0 0 1 0; -fx-padding:7 16 7 16;">
+                <Label fx:id="signalLabel" text="" style="-fx-font-weight:bold; -fx-font-size:14px;"/>
+                <Label fx:id="confidenceLabel" text="" styleClass="label-subtitle"/>
+                <Separator orientation="VERTICAL"/>
+                <Label text="Best Buy:" styleClass="label-muted"/>
+                <Label fx:id="bestBuyLabel" text="—" style="-fx-text-fill:#3fb950; -fx-font-weight:bold;"/>
+                <Label text="Best Sell:" styleClass="label-muted"/>
+                <Label fx:id="bestSellLabel" text="—" style="-fx-text-fill:#f85149; -fx-font-weight:bold;"/>
+                <Separator orientation="VERTICAL"/>
+                <Label text="Sentiment:" styleClass="label-muted"/>
+                <HBox fx:id="sentimentBox" spacing="6" alignment="CENTER_LEFT">
+                    <Label fx:id="bullCircle"    text="0" styleClass="sentiment-circle-buying"/>
+                    <Label fx:id="neutralCircle" text="0" styleClass="sentiment-circle-neutral"/>
+                    <Label fx:id="bearCircle"    text="0" styleClass="sentiment-circle-selling"/>
+                </HBox>
+                <Label fx:id="bullBearLabel" text="" styleClass="label-subtitle"
+                       visible="false" managed="false"/>
+                <Pane HBox.hgrow="ALWAYS"/>
+                <Label fx:id="currentPriceChartLabel" text=""
+                       style="-fx-font-size:18px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
+            </HBox>
+        </VBox>
+    </top>
 
-    <!-- ═══════════════ Chart canvas + drawing toolbar + notifications ═══════════════ -->
-    <!-- VBox.vgrow=ALWAYS ensures the chart fills all remaining vertical space.
-         maxHeight=Infinity prevents JavaFX from capping the StackPane height.
-         The chartPane Pane's width/height are bound to chartStack in ChartController. -->
-    <StackPane fx:id="chartStack" VBox.vgrow="ALWAYS" maxHeight="Infinity">
-        <Pane fx:id="chartPane" style="-fx-background-color:#0d1117;"
-              maxWidth="Infinity" maxHeight="Infinity"/>
-        <!-- Toast notifications (top-right, max 3) -->
-        <VBox fx:id="notificationOverlay" alignment="TOP_RIGHT"
-              visible="false" managed="false"
-              mouseTransparent="false"
-              StackPane.alignment="TOP_RIGHT"/>
-    </StackPane>
+    <center>
+        <StackPane fx:id="chartStack" minWidth="0" minHeight="0"
+                   maxWidth="Infinity" maxHeight="Infinity">
+            <Pane fx:id="chartPane" style="-fx-background-color:#0d1117;"
+                  maxWidth="Infinity" maxHeight="Infinity"/>
+            <!-- Toast notifications (top-right, max 3) -->
+            <VBox fx:id="notificationOverlay" alignment="TOP_RIGHT"
+                  visible="false" managed="false"
+                  mouseTransparent="false"
+                  StackPane.alignment="TOP_RIGHT"/>
+        </StackPane>
+    </center>
 
-</VBox>
+</BorderPane>

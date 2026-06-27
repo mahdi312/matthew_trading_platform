@@ -30,6 +30,9 @@ import java.util.stream.Collectors;
 @FxmlView("/fxml/DashboardView.fxml")
 public class DashboardController implements Initializable {
 
+    /** GPU texture limit guard — prevents NGCanvas RTTexture allocation failures. */
+    private static final double MAX_CANVAS_DIM = 4096;
+
     public enum ViewMode { DASHBOARD, JOURNAL, PORTFOLIO }
 
     // ── Sections (visibility toggled by view mode) ─────────────
@@ -47,12 +50,14 @@ public class DashboardController implements Initializable {
     @FXML private Label profitFactorLabel, avgWinLossLabel;
 
     // ── Charts ────────────────────────────────────────────────
-    @FXML private Canvas equityCanvas;
-    @FXML private VBox   breakdownContainer;
+    @FXML private StackPane equityCanvasHolder;
+    @FXML private Canvas   equityCanvas;
+    @FXML private VBox     breakdownContainer;
 
     // ── Trades TabPane ────────────────────────────────────────
-    @FXML private TabPane  tradesTabPane;
-    @FXML private Tab      myTradesTab;
+    @FXML private TabPane    tradesTabPane;
+    @FXML private Tab        myTradesTab;
+    @FXML private ScrollPane tradesScrollPane;
 
     // ── Recent Trades Table ───────────────────────────────────
     @FXML private TableView<Trade>       recentTradesTable;
@@ -79,19 +84,41 @@ public class DashboardController implements Initializable {
     public void initialize(URL url, ResourceBundle rb) {
         setupTradeTable();
         applyViewMode();
-        // Canvas auto-resizes: bind width to parent VBox when scene is ready
-        equityCanvas.widthProperty().addListener((o,a,b) ->
-                drawEquityCurve(currentEquityCurve));
-        equityCanvas.heightProperty().addListener((o,a,b) ->
-                drawEquityCurve(currentEquityCurve));
-        // Responsive: bind canvas width to its parent container once added to scene
-        equityCanvas.sceneProperty().addListener((obs, oldScene, newScene) -> {
-            if (newScene != null && equityCanvas.getParent() instanceof Region parent) {
-                equityCanvas.widthProperty().bind(parent.widthProperty());
-            }
-        });
-        // Also bind TableView column fill to parent
+        setupEquityCanvasResize();
+        if (tradesScrollPane != null) {
+            VBox.setVgrow(tradesScrollPane, Priority.ALWAYS);
+        }
         recentTradesTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+    }
+
+    /**
+     * Canvas is not a resizable node — bind its pixel size to a StackPane holder
+     * instead of the outer card VBox to avoid layout feedback loops.
+     */
+    private void setupEquityCanvasResize() {
+        if (equityCanvasHolder == null || equityCanvas == null) return;
+
+        Runnable syncCanvasSize = () -> {
+            double w = clampCanvasDim(equityCanvasHolder.getWidth());
+            double h = clampCanvasDim(equityCanvasHolder.getHeight());
+            if (w <= 0 || h <= 0) return;
+            if (w != equityCanvas.getWidth() || h != equityCanvas.getHeight()) {
+                equityCanvas.setWidth(w);
+                equityCanvas.setHeight(h);
+            }
+            drawEquityCurve(currentEquityCurve);
+        };
+
+        equityCanvasHolder.widthProperty().addListener((o, a, b) -> syncCanvasSize.run());
+        equityCanvasHolder.heightProperty().addListener((o, a, b) -> syncCanvasSize.run());
+        equityCanvasHolder.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null) Platform.runLater(syncCanvasSize);
+        });
+    }
+
+    private static double clampCanvasDim(double value) {
+        if (Double.isNaN(value) || Double.isInfinite(value) || value <= 0) return 0;
+        return Math.min(value, MAX_CANVAS_DIM);
     }
 
     public void loadProfile(UserProfile profile) {
@@ -181,7 +208,7 @@ public class DashboardController implements Initializable {
         GraphicsContext gc = equityCanvas.getGraphicsContext2D();
         double w = equityCanvas.getWidth();
         double h = equityCanvas.getHeight();
-        if (w <= 0 || h <= 0) return;
+        if (w <= 0 || h <= 0 || w > MAX_CANVAS_DIM || h > MAX_CANVAS_DIM) return;
 
         gc.clearRect(0, 0, w, h);
 
@@ -465,11 +492,9 @@ public class DashboardController implements Initializable {
     // ── Trades Table ──────────────────────────────────────────
 
     private void setupTradeTable() {
-        // Allow table to expand to its computed size so all rows are visible
-        recentTradesTable.setPrefHeight(javafx.scene.layout.Region.USE_COMPUTED_SIZE);
+        // ScrollPane constrains height; table scrolls internally instead of expanding the page
         recentTradesTable.setMinHeight(0);
-        // Make the table fill the width of its container
-        VBox.setVgrow(recentTradesTable, javafx.scene.layout.Priority.ALWAYS);
+        recentTradesTable.setMaxHeight(Double.MAX_VALUE);
 
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("MM/dd HH:mm");
 

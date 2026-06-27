@@ -73,6 +73,8 @@ public class ChartController implements Initializable {
     // ── FXML injections ───────────────────────────────────────
     @FXML private TextField            symbolInput;
     @FXML private ComboBox<String>     symbolCombo;
+    @FXML private BorderPane            chartRoot;
+    @FXML private ScrollPane            chartToolbarScroll;
     @FXML private Pane                 chartPane;
     @FXML private StackPane             chartStack;
     @FXML private ComboBox<Integer>    barsCombo;
@@ -148,7 +150,7 @@ public class ChartController implements Initializable {
     private javafx.scene.layout.StackPane fullscreenOverlay = null;
     /** Original parent of chartStack before entering fullscreen */
     private javafx.scene.layout.Pane fullscreenChartStackOriginalParent = null;
-    /** Original index of chartStack in its parent before entering fullscreen */
+    /** Original index of chartStack in its parent before entering fullscreen (-2 = BorderPane center) */
     private int fullscreenChartStackOriginalIndex = -1;
 
     /** Current global drawing settings (persisted via AppSettingsService). */
@@ -180,6 +182,7 @@ public class ChartController implements Initializable {
             if (ps != null && !ps.isBlank()) chart.setPanSensitivity(Double.parseDouble(ps));
         } catch (Exception ignored) {}
         chartPane.getChildren().add(chart);
+        setupChartLayout();
         setupDrawingToolbar();
         setupNotifications();
         setupChartAutoHide();
@@ -247,6 +250,22 @@ public class ChartController implements Initializable {
         applyTimeframeAccess();
         // Select the default timeframe button (even if hidden) so toggle-group state is consistent
         if (tf1h != null) { tf1h.setSelected(true); }
+    }
+
+    /** Pin the symbol toolbar at the top; chart canvas fills only the center region. */
+    private void setupChartLayout() {
+        if (chartRoot != null) {
+            chartRoot.setMinSize(0, 0);
+        }
+        if (chartToolbarScroll != null) {
+            VBox.setVgrow(chartToolbarScroll, Priority.NEVER);
+        }
+        if (chartStack != null) {
+            chartStack.setMinSize(0, 0);
+        }
+        if (chartPane != null) {
+            chartPane.setMinSize(0, 0);
+        }
     }
 
     private void setupDrawingToolbar() {
@@ -569,7 +588,11 @@ public class ChartController implements Initializable {
         VBox.setVgrow(chartStack, Priority.ALWAYS);
 
         // Save original chartStack parent + index so we can precisely restore on exit
-        if (chartStack.getParent() instanceof javafx.scene.layout.Pane origParent) {
+        if (chartStack.getParent() instanceof BorderPane bp) {
+            fullscreenChartStackOriginalParent = bp;
+            fullscreenChartStackOriginalIndex  = -2;
+            bp.setCenter(null);
+        } else if (chartStack.getParent() instanceof javafx.scene.layout.Pane origParent) {
             fullscreenChartStackOriginalParent = origParent;
             fullscreenChartStackOriginalIndex  = origParent.getChildren().indexOf(chartStack);
             origParent.getChildren().remove(chartStack);
@@ -682,6 +705,11 @@ public class ChartController implements Initializable {
     private void restoreChartStackToParent() {
         if (chartStack == null) return;
 
+        if (fullscreenChartStackOriginalParent instanceof BorderPane bp) {
+            bp.setCenter(chartStack);
+            return;
+        }
+
         // ── Primary path: use the saved parent + index (most precise) ──────────
         if (fullscreenChartStackOriginalParent != null) {
             if (!fullscreenChartStackOriginalParent.getChildren().contains(chartStack)) {
@@ -692,24 +720,18 @@ public class ChartController implements Initializable {
                 } else {
                     fullscreenChartStackOriginalParent.getChildren().add(chartStack);
                 }
-                // Restore VBox grow constraint
-                if (fullscreenChartStackOriginalParent instanceof VBox) {
-                    VBox.setVgrow(chartStack, Priority.ALWAYS);
-                }
             }
             return;
         }
 
-        // ── Fallback: walk up from chartPane to find the ChartView VBox ─────────
+        // ── Fallback: walk up from chartPane to find the ChartView BorderPane ───
         Node node = chartPane;
-        while (node != null && !(node instanceof VBox)) {
-            node = node.getParent();
-        }
-        if (node instanceof VBox vbox) {
-            if (!vbox.getChildren().contains(chartStack)) {
-                vbox.getChildren().add(chartStack);
-                VBox.setVgrow(chartStack, Priority.ALWAYS);
+        while (node != null) {
+            if (node instanceof BorderPane bp) {
+                bp.setCenter(chartStack);
+                return;
             }
+            node = node.getParent();
         }
     }
 

@@ -61,13 +61,12 @@
                 <Button text="3M" styleClass="btn-secondary" style="-fx-padding:4 10;" onAction="#onFilter3M"/>
                 <Button text="ALL" styleClass="btn-blue" style="-fx-padding:4 10;" onAction="#onFilterAll"/>
             </HBox>
-            <!-- Canvas is resized programmatically in DashboardController
-                 to fill the available width; prefWidth/prefHeight set initial render size -->
-            <Canvas
-                    fx:id="equityCanvas"
-                    width="0"
-                    height="200"
-                    VBox.vgrow="ALWAYS"/>
+            <!-- StackPane grows with layout; Canvas dimensions are set safely in code -->
+            <StackPane fx:id="equityCanvasHolder"
+                       VBox.vgrow="ALWAYS"
+                       minHeight="120" prefHeight="200" maxHeight="360">
+                <Canvas fx:id="equityCanvas" width="1" height="1"/>
+            </StackPane>
         </VBox>
 
         <VBox styleClass="card" prefWidth="280" spacing="12">
@@ -91,12 +90,12 @@
             <tabs>
                 <Tab fx:id="myTradesTab" text="📋 My Trades">
                     <!-- Wrap table in ScrollPane so it is always scrollable and fits window -->
-                    <ScrollPane fitToWidth="true" fitToHeight="false"
+                    <ScrollPane fx:id="tradesScrollPane"
+                                fitToWidth="true" fitToHeight="true"
                                 hbarPolicy="AS_NEEDED" vbarPolicy="AS_NEEDED"
                                 style="-fx-background-color:#161b22; -fx-background:#161b22;"
-                                VBox.vgrow="ALWAYS">
+                                VBox.vgrow="ALWAYS" minHeight="120">
                         <TableView fx:id="recentTradesTable"
-                                   maxHeight="1.7976931348623157E308"
                                    style="-fx-background-color:#161b22; -fx-border-color:#30363d; -fx-border-width:1;">
                             <placeholder>
                                 <Label text="📋 No trades yet — click '+ New Trade' to get started."

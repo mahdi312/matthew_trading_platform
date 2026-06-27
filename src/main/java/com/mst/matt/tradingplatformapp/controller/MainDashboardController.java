@@ -1004,6 +1004,8 @@ public class MainDashboardController implements Initializable {
         VBox.setVgrow(view, Priority.ALWAYS);
         HBox.setHgrow(view, Priority.ALWAYS);
         if (view instanceof Region r) {
+            r.setMinWidth(0);
+            r.setMinHeight(0);
             r.setMaxWidth(Double.MAX_VALUE);
             r.setMaxHeight(Double.MAX_VALUE);
         }

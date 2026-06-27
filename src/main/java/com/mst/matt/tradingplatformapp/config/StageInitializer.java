@@ -127,6 +127,8 @@ public class StageInitializer implements ApplicationListener<StageReadyEvent> {
         stage.setTitle("📈 Trading Intelligence Platform");
         stage.setMinWidth(minW);
         stage.setMinHeight(minH);
+        if (stage.getWidth() < minW)  stage.setWidth(minW);
+        if (stage.getHeight() < minH) stage.setHeight(minH);
         root.getChildren().setAll(dashView);
     }
 
