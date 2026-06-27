@@ -259,6 +259,12 @@ public class ChartController implements Initializable {
         }
         if (chartToolbarScroll != null) {
             VBox.setVgrow(chartToolbarScroll, Priority.NEVER);
+            // Bind the scroll pane width to the chart root so it always fills
+            // the full available width.  fitToWidth=false in FXML so the inner
+            // HBox stays compact, but the scroll pane itself should be full-width.
+            if (chartRoot != null) {
+                chartToolbarScroll.prefWidthProperty().bind(chartRoot.widthProperty());
+            }
         }
         if (chartStack != null) {
             chartStack.setMinSize(0, 0);
@@ -1437,6 +1443,11 @@ public class ChartController implements Initializable {
     private void rebuildFavoritesBar(List<String> allowed, List<String> favorites) {
         if (favTfBar == null) return;
         favTfBar.getChildren().clear();
+        // Reset to compact/natural width so the bar shrinks when TFs are removed.
+        // Without this, JavaFX keeps the previous width, leaving an empty gap.
+        favTfBar.setPrefWidth(javafx.scene.layout.Region.USE_COMPUTED_SIZE);
+        favTfBar.setMinWidth(javafx.scene.layout.Region.USE_COMPUTED_SIZE);
+        favTfBar.setMaxWidth(javafx.scene.layout.Region.USE_COMPUTED_SIZE);
 
         if (favorites.isEmpty()) {
             // No favorites: show a hint label

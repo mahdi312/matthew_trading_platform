@@ -12,13 +12,20 @@
 
     <top>
         <VBox spacing="0">
-            <!-- Toolbar: fixed height, horizontal scroll when window is narrow -->
+            <!-- Toolbar: fixed height, horizontal scroll when window is narrow.
+                 fitToWidth="false" lets the inner HBox be exactly as wide as its
+                 content — no artificial extra space when TF buttons are removed. -->
             <ScrollPane fx:id="chartToolbarScroll"
-                        fitToHeight="true" hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
+                        fitToWidth="false" fitToHeight="true"
+                        hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
                         minHeight="46" prefHeight="46" maxHeight="46"
                         style="-fx-background-color:#1c2128; -fx-background:#1c2128;
                                -fx-border-color:#30363d; -fx-border-width:0 0 1 0;">
+                <!-- minWidth keeps all controls visible; HBox.hgrow spacer distributes
+                     leftover space only to the right of the indicators button, so no
+                     trailing empty space appears on the left/TF side. -->
                 <HBox alignment="CENTER_LEFT" spacing="6"
+                      minWidth="-Infinity"
                       style="-fx-background-color:#1c2128; -fx-padding:5 10 5 10;">
 
             <!-- ── Symbol group ───────────────────────────────────────────── -->
@@ -60,7 +67,8 @@
             <ToggleButton fx:id="tf3d"  text="3D"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
             <ToggleButton fx:id="tf1w"  text="1W"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
             <ToggleButton fx:id="tf1mo" text="1Mo"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
-            <!-- Visible favorites bar — dynamically built by ChartController -->
+            <!-- Visible favorites bar — dynamically built by ChartController.
+                 No fixed maxWidth so the bar naturally shrinks/grows with its children. -->
             <HBox fx:id="favTfBar" spacing="3" alignment="CENTER_LEFT"/>
             <!-- "All Timeframes" dropdown: add / remove favorites -->
             <Button fx:id="tfDropdownBtn" text="☆" styleClass="btn-secondary"

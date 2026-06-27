@@ -25,6 +25,10 @@ public class AppSettingsService {
     private static final String KEY_DEFAULT_TF       = "chart.default.timeframe";
     private static final String KEY_THEME            = "ui.theme";
     private static final String KEY_FAV_TIMEFRAMES   = "chart.favorite.timeframes";
+    /** Comma-separated list of symbols that are currently disabled in the ticker bar. */
+    private static final String KEY_TICKER_DISABLED  = "ticker.symbols.disabled";
+    /** Polling interval for stocks/forex ticker in seconds (default 15). */
+    private static final String KEY_TICKER_INTERVAL  = "ticker.poll.interval.seconds";
 
     private final Path settingsFile =
             Path.of(System.getProperty("user.home"), ".trading-platform", "app-settings.properties");
@@ -34,6 +38,11 @@ public class AppSettingsService {
     private volatile String  defaultTimeframe  = "1h";
     private volatile String  theme             = "dark";
     private volatile String  favoriteTimeframes = "";
+    /** Symbols whose ticker polling is currently disabled (stored as a Set for fast lookup). */
+    private final java.util.Set<String> tickerDisabledSymbols =
+            java.util.Collections.synchronizedSet(new java.util.LinkedHashSet<>());
+    /** Poll interval in seconds for stock/forex ticker (default 15). */
+    private volatile int tickerPollIntervalSeconds = 15;
 
     /** Arbitrary key→value store for extension settings (e.g. drawingSettings JSON). */
     private final java.util.concurrent.ConcurrentHashMap<String, String> extraSettings
@@ -52,6 +61,21 @@ public class AppSettingsService {
             defaultTimeframe = props.getProperty(KEY_DEFAULT_TF, "1h");
             theme            = props.getProperty(KEY_THEME, "dark");
             favoriteTimeframes = props.getProperty(KEY_FAV_TIMEFRAMES, "");
+            // Load ticker disabled symbols
+            String disabledCsv = props.getProperty(KEY_TICKER_DISABLED, "");
+            tickerDisabledSymbols.clear();
+            if (disabledCsv != null && !disabledCsv.isBlank()) {
+                for (String s : disabledCsv.split("[,;\\s]+")) {
+                    if (!s.isBlank()) tickerDisabledSymbols.add(s.trim().toUpperCase());
+                }
+            }
+            // Load ticker poll interval
+            try {
+                tickerPollIntervalSeconds = Integer.parseInt(
+                        props.getProperty(KEY_TICKER_INTERVAL, "15"));
+            } catch (NumberFormatException ignored) {
+                tickerPollIntervalSeconds = 15;
+            }
             // Load extra / extension settings
             for (String key : props.stringPropertyNames()) {
                 if (!key.equals(KEY_API_FETCH) && !key.equals(KEY_TIMEZONE)
@@ -126,6 +150,49 @@ public class AppSettingsService {
         persist();
     }
 
+    // ── Ticker symbol enable/disable ─────────────────────────
+
+    /** Returns {@code true} if the given symbol should be actively fetched. */
+    public boolean isTickerSymbolEnabled(String symbol) {
+        if (symbol == null) return true;
+        return !tickerDisabledSymbols.contains(symbol.toUpperCase());
+    }
+
+    /** Returns an unmodifiable snapshot of all disabled ticker symbols. */
+    public java.util.Set<String> getTickerDisabledSymbols() {
+        return java.util.Collections.unmodifiableSet(
+                new java.util.LinkedHashSet<>(tickerDisabledSymbols));
+    }
+
+    public synchronized void setTickerSymbolEnabled(String symbol, boolean enabled) {
+        if (symbol == null) return;
+        String s = symbol.toUpperCase();
+        if (enabled) tickerDisabledSymbols.remove(s);
+        else         tickerDisabledSymbols.add(s);
+        persist();
+    }
+
+    /** Replace the entire set of disabled symbols (comma-separated CSV). */
+    public synchronized void setTickerDisabledSymbols(String csv) {
+        tickerDisabledSymbols.clear();
+        if (csv != null) {
+            for (String s : csv.split("[,;\\s]+")) {
+                if (!s.isBlank()) tickerDisabledSymbols.add(s.trim().toUpperCase());
+            }
+        }
+        persist();
+    }
+
+    // ── Ticker poll interval ──────────────────────────────────
+
+    /** Returns the polling interval for stocks/forex ticker in seconds. */
+    public int getTickerPollIntervalSeconds() { return tickerPollIntervalSeconds; }
+
+    public synchronized void setTickerPollIntervalSeconds(int seconds) {
+        this.tickerPollIntervalSeconds = Math.max(5, Math.min(300, seconds));
+        persist();
+    }
+
     // ── Generic extension settings ────────────────────────────
 
     /**
@@ -155,6 +222,10 @@ public class AppSettingsService {
             props.setProperty(KEY_DEFAULT_TF,     defaultTimeframe);
             props.setProperty(KEY_THEME,          theme);
             props.setProperty(KEY_FAV_TIMEFRAMES, favoriteTimeframes);
+            props.setProperty(KEY_TICKER_DISABLED,
+                    String.join(",", tickerDisabledSymbols));
+            props.setProperty(KEY_TICKER_INTERVAL,
+                    String.valueOf(tickerPollIntervalSeconds));
             // Persist extra settings
             extraSettings.forEach(props::setProperty);
             try (OutputStream out = Files.newOutputStream(settingsFile)) {

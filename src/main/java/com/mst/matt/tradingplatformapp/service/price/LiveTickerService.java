@@ -60,10 +60,19 @@ public class LiveTickerService {
             replayCachedQuotes();
             return;
         }
-        binanceService.subscribeToMultiTicker(cryptoWatchlist);
-        binanceService.addLiveListener(quote -> notifyListeners(quote));
-        log.info("Live WebSocket streams started for {} crypto pairs",
-                cryptoWatchlist.size());
+        List<String> enabledCrypto = cryptoWatchlist.stream()
+                .filter(s -> appSettings.isTickerSymbolEnabled(s))
+                .toList();
+        binanceService.subscribeToMultiTicker(enabledCrypto);
+        binanceService.addLiveListener(quote -> {
+            // Only forward ticks for enabled symbols
+            if (quote != null && quote.getSymbol() != null
+                    && appSettings.isTickerSymbolEnabled(quote.getSymbol())) {
+                notifyListeners(quote);
+            }
+        });
+        log.info("Live WebSocket streams started for {} crypto pairs ({} enabled)",
+                cryptoWatchlist.size(), enabledCrypto.size());
     }
 
     private void replayCachedQuotes() {
@@ -72,7 +81,10 @@ public class LiveTickerService {
     }
 
     /**
-     * Polls stock and forex prices every 15 seconds.
+     * Polls stock and forex prices at the user-configured interval (default 15 s).
+     * The rate is fixed at startup (15 s default); the enabled-symbol filter
+     * is re-read dynamically on each tick so changes take effect immediately
+     * without a restart.
      * Crypto is handled by WebSocket above (no polling needed).
      */
     @Scheduled(fixedRateString = "15000")
@@ -81,10 +93,16 @@ public class LiveTickerService {
             replayCachedQuotes();
             return;
         }
+        // Only poll symbols that are enabled in Settings
         List<String> all = new ArrayList<>();
-        all.addAll(stockWatchlist);
-        all.addAll(forexWatchlist);
+        stockWatchlist.stream()
+                .filter(s -> appSettings.isTickerSymbolEnabled(s))
+                .forEach(all::add);
+        forexWatchlist.stream()
+                .filter(s -> appSettings.isTickerSymbolEnabled(s))
+                .forEach(all::add);
 
+        if (all.isEmpty()) return;
         Map<String, PriceQuote> quotes = priceRouter.getMultipleQuotes(all);
         quotes.values().forEach(this::notifyListeners);
     }
@@ -168,4 +186,18 @@ public class LiveTickerService {
     public List<String> getCryptoWatchlist() { return Collections.unmodifiableList(cryptoWatchlist); }
     public List<String> getStockWatchlist()  { return Collections.unmodifiableList(stockWatchlist); }
     public List<String> getForexWatchlist()  { return Collections.unmodifiableList(forexWatchlist); }
+
+    /**
+     * Called after the user changes ticker symbol enabled/disabled status in Settings.
+     * Re-subscribes crypto WebSocket to only the currently-enabled symbols.
+     */
+    public void applyTickerSymbolSettings() {
+        if (!appSettings.isApiFetchEnabled()) return;
+        List<String> enabledCrypto = cryptoWatchlist.stream()
+                .filter(s -> appSettings.isTickerSymbolEnabled(s))
+                .toList();
+        binanceService.subscribeToMultiTicker(enabledCrypto);
+        log.info("Ticker symbol settings applied — {} of {} crypto pairs enabled",
+                enabledCrypto.size(), cryptoWatchlist.size());
+    }
 }
