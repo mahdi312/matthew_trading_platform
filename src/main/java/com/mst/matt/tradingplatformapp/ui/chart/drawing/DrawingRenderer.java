@@ -78,6 +78,7 @@ public final class DrawingRenderer {
         gc.setLineWidth(hovered ? lw + 1.0 : lw);
 
         switch (d.getToolType()) {
+            // ── Line tools ────────────────────────────────────────────────────
             case TREND_LINE        -> drawTwoPointLine(gc, d, ctx, color, false, false, props);
             case RAY               -> drawTwoPointLine(gc, d, ctx, color, false, true, props);
             case EXTENDED_LINE     -> drawTwoPointLine(gc, d, ctx, color, true, true, props);
@@ -87,21 +88,79 @@ public final class DrawingRenderer {
             case RECTANGLE         -> drawRectangle(gc, d, ctx, color, props);
             case FLAT_CHANNEL      -> drawFlatChannel(gc, d, ctx, color, props);
             case PARALLEL_CHANNEL  -> drawParallelChannel(gc, d, ctx, color, props);
-            case TRIANGLE          -> drawTriangle(gc, d, ctx, color, props);
             case ELLIPSE           -> drawEllipse(gc, d, ctx, color, props);
-            case FIB_RETRACEMENT   -> drawFibRetracement(gc, d, ctx, props);
-            case FIB_EXTENSION     -> drawFibExtension(gc, d, ctx, props);
-            case FIB_FAN           -> drawFibFan(gc, d, ctx, props);
-            case FIB_TIME_ZONES    -> drawFibTimeZones(gc, d, ctx, props);
-            case FIB_CHANNEL       -> drawFibChannel(gc, d, ctx, props);
-            case FIB_SPEED_RESISTANCE -> drawFibSpeedResistance(gc, d, ctx, props);
+
+            // ── Chart Patterns ────────────────────────────────────────────────
+            case XABCD_PATTERN        -> drawXabcdPattern(gc, d, ctx, color, props);
+            case CYPHER_PATTERN       -> drawCypherPattern(gc, d, ctx, color, props);
+            case HEAD_AND_SHOULDERS   -> drawHeadAndShoulders(gc, d, ctx, color, props);
+            case ABCD_PATTERN         -> drawAbcdPattern(gc, d, ctx, color, props);
+            case TRIANGLE_PATTERN     -> drawTrianglePattern(gc, d, ctx, color, props);
+            case THREE_DRIVES_PATTERN -> drawThreeDrivesPattern(gc, d, ctx, color, props);
+
+            // ── Elliott Waves ─────────────────────────────────────────────────
+            case ELLIOTT_IMPULSE_WAVE    -> drawElliottWave(gc, d, ctx, color, props,
+                    new String[]{"1","2","3","4","5"});
+            case ELLIOTT_CORRECTION_WAVE -> drawElliottWave(gc, d, ctx, color, props,
+                    new String[]{"A","B","C"});
+            case ELLIOTT_TRIANGLE_WAVE   -> drawElliottWave(gc, d, ctx, color, props,
+                    new String[]{"A","B","C","D","E"});
+            case ELLIOTT_DOUBLE_COMBO    -> drawElliottWave(gc, d, ctx, color, props,
+                    new String[]{"W","X","Y"});
+            case ELLIOTT_TRIPLE_COMBO    -> drawElliottWave(gc, d, ctx, color, props,
+                    new String[]{"W","X","Y","X","Z"});
+
+            // ── Fibonacci ─────────────────────────────────────────────────────
+            case FIB_RETRACEMENT        -> drawFibRetracement(gc, d, ctx, props);
+            case FIB_EXTENSION          -> drawFibExtension(gc, d, ctx, props);
+            case FIB_FAN                -> drawFibFan(gc, d, ctx, props);
+            case FIB_TIME_ZONES         -> drawFibTimeZones(gc, d, ctx, props);
+            case FIB_CHANNEL            -> drawFibChannel(gc, d, ctx, props);
+            case FIB_SPEED_RESISTANCE   -> drawFibSpeedResistance(gc, d, ctx, props);
+            case FIB_TREND_BASED_TIME   -> drawFibTrendBasedTime(gc, d, ctx, props);
+            case FIB_CIRCLES            -> drawFibCircles(gc, d, ctx, color, props);
+            case FIB_SPIRAL             -> drawFibSpiral(gc, d, ctx, color, props);
+            case FIB_ARCS               -> drawFibArcs(gc, d, ctx, color, props);
+            case FIB_WEDGE              -> drawFibWedge(gc, d, ctx, color, props);
+            case PITCHFAN               -> drawPitchfan(gc, d, ctx, color, props);
+
+            // ── Gann ─────────────────────────────────────────────────────────
+            case GANN_BOX          -> drawGannBox(gc, d, ctx, color, props);
+            case GANN_SQUARE_FIXED -> drawGannSquareFixed(gc, d, ctx, color, props);
+            case GANN_SQUARE       -> drawGannSquare(gc, d, ctx, color, props);
+            case GANN_FAN          -> drawGannFan(gc, d, ctx, color, props);
+
+            // ── Forecasting ───────────────────────────────────────────────────
             case LONG_POSITION, SHORT_POSITION -> drawPosition(gc, d, ctx, props, selected);
-            case TEXT_LABEL        -> drawTextLabel(gc, d, ctx, props);
-            case NOTE_ICON         -> drawNoteIcon(gc, d, ctx, props);
-            case CALLOUT           -> drawCallout(gc, d, ctx, props);
-            case RULER             -> drawRuler(gc, d, ctx, color);
-            case ARROW             -> drawArrow(gc, d, ctx, color, props);
-            default                -> drawTwoPointLine(gc, d, ctx, color, false, false, props);
+            case POSITION_FORECAST  -> drawPositionForecast(gc, d, ctx, color, props);
+            case BARS_PATTERN       -> drawBarsPattern(gc, d, ctx, color, props);
+            case GHOST_FEED         -> drawGhostFeed(gc, d, ctx, color, props);
+            case SECTOR             -> drawSector(gc, d, ctx, color, props);
+
+            // ── Volume ───────────────────────────────────────────────────────
+            case ANCHORED_VWAP              -> drawAnchoredVwap(gc, d, ctx, color, props);
+            case FIXED_RANGE_VOLUME_PROFILE -> drawFixedRangeVolumeProfile(gc, d, ctx, color, props);
+            case ANCHORED_VOLUME_PROFILE    -> drawAnchoredVolumeProfile(gc, d, ctx, color, props);
+
+            // ── Measurers ─────────────────────────────────────────────────────
+            case PRICE_RANGE         -> drawPriceRange(gc, d, ctx, color, props);
+            case DATE_RANGE          -> drawDateRange(gc, d, ctx, color, props);
+            case DATE_AND_PRICE_RANGE -> drawDateAndPriceRange(gc, d, ctx, color, props);
+
+            // ── Annotations ───────────────────────────────────────────────────
+            case TEXT_LABEL -> drawTextLabel(gc, d, ctx, props);
+            case NOTE_ICON  -> drawNoteIcon(gc, d, ctx, props);
+            case CALLOUT    -> drawCallout(gc, d, ctx, props);
+            case RULER      -> drawRuler(gc, d, ctx, color);
+            case ARROW      -> drawArrow(gc, d, ctx, color, props);
+
+            // ── Cycles ───────────────────────────────────────────────────────
+            case CYCLIC_LINES -> drawCyclicLines(gc, d, ctx, color, props);
+            case TIME_CYCLES  -> drawTimeCycles(gc, d, ctx, color, props);
+            case SINE_LINE    -> drawSineLine(gc, d, ctx, color, props);
+
+            // ── Legacy / utility ──────────────────────────────────────────────
+            default -> drawTwoPointLine(gc, d, ctx, color, false, false, props);
         }
 
         if (hovered) {
@@ -841,6 +900,803 @@ public final class DrawingRenderer {
         if (Math.abs(p) >= 1000) return String.format("%.2f", p);
         if (Math.abs(p) >= 1)    return String.format("%.4f", p);
         return String.format("%.6f", p);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Chart Patterns
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** XABCD harmonic pattern – draws X-A-B-C-D zigzag with labels. */
+    private static void drawXabcdPattern(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                         Color color, ChartDrawingProperties props) {
+        drawLabelledZigzag(gc, d, ctx, color, props, new String[]{"X","A","B","C","D"});
+    }
+
+    /** Cypher harmonic pattern (X-A-B-C-D structure with specific ratios). */
+    private static void drawCypherPattern(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                          Color color, ChartDrawingProperties props) {
+        drawLabelledZigzag(gc, d, ctx, color, props, new String[]{"X","A","B","C","D"});
+    }
+
+    /** Head and Shoulders pattern – left shoulder, head, right shoulder. */
+    private static void drawHeadAndShoulders(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                              Color color, ChartDrawingProperties props) {
+        String[] labels = {"LS","H","RS"};
+        drawLabelledZigzag(gc, d, ctx, color, props, labels);
+        // Draw neckline between first and last point
+        if (d.getPoints().size() >= 3) {
+            double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
+            double y1 = priceToY(d.getPoints().get(0).getPrice(), ctx);
+            double x3 = timeToX(d.getPoints().get(2).getTime(), ctx);
+            double y3 = priceToY(d.getPoints().get(2).getPrice(), ctx);
+            gc.setStroke(color.deriveColor(0, 1, 1, 0.6));
+            gc.setLineDashes(5, 4);
+            gc.strokeLine(x1, y1, x3, y3);
+            gc.setLineDashes();
+            // Extend neckline to the right
+            if (Math.abs(x3 - x1) > 1e-6) {
+                double slope = (y3 - y1) / (x3 - x1);
+                double xRight = ctx.right;
+                double yRight = y3 + slope * (xRight - x3);
+                gc.setLineDashes(3, 6);
+                gc.strokeLine(x3, y3, xRight, yRight);
+                gc.setLineDashes();
+            }
+        }
+    }
+
+    /** ABCD pattern – three-point harmonic structure. */
+    private static void drawAbcdPattern(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                        Color color, ChartDrawingProperties props) {
+        drawLabelledZigzag(gc, d, ctx, color, props, new String[]{"A","B","C","D"});
+    }
+
+    /** Triangle pattern – ascending, descending, or symmetrical. */
+    private static void drawTrianglePattern(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                            Color color, ChartDrawingProperties props) {
+        int n = Math.min(d.getPoints().size(), 3);
+        if (n < 2) return;
+        // Upper trendline (points 0-2) and lower trendline extended to a convergence
+        double x0 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double y0 = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double x1 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double y1 = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        gc.setStroke(color);
+        gc.setLineWidth(props.getLineWidth());
+        gc.strokeLine(x0, y0, x1, y1);
+        if (n >= 3) {
+            double x2 = timeToX(d.getPoints().get(2).getTime(), ctx);
+            double y2 = priceToY(d.getPoints().get(2).getPrice(), ctx);
+            gc.strokeLine(x1, y1, x2, y2);
+            // Draw fill
+            gc.setFill(Color.color(color.getRed(), color.getGreen(), color.getBlue(),
+                    clamp(props.getFillOpacity())));
+            gc.fillPolygon(new double[]{x0, x1, x2}, new double[]{y0, y1, y2}, 3);
+        }
+        // Labels
+        if (!d.getPoints().isEmpty()) {
+            gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.CENTER);
+            String[] labels = {"A","B","C"};
+            for (int i = 0; i < n; i++) {
+                double x = timeToX(d.getPoints().get(i).getTime(), ctx);
+                double y = priceToY(d.getPoints().get(i).getPrice(), ctx);
+                gc.fillText(labels[i], x, y - 8);
+                gc.fillOval(x - 3, y - 3, 6, 6);
+            }
+        }
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    /** Three Drives pattern – harmonic with 3 equal legs. */
+    private static void drawThreeDrivesPattern(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                               Color color, ChartDrawingProperties props) {
+        drawLabelledZigzag(gc, d, ctx, color, props, new String[]{"1","2","3","4","5"});
+    }
+
+    /**
+     * Generic labelled zigzag used by most chart patterns (XABCD, Elliott, etc.).
+     * Connects all points with lines and draws a label at each anchor.
+     */
+    private static void drawLabelledZigzag(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                           Color color, ChartDrawingProperties props, String[] labels) {
+        int n = d.getPoints().size();
+        if (n < 2) return;
+        gc.setStroke(color);
+        gc.setLineWidth(props.getLineWidth());
+        double[] xs = new double[n], ys = new double[n];
+        for (int i = 0; i < n; i++) {
+            xs[i] = timeToX(d.getPoints().get(i).getTime(), ctx);
+            ys[i] = priceToY(d.getPoints().get(i).getPrice(), ctx);
+        }
+        // Draw fill between consecutive pairs
+        gc.setFill(Color.color(color.getRed(), color.getGreen(), color.getBlue(),
+                clamp(props.getFillOpacity() > 0 ? props.getFillOpacity() : 0.08)));
+        if (n >= 3) gc.fillPolygon(xs, ys, n);
+
+        // Draw zigzag lines
+        for (int i = 0; i < n - 1; i++) {
+            gc.setStroke(color.deriveColor(0, 1, 1, i % 2 == 0 ? 0.9 : 0.65));
+            gc.strokeLine(xs[i], ys[i], xs[i+1], ys[i+1]);
+        }
+        // Draw dots and labels
+        gc.setFill(color);
+        gc.setFont(FONT_MEDIUM);
+        gc.setTextAlign(TextAlignment.CENTER);
+        for (int i = 0; i < n; i++) {
+            gc.fillOval(xs[i] - 4, ys[i] - 4, 8, 8);
+            if (i < labels.length) {
+                gc.setFill(Color.web("#e6edf3"));
+                gc.fillText(labels[i], xs[i], ys[i] - 10);
+                gc.setFill(color);
+            }
+        }
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Elliott Waves
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Generic Elliott wave renderer – draws labelled zigzag with wave labels.
+     */
+    private static void drawElliottWave(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                        Color color, ChartDrawingProperties props, String[] waveLabels) {
+        drawLabelledZigzag(gc, d, ctx, color, props, waveLabels);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Additional Fibonacci Tools
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** Trend-Based Fib Time: vertical Fibonacci-spaced time zones anchored to a trend. */
+    private static void drawFibTrendBasedTime(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                              ChartDrawingProperties props) {
+        if (d.getPoints().size() < 2) return;
+        int startIdx = DrawingCoordinateMapper.timeToBarIndex(ctx.bars, d.getPoints().get(0).getTime());
+        int endIdx   = DrawingCoordinateMapper.timeToBarIndex(ctx.bars, d.getPoints().get(1).getTime());
+        int trendLen = Math.abs(endIdx - startIdx);
+        Color base = safeColor(props.getColor(), "#d29922");
+        double barW = ctx.plotWidth() / Math.max(1, ctx.visibleBars);
+        double[] fibMultipliers = {0.618, 1.0, 1.272, 1.618, 2.0, 2.618, 4.236};
+        for (double mult : fibMultipliers) {
+            int offset = (int) Math.round(trendLen * mult);
+            int idx = endIdx + offset;
+            if (idx < 0 || idx >= ctx.bars.size()) continue;
+            double x = ctx.left + (idx - ctx.startBarIndex + 0.5) * barW;
+            if (x < ctx.left || x > ctx.right) continue;
+            gc.setStroke(base.deriveColor(0, 1, 1, 0.6));
+            gc.setLineWidth(1.0);
+            gc.setLineDashes(3, 5);
+            gc.strokeLine(x, ctx.priceTop, x, ctx.priceBottom);
+            gc.setLineDashes();
+            gc.setFill(base);
+            gc.setFont(FONT_SMALL);
+            gc.setTextAlign(TextAlignment.CENTER);
+            gc.fillText(String.format("%.3f", mult), x, ctx.priceTop + 12);
+        }
+        gc.setTextAlign(TextAlignment.LEFT);
+        gc.setLineWidth(props.getLineWidth());
+    }
+
+    /** Fib Circles: concentric circles centred on point 0, radii at Fibonacci multiples. */
+    private static void drawFibCircles(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                       Color color, ChartDrawingProperties props) {
+        if (d.getPoints().size() < 2) return;
+        double cx = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double cy = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double ex = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double ey = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        double baseR = Math.sqrt((ex - cx) * (ex - cx) + (ey - cy) * (ey - cy));
+        double[] fibR = {0.382, 0.618, 1.0, 1.618, 2.618};
+        gc.setFill(color); gc.fillOval(cx - 3, cy - 3, 6, 6);
+        for (int i = 0; i < fibR.length; i++) {
+            double r = baseR * fibR[i];
+            gc.setStroke(color.deriveColor(0, 1, 1, 0.7 - i * 0.1));
+            gc.setLineWidth(props.getLineWidth());
+            gc.setLineDashes(i % 2 == 0 ? null : new double[]{4, 4});
+            gc.strokeOval(cx - r, cy - r, r * 2, r * 2);
+            gc.setLineDashes();
+            gc.setFill(color.deriveColor(0, 1, 1, 0.8));
+            gc.setFont(FONT_SMALL);
+            gc.setTextAlign(TextAlignment.LEFT);
+            gc.fillText(String.format("%.3f", fibR[i]), cx + r * 0.7, cy - r * 0.7);
+        }
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    /** Fib Spiral: golden spiral drawn using quarter-circle arcs. */
+    private static void drawFibSpiral(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                      Color color, ChartDrawingProperties props) {
+        if (d.getPoints().size() < 2) return;
+        double cx = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double cy = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double ex = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double ey = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        double baseR = Math.sqrt((ex - cx) * (ex - cx) + (ey - cy) * (ey - cy));
+        // Draw approximation using quarter arcs at Fibonacci-scaled radii
+        double[] fibR = {1.0, 1.618, 2.618, 4.236, 6.854};
+        double startAngle = 270;  // degrees
+        gc.setStroke(color);
+        gc.setLineWidth(props.getLineWidth());
+        for (double r : fibR) {
+            double rad = baseR * r;
+            gc.strokeArc(cx - rad, cy - rad, rad * 2, rad * 2, startAngle, 90,
+                    javafx.scene.shape.ArcType.OPEN);
+            startAngle += 90;
+        }
+        gc.setFill(color); gc.fillOval(cx - 3, cy - 3, 6, 6);
+    }
+
+    /** Fib Speed Resistance Arcs: arcs radiating from origin. */
+    private static void drawFibArcs(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                    Color color, ChartDrawingProperties props) {
+        if (d.getPoints().size() < 2) return;
+        double x0 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double y0 = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double x1 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double y1 = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        double baseR = Math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
+        double[] levels = {0.382, 0.5, 0.618, 0.786, 1.0};
+        String[] labels = {"38.2%","50%","61.8%","78.6%","100%"};
+        gc.setFill(color); gc.fillOval(x0 - 3, y0 - 3, 6, 6);
+        for (int i = 0; i < levels.length; i++) {
+            double r = baseR * levels[i];
+            gc.setStroke(color.deriveColor(0, 1, 1, 0.75 - i * 0.1));
+            gc.setLineWidth(props.getLineWidth());
+            gc.strokeArc(x0 - r, y0 - r, r * 2, r * 2, 180, -180,
+                    javafx.scene.shape.ArcType.OPEN);
+            if (y0 - r >= ctx.priceTop - 5 && y0 - r <= ctx.priceBottom + 5) {
+                gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.RIGHT);
+                gc.fillText(labels[i], x0, y0 - r - 2);
+            }
+        }
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    /** Fib Wedge: converging trendlines based on Fibonacci levels. */
+    private static void drawFibWedge(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                     Color color, ChartDrawingProperties props) {
+        if (d.getPoints().size() < 2) return;
+        double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double y1 = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double x2 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double y2 = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        // Draw upper and lower converging lines at Fib ratios
+        double[] ratios = {1.0, 0.618, 0.382};
+        String[] colors = {"#e6edf3","#d29922","#3b82f6"};
+        for (int i = 0; i < ratios.length; i++) {
+            double mid = y1 + (y2 - y1) * ratios[i];
+            Color lc = safeColor(colors[i], "#d29922");
+            gc.setStroke(lc.deriveColor(0, 1, 1, 0.8));
+            gc.setLineWidth(i == 0 ? props.getLineWidth() + 0.5 : props.getLineWidth());
+            if (i > 0) gc.setLineDashes(3, 4);
+            gc.strokeLine(x1, mid, x2, y2);
+            gc.setLineDashes();
+        }
+        gc.setFill(color); gc.fillOval(x1 - 3, y1 - 3, 6, 6); gc.fillOval(x2 - 3, y2 - 3, 6, 6);
+        gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.LEFT);
+        gc.fillText("Fib Wedge", x1 + 4, y1 - 8);
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    /** Pitchfan: Andrew's Pitchfork with Fibonacci fan lines. */
+    private static void drawPitchfan(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                     Color color, ChartDrawingProperties props) {
+        if (d.getPoints().size() < 3) return;
+        double xA = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double yA = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double xB = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double yB = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        double xC = timeToX(d.getPoints().get(2).getTime(), ctx);
+        double yC = priceToY(d.getPoints().get(2).getPrice(), ctx);
+        double midX = (xB + xC) / 2, midY = (yB + yC) / 2;
+        // Median line
+        gc.setStroke(color); gc.setLineWidth(props.getLineWidth() + 0.5);
+        gc.strokeLine(xA, yA, midX, midY);
+        // Extend median to right edge
+        if (Math.abs(midX - xA) > 1e-6) {
+            double slope = (midY - yA) / (midX - xA);
+            gc.strokeLine(midX, midY, ctx.right, midY + slope * (ctx.right - midX));
+        }
+        // Upper and lower handles
+        gc.setStroke(color.deriveColor(0, 1, 1, 0.7)); gc.setLineWidth(props.getLineWidth());
+        gc.strokeLine(xA, yA, xB, yB);
+        gc.strokeLine(xA, yA, xC, yC);
+        // Fib fan lines from pivot A
+        double[] fibRatios = {0.236, 0.382, 0.5, 0.618, 0.786};
+        String[] fanColors = {"#22c55e","#3b82f6","#e6edf3","#d29922","#ef4444"};
+        double dy = yB - yC;
+        for (int i = 0; i < fibRatios.length; i++) {
+            double targetY = midY + dy * fibRatios[i];
+            Color lc = safeColor(fanColors[i], "#d29922");
+            gc.setStroke(lc.deriveColor(0, 1, 1, 0.7)); gc.setLineDashes(3, 4);
+            gc.strokeLine(xA, yA, ctx.right, targetY);
+            gc.setLineDashes();
+            gc.setFill(lc); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.RIGHT);
+            gc.fillText(String.format("%.1f%%", fibRatios[i] * 100), ctx.right - 2, targetY - 2);
+        }
+        gc.setTextAlign(TextAlignment.LEFT);
+        gc.setFill(color);
+        gc.fillOval(xA - 3, yA - 3, 6, 6);
+        gc.fillOval(xB - 3, yB - 3, 6, 6);
+        gc.fillOval(xC - 3, yC - 3, 6, 6);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Gann Tools
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static void drawGannBox(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                    Color color, ChartDrawingProperties props) {
+        if (d.getPoints().size() < 2) return;
+        double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double y1 = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double x2 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double y2 = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        double xL = Math.min(x1, x2), xR = Math.max(x1, x2);
+        double yT = Math.min(y1, y2), yB = Math.max(y1, y2);
+        double w = xR - xL, h = yB - yT;
+        // Box fill
+        gc.setFill(Color.color(color.getRed(), color.getGreen(), color.getBlue(), clamp(props.getFillOpacity())));
+        gc.fillRect(xL, yT, w, h);
+        gc.setStroke(color); gc.setLineWidth(props.getLineWidth());
+        gc.strokeRect(xL, yT, w, h);
+        // Internal Gann angles (1×1, 1×2, 2×1, 1×4, 4×1)
+        double[][] angles = {{1,1},{1,2},{2,1},{1,4},{4,1}};
+        String[] aLabels = {"1×1","1×2","2×1","1×4","4×1"};
+        for (int i = 0; i < angles.length; i++) {
+            double scaleX = angles[i][0], scaleY = angles[i][1];
+            double eX = xL + w * scaleX / Math.max(scaleX, scaleY);
+            double eY = yT + h * scaleY / Math.max(scaleX, scaleY);
+            eX = Math.min(eX, xR); eY = Math.min(eY, yB);
+            gc.setStroke(color.deriveColor(0, 1, 1, 0.6));
+            gc.setLineDashes(i == 0 ? null : new double[]{3, 4});
+            gc.strokeLine(xL, yB, eX, eY);
+            gc.setLineDashes();
+            gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.LEFT);
+            gc.fillText(aLabels[i], eX + 2, eY - 2);
+        }
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    private static void drawGannSquareFixed(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                            Color color, ChartDrawingProperties props) {
+        // Fixed Gann square: same width and height in price-time units
+        drawGannBox(gc, d, ctx, color, props);
+        if (d.getPoints().size() < 2) return;
+        double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double y1 = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double x2 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double y2 = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        double xL = Math.min(x1, x2), yT = Math.min(y1, y2);
+        double side = Math.min(Math.abs(x2 - x1), Math.abs(y2 - y1));
+        gc.setStroke(color.deriveColor(0, 1, 1, 0.9));
+        gc.setLineWidth(props.getLineWidth() + 0.5);
+        gc.setLineDashes(2, 4);
+        gc.strokeRect(xL, yT, side, side);  // overlay the square
+        gc.setLineDashes();
+        gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.CENTER);
+        gc.fillText("Fixed", xL + side / 2, yT + side / 2);
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    private static void drawGannSquare(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                       Color color, ChartDrawingProperties props) {
+        drawGannBox(gc, d, ctx, color, props);
+        if (d.getPoints().size() < 2) return;
+        double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double y1 = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double x2 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double y2 = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.CENTER);
+        gc.fillText("Gann Square", (x1 + x2) / 2, (y1 + y2) / 2);
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    private static void drawGannFan(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                    Color color, ChartDrawingProperties props) {
+        if (d.getPoints().size() < 2) return;
+        double x0 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double y0 = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double x1 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double y1 = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        // Gann fan angles from pivot
+        double dx = x1 - x0, dy = y1 - y0;
+        double[][] gannRatios = {{1,1},{1,2},{2,1},{1,4},{4,1},{1,8},{8,1}};
+        String[] gannLabels = {"1×1","1×2","2×1","1×4","4×1","1×8","8×1"};
+        String[] gannColors = {"#e6edf3","#3b82f6","#3b82f6","#22c55e","#22c55e","#d29922","#d29922"};
+        gc.setFill(color); gc.fillOval(x0 - 4, y0 - 4, 8, 8);
+        for (int i = 0; i < gannRatios.length; i++) {
+            double sX = gannRatios[i][0], sY = gannRatios[i][1];
+            double dirX = dx * sX / Math.max(sX, sY);
+            double dirY = dy * sY / Math.max(sX, sY);
+            // Extend to right edge
+            if (Math.abs(dirX) > 1e-6) {
+                double t = (ctx.right - x0) / dirX;
+                double extY = y0 + t * dirY;
+                Color lc = safeColor(gannColors[i], "#d29922");
+                gc.setStroke(lc.deriveColor(0, 1, 1, 0.8));
+                gc.setLineWidth(i == 0 ? props.getLineWidth() + 0.5 : props.getLineWidth());
+                gc.strokeLine(x0, y0, ctx.right, extY);
+                if (extY >= ctx.priceTop - 5 && extY <= ctx.priceBottom + 5) {
+                    gc.setFill(lc); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.RIGHT);
+                    gc.fillText(gannLabels[i], ctx.right - 2, extY - 2);
+                }
+            }
+        }
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Forecasting Tools
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static void drawPositionForecast(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                             Color color, ChartDrawingProperties props) {
+        if (d.getPoints().size() < 2) return;
+        double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double y1 = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double x2 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double y2 = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        gc.setStroke(color); gc.setLineWidth(props.getLineWidth());
+        gc.setLineDashes(6, 4);
+        gc.strokeLine(x1, y1, x2, y2);
+        gc.setLineDashes();
+        gc.setFill(Color.color(color.getRed(), color.getGreen(), color.getBlue(),
+                clamp(props.getFillOpacity() > 0 ? props.getFillOpacity() : 0.15)));
+        gc.fillRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+        gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.CENTER);
+        double pctChange = d.getPoints().get(0).getPrice() != 0
+                ? (d.getPoints().get(1).getPrice() - d.getPoints().get(0).getPrice())
+                / d.getPoints().get(0).getPrice() * 100.0
+                : 0;
+        gc.fillText(String.format("Forecast  %+.2f%%", pctChange), (x1 + x2) / 2, Math.min(y1, y2) - 5);
+        gc.setTextAlign(TextAlignment.LEFT);
+        gc.setFill(color); gc.fillOval(x1 - 3, y1 - 3, 6, 6); gc.fillOval(x2 - 3, y2 - 3, 6, 6);
+    }
+
+    private static void drawBarsPattern(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                        Color color, ChartDrawingProperties props) {
+        if (d.getPoints().size() < 2) return;
+        double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double y1 = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double x2 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double y2 = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        // Draw a rectangle representing bar pattern area
+        double xL = Math.min(x1, x2), xR = Math.max(x1, x2);
+        double yT = Math.min(y1, y2), yB = Math.max(y1, y2);
+        gc.setFill(Color.color(color.getRed(), color.getGreen(), color.getBlue(),
+                clamp(props.getFillOpacity() > 0 ? props.getFillOpacity() : 0.12)));
+        gc.fillRect(xL, yT, xR - xL, yB - yT);
+        gc.setStroke(color); gc.setLineWidth(props.getLineWidth());
+        gc.setLineDashes(4, 4);
+        gc.strokeRect(xL, yT, xR - xL, yB - yT);
+        gc.setLineDashes();
+        gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.CENTER);
+        gc.fillText("Bars Pattern", (xL + xR) / 2, yT - 5);
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    private static void drawGhostFeed(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                      Color color, ChartDrawingProperties props) {
+        if (d.getPoints().size() < 2) return;
+        double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double y1 = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double x2 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double y2 = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        // Draw ghost (projected) price bars as dashed rectangles
+        int numBars = 8;
+        double barW = Math.max(4, (x2 - x1) / numBars);
+        double priceStep = (d.getPoints().get(1).getPrice() - d.getPoints().get(0).getPrice()) / numBars;
+        gc.setStroke(color.deriveColor(0, 1, 1, 0.5));
+        gc.setLineWidth(1.0);
+        gc.setLineDashes(3, 3);
+        for (int i = 0; i < numBars; i++) {
+            double bx = x1 + i * barW;
+            double bTop = y1 + i * (y2 - y1) / numBars - Math.abs(priceStep) * 0.4;
+            double bBot = bTop + Math.abs(priceStep) * 0.8;
+            gc.strokeRect(bx + 1, bTop, barW - 2, bBot - bTop);
+        }
+        gc.setLineDashes();
+        gc.setStroke(color.deriveColor(0, 1, 1, 0.7));
+        gc.strokeLine(x1, y1, x2, y2);
+        gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.LEFT);
+        gc.fillText("Ghost Feed", x1 + 4, y1 - 8);
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    private static void drawSector(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                   Color color, ChartDrawingProperties props) {
+        if (d.getPoints().size() < 3) return;
+        double x0 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double y0 = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double x1 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double y1 = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        double x2 = timeToX(d.getPoints().get(2).getTime(), ctx);
+        double y2 = priceToY(d.getPoints().get(2).getPrice(), ctx);
+        // Draw sector as a pie-segment approximation
+        gc.setFill(Color.color(color.getRed(), color.getGreen(), color.getBlue(),
+                clamp(props.getFillOpacity() > 0 ? props.getFillOpacity() : 0.15)));
+        gc.fillPolygon(new double[]{x0, x1, x2}, new double[]{y0, y1, y2}, 3);
+        gc.setStroke(color); gc.setLineWidth(props.getLineWidth());
+        gc.strokePolygon(new double[]{x0, x1, x2}, new double[]{y0, y1, y2}, 3);
+        gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.CENTER);
+        gc.fillText("Sector", (x0 + x1 + x2) / 3, (y0 + y1 + y2) / 3);
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Volume Tools
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static void drawAnchoredVwap(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                         Color color, ChartDrawingProperties props) {
+        if (d.getPoints().isEmpty() || ctx.bars == null || ctx.bars.isEmpty()) return;
+        int anchorIdx = DrawingCoordinateMapper.timeToBarIndex(ctx.bars, d.getPoints().getFirst().getTime());
+        double barW = ctx.plotWidth() / Math.max(1, ctx.visibleBars);
+        // Compute running VWAP from anchor bar
+        double cumPV = 0, cumV = 0;
+        List<OhlcvBar> bars = ctx.bars;
+        gc.setStroke(color); gc.setLineWidth(props.getLineWidth());
+        gc.beginPath();
+        boolean started = false;
+        for (int i = anchorIdx; i < bars.size(); i++) {
+            OhlcvBar bar = bars.get(i);
+            double typical = (bar.getHigh().doubleValue() + bar.getLow().doubleValue()
+                    + bar.getClose().doubleValue()) / 3.0;
+            double vol = bar.getVolume().doubleValue();
+            cumPV += typical * vol;
+            cumV  += vol;
+            if (cumV == 0) continue;
+            double vwap = cumPV / cumV;
+            int slot = i - ctx.startBarIndex;
+            double x = ctx.left + (slot + 0.5) * barW;
+            double y = DrawingRenderer.priceToY(vwap, ctx);
+            if (x < ctx.left || x > ctx.right) { started = false; continue; }
+            if (!started) { gc.moveTo(x, y); started = true; }
+            else gc.lineTo(x, y);
+        }
+        gc.stroke();
+        // Draw anchor point
+        double anchorX = ctx.left + (anchorIdx - ctx.startBarIndex + 0.5) * barW;
+        gc.setFill(color); gc.fillOval(anchorX - 4, ctx.priceTop + 4, 8, 8);
+        gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.LEFT);
+        gc.fillText("VWAP", anchorX + 6, ctx.priceTop + 16);
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    private static void drawFixedRangeVolumeProfile(GraphicsContext gc, ChartDrawing d,
+                                                     RenderContext ctx, Color color,
+                                                     ChartDrawingProperties props) {
+        if (d.getPoints().size() < 2 || ctx.bars == null) return;
+        int startIdx = DrawingCoordinateMapper.timeToBarIndex(ctx.bars, d.getPoints().get(0).getTime());
+        int endIdx   = DrawingCoordinateMapper.timeToBarIndex(ctx.bars, d.getPoints().get(1).getTime());
+        if (startIdx > endIdx) { int t = startIdx; startIdx = endIdx; endIdx = t; }
+        double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double x2 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double xL = Math.min(x1, x2), xR = Math.max(x1, x2);
+        // Outline box
+        gc.setStroke(color.deriveColor(0, 1, 1, 0.5));
+        gc.setLineWidth(1.0); gc.setLineDashes(4, 4);
+        gc.strokeRect(xL, ctx.priceTop, xR - xL, ctx.priceBottom - ctx.priceTop);
+        gc.setLineDashes();
+        // Build volume profile (10 price buckets)
+        int numBuckets = 10;
+        double minP = Double.MAX_VALUE, maxP = -Double.MAX_VALUE;
+        for (int i = startIdx; i <= endIdx && i < ctx.bars.size(); i++) {
+            OhlcvBar b = ctx.bars.get(i);
+            minP = Math.min(minP, b.getLow().doubleValue());
+            maxP = Math.max(maxP, b.getHigh().doubleValue());
+        }
+        if (minP >= maxP) return;
+        double[] bucketVol = new double[numBuckets];
+        for (int i = startIdx; i <= endIdx && i < ctx.bars.size(); i++) {
+            OhlcvBar b = ctx.bars.get(i);
+            double typical = (b.getHigh().doubleValue() + b.getLow().doubleValue()
+                    + b.getClose().doubleValue()) / 3.0;
+            int bucket = (int) Math.min(numBuckets - 1,
+                    (typical - minP) / (maxP - minP) * numBuckets);
+            bucketVol[bucket] += b.getVolume().doubleValue();
+        }
+        double maxVol = 0;
+        for (double v : bucketVol) maxVol = Math.max(maxVol, v);
+        if (maxVol == 0) return;
+        double barHeight = (ctx.priceBottom - ctx.priceTop) / numBuckets;
+        double maxBarWidth = (xR - xL) * 0.5;
+        for (int i = 0; i < numBuckets; i++) {
+            double bWidth = bucketVol[i] / maxVol * maxBarWidth;
+            double bY = ctx.priceBottom - (i + 1) * barHeight;
+            gc.setFill(color.deriveColor(0, 1, 1, 0.4));
+            gc.fillRect(xL, bY, bWidth, barHeight - 1);
+        }
+        gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.LEFT);
+        gc.fillText("Vol Profile", xL + 2, ctx.priceTop + 12);
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    private static void drawAnchoredVolumeProfile(GraphicsContext gc, ChartDrawing d,
+                                                   RenderContext ctx, Color color,
+                                                   ChartDrawingProperties props) {
+        // Similar to fixed-range but extends from anchor to current visible end
+        if (d.getPoints().size() < 2 || ctx.bars == null) return;
+        ChartDrawing synth = new ChartDrawing();
+        synth.setPoints(List.of(d.getPoints().get(0), d.getPoints().get(1)));
+        synth.setToolType(ChartDrawingToolType.FIXED_RANGE_VOLUME_PROFILE);
+        synth.setProperties(d.getProperties());
+        drawFixedRangeVolumeProfile(gc, synth, ctx, color, props);
+        gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.LEFT);
+        gc.fillText("⊕ AVWAP", timeToX(d.getPoints().get(0).getTime(), ctx) + 2, ctx.priceTop + 24);
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Measurers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static void drawPriceRange(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                       Color color, ChartDrawingProperties props) {
+        if (d.getPoints().size() < 2) return;
+        double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double y1 = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double x2 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double y2 = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        double midX = (x1 + x2) / 2;
+        gc.setStroke(color); gc.setLineWidth(props.getLineWidth());
+        // Horizontal lines at each price
+        gc.strokeLine(x1, y1, x2, y1);
+        gc.strokeLine(x1, y2, x2, y2);
+        // Vertical arrow
+        gc.setLineDashes(3, 3);
+        gc.strokeLine(midX, y1, midX, y2);
+        gc.setLineDashes();
+        // Arrowheads
+        double arrowSize = 6;
+        gc.strokeLine(midX, y1, midX - arrowSize / 2, y1 + arrowSize);
+        gc.strokeLine(midX, y1, midX + arrowSize / 2, y1 + arrowSize);
+        gc.strokeLine(midX, y2, midX - arrowSize / 2, y2 - arrowSize);
+        gc.strokeLine(midX, y2, midX + arrowSize / 2, y2 - arrowSize);
+        // Label
+        double priceDiff = d.getPoints().get(1).getPrice() - d.getPoints().get(0).getPrice();
+        double pct = d.getPoints().get(0).getPrice() != 0
+                ? priceDiff / d.getPoints().get(0).getPrice() * 100.0 : 0;
+        gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.CENTER);
+        gc.fillText(String.format("%s  %+.2f%%", formatPrice(Math.abs(priceDiff)), pct),
+                midX, (y1 + y2) / 2 - 4);
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    private static void drawDateRange(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                      Color color, ChartDrawingProperties props) {
+        if (d.getPoints().size() < 2) return;
+        double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double x2 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double midY = (ctx.priceTop + ctx.priceBottom) / 2;
+        gc.setStroke(color); gc.setLineWidth(props.getLineWidth());
+        // Vertical lines at each time
+        gc.setLineDashes(4, 4);
+        gc.strokeLine(x1, ctx.priceTop, x1, ctx.priceBottom);
+        gc.strokeLine(x2, ctx.priceTop, x2, ctx.priceBottom);
+        gc.setLineDashes();
+        // Horizontal arrow
+        gc.strokeLine(x1, midY, x2, midY);
+        double arrowSize = 6;
+        gc.strokeLine(x1, midY, x1 + arrowSize, midY - arrowSize / 2);
+        gc.strokeLine(x1, midY, x1 + arrowSize, midY + arrowSize / 2);
+        gc.strokeLine(x2, midY, x2 - arrowSize, midY - arrowSize / 2);
+        gc.strokeLine(x2, midY, x2 - arrowSize, midY + arrowSize / 2);
+        // Bar count label
+        int bars = Math.abs(DrawingCoordinateMapper.timeToBarIndex(ctx.bars, d.getPoints().get(1).getTime())
+                - DrawingCoordinateMapper.timeToBarIndex(ctx.bars, d.getPoints().get(0).getTime()));
+        gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.CENTER);
+        gc.fillText(bars + " bars", (x1 + x2) / 2, midY - 5);
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    private static void drawDateAndPriceRange(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                              Color color, ChartDrawingProperties props) {
+        if (d.getPoints().size() < 2) return;
+        drawPriceRange(gc, d, ctx, color, props);
+        drawDateRange(gc, d, ctx, color.deriveColor(0, 1, 1, 0.7), props);
+        // Box outline
+        double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double y1 = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double x2 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double y2 = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        double xL = Math.min(x1, x2), yT = Math.min(y1, y2);
+        gc.setFill(Color.color(color.getRed(), color.getGreen(), color.getBlue(), 0.07));
+        gc.fillRect(xL, yT, Math.abs(x2 - x1), Math.abs(y2 - y1));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Cycles
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static void drawCyclicLines(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                        Color color, ChartDrawingProperties props) {
+        if (d.getPoints().size() < 2) return;
+        int startIdx = DrawingCoordinateMapper.timeToBarIndex(ctx.bars, d.getPoints().get(0).getTime());
+        int endIdx   = DrawingCoordinateMapper.timeToBarIndex(ctx.bars, d.getPoints().get(1).getTime());
+        int period   = Math.abs(endIdx - startIdx);
+        if (period == 0) return;
+        double barW = ctx.plotWidth() / Math.max(1, ctx.visibleBars);
+        gc.setStroke(color.deriveColor(0, 1, 1, 0.7));
+        gc.setLineWidth(props.getLineWidth());
+        gc.setLineDashes(4, 4);
+        for (int i = startIdx; i < ctx.bars.size(); i += period) {
+            double x = ctx.left + (i - ctx.startBarIndex + 0.5) * barW;
+            if (x < ctx.left || x > ctx.right) continue;
+            gc.strokeLine(x, ctx.priceTop, x, ctx.priceBottom);
+        }
+        gc.setLineDashes();
+        // Draw anchor point
+        double ancX = ctx.left + (startIdx - ctx.startBarIndex + 0.5) * barW;
+        gc.setFill(color); gc.fillOval(ancX - 3, ctx.priceBottom - 8, 6, 6);
+        gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.LEFT);
+        gc.fillText(period + " bars", ancX + 4, ctx.priceBottom - 2);
+        gc.setTextAlign(TextAlignment.LEFT);
+        gc.setLineWidth(props.getLineWidth());
+    }
+
+    private static void drawTimeCycles(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                       Color color, ChartDrawingProperties props) {
+        if (d.getPoints().size() < 2) return;
+        int p1 = DrawingCoordinateMapper.timeToBarIndex(ctx.bars, d.getPoints().get(0).getTime());
+        int p2 = DrawingCoordinateMapper.timeToBarIndex(ctx.bars, d.getPoints().get(1).getTime());
+        int basePeriod = Math.abs(p2 - p1);
+        if (basePeriod == 0) return;
+        double barW = ctx.plotWidth() / Math.max(1, ctx.visibleBars);
+        int anchor  = Math.min(p1, p2);
+        // Project several cycle repetitions forward
+        int[] multiples = {1, 2, 3, 4, 5, 6, 8};
+        gc.setFont(FONT_SMALL);
+        for (int mult : multiples) {
+            int idx = anchor + basePeriod * mult;
+            if (idx >= ctx.bars.size()) break;
+            double x = ctx.left + (idx - ctx.startBarIndex + 0.5) * barW;
+            if (x < ctx.left || x > ctx.right) continue;
+            double alpha = Math.max(0.2, 0.8 - mult * 0.1);
+            gc.setStroke(color.deriveColor(0, 1, 1, alpha));
+            gc.setLineWidth(mult == 1 ? props.getLineWidth() + 0.5 : props.getLineWidth());
+            gc.setLineDashes(mult % 2 == 0 ? new double[]{3, 5} : null);
+            gc.strokeLine(x, ctx.priceTop, x, ctx.priceBottom);
+            gc.setLineDashes();
+            gc.setFill(color.deriveColor(0, 1, 1, alpha));
+            gc.setTextAlign(TextAlignment.CENTER);
+            gc.fillText(mult + "×", x, ctx.priceTop + 12);
+        }
+        gc.setTextAlign(TextAlignment.LEFT);
+        gc.setLineWidth(props.getLineWidth());
+    }
+
+    private static void drawSineLine(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                     Color color, ChartDrawingProperties props) {
+        if (d.getPoints().size() < 2) return;
+        double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double y1 = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double x2 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double y2 = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        double amplitude = Math.abs(y2 - y1) / 2.0;
+        double centreY   = (y1 + y2) / 2.0;
+        double width     = x2 - x1;
+        if (Math.abs(width) < 1e-6) return;
+        gc.setStroke(color); gc.setLineWidth(props.getLineWidth());
+        gc.beginPath();
+        int steps = 200;
+        boolean started = false;
+        for (int i = 0; i <= steps; i++) {
+            double t = (double) i / steps;
+            double x = x1 + t * (width * 3);  // project 3 full cycles to the right
+            double y = centreY - amplitude * Math.sin(2 * Math.PI * t);
+            if (x < ctx.left || x > ctx.right) { started = false; continue; }
+            if (!started) { gc.moveTo(x, y); started = true; }
+            else gc.lineTo(x, y);
+        }
+        gc.stroke();
+        gc.setFill(color); gc.fillOval(x1 - 3, y1 - 3, 6, 6); gc.fillOval(x2 - 3, y2 - 3, 6, 6);
+        gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.LEFT);
+        gc.fillText("Sine", x1 + 4, centreY - amplitude - 4);
+        gc.setTextAlign(TextAlignment.LEFT);
     }
 
     /**

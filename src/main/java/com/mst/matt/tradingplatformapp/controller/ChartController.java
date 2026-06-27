@@ -677,8 +677,7 @@ public class ChartController implements Initializable {
                         }
                     }
                 }
-                // CandlestickChartCanvas extends Canvas (not Region), so requestLayout()
-                // does not exist — render() redraws the canvas immediately instead.
+                chart.requestLayout();
                 chart.render();
             });
         }
@@ -993,9 +992,14 @@ public class ChartController implements Initializable {
                     ? drawingSettings.getDefaultAnnotationColor() : "#e6edf3";
         } else if (type == ChartDrawingToolType.RECTANGLE
                 || type == ChartDrawingToolType.ELLIPSE
-                || type == ChartDrawingToolType.TRIANGLE
+                || type == ChartDrawingToolType.TRIANGLE_PATTERN
                 || type == ChartDrawingToolType.FLAT_CHANNEL
-                || type == ChartDrawingToolType.PARALLEL_CHANNEL) {
+                || type == ChartDrawingToolType.PARALLEL_CHANNEL
+                || type == ChartDrawingToolType.XABCD_PATTERN
+                || type == ChartDrawingToolType.CYPHER_PATTERN
+                || type == ChartDrawingToolType.HEAD_AND_SHOULDERS
+                || type == ChartDrawingToolType.ABCD_PATTERN
+                || type == ChartDrawingToolType.THREE_DRIVES_PATTERN) {
             defaultColor = drawingSettings.getDefaultShapeColor() != null
                     ? drawingSettings.getDefaultShapeColor() : "#58a6ff";
         } else {
