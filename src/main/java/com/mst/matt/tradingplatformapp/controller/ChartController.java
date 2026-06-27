@@ -7,9 +7,6 @@ import com.mst.matt.tradingplatformapp.repository.SymbolEntryRepository;
 import com.mst.matt.tradingplatformapp.repository.UserProfileRepository;
 import com.mst.matt.tradingplatformapp.service.ChartDrawingService;
 import com.mst.matt.tradingplatformapp.service.OhlcvStorageService;
-import com.mst.matt.tradingplatformapp.ui.chart.DrawingPropertiesDialog;
-import com.mst.matt.tradingplatformapp.ui.chart.GlobalDrawingSettingsDialog;
-import com.mst.matt.tradingplatformapp.ui.chart.LayoutManagerDialog;
 import com.mst.matt.tradingplatformapp.service.ProfilePersistenceService;
 import com.mst.matt.tradingplatformapp.service.analysis.AnalysisService;
 import com.mst.matt.tradingplatformapp.service.analysis.AnalysisService.AnalysisResult;
@@ -17,17 +14,14 @@ import com.mst.matt.tradingplatformapp.service.analysis.IndicatorComputeService;
 import com.mst.matt.tradingplatformapp.service.analysis.SignalScoringService.Recommendation;
 import com.mst.matt.tradingplatformapp.service.analysis.SignalScoringService.SignalResult;
 import com.mst.matt.tradingplatformapp.service.auth.AuthService;
+import com.mst.matt.tradingplatformapp.service.marketdata.ChartLiveSessionService;
 import com.mst.matt.tradingplatformapp.service.price.AssetClassDetector;
 import com.mst.matt.tradingplatformapp.service.price.AssetClassDetector.AssetClass;
 import com.mst.matt.tradingplatformapp.service.price.MarketDataProvider;
 import com.mst.matt.tradingplatformapp.service.price.PriceProviderRegistry;
 import com.mst.matt.tradingplatformapp.service.price.PriceRouter;
 import com.mst.matt.tradingplatformapp.ui.IndicatorPickerDialog;
-import com.mst.matt.tradingplatformapp.service.marketdata.ChartLiveSessionService;
-import com.mst.matt.tradingplatformapp.ui.chart.ChartToastManager;
-import com.mst.matt.tradingplatformapp.ui.chart.CandlestickChartCanvas;
-import com.mst.matt.tradingplatformapp.ui.chart.DrawingToolbar;
-import com.mst.matt.tradingplatformapp.ui.chart.DrawingToolbarPane;
+import com.mst.matt.tradingplatformapp.ui.chart.*;
 import javafx.animation.KeyFrame;
 import javafx.animation.PauseTransition;
 import javafx.animation.Timeline;
@@ -39,11 +33,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Pane;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.StackPane;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
 import javafx.util.Duration;
 import net.rgielen.fxweaver.core.FxmlView;
 import org.slf4j.Logger;
@@ -56,9 +46,11 @@ import org.ta4j.core.BarSeries;
 
 import java.math.BigDecimal;
 import java.net.URL;
-import java.sql.SQLException;
 import java.time.ZoneId;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.ResourceBundle;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -553,7 +545,7 @@ public class ChartController implements Initializable {
 
         // fullscreenOriginalParent was already set above BEFORE this block.
         // Use the already-stored scene reference.
-        javafx.scene.Scene scene = stage.getScene();
+//        scene = stage.getScene();
 
         // Build a fullscreen overlay StackPane (outer container for key events / focus)
         fullscreenOverlay = new javafx.scene.layout.StackPane();
@@ -677,7 +669,7 @@ public class ChartController implements Initializable {
                         }
                     }
                 }
-                chart.requestLayout();
+//                chart.requestLayout();
                 chart.render();
             });
         }

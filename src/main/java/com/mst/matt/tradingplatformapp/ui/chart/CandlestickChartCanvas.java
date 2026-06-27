@@ -12,13 +12,9 @@ import com.mst.matt.tradingplatformapp.ui.chart.drawing.DrawingRenderer;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
-import javafx.scene.input.TouchEvent;
 import javafx.scene.input.TouchPoint;
-import javafx.scene.input.ZoomEvent;
-import javafx.scene.input.SwipeEvent;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.TextAlignment;
@@ -26,8 +22,9 @@ import javafx.stage.Window;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * Professional candlestick chart rendered on a JavaFX Canvas.
@@ -204,8 +201,12 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         setupTouchHandlers();
         setupKeyHandlers();
         setupTouchHandlers2();
-        widthProperty().addListener((o, a, b) -> render());
-        heightProperty().addListener((o, a, b) -> render());
+        widthProperty().addListener((o, a, b) -> {
+            if (b.doubleValue() > 0 && getHeight() > 0) render();
+        });
+        heightProperty().addListener((o, a, b) -> {
+            if (b.doubleValue() > 0 && getWidth() > 0) render();
+        });
     }
 
     // ── Public API ────────────────────────────────────────────
@@ -312,7 +313,7 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
      */
     public javafx.scene.image.WritableImage captureScreenshot() {
         double w = getWidth(), h = getHeight();
-        if (w <= 0 || h <= 0) return null;
+        if (w < 1 || h < 1) return null;
         javafx.scene.image.WritableImage img = new javafx.scene.image.WritableImage((int) w, (int) h);
         return snapshot(new javafx.scene.SnapshotParameters(), img);
     }
@@ -334,11 +335,14 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
     // ── Main Render ───────────────────────────────────────────
 
     public void render() {
-        GraphicsContext gc = getGraphicsContext2D();
         double w = getWidth();
         double h = getHeight();
 
-        if (w <= 0 || h <= 0 || bars == null || bars.isEmpty()) {
+        if (w <= 0 || h <= 0) return;
+
+        GraphicsContext gc = getGraphicsContext2D();
+
+        if (bars == null || bars.isEmpty()) {
             drawEmpty(gc, w, h);
             return;
         }

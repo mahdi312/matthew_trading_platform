@@ -1796,4 +1796,455 @@ fixed, and no mouse‑driven panning occurs.
 
 ---
 
-*End of issues*
+## 1. Fullscreen Mode – Padding After Timeframe Bar
+
+**Issue:** In fullscreen mode, the chart canvas didn't starts after the timeframe bar.
+
+**Fix:** Add a **padding (8–12px)** between the bottom of the timeframe toolbar and the top of the chart canvas. This
+creates a visual gap and makes the UI feel less cramped.
+
+---
+
+## 2. Empty Space Beyond First/Last Candle
+
+**Issue:** The chart viewport is limited to the range of candles – users cannot pan beyond the first or last candle to
+add notes, shapes, or annotations in empty space.
+
+**Fix:**
+
+- Extend the **visible range** of the chart to allow panning **beyond** the data bounds.
+- Add a **padding margin** of **20–30%** of the total data range on both sides.
+- Example: If the data spans 200 candles, allow panning up to 50 candles **left** of the first candle and 50 candles *
+  *right** of the last candle.
+- This empty space can be used for:
+    - Text labels and notes.
+    - Trend lines and projections.
+    - Position shapes (entry/SL/TP) placed outside the visible data.
+
+---
+
+## 3. Volume Sub‑Pane Hidden
+
+**Issue:** The volume pane is almost entirely hidden (cut off at the bottom of the chart).
+
+**Fix:**
+
+- Ensure the volume sub‑pane has a **fixed minimum height** of 60–80px.
+- The main chart and volume pane should be in a **split layout** (e.g., `SplitPane` with a divider).
+- The volume pane should be **visible by default** and resizable by the user.
+
+---
+
+## 4. Analysis Tab – Toolbar Hidden
+
+**Issue:** In the Analysis tab, the symbol bar (containing TF, bars, indicators) is hidden above the window.
+
+**Fix:**
+
+- Ensure the entire toolbar is **visible** in the Analysis tab (same as Live Chart tab).
+- The toolbar should be fixed at the top of the chart area, not overlapping with the window header.
+- Check that the `ChartView.fxml` layout includes the full toolbar stack.
+
+--
+
+## 5. Tab Bar Position Not Fixed
+
+**Issue:** The tab bar (Dashboard, Live Chart, Analysis, Portfolio, etc.) moves up/down depending on which tab is
+selected (e.g., Live Chart pushes it up, Analysis pushes it higher).
+
+**Fix:**
+
+- The tab bar must have a **fixed position**.
+- Ensure all views respect the same layout structure with fixed heights.
+
+---
+
+## 6. Analysis Tab Logo
+
+**Issue:** The Analysis tab logo/icon needs to be updated.
+
+**Fix:** Replace the current icon with a more appropriate symbol, such as:
+
+- A **magnifying glass** (search/analysis).
+- A **chart with a target**.
+- A  **lightbulb** (intelligence/insight).
+- Use a clean, modern SVG icon or Unicode character.
+
+---
+
+## 7. AI News & Recommendations Tab
+
+### Overview
+
+Add a new **AI News & Insights** tab to the sidebar, providing:
+
+- **AI-generated investment recommendations** based on current market data and news.
+- **News aggregation** and summarization for the user's watchlist and current chart symbol.
+- A **search field** with autocomplete for user queries (symbols, sectors, or investing concepts).
+
+### Default Behaviour
+
+- When the user opens the AI tab, the **current chart symbol** is used as the default search subject.
+- The system fetches recent news for that symbol and generates a summary and recommendation.
+
+### Search Field
+
+- **Autocomplete** – matches symbols, company names, sectors, and investing topics.
+- Users can search for:
+    - `"NVIDIA"` → news and recommendation for NVIDIA.
+    - `"AI sector"` → news and investment ideas in AI.
+    - `"What is the current market sentiment?"` → general AI insight.
+
+### AI Features
+
+- **News Summarization** – Key headlines condensed into bullet points.
+- **Sentiment Analysis** – Bullish/Neutral/Bearish rating.
+- **Investment Suggestion** – Based on news + technical context (e.g., "NVIDIA may continue upward; consider a swing
+  long").
+- **Risk Warnings** – "Regulatory news may impact crypto stocks."
+
+### UI Layout
+
+┌──────────────────────────────────────────────────────────────────────┐
+│ 🔍 [Search: NVIDIA ▼] [Get Insights] │
+│ ─────────────────────────────────────────────────────────────────── │
+│ 📰 Latest News: │
+│ • NVIDIA announces new AI chip – Bullish ⬆ │
+│ • Analysts upgrade target to $150 – Sentiment: Positive │
+│ 💡 Recommendation: │
+│ "NVIDIA is showing strong momentum. Consider a long position with │
+│ stop-loss at $130." │
+│ ⚠️ Risks: Competition from AMD, supply chain issues. │
+└──────────────────────────────────────────────────────────────────────┘
+
+text
+
+### Data Sources
+
+| Service                | Use                                          |
+|------------------------|----------------------------------------------|
+| **Finnhub News**       | Real-time company news.                      |
+| **Alpha Vantage News** | Sentiment and headlines.                     |
+| **OpenAI / Anthropic** | Summarization and recommendation generation. |
+
+### Storage
+
+- Cached results stored per profile with a TTL (e.g., 15 min).
+- User query history can be saved for personalisation.
+
+---
+
+## 8. Fibonacci Tools – Custom Levels
+
+**Requirement:** Every Fibonacci tool must allow users to **add, remove, and edit custom levels** via a properties
+panel.
+
+**Implementation:**
+
+- Right‑click on any Fibonacci drawing → **Properties**.
+- A dialog opens showing the current levels.
+- User can:
+    - **Add** a new level (e.g., `85.4%`) by typing a value and clicking "+".
+    - **Remove** an existing level (e.g., 50%).
+    - **Edit** the level value (e.g., change 78.6% to 79.2%).
+- The drawing updates immediately to reflect the custom levels.
+- The custom levels are saved with the drawing and restored on reload.
+
+---
+
+## 9. Advanced Drawing Tools – Full Integration
+
+Add all the following tools to the **drawing toolbar**, organised into logical groups (similar to the images provided).
+
+---
+
+### 📐 Chart Patterns
+
+| Tool                     | Description                                                        |
+|--------------------------|--------------------------------------------------------------------|
+| **XABCD Pattern**        | Gartley/Bat/Crab/Butterfly patterns – 5‑point harmonic structure.  |
+| **Cypher Pattern**       | Harmonic pattern with specific Fibonacci ratios.                   |
+| **Head and Shoulders**   | Classic reversal pattern with left shoulder, head, right shoulder. |
+| **ABCD Pattern**         | 3‑point harmonic pattern with Fibonacci retracements.              |
+| **Triangle Pattern**     | Ascending, descending, or symmetrical triangle.                    |
+| **Three Drives Pattern** | Harmonic pattern with 3 equal legs.                                |
+
+---
+
+### 🌊 Elliott Waves
+
+| Tool                                  | Description                           |
+|---------------------------------------|---------------------------------------|
+| **Elliott Impulse Wave (1‑2‑3‑4‑5)**  | 5‑wave impulse structure with labels. |
+| **Elliott Correction Wave (A‑B‑C)**   | 3‑wave corrective structure.          |
+| **Elliott Triangle Wave (A‑B‑C‑D‑E)** | 5‑wave triangle correction.           |
+| **Elliott Double Combo (W‑X‑Y)**      | Double combination correction.        |
+| **Elliott Triple Combo (W‑X‑Y‑X‑Z)**  | Triple combination correction.        |
+
+---
+
+### 🔄 Cycles
+
+| Tool             | Description                                       |
+|------------------|---------------------------------------------------|
+| **Cyclic Lines** | Vertical lines at regular intervals.              |
+| **Time Cycles**  | Projected cycle lengths based on selected pivots. |
+| **Sine Line**    | Sinusoidal wave projection over time.             |
+
+---
+
+### 🔢 Fibonacci – Additional Tools
+
+| Tool                          | Description                                                  |
+|-------------------------------|--------------------------------------------------------------|
+| **Fib Retracement**           | Already exists – add custom levels.                          |
+| **Trend‑Based Fib Extension** | Already exists - Fibonacci extension based on trend.         |
+| **Fib Channel**               | Already exists. Channel with Fibonacci ratios.               |
+| **Fib Time Zone**             | Already exists - Vertical bands based on Fibonacci sequence. |
+| **Fib Speed Resistance Fan**  | Already exists -  Speed lines at Fibonacci angles.           |
+| **Trend‑Based Fib Time**      | Time projections based on trend.                             |
+| **Fib Circles**               | Concentric circles based on Fibonacci ratios.                |
+| **Fib Spiral**                | Fibonacci spiral (golden spiral).                            |
+| **Fib Speed Resistance Arcs** | Arcs based on Fibonacci ratios.                              |
+| **Fib Wedge**                 | Wedge pattern based on Fibonacci levels.                     |
+| **Pitchfan**                  | Andrew's Pitchfork with Fibonacci extensions.                |
+
+---
+
+### 🎯 Gann Tools
+
+| Tool                  | Description                    |
+|-----------------------|--------------------------------|
+| **Gann Box**          | Square box with Gann angles.   |
+| **Gann Square Fixed** | Fixed Gann square.             |
+| **Gann Square**       | Dynamic Gann square.           |
+| **Gann Fan**          | Angles radiating from a pivot. |
+
+---
+
+### 📊 Forecasting Tools
+
+| Tool                  | Description                                        |
+|-----------------------|----------------------------------------------------|
+| **Long Position**     | Already exists – entry, SL, TP lines.              |
+| **Short Position**    | Already exists – entry, SL, TP lines.              |
+| **Position Forecast** | Projected position outcome based on current price. |
+| **Bars Pattern**      | Visual pattern based on bar sequences.             |
+| **Ghost Feed**        | Projected future price bars (dashed).              |
+| **Sector**            | Sector overlay indicator.                          |
+
+---
+
+### 📈 Volume‑Based Tools
+
+| Tool                           | Description                              |
+|--------------------------------|------------------------------------------|
+| **Anchored VWAP**              | VWAP anchored to a selected point.       |
+| **Fixed Range Volume Profile** | Volume profile over a fixed price range. |
+| **Anchored Volume Profile**    | Volume profile anchored to a pivot.      |
+
+---
+
+### 📏 Measurers
+
+| Tool                     | Description                          |
+|--------------------------|--------------------------------------|
+| **Price Range**          | Horizontal price measurement.        |
+| **Date Range**           | Vertical time measurement.           |
+| **Date and Price Range** | Box measurement with price and time. |
+
+---
+
+## Toolbar Organisation (Expanded)
+
+| Group             | Tools                                                                                                                          |
+|-------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| **Select / Pan**  | Select, Pan                                                                                                                    |
+| **Line**          | Trend Line, Ray, Extended Line, Horizontal, Vertical                                                                           |
+| **Patterns**      | XABCD, Cypher, Head & Shoulders, ABCD, Triangle, Three Drives                                                                  |
+| **Elliott Waves** | Impulse, Correction, Triangle, Double Combo, Triple Combo                                                                      |
+| **Fibonacci**     | Retracement, Extension, Channel, Time Zone, Speed Resistance Fan, Trend‑Based Fib Time, Circles, Spiral, Arcs, Wedge, Pitchfan |
+| **Gann**          | Box, Square Fixed, Square, Fan                                                                                                 |
+| **Forecasting**   | Long Position, Short Position, Position Forecast, Bars Pattern, Ghost Feed, Sector                                             |
+| **Volume**        | Anchored VWAP, Fixed Range Volume Profile, Anchored Volume Profile                                                             |
+| **Measures**      | Price Range, Date Range, Date & Price Range                                                                                    |
+| **Annotations**   | Text, Callout, Note, Arrow, Ruler                                                                                              |
+| **Cycles**        | Cyclic Lines, Time Cycles, Sine Line                                                                                           |
+
+---
+
+## 10. Fullscreen Exit – Null Pointer Exception
+
+**Error:**
+Cannot invoke "javafx.scene.Parent.layout()" because "this.fullscreenOriginalParent" is null
+at ChartController.lambda$exitFullscreen$30(ChartController.java:638)
+
+text
+
+**Cause:** The `fullscreenOriginalParent` variable is `null` when `exitFullscreen()` is called. This happens if:
+
+- `enterFullscreen()` was never called (or failed to set the variable).
+- `exitFullscreen()` is called twice.
+- The chart was already in fullscreen mode but the variable was not persisted.
+
+**Fix:**
+
+- In `enterFullscreen()`, ensure `fullscreenOriginalParent` is set **before** removing the chart from its parent.
+- In `exitFullscreen()`, check if `fullscreenOriginalParent != null` before using it.
+- Add a flag `isFullscreen` to prevent double exit calls.
+
+**sImplementation:**
+
+```java
+private boolean isFullscreen = false;
+private Parent fullscreenOriginalParent = null;
+
+private void enterFullscreen() {
+    if (isFullscreen) return;
+    fullscreenOriginalParent = chartContainer.getParent();
+    // ... remove chart, add to fullscreen stage
+    isFullscreen = true;
+}
+
+private void exitFullscreen() {
+    if (!isFullscreen || fullscreenOriginalParent == null) {
+        // Already exited or never entered – do nothing
+        return;
+    }
+    // ... restore chart to original parent
+    fullscreenOriginalParent = null;
+    isFullscreen = false;
+} 
+```
+
+11. Provider Switching – Cache Not Refreshed
+    Issue: When changing the data provider (e.g., from Binance to Yahoo), the chart still shows old cached data from the
+    previous provider.
+
+Root Cause:
+
+The OhlcvStorageService caches data per symbol + timeframe, but does not invalidate the cache when the provider changes.
+
+The service may also return stale data from the database without checking the provider.
+
+Fix:
+
+When the provider is changed, the cache for that symbol + timeframe must be cleared.
+
+Force a fresh fetch from the new provider on the next load.
+
+Ensure database tables are provider‑specific – when switching providers, the correct table is queried.
+
+Stale Data Warning:
+
+If the last candle timestamp is older than the expected interval (e.g., more than 2× the timeframe duration), the data
+is considered stale.
+
+Show a red warning notification in the chart status bar:
+
+"Data from [provider] is stale – last candle: [timestamp]"
+
+"Provider [name] failed – falling back to [fallback]"
+
+Implementation:
+
+```java
+public List<OhlcvBar> fetchBars(String symbol, String timeframe, String provider) {
+    // Clear cache for this symbol/timeframe when provider changes
+    cache.invalidate(symbol, timeframe);
+
+    List<OhlcvBar> bars = databaseService.fetch(symbol, timeframe, provider);
+    if (bars.isEmpty()) {
+        // Fallback to next provider
+        return fallbackProvider.fetch(symbol, timeframe);
+    }
+
+    // Check staleness
+    if (isStale(bars, timeframe)) {
+        notificationService.showWarning("Data from " + provider + " is stale – last candle: " + bars.getLast().getOpenTime());
+    }
+
+    return bars;
+}
+```
+
+12. UI Responsiveness – Everything Misaligned
+    Issue: UI elements are not responsive – they do not resize or reposition correctly when the window is resized,
+    leading to overlapping, hidden, or clipped components.
+
+Root Causes:
+
+Fixed pixel widths/heights instead of relative constraints.
+
+No use of VBox.setVgrow() or HBox.setHgrow().
+
+TableView and ChartCanvas not bound to container size.
+
+SplitPane dividers not properly set.
+
+Fix:
+
+General Principles
+Use BorderPane or AnchorPane as the root layout for resizable views.
+
+Bind sizes using bind or bindBidirectional:
+
+```
+chartCanvas.widthProperty().bind(chartContainer.widthProperty());
+chartCanvas.heightProperty().bind(chartContainer.heightProperty());
+```
+
+Use VBox.setVgrow(child, Priority.ALWAYS) for the chart area to fill available space.
+
+Use HBox.setHgrow(child, Priority.ALWAYS) for toolbar elements to distribute space evenly.
+Fix for DashboardView.fxml
+Remove USE_COMPUTED_SIZE – use prefWidth="0" or remove the attribute.
+
+Wrap the TableView in a ScrollPane with fitToWidth="true".
+
+Set the ScrollPane to fill its container.
+
+Fix for ChartView.fxml
+The chart container (BorderPane or VBox) must have maxHeight="Infinity" and prefHeight="0" with VBox.setVgrow(...,
+Priority.ALWAYS).
+
+The volume pane should have a fixed minHeight="60" and not be hidden.
+
+The toolbar should be at the top with a fixed height.
+
+Responsive Toolbar
+
+```xml
+
+<HBox spacing="6" alignment="CENTER_LEFT" fillHeight="true">
+    <children>
+        <!-- Symbol -->
+        <ComboBox prefWidth="120" HBox.hgrow="NEVER"/>
+        <Separator orientation="VERTICAL"/>
+        <!-- Timeframes -->
+        <HBox spacing="2" alignment="CENTER">
+            <Button text="1m"/>
+            <Button text="5m"/>
+            <!-- etc -->
+        </HBox>
+        <Separator orientation="VERTICAL"/>
+        <!-- Bars -->
+        <Spacer HBox.hgrow="ALWAYS"/>
+        <!-- Actions -->
+        <Button text="Load"/>
+        <Button text="Refresh"/>
+        <Button text="Analyze"/>
+    </children>
+</HBox>
+```
+
+Add a Spacer Class
+
+```java
+public class Spacer extends Region {
+    public Spacer() {
+        setMinWidth(0);
+        setPrefWidth(0);
+    }
+}
+```
