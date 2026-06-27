@@ -174,9 +174,14 @@ public class ChartDrawingProperties {
             p.setText("Callout");
         } else if (type == ChartDrawingToolType.RECTANGLE
                 || type == ChartDrawingToolType.ELLIPSE
-                || type == ChartDrawingToolType.TRIANGLE
+                || type == ChartDrawingToolType.TRIANGLE_PATTERN
                 || type == ChartDrawingToolType.FLAT_CHANNEL
-                || type == ChartDrawingToolType.PARALLEL_CHANNEL) {
+                || type == ChartDrawingToolType.PARALLEL_CHANNEL
+                || type == ChartDrawingToolType.XABCD_PATTERN
+                || type == ChartDrawingToolType.CYPHER_PATTERN
+                || type == ChartDrawingToolType.HEAD_AND_SHOULDERS
+                || type == ChartDrawingToolType.ABCD_PATTERN
+                || type == ChartDrawingToolType.THREE_DRIVES_PATTERN) {
             p.setColor(globalSettings != null && globalSettings.getDefaultShapeColor() != null
                     ? globalSettings.getDefaultShapeColor() : "#58a6ff");
         } else {

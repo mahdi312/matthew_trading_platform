@@ -1240,13 +1240,18 @@ public class ChartDrawingEngine {
                 double py = DrawingRenderer.priceToY(d.getPoints().getFirst().getPrice(), ctx);
                 return Math.abs(y - py) < HIT_THRESHOLD && x >= ctx.left() && x <= ctx.right();
             }
-            case VERTICAL_LINE -> {
+            case VERTICAL_LINE, CYCLIC_LINES -> {
                 double px = DrawingRenderer.timeToX(d.getPoints().getFirst().getTime(), ctx);
                 return Math.abs(x - px) < HIT_THRESHOLD && y >= ctx.priceTop() && y <= ctx.priceBottom();
             }
-            case RECTANGLE, FLAT_CHANNEL -> { return isNearRect(d, x, y, ctx); }
-            case TRIANGLE               -> { return isNearPolygon(d, x, y, ctx); }
-            case ELLIPSE                -> { return isNearEllipse(d, x, y, ctx); }
+            case RECTANGLE, FLAT_CHANNEL,
+                 DATE_AND_PRICE_RANGE, FIXED_RANGE_VOLUME_PROFILE -> {
+                return isNearRect(d, x, y, ctx);
+            }
+            case TRIANGLE_PATTERN, HEAD_AND_SHOULDERS, SECTOR -> {
+                return isNearPolygon(d, x, y, ctx);
+            }
+            case ELLIPSE, FIB_CIRCLES, FIB_ARCS -> { return isNearEllipse(d, x, y, ctx); }
             case TEXT_LABEL, NOTE_ICON -> {
                 double ax = DrawingRenderer.timeToX(d.getPoints().getFirst().getTime(), ctx);
                 double ay = DrawingRenderer.priceToY(d.getPoints().getFirst().getPrice(), ctx);

@@ -305,8 +305,13 @@ public class DrawingPropertiesDialog {
     private static boolean hasFillProperty(ChartDrawing d) {
         if (d.getToolType() == null) return false;
         return switch (d.getToolType()) {
-            case RECTANGLE, TRIANGLE, ELLIPSE, FLAT_CHANNEL,
-                 PARALLEL_CHANNEL, LONG_POSITION, SHORT_POSITION -> true;
+            case RECTANGLE, TRIANGLE_PATTERN, ELLIPSE, FLAT_CHANNEL,
+                 PARALLEL_CHANNEL, LONG_POSITION, SHORT_POSITION,
+                 XABCD_PATTERN, CYPHER_PATTERN, HEAD_AND_SHOULDERS, ABCD_PATTERN,
+                 THREE_DRIVES_PATTERN, ELLIOTT_IMPULSE_WAVE, ELLIOTT_CORRECTION_WAVE,
+                 ELLIOTT_TRIANGLE_WAVE, ELLIOTT_DOUBLE_COMBO, ELLIOTT_TRIPLE_COMBO,
+                 GANN_BOX, GANN_SQUARE_FIXED, GANN_SQUARE, SECTOR,
+                 POSITION_FORECAST, BARS_PATTERN, DATE_AND_PRICE_RANGE -> true;
             default -> false;
         };
     }
