@@ -64,6 +64,10 @@ public class ProfileSettingsController {
     @FXML private javafx.scene.control.Slider panSensitivitySlider;
     @FXML private javafx.scene.control.Label  panSensitivityLabel;
 
+    // ── Ticker fetch controls ─────────────────────────────────
+    @FXML private javafx.scene.control.Spinner<Integer> tickerIntervalSpinner;
+    @FXML private FlowPane tickerSymbolPane;
+
     /** Callback to apply changed sensitivity values to the live chart canvas. */
     private java.util.function.Consumer<double[]> onSensitivityChanged;
 
@@ -126,6 +130,9 @@ public class ProfileSettingsController {
 
         // ── Sensitivity sliders ───────────────────────────────
         initSensitivitySliders();
+
+        // ── Ticker interval spinner ───────────────────────────
+        initTickerIntervalSpinner();
     }
 
     private void initSensitivitySliders() {
@@ -158,6 +165,54 @@ public class ProfileSettingsController {
                 }
             });
         }
+    }
+
+    private void initTickerIntervalSpinner() {
+        if (tickerIntervalSpinner == null) return;
+        tickerIntervalSpinner.setValueFactory(
+                new javafx.scene.control.SpinnerValueFactory.IntegerSpinnerValueFactory(5, 300,
+                        appSettings.getTickerPollIntervalSeconds()));
+    }
+
+    /** Build the symbol toggle chips from the current watchlist + disabled state. */
+    private void buildTickerSymbolPane() {
+        if (tickerSymbolPane == null) return;
+        tickerSymbolPane.getChildren().clear();
+        List<String> symbols = liveTickerService.allSymbols();
+        if (symbols.isEmpty()) {
+            javafx.scene.control.Label noSyms = new javafx.scene.control.Label(
+                    "No symbols in watchlist yet.");
+            noSyms.setStyle("-fx-text-fill:#8b949e;");
+            tickerSymbolPane.getChildren().add(noSyms);
+            return;
+        }
+        for (String sym : symbols) {
+            boolean enabled = appSettings.isTickerSymbolEnabled(sym);
+            ToggleButton chip = new ToggleButton(sym);
+            chip.setSelected(enabled);
+            chip.setStyle(tickerChipStyle(enabled));
+            chip.selectedProperty().addListener((o, a, sel) -> {
+                appSettings.setTickerSymbolEnabled(sym, sel);
+                chip.setStyle(tickerChipStyle(sel));
+                liveTickerService.applyTickerSymbolSettings();
+            });
+            tickerSymbolPane.getChildren().add(chip);
+        }
+    }
+
+    private static String tickerChipStyle(boolean enabled) {
+        return enabled
+                ? "-fx-background-color:#1a4a1a; -fx-text-fill:#3fb950;"
+                  + "-fx-background-radius:6; -fx-padding:4 12; -fx-cursor:hand;"
+                  + "-fx-border-color:#3fb950; -fx-border-radius:6; -fx-border-width:1;"
+                : "-fx-background-color:#21262d; -fx-text-fill:#8b949e;"
+                  + "-fx-background-radius:6; -fx-padding:4 12; -fx-cursor:hand;"
+                  + "-fx-border-color:#30363d; -fx-border-radius:6; -fx-border-width:1;";
+    }
+
+    @FXML
+    public void onRefreshTickerSymbols() {
+        buildTickerSymbolPane();
     }
 
     private void updateSensitivityLabel(javafx.scene.control.Label lbl, double v) {
@@ -359,6 +414,14 @@ public class ProfileSettingsController {
             updateSensitivityLabel(panSensitivityLabel, pv);
         }
 
+        // Ticker interval
+        if (tickerIntervalSpinner != null) {
+            tickerIntervalSpinner.getValueFactory()
+                    .setValue(appSettings.getTickerPollIntervalSeconds());
+        }
+        // Ticker symbol toggles
+        buildTickerSymbolPane();
+
         savedLabel.setText("");
     }
 
@@ -445,6 +508,14 @@ public class ProfileSettingsController {
             double pv = panSensitivitySlider  != null ? panSensitivitySlider.getValue()  : 0.6;
             onSensitivityChanged.accept(new double[]{zv, pv});
         }
+
+        // Ticker interval
+        if (tickerIntervalSpinner != null && tickerIntervalSpinner.getValue() != null) {
+            appSettings.setTickerPollIntervalSeconds(tickerIntervalSpinner.getValue());
+        }
+        // Ticker symbol settings are applied immediately via chip toggle listeners;
+        // call applyTickerSymbolSettings once more on explicit save for safety.
+        liveTickerService.applyTickerSymbolSettings();
 
         // Profile save
         profilePersistence.saveAsync(activeProfile);

@@ -167,6 +167,34 @@
                           promptText="e.g. BTCUSDT, ETHUSDT, AAPL, MSFT, EURUSD"/>
             </VBox>
 
+            <!-- ════ TICKER FETCH CONTROL SECTION ════ -->
+            <VBox styleClass="card" spacing="14">
+                <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+                <Label text="⏱ Ticker Fetch Control" styleClass="label-subtitle"/>
+                <Separator/>
+
+                <Label text="Poll Interval (seconds)" styleClass="label-subtitle"/>
+                <Label text="How often stock and forex ticker symbols are refreshed via the API. Crypto uses WebSocket (real-time). Range: 5–300 s."
+                       styleClass="label-muted" style="-fx-wrap-text:true;"/>
+                <HBox spacing="12" alignment="CENTER_LEFT">
+                    <Spinner fx:id="tickerIntervalSpinner"
+                             min="5" max="300" initialValue="15"
+                             editable="true" prefWidth="100"/>
+                    <Label text="seconds" styleClass="label-muted"/>
+                </HBox>
+
+                <Separator/>
+
+                <Label text="Active Symbols" styleClass="label-subtitle"/>
+                <Label text="Toggle which symbols are actively fetched. Disabled symbols are hidden from the ticker bar and skip API calls."
+                       styleClass="label-muted" style="-fx-wrap-text:true;"/>
+                <!-- Symbol toggle chips built programmatically by controller -->
+                <FlowPane fx:id="tickerSymbolPane" hgap="8" vgap="8"/>
+                <Button text="↺ Refresh Symbol List" styleClass="btn-secondary"
+                        onAction="#onRefreshTickerSymbols"
+                        style="-fx-font-size:11px; -fx-padding:5 12;"/>
+            </VBox>
+
             <!-- ════ AUTO NOTE ════ -->
             <Label text="AUTO picks the best enabled API for each symbol. If a source fails, the next provider in the chain is used automatically."
                    styleClass="label-muted" style="-fx-wrap-text:true;"/>

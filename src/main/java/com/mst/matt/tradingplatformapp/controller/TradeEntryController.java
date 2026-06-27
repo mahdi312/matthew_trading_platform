@@ -65,6 +65,10 @@ public class TradeEntryController implements Initializable {
     @FXML private TextField stopLossField;
     @FXML private TextField takeProfitField;
     @FXML private TextField feeField;
+    @FXML private TextField leverageField;
+    @FXML private Label     leverageLabel;
+    @FXML private Label     leveragedPnlLabel;
+    @FXML private Label     leveragedPnlHint;
     @FXML private DatePicker entryDatePicker;
     @FXML private TextField entryTimeField;
     @FXML private DatePicker exitDatePicker;
@@ -250,6 +254,24 @@ public class TradeEntryController implements Initializable {
         stopLossField.textProperty()  .addListener((o,a,b) -> updatePnlPreview());
         takeProfitField.textProperty().addListener((o,a,b) -> updatePnlPreview());
         feeField.textProperty()       .addListener((o,a,b) -> updatePnlPreview());
+        if (leverageField != null) {
+            leverageField.textProperty().addListener((o, a, b) -> {
+                updateLeverageLabel();
+                updatePnlPreview();
+            });
+        }
+    }
+
+    private void updateLeverageLabel() {
+        if (leverageField == null || leverageLabel == null) return;
+        BigDecimal lev = parseLeverage();
+        leverageLabel.setText("×" + lev.setScale(0, RoundingMode.HALF_UP).toPlainString());
+    }
+
+    private BigDecimal parseLeverage() {
+        if (leverageField == null) return BigDecimal.ONE;
+        BigDecimal lev = parseBD(leverageField.getText());
+        return (lev.compareTo(BigDecimal.ONE) < 0) ? BigDecimal.ONE : lev;
     }
 
     private void updatePnlPreview() {
@@ -260,6 +282,7 @@ public class TradeEntryController implements Initializable {
             BigDecimal fee      = parseBD(feeField.getText());
             BigDecimal sl       = parseBD(stopLossField.getText());
             BigDecimal tp       = parseBD(takeProfitField.getText());
+            BigDecimal lev      = parseLeverage();
 
             if (entry.compareTo(BigDecimal.ZERO) <= 0
                     || qty.compareTo(BigDecimal.ZERO) <= 0) return;
@@ -272,6 +295,7 @@ public class TradeEntryController implements Initializable {
                 BigDecimal diff  = isLong
                         ? exit.subtract(entry)
                         : entry.subtract(exit);
+                // Base P&L (no leverage)
                 BigDecimal pnl   = diff.multiply(qty).subtract(fee);
                 BigDecimal pct   = diff.divide(entry, 6, RoundingMode.HALF_UP)
                         .multiply(BigDecimal.valueOf(100));
@@ -286,6 +310,25 @@ public class TradeEntryController implements Initializable {
                         + "-fx-text-fill: " + color + ";");
                 pnlPercentLabel.setStyle("-fx-font-size:28px; -fx-font-weight:bold;"
                         + "-fx-text-fill: " + color + ";");
+
+                // Leveraged P&L display
+                if (leveragedPnlLabel != null) {
+                    BigDecimal levPnl = diff.multiply(qty).multiply(lev).subtract(fee);
+                    BigDecimal levPct = diff.divide(entry, 6, RoundingMode.HALF_UP)
+                            .multiply(lev).multiply(BigDecimal.valueOf(100));
+                    String levColor = levPnl.compareTo(BigDecimal.ZERO) >= 0 ? "#bc8cff" : "#f85149";
+                    leveragedPnlLabel.setText(
+                            (levPnl.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "")
+                            + "$" + format(levPnl)
+                            + " (" + (levPct.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "")
+                            + format(levPct) + "%)");
+                    leveragedPnlLabel.setStyle("-fx-font-size:16px; -fx-font-weight:bold;"
+                            + "-fx-text-fill: " + levColor + ";");
+                    if (leveragedPnlHint != null) {
+                        leveragedPnlHint.setText("×" + lev.setScale(0, RoundingMode.HALF_UP)
+                                .toPlainString() + " leverage");
+                    }
+                }
             }
 
             // R:R ratio
@@ -363,6 +406,13 @@ public class TradeEntryController implements Initializable {
                 trade.setFee(parseBD(feeField.getText()));
             else
                 trade.setFee(null);
+            // Leverage
+            if (leverageField != null && !leverageField.getText().isBlank()) {
+                BigDecimal lev = parseLeverage();
+                trade.setLeverage(lev.compareTo(BigDecimal.ONE) > 0 ? lev : null);
+            } else {
+                trade.setLeverage(null);
+            }
 
             LocalDate entryDate = entryDatePicker.getValue();
             if (entryDate == null) {
@@ -447,6 +497,7 @@ public class TradeEntryController implements Initializable {
         stopLossField.clear(); takeProfitField.clear();
         feeField.clear(); notesArea.clear();
         strategyField.clear(); exchangeField.clear();
+        if (leverageField != null) leverageField.clear();
         symbolValidation.setText("");
         symbolValidation.setStyle("-fx-font-size:11px;");
         currentPriceLabel.setText("Current: —");
@@ -462,6 +513,9 @@ public class TradeEntryController implements Initializable {
         pnlPercentLabel.setStyle("-fx-font-size:26px; -fx-font-weight:bold; -fx-text-fill:#8b949e;");
         rrLabel.setText("—");
         rrLabel.setStyle("-fx-font-size:26px; -fx-font-weight:bold; -fx-text-fill:#388bfd;");
+        if (leveragedPnlLabel != null) leveragedPnlLabel.setText("—");
+        if (leveragedPnlHint  != null) leveragedPnlHint.setText("×1 leverage");
+        if (leverageLabel     != null) leverageLabel.setText("×1");
         isLong = true;
         if (formTitleLabel != null) formTitleLabel.setText("📋 New Trade Entry");
         styleDirectionButtons();
@@ -850,6 +904,13 @@ public class TradeEntryController implements Initializable {
             takeProfitField.setText(t.getTakeProfit().toPlainString());
         if (t.getFee() != null)
             feeField.setText(t.getFee().toPlainString());
+        if (leverageField != null) {
+            if (t.getLeverage() != null && t.getLeverage().compareTo(BigDecimal.ONE) > 0)
+                leverageField.setText(t.getLeverage().toPlainString());
+            else
+                leverageField.clear();
+        }
+        updateLeverageLabel();
         entryDatePicker.setValue(t.getEntryTime().toLocalDate());
         entryTimeField.setText(t.getEntryTime()
                 .format(DateTimeFormatter.ofPattern("HH:mm")));
