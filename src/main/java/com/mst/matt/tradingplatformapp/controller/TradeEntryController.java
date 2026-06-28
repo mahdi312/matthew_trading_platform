@@ -63,7 +63,9 @@ public class TradeEntryController implements Initializable {
     @FXML private TextField exitPriceField;
     @FXML private TextField quantityField;
     @FXML private TextField stopLossField;
+    @FXML private Label     slPctLabel;
     @FXML private TextField takeProfitField;
+    @FXML private Label     tpPctLabel;
     @FXML private TextField feeField;
     @FXML private TextField leverageField;
     @FXML private Label     leverageLabel;
@@ -274,6 +276,58 @@ public class TradeEntryController implements Initializable {
         return (lev.compareTo(BigDecimal.ONE) < 0) ? BigDecimal.ONE : lev;
     }
 
+    /**
+     * Compute and display the percentage difference between the entry price and
+     * the SL / TP prices.  Updates live as the user types.
+     *
+     * For LONG:  SL % = (sl - entry) / entry * 100  → typically negative
+     *            TP % = (tp - entry) / entry * 100  → typically positive
+     * For SHORT: SL % = (entry - sl) / entry * 100  → typically negative (from the trade perspective)
+     *            TP % = (entry - tp) / entry * 100  → typically positive
+     */
+    private void updateSlTpPctLabels(BigDecimal entry, BigDecimal sl, BigDecimal tp) {
+        if (entry == null || entry.compareTo(BigDecimal.ZERO) <= 0) {
+            if (slPctLabel != null) slPctLabel.setText("");
+            if (tpPctLabel != null) tpPctLabel.setText("");
+            return;
+        }
+        // Stop Loss %
+        if (slPctLabel != null) {
+            if (sl != null && sl.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal slPct = isLong
+                        ? sl.subtract(entry).divide(entry, 6, RoundingMode.HALF_UP)
+                                .multiply(BigDecimal.valueOf(100))
+                        : entry.subtract(sl).divide(entry, 6, RoundingMode.HALF_UP)
+                                .multiply(BigDecimal.valueOf(100)).negate();
+                String sign = slPct.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "";
+                slPctLabel.setText("SL: " + sign + format(slPct) + "%");
+                // Red if risk is negative (correct direction), orange if SL is on wrong side
+                boolean wrongSide = slPct.compareTo(BigDecimal.ZERO) > 0;
+                slPctLabel.setStyle("-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:"
+                        + (wrongSide ? "#d29922;" : "#f85149;"));
+            } else {
+                slPctLabel.setText("");
+            }
+        }
+        // Take Profit %
+        if (tpPctLabel != null) {
+            if (tp != null && tp.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal tpPct = isLong
+                        ? tp.subtract(entry).divide(entry, 6, RoundingMode.HALF_UP)
+                                .multiply(BigDecimal.valueOf(100))
+                        : entry.subtract(tp).divide(entry, 6, RoundingMode.HALF_UP)
+                                .multiply(BigDecimal.valueOf(100));
+                String sign = tpPct.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "";
+                tpPctLabel.setText("TP: " + sign + format(tpPct) + "%");
+                boolean wrongSide = tpPct.compareTo(BigDecimal.ZERO) < 0;
+                tpPctLabel.setStyle("-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:"
+                        + (wrongSide ? "#d29922;" : "#3fb950;"));
+            } else {
+                tpPctLabel.setText("");
+            }
+        }
+    }
+
     private void updatePnlPreview() {
         try {
             BigDecimal entry    = parseBD(entryPriceField.getText());
@@ -330,6 +384,9 @@ public class TradeEntryController implements Initializable {
                     }
                 }
             }
+
+            // ── SL / TP percentage relative to entry price ───────────────
+            updateSlTpPctLabels(entry, sl, tp);
 
             // R:R ratio
             if (sl.compareTo(BigDecimal.ZERO) > 0
@@ -495,6 +552,8 @@ public class TradeEntryController implements Initializable {
         symbolField.clear(); entryPriceField.clear();
         exitPriceField.clear(); quantityField.clear();
         stopLossField.clear(); takeProfitField.clear();
+        if (slPctLabel  != null) slPctLabel.setText("");
+        if (tpPctLabel  != null) tpPctLabel.setText("");
         feeField.clear(); notesArea.clear();
         strategyField.clear(); exchangeField.clear();
         if (leverageField != null) leverageField.clear();

@@ -55,8 +55,11 @@ public class BinanceService implements PriceService {
     // symbol → latest cached quote
     private final Map<String, PriceQuote> quoteCache = new ConcurrentHashMap<>();
 
-    // symbol → active WebSocket
+    // symbol → active individual WebSocket (subscribeToTicker)
     private final Map<String, WebSocket> activeStreams = new ConcurrentHashMap<>();
+
+    /** The single combined multi-stream WebSocket (subscribeToMultiTicker). Replaced on every call. */
+    private volatile WebSocket activeMultiStream;
 
     // Listeners registered by the UI for live updates
     private final List<Consumer<PriceQuote>> liveListeners = new CopyOnWriteArrayList<>();
@@ -264,9 +267,27 @@ public class BinanceService implements PriceService {
     }
 
     /**
-     * Subscribe to multiple symbols (multi-stream).
+     * Subscribe to multiple symbols via a single combined stream URL.
+     * <p>
+     * Any previously-open multi-stream connection is <em>closed first</em> before
+     * opening the new one, so no stale/unwanted symbol streams linger after the
+     * user changes their watchlist or enables/disables symbols in Settings.
+     * </p>
      */
-    public void subscribeToMultiTicker(List<String> symbols) {
+    public synchronized void subscribeToMultiTicker(List<String> symbols) {
+        // ── Close the old multi-stream if one is open ──────────────────────
+        if (activeMultiStream != null) {
+            try {
+                activeMultiStream.close(1000, "watchlist-update");
+            } catch (Exception ignored) {}
+            activeMultiStream = null;
+        }
+
+        if (symbols == null || symbols.isEmpty()) {
+            log.info("No symbols enabled — Binance multi-stream not started");
+            return;
+        }
+
         // Build combined stream URL: <s1>@ticker/<s2>@ticker/...
         String streams = String.join("/",
                 symbols.stream()
@@ -276,7 +297,7 @@ public class BinanceService implements PriceService {
         String url = "wss://stream.binance.com:9443/stream?streams=" + streams;
         Request request = new Request.Builder().url(url).build();
 
-        wsClient.newWebSocket(request, new WebSocketListener() {
+        WebSocket ws = wsClient.newWebSocket(request, new WebSocketListener() {
             @Override
             public void onMessage(WebSocket webSocket, String text) {
                 try {
@@ -308,10 +329,24 @@ public class BinanceService implements PriceService {
             }
 
             @Override
-            public void onFailure(WebSocket ws, Throwable t, Response r) {
+            public void onFailure(WebSocket webSocket, Throwable t, Response r) {
                 log.error("Multi-stream failure: {}", t.getMessage());
+                // Only schedule reconnect if this is still the active stream
+                if (activeMultiStream == webSocket) {
+                    activeMultiStream = null;
+                    reconnectScheduler.schedule(
+                            () -> subscribeToMultiTicker(symbols), 5, TimeUnit.SECONDS);
+                }
+            }
+
+            @Override
+            public void onClosed(WebSocket webSocket, int code, String reason) {
+                if (activeMultiStream == webSocket) activeMultiStream = null;
             }
         });
+
+        activeMultiStream = ws;
+        log.info("Binance multi-stream opened for {} symbols: {}", symbols.size(), symbols);
     }
 
     public void addLiveListener(Consumer<PriceQuote> listener) {
@@ -331,6 +366,10 @@ public class BinanceService implements PriceService {
     public void unsubscribeAll() {
         activeStreams.values().forEach(ws -> ws.close(1000, "shutdown"));
         activeStreams.clear();
+        if (activeMultiStream != null) {
+            try { activeMultiStream.close(1000, "shutdown"); } catch (Exception ignored) {}
+            activeMultiStream = null;
+        }
     }
 
     // ── Helpers ─────────────────────────────────────────────

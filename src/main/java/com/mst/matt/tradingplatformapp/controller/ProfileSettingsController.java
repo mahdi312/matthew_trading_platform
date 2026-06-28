@@ -174,30 +174,83 @@ public class ProfileSettingsController {
                         appSettings.getTickerPollIntervalSeconds()));
     }
 
-    /** Build the symbol toggle chips from the current watchlist + disabled state. */
+    // ── Add-symbol text field (built programmatically) ─────
+    private javafx.scene.control.TextField addSymbolField;
+
+    /**
+     * Build the symbol toggle chips from the current watchlist + disabled state.
+     * Each chip has an enabled toggle AND a small "✕" delete button.
+     * At the bottom there is an "+ Add Symbol" row.
+     */
     private void buildTickerSymbolPane() {
         if (tickerSymbolPane == null) return;
         tickerSymbolPane.getChildren().clear();
+
         List<String> symbols = liveTickerService.allSymbols();
         if (symbols.isEmpty()) {
             javafx.scene.control.Label noSyms = new javafx.scene.control.Label(
-                    "No symbols in watchlist yet.");
+                    "No symbols in watchlist. Add one below.");
             noSyms.setStyle("-fx-text-fill:#8b949e;");
             tickerSymbolPane.getChildren().add(noSyms);
-            return;
+        } else {
+            for (String sym : new ArrayList<>(symbols)) {
+                tickerSymbolPane.getChildren().add(buildSymbolChip(sym));
+            }
         }
-        for (String sym : symbols) {
-            boolean enabled = appSettings.isTickerSymbolEnabled(sym);
-            ToggleButton chip = new ToggleButton(sym);
-            chip.setSelected(enabled);
-            chip.setStyle(tickerChipStyle(enabled));
-            chip.selectedProperty().addListener((o, a, sel) -> {
-                appSettings.setTickerSymbolEnabled(sym, sel);
-                chip.setStyle(tickerChipStyle(sel));
-                liveTickerService.applyTickerSymbolSettings();
-            });
-            tickerSymbolPane.getChildren().add(chip);
-        }
+
+        // ── Add-symbol row ─────────────────────────────────────
+        javafx.scene.layout.HBox addRow = new javafx.scene.layout.HBox(6);
+        addRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+
+        addSymbolField = new javafx.scene.control.TextField();
+        addSymbolField.setPromptText("e.g. SOLUSDT, AMZN, GBPUSD");
+        addSymbolField.setPrefWidth(180);
+        addSymbolField.setStyle("-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;"
+                + "-fx-border-color:#30363d; -fx-border-radius:6;"
+                + "-fx-background-radius:6; -fx-padding:4 10;");
+        // Allow Enter to trigger add
+        addSymbolField.setOnAction(ev -> onAddTickerSymbol());
+
+        javafx.scene.control.Button addBtn = new javafx.scene.control.Button("+ Add");
+        addBtn.setStyle("-fx-background-color:#1f6feb; -fx-text-fill:white;"
+                + "-fx-background-radius:6; -fx-padding:4 12; -fx-cursor:hand; -fx-font-weight:bold;");
+        addBtn.setOnAction(ev -> onAddTickerSymbol());
+
+        // Width forces the add-row to span the full FlowPane on its own "line"
+        javafx.scene.layout.HBox.setHgrow(addSymbolField, javafx.scene.layout.Priority.ALWAYS);
+        addRow.getChildren().addAll(addSymbolField, addBtn);
+        tickerSymbolPane.getChildren().add(addRow);
+    }
+
+    /** Build one symbol chip (toggle + delete button). */
+    private javafx.scene.layout.HBox buildSymbolChip(String sym) {
+        boolean enabled = appSettings.isTickerSymbolEnabled(sym);
+
+        javafx.scene.control.ToggleButton chip = new javafx.scene.control.ToggleButton(sym);
+        chip.setSelected(enabled);
+        chip.setStyle(tickerChipStyle(enabled));
+        chip.selectedProperty().addListener((o, a, sel) -> {
+            appSettings.setTickerSymbolEnabled(sym, sel);
+            chip.setStyle(tickerChipStyle(sel));
+            liveTickerService.applyTickerSymbolSettings();
+        });
+
+        // Small delete button
+        javafx.scene.control.Button delBtn = new javafx.scene.control.Button("✕");
+        delBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#f85149;"
+                + "-fx-cursor:hand; -fx-padding:2 4; -fx-font-size:10px; -fx-border-width:0;");
+        delBtn.setOnAction(ev -> {
+            liveTickerService.removeFromWatchlist(sym);
+            buildTickerSymbolPane(); // rebuild to reflect removal
+        });
+        delBtn.setTooltip(new javafx.scene.control.Tooltip("Remove " + sym + " from watchlist"));
+
+        javafx.scene.layout.HBox row = new javafx.scene.layout.HBox(2, chip, delBtn);
+        row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        row.setStyle("-fx-background-color:#161b22; -fx-background-radius:8;"
+                + "-fx-border-color:#30363d; -fx-border-radius:8; -fx-border-width:1;"
+                + "-fx-padding:2 4 2 2;");
+        return row;
     }
 
     private static String tickerChipStyle(boolean enabled) {
@@ -210,9 +263,43 @@ public class ProfileSettingsController {
                   + "-fx-border-color:#30363d; -fx-border-radius:6; -fx-border-width:1;";
     }
 
+    /** Called by the Add button or pressing Enter in the add-symbol text field. */
+    @FXML
+    public void onAddTickerSymbol() {
+        if (addSymbolField == null) return;
+        String raw = addSymbolField.getText();
+        if (raw == null || raw.isBlank()) return;
+        // Support multiple symbols separated by commas/spaces
+        for (String token : raw.split("[,;\\s]+")) {
+            String s = token.trim().toUpperCase();
+            if (!s.isEmpty()) {
+                liveTickerService.addToWatchlist(s);
+                appSettings.setTickerSymbolEnabled(s, true); // enabled by default
+            }
+        }
+        addSymbolField.clear();
+        buildTickerSymbolPane(); // rebuild to show new symbols
+    }
+
     @FXML
     public void onRefreshTickerSymbols() {
         buildTickerSymbolPane();
+    }
+
+    // ── Ticker interval preset shortcuts ──────────────────────────────────
+
+    @FXML public void onTickerPreset15s() { setTickerInterval(15); }
+    @FXML public void onTickerPreset1m()  { setTickerInterval(60); }
+    @FXML public void onTickerPreset5m()  { setTickerInterval(300); }
+    @FXML public void onTickerPreset1h()  { setTickerInterval(3600); }
+
+    private void setTickerInterval(int seconds) {
+        if (tickerIntervalSpinner == null) return;
+        tickerIntervalSpinner.getValueFactory().setValue(seconds);
+        // Immediately apply (same as hitting Save for just this setting)
+        appSettings.setTickerPollIntervalSeconds(seconds);
+        liveTickerService.applyPollIntervalSetting();
+        if (savedLabel != null) savedLabel.setText("Interval set to " + seconds + " s");
     }
 
     private void updateSensitivityLabel(javafx.scene.control.Label lbl, double v) {
@@ -509,9 +596,10 @@ public class ProfileSettingsController {
             onSensitivityChanged.accept(new double[]{zv, pv});
         }
 
-        // Ticker interval
+        // Ticker interval — save and immediately reschedule the poller
         if (tickerIntervalSpinner != null && tickerIntervalSpinner.getValue() != null) {
             appSettings.setTickerPollIntervalSeconds(tickerIntervalSpinner.getValue());
+            liveTickerService.applyPollIntervalSetting();
         }
         // Ticker symbol settings are applied immediately via chip toggle listeners;
         // call applyTickerSymbolSettings once more on explicit save for safety.

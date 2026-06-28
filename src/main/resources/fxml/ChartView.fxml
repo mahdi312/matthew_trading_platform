@@ -12,136 +12,147 @@
 
     <top>
         <VBox spacing="0">
-            <!-- Toolbar: fixed height, horizontal scroll when window is narrow.
-                 fitToWidth="false" lets the inner HBox be exactly as wide as its
-                 content — no artificial extra space when TF buttons are removed. -->
+            <!-- ── Symbol / Toolbar row ──────────────────────────────────────
+                 The ScrollPane provides horizontal scroll on narrow windows so
+                 controls never overflow or overlap.  fitToWidth="false" keeps
+                 the inner HBox at its natural content width so no phantom empty
+                 space appears on the right side when TF buttons are few.
+                 The HBox itself uses a combination of fixed min-widths and a
+                 single HBox.hgrow="ALWAYS" Pane spacer to push action buttons
+                 to the right edge without leaving gaps on the left side.
+            ─────────────────────────────────────────────────────────────── -->
             <ScrollPane fx:id="chartToolbarScroll"
-                        fitToWidth="false" fitToHeight="true"
+                        fitToWidth="true" fitToHeight="true"
                         hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
-                        minHeight="46" prefHeight="46" maxHeight="46"
+                        minHeight="44" prefHeight="44" maxHeight="44"
                         style="-fx-background-color:#1c2128; -fx-background:#1c2128;
                                -fx-border-color:#30363d; -fx-border-width:0 0 1 0;">
-                <!-- minWidth keeps all controls visible; HBox.hgrow spacer distributes
-                     leftover space only to the right of the indicators button, so no
-                     trailing empty space appears on the left/TF side. -->
-                <HBox alignment="CENTER_LEFT" spacing="6"
+                <!-- All controls in a single horizontal bar.
+                     - spacing="4" keeps items snug but readable.
+                     - -fx-padding: 4 top/bottom so the bar height is predictable.
+                     - minWidth: -Infinity lets JavaFX compute the real minimum so
+                       the ScrollPane horizontal scroll kicks in correctly. -->
+                <HBox alignment="CENTER_LEFT" spacing="4"
                       minWidth="-Infinity"
-                      style="-fx-background-color:#1c2128; -fx-padding:5 10 5 10;">
+                      style="-fx-background-color:#1c2128; -fx-padding:4 8 4 8;">
 
-            <!-- ── Symbol group ───────────────────────────────────────────── -->
-            <Label text="Symbol" styleClass="label-muted"
-                   style="-fx-font-size:10px; -fx-text-fill:#8b949e;"/>
-            <ComboBox fx:id="symbolCombo"
-                      prefWidth="110" maxWidth="130"
-                      style="-fx-font-size:12px;"
-                      promptText="Symbol"/>
-            <TextField fx:id="symbolInput"
-                       promptText="Type symbol…"
-                       prefWidth="110" maxWidth="130"
-                       style="-fx-font-size:12px;"
-                       onAction="#onLoadChart"/>
-            <Button text="▶ Load" styleClass="btn-primary"
-                    onAction="#onLoadChart"
-                    style="-fx-font-size:11px; -fx-padding:3 10; -fx-min-width:56;">
-                <tooltip><Tooltip text="Load chart (Enter)"/></tooltip>
-            </Button>
+                    <!-- ── Symbol group ── -->
+                    <Label text="Sym" styleClass="label-muted"
+                           style="-fx-font-size:10px; -fx-text-fill:#6e7681; -fx-min-width:26;"/>
+                    <ComboBox fx:id="symbolCombo"
+                              prefWidth="108" minWidth="80" maxWidth="130"
+                              style="-fx-font-size:12px;"
+                              promptText="Symbol"/>
+                    <TextField fx:id="symbolInput"
+                               promptText="Type symbol…"
+                               prefWidth="108" minWidth="80" maxWidth="130"
+                               style="-fx-font-size:12px; -fx-padding:3 8;"
+                               onAction="#onLoadChart"/>
+                    <Button text="▶" styleClass="btn-primary"
+                            onAction="#onLoadChart"
+                            style="-fx-font-size:12px; -fx-padding:3 10; -fx-min-width:34; -fx-font-weight:bold;">
+                        <tooltip><Tooltip text="Load chart (Enter)"/></tooltip>
+                    </Button>
 
-            <Separator orientation="VERTICAL" style="-fx-padding:0 2;"/>
+                    <Separator orientation="VERTICAL" style="-fx-pref-height:24; -fx-opacity:0.4;"/>
 
-            <!-- ── Timeframe group ────────────────────────────────────────── -->
-            <Label text="TF" styleClass="label-muted"
-                   style="-fx-font-size:10px; -fx-text-fill:#8b949e;"/>
-            <!-- Hidden FXML TF buttons kept for ToggleGroup binding in controller -->
-            <ToggleButton fx:id="tf1m"  text="1m"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
-            <ToggleButton fx:id="tf3m"  text="3m"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
-            <ToggleButton fx:id="tf5m"  text="5m"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
-            <ToggleButton fx:id="tf15m" text="15m"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
-            <ToggleButton fx:id="tf30m" text="30m"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
-            <ToggleButton fx:id="tf1h"  text="1h"   styleClass="btn-blue     chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
-            <ToggleButton fx:id="tf2h"  text="2h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
-            <ToggleButton fx:id="tf4h"  text="4h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
-            <ToggleButton fx:id="tf6h"  text="6h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
-            <ToggleButton fx:id="tf8h"  text="8h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
-            <ToggleButton fx:id="tf12h" text="12h"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
-            <ToggleButton fx:id="tf1d"  text="1D"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
-            <ToggleButton fx:id="tf3d"  text="3D"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
-            <ToggleButton fx:id="tf1w"  text="1W"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
-            <ToggleButton fx:id="tf1mo" text="1Mo"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
-            <!-- Visible favorites bar — dynamically built by ChartController.
-                 No fixed maxWidth so the bar naturally shrinks/grows with its children. -->
-            <HBox fx:id="favTfBar" spacing="3" alignment="CENTER_LEFT"/>
-            <!-- "All Timeframes" dropdown: add / remove favorites -->
-            <Button fx:id="tfDropdownBtn" text="☆" styleClass="btn-secondary"
-                    onAction="#onOpenTfDropdown"
-                    style="-fx-font-size:12px; -fx-padding:3 7; -fx-min-width:28;">
-                <tooltip><Tooltip text="All timeframes — manage favorites"/></tooltip>
-            </Button>
+                    <!-- ── Timeframe group ── -->
+                    <Label text="TF" styleClass="label-muted"
+                           style="-fx-font-size:10px; -fx-text-fill:#6e7681; -fx-min-width:18;"/>
+                    <!-- Hidden FXML TF buttons kept for ToggleGroup binding only -->
+                    <ToggleButton fx:id="tf1m"  text="1m"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+                    <ToggleButton fx:id="tf3m"  text="3m"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+                    <ToggleButton fx:id="tf5m"  text="5m"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+                    <ToggleButton fx:id="tf15m" text="15m"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+                    <ToggleButton fx:id="tf30m" text="30m"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+                    <ToggleButton fx:id="tf1h"  text="1h"   styleClass="btn-blue     chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+                    <ToggleButton fx:id="tf2h"  text="2h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+                    <ToggleButton fx:id="tf4h"  text="4h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+                    <ToggleButton fx:id="tf6h"  text="6h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+                    <ToggleButton fx:id="tf8h"  text="8h"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+                    <ToggleButton fx:id="tf12h" text="12h"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+                    <ToggleButton fx:id="tf1d"  text="1D"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+                    <ToggleButton fx:id="tf3d"  text="3D"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+                    <ToggleButton fx:id="tf1w"  text="1W"   styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+                    <ToggleButton fx:id="tf1mo" text="1Mo"  styleClass="btn-secondary chart-tf-btn" onAction="#onTimeframe" visible="false" managed="false"/>
+                    <!-- Favorites bar — dynamically built by ChartController; shrinks/grows
+                         with its children. No fixed maxWidth so no phantom trailing gap. -->
+                    <HBox fx:id="favTfBar" spacing="3" alignment="CENTER_LEFT"
+                          minWidth="0" maxWidth="Infinity"/>
+                    <!-- All-timeframes dropdown (star button) -->
+                    <Button fx:id="tfDropdownBtn" text="☆" styleClass="btn-secondary"
+                            onAction="#onOpenTfDropdown"
+                            style="-fx-font-size:12px; -fx-padding:3 7; -fx-min-width:26;">
+                        <tooltip><Tooltip text="All timeframes — add/remove from favorites"/></tooltip>
+                    </Button>
 
-            <Separator orientation="VERTICAL" style="-fx-padding:0 2;"/>
+                    <Separator orientation="VERTICAL" style="-fx-pref-height:24; -fx-opacity:0.4;"/>
 
-            <!-- ── Bars group ─────────────────────────────────────────────── -->
-            <Label text="Bars" styleClass="label-muted"
-                   style="-fx-font-size:10px; -fx-text-fill:#8b949e;"/>
-            <ComboBox fx:id="barsCombo" prefWidth="85" maxWidth="90"
-                      style="-fx-font-size:9px;"/>
+                    <!-- ── Bars count ── -->
+                    <Label text="Bars" styleClass="label-muted"
+                           style="-fx-font-size:10px; -fx-text-fill:#6e7681; -fx-min-width:28;"/>
+                    <ComboBox fx:id="barsCombo" prefWidth="76" minWidth="60" maxWidth="90"
+                              style="-fx-font-size:11px;"/>
 
-            <Separator orientation="VERTICAL" style="-fx-padding:0 2;"/>
+                    <Separator orientation="VERTICAL" style="-fx-pref-height:24; -fx-opacity:0.4;"/>
 
-            <!-- ── Indicators ─────────────────────────────────────────────── -->
-            <Button fx:id="indicatorPickerBtn" text="📊 Indicators"
-                    styleClass="btn-secondary"
-                    onAction="#onOpenIndicatorPicker"
-                    style="-fx-font-size:11px; -fx-padding:3 9;">
-                <tooltip><Tooltip text="Add/remove indicators"/></tooltip>
-            </Button>
+                    <!-- ── Indicators button ── -->
+                    <Button fx:id="indicatorPickerBtn" text="📊 Ind"
+                            styleClass="btn-secondary"
+                            onAction="#onOpenIndicatorPicker"
+                            style="-fx-font-size:11px; -fx-padding:3 8; -fx-min-width:58;">
+                        <tooltip><Tooltip text="Add/remove indicators"/></tooltip>
+                    </Button>
 
-            <!-- Analysis-mode extra content (populated dynamically by controller) -->
-            <HBox fx:id="analysisToolbar" spacing="6" alignment="CENTER_LEFT"
-                  visible="false" managed="false"/>
+                    <!-- Analysis-mode extra toolbar (shown only in analysis mode) -->
+                    <HBox fx:id="analysisToolbar" spacing="4" alignment="CENTER_LEFT"
+                          visible="false" managed="false"/>
 
-            <!-- Notification bell -->
-            <Button fx:id="chartNotifyBellBtn" text="🔔" styleClass="btn-secondary"
-                    onAction="#onToggleChartNotifications"
-                    style="-fx-font-size:12px; -fx-padding:3 7; -fx-min-width:30;">
-                <tooltip><Tooltip text="Toggle chart notifications"/></tooltip>
-            </Button>
+                    <!-- Notification bell -->
+                    <Button fx:id="chartNotifyBellBtn" text="🔔" styleClass="btn-secondary"
+                            onAction="#onToggleChartNotifications"
+                            style="-fx-font-size:11px; -fx-padding:3 6; -fx-min-width:28;">
+                        <tooltip><Tooltip text="Toggle chart notifications"/></tooltip>
+                    </Button>
 
-            <Separator orientation="VERTICAL" style="-fx-padding:0 2;"/>
+                    <Separator orientation="VERTICAL" style="-fx-pref-height:24; -fx-opacity:0.4;"/>
 
-            <!-- ── Data source group ──────────────────────────────────────── -->
-            <Label text="Src" styleClass="label-muted"
-                   style="-fx-font-size:10px; -fx-text-fill:#8b949e;"/>
-            <ComboBox fx:id="chartProviderCombo"
-                      prefWidth="140" maxWidth="160"
-                      style="-fx-font-size:11px;"
-                      onAction="#onChartProviderChanged"/>
-            <Label fx:id="dataSourceLabel" text="—" styleClass="label-muted"
-                   style="-fx-font-size:10px; -fx-max-width:80;"/>
+                    <!-- ── Data source ── -->
+                    <Label text="Src" styleClass="label-muted"
+                           style="-fx-font-size:10px; -fx-text-fill:#6e7681; -fx-min-width:24;"/>
+                    <ComboBox fx:id="chartProviderCombo"
+                              prefWidth="120" minWidth="90" maxWidth="150"
+                              style="-fx-font-size:11px;"
+                              onAction="#onChartProviderChanged"/>
+                    <Label fx:id="dataSourceLabel" text="—" styleClass="label-muted"
+                           style="-fx-font-size:10px; -fx-max-width:70; -fx-min-width:0;"/>
 
-            <!-- Spacer — pushes action buttons to the right -->
-            <Pane HBox.hgrow="ALWAYS"/>
+                    <!-- Flexible spacer: pushes action group to the far right.
+                         HBox.hgrow="ALWAYS" ensures it expands first, so the TF
+                         bar and source label don't get squished at medium widths. -->
+                    <Pane HBox.hgrow="ALWAYS" minWidth="4"/>
 
-            <!-- ── Action buttons ─────────────────────────────────────────── -->
-            <Button text="↺ Refresh" styleClass="btn-secondary"
-                    onAction="#onRefresh"
-                    style="-fx-font-size:11px; -fx-padding:3 10; -fx-min-width:68;">
-                <tooltip><Tooltip text="Refresh chart data"/></tooltip>
-            </Button>
-            <Button fx:id="analyzeBtn" text="⚡ Analyze" styleClass="btn-primary"
-                    onAction="#onAnalyze"
-                    style="-fx-font-size:11px; -fx-padding:3 10; -fx-min-width:76;"
-                    visible="false" managed="false">
-                <tooltip><Tooltip text="Run technical analysis"/></tooltip>
-            </Button>
+                    <!-- ── Action buttons (right-aligned) ── -->
+                    <Button text="↺" styleClass="btn-secondary"
+                            onAction="#onRefresh"
+                            style="-fx-font-size:13px; -fx-padding:3 8; -fx-min-width:30;">
+                        <tooltip><Tooltip text="Refresh chart data"/></tooltip>
+                    </Button>
+                    <Button fx:id="analyzeBtn" text="⚡ Analyze" styleClass="btn-primary"
+                            onAction="#onAnalyze"
+                            style="-fx-font-size:11px; -fx-padding:3 9; -fx-min-width:74;"
+                            visible="false" managed="false">
+                        <tooltip><Tooltip text="Run technical analysis"/></tooltip>
+                    </Button>
 
-            <Separator orientation="VERTICAL"/>
+                    <Separator orientation="VERTICAL" style="-fx-pref-height:24; -fx-opacity:0.4;"/>
 
-            <!-- Fullscreen toggle (also activated by F11) -->
-            <Button fx:id="fullscreenBtn" text="⛶" styleClass="btn-secondary"
-                    onAction="#onToggleFullscreen"
-                    style="-fx-min-width:32; -fx-padding:3 8; -fx-font-size:14px;">
-                <tooltip><Tooltip text="Toggle fullscreen (F11)"/></tooltip>
-            </Button>
+                    <!-- Fullscreen toggle (F11) -->
+                    <Button fx:id="fullscreenBtn" text="⛶" styleClass="btn-secondary"
+                            onAction="#onToggleFullscreen"
+                            style="-fx-min-width:30; -fx-padding:3 7; -fx-font-size:14px;">
+                        <tooltip><Tooltip text="Toggle fullscreen (F11)"/></tooltip>
+                    </Button>
                 </HBox>
             </ScrollPane>
 

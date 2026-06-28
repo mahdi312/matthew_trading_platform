@@ -259,12 +259,12 @@ public class ChartController implements Initializable {
         }
         if (chartToolbarScroll != null) {
             VBox.setVgrow(chartToolbarScroll, Priority.NEVER);
-            // Bind the scroll pane width to the chart root so it always fills
-            // the full available width.  fitToWidth=false in FXML so the inner
-            // HBox stays compact, but the scroll pane itself should be full-width.
-            if (chartRoot != null) {
-                chartToolbarScroll.prefWidthProperty().bind(chartRoot.widthProperty());
-            }
+            // fitToWidth="true" in FXML already expands the inner HBox to the
+            // full scroll-pane width, so we do NOT bind prefWidth here (that
+            // would fight with fitToWidth and create duplicate sizing paths).
+            chartToolbarScroll.setMinHeight(44);
+            chartToolbarScroll.setPrefHeight(44);
+            chartToolbarScroll.setMaxHeight(44);
         }
         if (chartStack != null) {
             chartStack.setMinSize(0, 0);

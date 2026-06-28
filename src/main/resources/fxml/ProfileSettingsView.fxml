@@ -173,22 +173,34 @@
                 <Label text="⏱ Ticker Fetch Control" styleClass="label-subtitle"/>
                 <Separator/>
 
-                <Label text="Poll Interval (seconds)" styleClass="label-subtitle"/>
-                <Label text="How often stock and forex ticker symbols are refreshed via the API. Crypto uses WebSocket (real-time). Range: 5–300 s."
+                <Label text="Poll Interval" styleClass="label-subtitle"/>
+                <Label text="How often stock and forex ticker symbols are refreshed via the API. Crypto uses WebSocket (real-time, no polling). The new interval takes effect immediately after saving — no restart needed."
                        styleClass="label-muted" style="-fx-wrap-text:true;"/>
                 <HBox spacing="12" alignment="CENTER_LEFT">
                     <Spinner fx:id="tickerIntervalSpinner"
-                             min="5" max="300" initialValue="15"
-                             editable="true" prefWidth="100"/>
-                    <Label text="seconds" styleClass="label-muted"/>
+                             min="5" max="3600" initialValue="15"
+                             editable="true" prefWidth="110"/>
+                    <Label text="seconds  (min 5 s, max 3600 s = 1 hour)" styleClass="label-muted"/>
+                </HBox>
+                <!-- Quick-select presets -->
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                    <Label text="Presets:" styleClass="label-muted"/>
+                    <Button text="15 s"   styleClass="btn-secondary" style="-fx-font-size:10px; -fx-padding:3 8;"
+                            onAction="#onTickerPreset15s"/>
+                    <Button text="1 min"  styleClass="btn-secondary" style="-fx-font-size:10px; -fx-padding:3 8;"
+                            onAction="#onTickerPreset1m"/>
+                    <Button text="5 min"  styleClass="btn-secondary" style="-fx-font-size:10px; -fx-padding:3 8;"
+                            onAction="#onTickerPreset5m"/>
+                    <Button text="1 hour" styleClass="btn-secondary" style="-fx-font-size:10px; -fx-padding:3 8;"
+                            onAction="#onTickerPreset1h"/>
                 </HBox>
 
                 <Separator/>
 
-                <Label text="Active Symbols" styleClass="label-subtitle"/>
-                <Label text="Toggle which symbols are actively fetched. Disabled symbols are hidden from the ticker bar and skip API calls."
+                <Label text="Watchlist Symbols" styleClass="label-subtitle"/>
+                <Label text="Toggle to enable/disable individual symbols. Click ✕ to remove. Type a symbol and press + Add (or Enter) to add a custom symbol to the ticker."
                        styleClass="label-muted" style="-fx-wrap-text:true;"/>
-                <!-- Symbol toggle chips built programmatically by controller -->
+                <!-- Symbol toggle chips + add row built programmatically by controller -->
                 <FlowPane fx:id="tickerSymbolPane" hgap="8" vgap="8"/>
                 <Button text="↺ Refresh Symbol List" styleClass="btn-secondary"
                         onAction="#onRefreshTickerSymbols"

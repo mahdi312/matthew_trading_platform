@@ -130,6 +130,9 @@
                                style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
                                       -fx-border-color:#f85149; -fx-border-radius:6;
                                       -fx-background-radius:6; -fx-padding:8 12;"/>
+                    <!-- Live SL % relative to entry price -->
+                    <Label fx:id="slPctLabel" text=""
+                           style="-fx-text-fill:#f85149; -fx-font-size:11px; -fx-font-weight:bold;"/>
                 </VBox>
                 <VBox spacing="6" HBox.hgrow="ALWAYS">
                     <Label text="Take Profit" styleClass="label-subtitle"/>
@@ -137,6 +140,9 @@
                                style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
                                       -fx-border-color:#3fb950; -fx-border-radius:6;
                                       -fx-background-radius:6; -fx-padding:8 12;"/>
+                    <!-- Live TP % relative to entry price -->
+                    <Label fx:id="tpPctLabel" text=""
+                           style="-fx-text-fill:#3fb950; -fx-font-size:11px; -fx-font-weight:bold;"/>
                 </VBox>
                 <VBox spacing="6" HBox.hgrow="ALWAYS">
                     <Label text="Fee" styleClass="label-subtitle"/>
