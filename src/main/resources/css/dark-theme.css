@@ -536,7 +536,7 @@
 
 /* ── Chart toolbar ────────────────────────────────────────── */
 .chart-tf-btn {
-    -fx-min-width: 42px;
+    -fx-min-width: 35px;
     -fx-padding: 5 10;
     -fx-font-size: 12px;
 }
