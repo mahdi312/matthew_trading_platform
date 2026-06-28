@@ -92,6 +92,7 @@ public class ChartController implements Initializable {
     @FXML private Button tfDropdownBtn;
     @FXML private Button indicatorPickerBtn;
     @FXML private Button analyzeBtn;
+    @FXML private ScrollPane signalBarScroll;
     @FXML private HBox   signalBar;
     @FXML private HBox   sentimentBox;
     @FXML private Label  signalLabel, confidenceLabel, bestBuyLabel,
@@ -189,8 +190,9 @@ public class ChartController implements Initializable {
         wireDrawingEngine();
         setupKeyboardShortcuts();
 
-        if (signalBar != null)
-            signalBar.managedProperty().bind(signalBar.visibleProperty());
+        if (signalBarScroll != null)
+            signalBarScroll.managedProperty().bind(signalBarScroll.visibleProperty());
+        setupSentimentBarTooltips();
 
         chartProviderCombo.setCellFactory(lv -> providerLabelCell());
         chartProviderCombo.setButtonCell(providerLabelCell());
@@ -262,9 +264,9 @@ public class ChartController implements Initializable {
             // fitToWidth="true" in FXML already expands the inner HBox to the
             // full scroll-pane width, so we do NOT bind prefWidth here (that
             // would fight with fitToWidth and create duplicate sizing paths).
-            chartToolbarScroll.setMinHeight(44);
-            chartToolbarScroll.setPrefHeight(44);
-            chartToolbarScroll.setMaxHeight(44);
+            chartToolbarScroll.setMinHeight(40);
+            chartToolbarScroll.setPrefHeight(40);
+            chartToolbarScroll.setMaxHeight(40);
         }
         if (chartStack != null) {
             chartStack.setMinSize(0, 0);
@@ -1132,7 +1134,7 @@ public class ChartController implements Initializable {
             analyzeBtn.setVisible(analysis);
             analyzeBtn.setManaged(analysis);
         }
-        if (signalBar != null && !analysis) signalBar.setVisible(false);
+        if (!analysis) setSignalBarVisible(false);
         chart.setAnalysisMode(analysis);
     }
 
@@ -1876,102 +1878,72 @@ public class ChartController implements Initializable {
 
     // ── Signal bar ────────────────────────────────────────────
 
+    private void setSignalBarVisible(boolean visible) {
+        if (signalBarScroll != null) signalBarScroll.setVisible(visible);
+    }
+
+    /** Install sentiment tooltips once — avoids flicker from re-installing on every update. */
+    private void setupSentimentBarTooltips() {
+        if (bullCircle != null) {
+            Tooltip buyTip = new Tooltip(
+                    "🟢 Buying Sentiment\nIndicator count showing bullish signals.");
+            buyTip.setShowDelay(Duration.millis(200));
+            bullCircle.setTooltip(buyTip);
+        }
+        if (neutralCircle != null) {
+            Tooltip neutTip = new Tooltip(
+                    "⚪ Neutral Sentiment\nIndicator count with no clear direction.");
+            neutTip.setShowDelay(Duration.millis(200));
+            neutralCircle.setTooltip(neutTip);
+        }
+        if (bearCircle != null) {
+            Tooltip sellTip = new Tooltip(
+                    "🔴 Selling Sentiment\nIndicator count showing bearish signals.");
+            sellTip.setShowDelay(Duration.millis(200));
+            bearCircle.setTooltip(sellTip);
+        }
+        if (sentimentBox != null) {
+            Tooltip legendTip = new Tooltip(
+                    "Sentiment Circles\n🟢 Buying  ⚪ Neutral  🔴 Selling\n"
+                    + "Numbers = weighted indicator counts.");
+            legendTip.setShowDelay(Duration.millis(300));
+            legendTip.setPrefWidth(240);
+            legendTip.setWrapText(true);
+            Tooltip.install(sentimentBox, legendTip);
+        }
+    }
+
     private void updateSignalBar(SignalResult signal) {
-        if (signalBar == null) return;
-        signalBar.setVisible(true);
+        if (signalBarScroll == null) return;
+        setSignalBarVisible(true);
         Recommendation rec = signal.getRecommendation();
         signalLabel.setText(rec.label);
-        signalLabel.setStyle("-fx-font-weight:bold;-fx-font-size:14px;-fx-text-fill:" + rec.textColor + ";");
+        signalLabel.setStyle("-fx-text-fill:" + rec.textColor + ";");
         confidenceLabel.setText(String.format("Confidence: %.1f%%", signal.getConfidence()));
         bestBuyLabel.setText("$" + fmtPrice(signal.getBestBuyPrice()));
         bestSellLabel.setText("$" + fmtPrice(signal.getBestSellPrice()));
 
-        // ── Color-coded sentiment circles ──────────────────────
         int bull = signal.getBullishCount();
         int neu  = signal.getNeutralCount();
         int bear = signal.getBearishCount();
 
-        // Legacy label (hidden, keep for reference)
         if (bullBearLabel != null)
             bullBearLabel.setText("🟢 " + bull + "  ⚪ " + neu + "  🔴 " + bear);
 
-        // Colored circles with dynamic styling
-        if (bullCircle != null) {
-            bullCircle.setText(String.valueOf(bull));
-            // Intensity: more bullish = more vivid green
-            String bgColor  = bull > 0 ? "#238636" : "#1a2b1a";
-            String brdColor = bull > 0 ? "#3fb950" : "#30363d";
-            bullCircle.setStyle(
-                    "-fx-background-color:" + bgColor + ";"
-                    + "-fx-text-fill:" + (bull > 0 ? "white" : "#8b949e") + ";"
-                    + "-fx-background-radius:50%;"
-                    + "-fx-min-width:36px;-fx-min-height:36px;"
-                    + "-fx-max-width:36px;-fx-max-height:36px;"
-                    + "-fx-alignment:center;-fx-font-weight:bold;-fx-font-size:13px;"
-                    + "-fx-border-radius:50%;-fx-border-color:" + brdColor + ";-fx-border-width:2;");
-            Tooltip buyTip = new Tooltip(
-                    "🟢 Buying Sentiment\n"
-                    + bull + " indicator(s) show bullish signals.\n"
-                    + "Higher count = stronger buying pressure.");
-            buyTip.setShowDelay(Duration.millis(200));
-            Tooltip.install(bullCircle, buyTip);
-        }
+        applySentimentCircle(bullCircle, bull, "sentiment-circle-buying", "sentiment-circle-buying-dim");
+        applySentimentCircle(neutralCircle, neu, "sentiment-circle-neutral", "sentiment-circle-neutral-dim");
+        applySentimentCircle(bearCircle, bear, "sentiment-circle-selling", "sentiment-circle-selling-dim");
+    }
 
-        if (neutralCircle != null) {
-            neutralCircle.setText(String.valueOf(neu));
-            String bgColor  = neu > 0 ? "#2d333b" : "#161b22";
-            String brdColor = neu > 0 ? "#8b949e" : "#30363d";
-            neutralCircle.setStyle(
-                    "-fx-background-color:" + bgColor + ";"
-                    + "-fx-text-fill:" + (neu > 0 ? "#e6edf3" : "#484f58") + ";"
-                    + "-fx-background-radius:50%;"
-                    + "-fx-min-width:36px;-fx-min-height:36px;"
-                    + "-fx-max-width:36px;-fx-max-height:36px;"
-                    + "-fx-alignment:center;-fx-font-weight:bold;-fx-font-size:13px;"
-                    + "-fx-border-radius:50%;-fx-border-color:" + brdColor + ";-fx-border-width:2;");
-            Tooltip neutTip = new Tooltip(
-                    "⚪ Neutral Sentiment\n"
-                    + neu + " indicator(s) show no clear direction.\n"
-                    + "Neutral means sideways or conflicting signals.");
-            neutTip.setShowDelay(Duration.millis(200));
-            Tooltip.install(neutralCircle, neutTip);
-        }
-
-        if (bearCircle != null) {
-            bearCircle.setText(String.valueOf(bear));
-            String bgColor  = bear > 0 ? "#da3633" : "#2b1a1a";
-            String brdColor = bear > 0 ? "#f85149" : "#30363d";
-            bearCircle.setStyle(
-                    "-fx-background-color:" + bgColor + ";"
-                    + "-fx-text-fill:" + (bear > 0 ? "white" : "#8b949e") + ";"
-                    + "-fx-background-radius:50%;"
-                    + "-fx-min-width:36px;-fx-min-height:36px;"
-                    + "-fx-max-width:36px;-fx-max-height:36px;"
-                    + "-fx-alignment:center;-fx-font-weight:bold;-fx-font-size:13px;"
-                    + "-fx-border-radius:50%;-fx-border-color:" + brdColor + ";-fx-border-width:2;");
-            Tooltip sellTip = new Tooltip(
-                    "🔴 Selling Sentiment\n"
-                    + bear + " indicator(s) show bearish signals.\n"
-                    + "Higher count = stronger selling pressure.");
-            sellTip.setShowDelay(Duration.millis(200));
-            Tooltip.install(bearCircle, sellTip);
-        }
-
-        // Legend tooltip on the entire sentiment box
-        if (sentimentBox != null) {
-            Tooltip legendTip = new Tooltip(
-                    "Sentiment Circles Legend\n"
-                    + "─────────────────────────\n"
-                    + "🟢 Green  = Buying  (bullish indicators)\n"
-                    + "⚪ Gray   = Neutral (no clear direction)\n"
-                    + "🔴 Red    = Selling (bearish indicators)\n\n"
-                    + "The number inside each circle shows how many\n"
-                    + "weighted indicators are giving that signal.");
-            legendTip.setShowDelay(Duration.millis(300));
-            legendTip.setPrefWidth(280);
-            legendTip.setWrapText(true);
-            Tooltip.install(sentimentBox, legendTip);
-        }
+    private static void applySentimentCircle(Label circle, int count,
+                                             String activeClass, String dimClass) {
+        if (circle == null) return;
+        circle.setText(String.valueOf(count));
+        circle.getStyleClass().removeAll(
+                "sentiment-circle-buying", "sentiment-circle-buying-dim",
+                "sentiment-circle-neutral", "sentiment-circle-neutral-dim",
+                "sentiment-circle-selling", "sentiment-circle-selling-dim");
+        circle.getStyleClass().add(count > 0 ? activeClass : dimClass);
     }
 
     // ── Utilities ─────────────────────────────────────────────
@@ -1986,25 +1958,27 @@ public class ChartController implements Initializable {
     }
 
     /**
-     * T-5: All toolbar buttons use at least 44px height to meet touch-friendly target sizes.
+     * Compact toolbar button styles — fit within the 40px symbol bar without clipping.
      */
     private String activeStyle() {
         return "-fx-background-color:#1f6feb;-fx-text-fill:white;"
-                + "-fx-background-radius:6;-fx-padding:4 10;"
-                + "-fx-min-height:44;-fx-cursor:hand;";
+                + "-fx-background-radius:4;-fx-padding:2 8;"
+                + "-fx-min-height:28;-fx-pref-height:28;-fx-max-height:28;"
+                + "-fx-font-size:11px;-fx-cursor:hand;";
     }
 
-    /** Style for favorited timeframes — gold tint; touch-friendly height. */
     private String favoriteStyle() {
         return "-fx-background-color:#b08800;-fx-text-fill:white;"
-                + "-fx-background-radius:6;-fx-padding:4 10;"
-                + "-fx-min-height:44;-fx-cursor:hand;";
+                + "-fx-background-radius:4;-fx-padding:2 8;"
+                + "-fx-min-height:28;-fx-pref-height:28;-fx-max-height:28;"
+                + "-fx-font-size:11px;-fx-cursor:hand;";
     }
 
     private String inactiveStyle() {
         return "-fx-background-color:#21262d;-fx-text-fill:#e6edf3;"
-                + "-fx-background-radius:6;-fx-padding:4 10;"
-                + "-fx-min-height:44;-fx-cursor:hand;";
+                + "-fx-background-radius:4;-fx-padding:2 8;"
+                + "-fx-min-height:28;-fx-pref-height:28;-fx-max-height:28;"
+                + "-fx-font-size:11px;-fx-cursor:hand;";
     }
 
     private String fmtPrice(double p) {

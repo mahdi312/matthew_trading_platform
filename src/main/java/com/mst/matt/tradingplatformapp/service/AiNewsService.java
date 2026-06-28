@@ -1,5 +1,8 @@
 package com.mst.matt.tradingplatformapp.service;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.reflect.TypeToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,52 +22,44 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * AI News & Insights service.
  *
- * <p>Aggregates recent news from Finnhub (if API key is configured) and
- * generates AI-powered investment summaries.  Results are cached per symbol
- * with a 15-minute TTL to avoid hammering the APIs.
- *
- * <p>If no external API keys are configured the service returns realistic
- * sample data so the UI is always functional.
+ * <p>Fetches real news (Finnhub when configured) and uses OpenAI to produce
+ * sentiment, recommendations, and risk warnings. Results are cached per symbol
+ * with a 15-minute TTL.
  */
 @Service
 public class AiNewsService {
 
     private static final Logger log = LoggerFactory.getLogger(AiNewsService.class);
     private static final Duration CACHE_TTL = Duration.ofMinutes(15);
+    private static final Gson GSON = new Gson();
 
     @Value("${app.api.finnhub.key:}")
     private String finnhubKey;
 
-    @Value("${app.api.alphavantage.key:}")
-    private String alphaVantageKey;
-
     @Value("${app.api.openai.key:}")
     private String openAiKey;
+
+    @Value("${app.api.openai.model:gpt-4o-mini}")
+    private String openAiModel;
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
-    // ── In-memory cache ────────────────────────────────────────────────────────
-
     private final Map<String, CachedInsight> cache = new ConcurrentHashMap<>();
 
-    // ── Domain objects ─────────────────────────────────────────────────────────
-
-    /** A single news headline with sentiment. */
     public record NewsItem(
             String headline,
             String source,
-            String sentiment,   // "BULLISH", "NEUTRAL", "BEARISH"
+            String sentiment,
             String url
     ) {}
 
-    /** The full AI insight response for a symbol or query. */
     public record AiInsight(
             String symbol,
             String query,
             List<NewsItem> news,
-            String overallSentiment,   // "BULLISH", "NEUTRAL", "BEARISH"
+            String overallSentiment,
             String recommendation,
             String riskWarning,
             LocalDateTime generatedAt
@@ -74,18 +69,14 @@ public class AiNewsService {
         boolean isValid() { return LocalDateTime.now().isBefore(expiresAt); }
     }
 
-    // ── Public API ─────────────────────────────────────────────────────────────
-
-    /**
-     * Fetches AI-generated news insight for the given symbol / query.
-     * Results are cached for {@value #CACHE_TTL} minutes.
-     *
-     * @param query  symbol (e.g. "NVDA") or natural-language query
-     * @return       insight, never null
-     */
     public AiInsight getInsight(String query) {
         if (query == null || query.isBlank()) query = "MARKET";
         String key = query.trim().toUpperCase();
+
+        if (openAiKey == null || openAiKey.isBlank()) {
+            throw new AiNewsException(
+                    "OpenAI API key is not configured. Add app.api.openai.key to application-local.properties.");
+        }
 
         CachedInsight cached = cache.get(key);
         if (cached != null && cached.isValid()) {
@@ -98,12 +89,10 @@ public class AiNewsService {
         return insight;
     }
 
-    /** Clears the cache entry for a specific symbol/query. */
     public void invalidate(String query) {
         if (query != null) cache.remove(query.trim().toUpperCase());
     }
 
-    /** Returns a list of popular symbols for the autocomplete dropdown. */
     public List<String> popularSymbols() {
         return List.of(
                 "AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOGL", "META", "NFLX",
@@ -113,36 +102,29 @@ public class AiNewsService {
         );
     }
 
-    // ── Private implementation ─────────────────────────────────────────────────
-
     private AiInsight fetchInsight(String query) {
-        // Determine if it's a stock/crypto symbol or a general query
         boolean isSymbol = query.matches("[A-Z0-9]{2,10}");
-
         List<NewsItem> news = new ArrayList<>();
 
-        // 1. Try Finnhub for company news
-        if (isSymbol && !finnhubKey.isBlank()) {
+        if (isSymbol && finnhubKey != null && !finnhubKey.isBlank()) {
             news.addAll(fetchFinnhubNews(query));
         }
 
-        // 2. Fallback / supplement with sample data when APIs are not configured
-        if (news.isEmpty()) {
-            news.addAll(generateSampleNews(query));
-        }
+        OpenAiAnalysis analysis = callOpenAi(query, news);
+        List<NewsItem> enrichedNews = mergeNewsSentiments(news, analysis);
 
-        // 3. Generate AI recommendation
-        String sentiment = computeOverallSentiment(news);
-        String recommendation = generateRecommendation(query, sentiment, news);
-        String risk = generateRiskWarning(query, news);
-
-        return new AiInsight(query, query, news, sentiment, recommendation, risk,
+        return new AiInsight(
+                query,
+                query,
+                enrichedNews,
+                analysis.overallSentiment(),
+                analysis.recommendation(),
+                analysis.riskWarning(),
                 LocalDateTime.now());
     }
 
     private List<NewsItem> fetchFinnhubNews(String symbol) {
         try {
-            // Finnhub company news endpoint (last 7 days)
             String today = java.time.LocalDate.now().toString();
             String from  = java.time.LocalDate.now().minusDays(7).toString();
             String url   = "https://finnhub.io/api/v1/company-news?symbol=" + symbol
@@ -155,151 +137,158 @@ public class AiNewsService {
 
             HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
             if (resp.statusCode() == 200) {
-                return parseFinnhubResponse(resp.body(), symbol);
+                return parseFinnhubResponse(resp.body());
             }
+            log.warn("Finnhub returned HTTP {} for {}", resp.statusCode(), symbol);
         } catch (Exception e) {
-            log.debug("Finnhub news fetch failed for {}: {}", symbol, e.getMessage());
+            log.warn("Finnhub news fetch failed for {}: {}", symbol, e.getMessage());
         }
         return List.of();
     }
 
-    @SuppressWarnings("unchecked")
-    private List<NewsItem> parseFinnhubResponse(String json, String symbol) {
+    private List<NewsItem> parseFinnhubResponse(String json) {
         List<NewsItem> items = new ArrayList<>();
         try {
-            // Simple JSON array parsing (avoid pulling in Jackson for a list of objects)
-            com.google.gson.Gson gson = new com.google.gson.Gson();
-            com.google.gson.reflect.TypeToken<List<Map<String, Object>>> type =
-                    new com.google.gson.reflect.TypeToken<>() {};
-            List<Map<String, Object>> arr = gson.fromJson(json, type.getType());
+            List<Map<String, Object>> arr = GSON.fromJson(json,
+                    new TypeToken<List<Map<String, Object>>>() {}.getType());
             if (arr == null) return items;
 
-            for (int i = 0; i < Math.min(arr.size(), 6); i++) {
+            for (int i = 0; i < Math.min(arr.size(), 8); i++) {
                 Map<String, Object> item = arr.get(i);
                 String headline = (String) item.getOrDefault("headline", "");
                 String source   = (String) item.getOrDefault("source", "Finnhub");
                 String url      = (String) item.getOrDefault("url", "");
                 if (headline.isBlank()) continue;
-                String sentiment = guessSentiment(headline);
-                items.add(new NewsItem(headline, source, sentiment, url));
+                items.add(new NewsItem(headline, source, "NEUTRAL", url));
             }
         } catch (Exception e) {
-            log.debug("Finnhub JSON parse error: {}", e.getMessage());
+            log.warn("Finnhub JSON parse error: {}", e.getMessage());
         }
         return items;
     }
 
-    /** Heuristic sentiment from headline keywords. */
-    private String guessSentiment(String headline) {
-        String lower = headline.toLowerCase();
-        long bullish = java.util.Arrays.stream(new String[]{
-                "surge", "rally", "gain", "beat", "upgrade", "buy", "bull",
-                "strong", "record", "profit", "growth", "positive", "up"
-        }).filter(lower::contains).count();
-        long bearish = java.util.Arrays.stream(new String[]{
-                "drop", "fall", "decline", "miss", "downgrade", "sell", "bear",
-                "weak", "loss", "risk", "concern", "cut", "warn", "down"
-        }).filter(lower::contains).count();
-        if (bullish > bearish) return "BULLISH";
-        if (bearish > bullish) return "BEARISH";
-        return "NEUTRAL";
-    }
+    private OpenAiAnalysis callOpenAi(String query, List<NewsItem> news) {
+        String headlinesBlock = news.isEmpty()
+                ? "(No recent headlines available — base analysis on the symbol/query only.)"
+                : news.stream()
+                        .map(n -> "- " + n.headline() + " [" + n.source() + "]")
+                        .reduce((a, b) -> a + "\n" + b)
+                        .orElse("");
 
-    /** Generates realistic sample news when APIs are not configured. */
-    private List<NewsItem> generateSampleNews(String query) {
-        boolean isCrypto = query.endsWith("USDT") || query.equals("BTCUSDT")
-                || query.equals("ETHUSDT");
-        boolean isMarketQuery = query.contains("MARKET") || query.contains("SECTOR")
-                || query.contains("SENTIMENT");
+        String systemPrompt = """
+                You are a financial analyst assistant. Respond ONLY with valid JSON (no markdown).
+                Schema:
+                {
+                  "overallSentiment": "BULLISH" | "NEUTRAL" | "BEARISH",
+                  "recommendation": "2-4 sentence actionable investment view",
+                  "riskWarning": "1-2 sentence risk disclaimer",
+                  "headlineSentiments": [{"index": 0, "sentiment": "BULLISH"|"NEUTRAL"|"BEARISH"}]
+                }
+                headlineSentiments.index matches the 0-based order of headlines provided (omit if no headlines).
+                """;
 
-        if (isMarketQuery) {
-            return List.of(
-                    new NewsItem("Fed signals potential rate pause — risk assets rally broadly",
-                            "Reuters", "BULLISH", ""),
-                    new NewsItem("Q2 earnings season shows resilient corporate profit margins",
-                            "Bloomberg", "BULLISH", ""),
-                    new NewsItem("Geopolitical tensions weigh on commodity prices",
-                            "WSJ", "BEARISH", ""),
-                    new NewsItem("Tech sector leads gains as AI spending forecasts rise",
-                            "CNBC", "BULLISH", ""),
-                    new NewsItem("Consumer confidence index slightly below expectations",
-                            "MarketWatch", "NEUTRAL", "")
-            );
+        String userPrompt = "Symbol/query: " + query + "\n\nRecent headlines:\n" + headlinesBlock;
+
+        JsonObject body = new JsonObject();
+        body.addProperty("model", openAiModel);
+        body.add("response_format", GSON.fromJson("{\"type\":\"json_object\"}", JsonObject.class));
+
+        JsonObject sysMsg = new JsonObject();
+        sysMsg.addProperty("role", "system");
+        sysMsg.addProperty("content", systemPrompt);
+
+        JsonObject userMsg = new JsonObject();
+        userMsg.addProperty("role", "user");
+        userMsg.addProperty("content", userPrompt);
+
+        body.add("messages", GSON.toJsonTree(List.of(sysMsg, userMsg)));
+
+        try {
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.openai.com/v1/chat/completions"))
+                    .timeout(Duration.ofSeconds(45))
+                    .header("Authorization", "Bearer " + openAiKey)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
+                    .build();
+
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) {
+                String detail = extractOpenAiError(resp.body());
+                throw new AiNewsException("OpenAI API error (HTTP " + resp.statusCode() + "): " + detail);
+            }
+
+            JsonObject root = GSON.fromJson(resp.body(), JsonObject.class);
+            String content = root.getAsJsonArray("choices")
+                    .get(0).getAsJsonObject()
+                    .getAsJsonObject("message")
+                    .get("content").getAsString();
+
+            JsonObject parsed = GSON.fromJson(content, JsonObject.class);
+            String sentiment = normalizeSentiment(parsed.get("overallSentiment").getAsString());
+            String recommendation = parsed.get("recommendation").getAsString();
+            String risk = parsed.get("riskWarning").getAsString();
+
+            List<HeadlineSentiment> headlineSentiments = new ArrayList<>();
+            if (parsed.has("headlineSentiments") && parsed.get("headlineSentiments").isJsonArray()) {
+                parsed.getAsJsonArray("headlineSentiments").forEach(el -> {
+                    JsonObject o = el.getAsJsonObject();
+                    headlineSentiments.add(new HeadlineSentiment(
+                            o.get("index").getAsInt(),
+                            normalizeSentiment(o.get("sentiment").getAsString())));
+                });
+            }
+
+            return new OpenAiAnalysis(sentiment, recommendation, risk, headlineSentiments);
+        } catch (AiNewsException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new AiNewsException("Failed to reach OpenAI: " + e.getMessage(), e);
         }
-
-        if (isCrypto) {
-            return List.of(
-                    new NewsItem(query + " breaks above key resistance — analysts eye next target",
-                            "CoinDesk", "BULLISH", ""),
-                    new NewsItem("Institutional inflows into crypto ETFs hit monthly high",
-                            "Bloomberg", "BULLISH", ""),
-                    new NewsItem("Regulatory clarity in EU boosts crypto market confidence",
-                            "Reuters", "BULLISH", ""),
-                    new NewsItem("On-chain data shows long-term holder accumulation phase",
-                            "Glassnode", "BULLISH", ""),
-                    new NewsItem("Macro headwinds from strong USD may cap crypto upside",
-                            "CryptoSlate", "NEUTRAL", "")
-            );
-        }
-
-        // Stock fallback
-        return List.of(
-                new NewsItem(query + " reports Q2 earnings beat — EPS above consensus",
-                        "Reuters", "BULLISH", ""),
-                new NewsItem("Analysts raise price target for " + query + " citing AI tailwinds",
-                        "Bloomberg", "BULLISH", ""),
-                new NewsItem(query + " management affirms full-year guidance",
-                        "WSJ", "NEUTRAL", ""),
-                new NewsItem("Supply chain improvements benefit " + query + "'s margins",
-                        "CNBC", "BULLISH", ""),
-                new NewsItem("Sector rotation may create short-term pressure on " + query,
-                        "MarketWatch", "NEUTRAL", "")
-        );
     }
 
-    private String computeOverallSentiment(List<NewsItem> news) {
-        long bull = news.stream().filter(n -> "BULLISH".equals(n.sentiment())).count();
-        long bear = news.stream().filter(n -> "BEARISH".equals(n.sentiment())).count();
-        if (bull > bear + 1) return "BULLISH";
-        if (bear > bull + 1) return "BEARISH";
-        return "NEUTRAL";
+    private static String extractOpenAiError(String body) {
+        try {
+            JsonObject err = GSON.fromJson(body, JsonObject.class);
+            if (err.has("error")) {
+                JsonObject e = err.getAsJsonObject("error");
+                if (e.has("message")) return e.get("message").getAsString();
+            }
+        } catch (Exception ignored) {}
+        return body != null && body.length() > 200 ? body.substring(0, 200) + "…" : String.valueOf(body);
     }
 
-    private String generateRecommendation(String query, String sentiment, List<NewsItem> news) {
-        long bull = news.stream().filter(n -> "BULLISH".equals(n.sentiment())).count();
-        long bear = news.stream().filter(n -> "BEARISH".equals(n.sentiment())).count();
-
-        return switch (sentiment) {
-            case "BULLISH" -> query + " is showing positive momentum with " + bull
-                    + " bullish signal(s). Consider a long position with a defined stop-loss "
-                    + "below recent support. Confirm with volume and technical trend direction "
-                    + "before entering.";
-            case "BEARISH" -> query + " faces " + bear + " bearish headwind(s). Exercise caution — "
-                    + "consider waiting for a confirmed reversal or managing existing longs with "
-                    + "tighter stops. Short positions may be viable for experienced traders.";
-            default -> query + " sentiment is mixed. News flow is balanced between positive and "
-                    + "negative catalysts. Consider waiting for a clearer directional signal "
-                    + "before opening new positions. Monitor key support/resistance levels closely.";
+    private static String normalizeSentiment(String s) {
+        if (s == null) return "NEUTRAL";
+        return switch (s.trim().toUpperCase()) {
+            case "BULLISH", "BUY", "POSITIVE" -> "BULLISH";
+            case "BEARISH", "SELL", "NEGATIVE" -> "BEARISH";
+            default -> "NEUTRAL";
         };
     }
 
-    private String generateRiskWarning(String query, List<NewsItem> news) {
-        List<String> risks = new ArrayList<>();
-
-        // Generic risks based on news content
-        news.forEach(item -> {
-            String h = item.headline().toLowerCase();
-            if (h.contains("regulat")) risks.add("Regulatory developments may impact price.");
-            if (h.contains("rate") || h.contains("fed")) risks.add("Macro/Fed policy risk present.");
-            if (h.contains("supply chain")) risks.add("Supply chain disruptions possible.");
-            if (h.contains("competition") || h.contains("compet")) risks.add("Competitive pressure noted.");
-        });
-
-        // Always add a general risk
-        risks.add("Past performance does not guarantee future results. Always use a stop-loss.");
-
-        // Deduplicate + cap at 3
-        return risks.stream().distinct().limit(3)
-                .reduce((a, b) -> a + " " + b).orElse("Standard market risks apply.");
+    private List<NewsItem> mergeNewsSentiments(List<NewsItem> news, OpenAiAnalysis analysis) {
+        if (news.isEmpty()) return List.of();
+        List<NewsItem> out = new ArrayList<>(news.size());
+        for (int i = 0; i < news.size(); i++) {
+            NewsItem n = news.get(i);
+            final int idx = i;
+            String sent = analysis.headlineSentiments().stream()
+                    .filter(h -> h.index() == idx)
+                    .map(HeadlineSentiment::sentiment)
+                    .findFirst()
+                    .orElse("NEUTRAL");
+            out.add(new NewsItem(n.headline(), n.source(), sent, n.url()));
+        }
+        return out;
     }
+
+    private record OpenAiAnalysis(
+            String overallSentiment,
+            String recommendation,
+            String riskWarning,
+            List<HeadlineSentiment> headlineSentiments
+    ) {}
+
+    private record HeadlineSentiment(int index, String sentiment) {}
 }

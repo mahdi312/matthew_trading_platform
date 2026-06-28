@@ -4,14 +4,20 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 /**
  * A single trade record.
  * Supports both Long and Short directions across all asset types.
+ *
+ * <p>Uses id-only {@code equals}/{@code hashCode} so JavaFX table updates never
+ * touch the lazy {@code profile} proxy after the Hibernate session closes.
  */
 @Entity
 @Table(name = "trades")
-@Data
+@Getter
+@Setter
+@ToString(exclude = "profile")
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -163,4 +169,17 @@ public class Trade {
     public enum AssetType   { CRYPTO, STOCK, FOREX, COMMODITY, INDEX }
     public enum TradeDirection { LONG, SHORT }
     public enum TradeStatus  { OPEN, CLOSED, CANCELLED }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Trade other)) return false;
+        if (id == null || other.id == null) return false;
+        return Objects.equals(id, other.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return id != null ? Objects.hash(id) : System.identityHashCode(this);
+    }
 }

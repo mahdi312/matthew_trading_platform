@@ -120,6 +120,7 @@ public class AiNewsController implements Initializable {
 
     private void fetchAndDisplay(String query) {
         setLoading(true);
+        clearResults();
         Thread.ofVirtual().start(() -> {
             try {
                 AiInsight insight = aiNewsService.getInsight(query);
@@ -129,11 +130,25 @@ public class AiNewsController implements Initializable {
                 });
             } catch (Exception e) {
                 Platform.runLater(() -> {
-                    setStatusError("Failed to fetch insights: " + e.getMessage());
+                    clearResults();
+                    setStatusError(e.getMessage() != null ? e.getMessage() : "Failed to fetch insights.");
                     setLoading(false);
                 });
             }
         });
+    }
+
+    /** Hides stale AI content when a fetch fails or a new fetch starts. */
+    private void clearResults() {
+        if (resultPanel != null) {
+            resultPanel.setVisible(false);
+            resultPanel.setManaged(false);
+        }
+        if (newsContainer != null) newsContainer.getChildren().clear();
+        if (recommendationText != null) recommendationText.setText("");
+        if (riskText != null) riskText.setText("");
+        if (sentimentBadge != null) sentimentBadge.setText("");
+        if (generatedAtLabel != null) generatedAtLabel.setText("");
     }
 
     private void displayInsight(AiInsight insight) {
