@@ -319,4 +319,69 @@ public class OhlcvStorageService {
         ordered.sort(Comparator.comparing(OhlcvBar::getOpenTime));
         return ordered;
     }
+
+    /**
+     * Reads bars from the database that were previously stored for a specific provider.
+     * Used by {@code ChartController} when a non-AUTO provider is selected and the
+     * live API call returned empty results (e.g. network error, offline mode).
+     *
+     * @param symbol    trading symbol (e.g. "SOLUSDT")
+     * @param timeframe timeframe string (e.g. "1h")
+     * @param limit     maximum number of bars to return
+     * @param provider  provider name (e.g. "COINGECKO") — used to query dynamic table if available
+     * @return chronologically-sorted list of bars, may be empty
+     */
+    @Transactional
+    public List<OhlcvBar> getBarsForProvider(String symbol, String timeframe,
+                                             int limit, String provider) {
+        String sym = symbol.toUpperCase();
+        if (marketDataProperties.getDynamicTables().isEnabled() && provider != null && !provider.isBlank()) {
+            // Try provider-specific table first (e.g. SOLUSDT_COINGECKO_1H)
+            try {
+                List<OhlcvBar> bars = aggregatedCandleQueryService.fetchAggregated(
+                        sym, provider, timeframe, null, limit);
+                if (!bars.isEmpty()) return bars;
+            } catch (Exception e) {
+                log.debug("Provider table fetch failed for {}/{}/{}: {}", sym, provider, timeframe, e.getMessage());
+            }
+        }
+        // Fall back to the generic OHLCV table
+        return chronological(barRepository.findTopBySymbolAndTimeframe(
+                sym, timeframe, PageRequest.of(0, limit)));
+    }
+
+    /**
+     * Persists bars that were freshly fetched from a specific provider into the database.
+     * This ensures the data is available for offline/staleness checks even when the
+     * next chart load cannot reach that provider.
+     *
+     * @param symbol    trading symbol (e.g. "SOLUSDT")
+     * @param timeframe timeframe string (e.g. "1h")
+     * @param provider  provider name (used as a tag in dynamic-table mode)
+     * @param bars      list of bars to persist
+     */
+    @Transactional
+    public void storeProviderBars(String symbol, String timeframe,
+                                  String provider, List<OhlcvBar> bars) {
+        if (bars == null || bars.isEmpty()) return;
+        String sym = symbol.toUpperCase();
+        try {
+            Map<LocalDateTime, OhlcvBar> byTime = new LinkedHashMap<>();
+            // Load existing bars to merge
+            List<OhlcvBar> existing = chronological(barRepository.findTopBySymbolAndTimeframe(
+                    sym, timeframe, PageRequest.of(0, bars.size() * 2)));
+            existing.forEach(b -> byTime.put(b.getOpenTime(), b));
+            for (OhlcvBar bar : bars) {
+                bar.setSymbol(sym);
+                bar.setTimeframe(timeframe);
+                barRepository.findBySymbolAndTimeframeAndOpenTime(sym, timeframe, bar.getOpenTime())
+                        .ifPresent(ex -> bar.setId(ex.getId()));
+                byTime.put(bar.getOpenTime(), bar);
+            }
+            barRepository.saveAll(new ArrayList<>(byTime.values()));
+            log.debug("Stored {} bars for {}/{} from provider {}", bars.size(), sym, timeframe, provider);
+        } catch (Exception e) {
+            log.warn("Failed to store bars for {}/{} from {}: {}", sym, timeframe, provider, e.getMessage());
+        }
+    }
 }

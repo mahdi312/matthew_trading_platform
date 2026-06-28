@@ -100,12 +100,24 @@ public class AlertManagerController implements Initializable {
                 deleteBtn.setStyle("-fx-background-color:#da3633; -fx-text-fill:white;"
                         + "-fx-background-radius:4; -fx-cursor:hand;");
                 toggleBtn.setOnAction(e -> {
-                    PriceAlert a = getTableView().getItems().get(getIndex());
+                    // Fix #3: guard against stale index after list mutations
+                    int idx = getIndex();
+                    if (getTableView() == null) return;
+                    var items = getTableView().getItems();
+                    if (items == null || idx < 0 || idx >= items.size()) return;
+                    PriceAlert a = items.get(idx);
+                    if (a == null || a.getId() == null) return;
                     alertService.toggleAlert(a.getId(), !a.isActive());
                     refreshTable();
                 });
                 deleteBtn.setOnAction(e -> {
-                    PriceAlert a = getTableView().getItems().get(getIndex());
+                    // Fix #3: guard against stale index after list mutations
+                    int idx = getIndex();
+                    if (getTableView() == null) return;
+                    var items = getTableView().getItems();
+                    if (items == null || idx < 0 || idx >= items.size()) return;
+                    PriceAlert a = items.get(idx);
+                    if (a == null || a.getId() == null) return;
                     alertService.deleteAlert(a.getId());
                     refreshTable();
                 });
@@ -185,8 +197,24 @@ public class AlertManagerController implements Initializable {
 
     private void refreshTable() {
         if (activeProfile == null) return;
-        List<PriceAlert> alerts =
-                alertService.getAlertsForProfile(activeProfile);
-        alertsTable.getItems().setAll(alerts);
+        // Fetch on a background thread so the FX thread is never blocked by DB I/O.
+        // The result is applied back on the FX thread via Platform.runLater, ensuring
+        // no Hibernate session is open when the TableView accesses the list items.
+        Thread.ofVirtual().start(() -> {
+            try {
+                List<PriceAlert> alerts = alertService.getAlertsForProfile(activeProfile);
+                javafx.application.Platform.runLater(() -> {
+                    if (alertsTable != null) {
+                        alertsTable.getItems().setAll(alerts);
+                    }
+                });
+            } catch (Exception ex) {
+                javafx.application.Platform.runLater(() ->
+                        new javafx.scene.control.Alert(
+                                javafx.scene.control.Alert.AlertType.ERROR,
+                                "Failed to refresh alerts: " + ex.getMessage())
+                                .show());
+            }
+        });
     }
 }

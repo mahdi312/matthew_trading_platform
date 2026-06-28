@@ -15,14 +15,20 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+// Prevent Lombok-generated equals/hashCode from touching the lazy UserProfile proxy.
+// A closed Hibernate session causes LazyInitializationException when JavaFX
+// TableView calls equals() during rendering (Fix for Issue #2).
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class PriceAlert {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include   // only the PK is used for equality — no lazy-proxy access
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "profile_id", nullable = false)
+    @ToString.Exclude            // prevent toString() from touching the lazy proxy
     private UserProfile profile;
 
     @Column(nullable = false)

@@ -157,6 +157,13 @@ public class ChartController implements Initializable {
     /** Current global drawing settings (persisted via AppSettingsService). */
     private GlobalDrawingSettings drawingSettings = new GlobalDrawingSettings();
 
+    /** True while a chart load is in progress — prevents overlapping requests. */
+    private final AtomicBoolean chartLoading = new AtomicBoolean(false);
+
+    /** Loading overlay shown over the chart while data is being fetched. */
+    private javafx.scene.layout.StackPane loadingOverlay;
+    private javafx.animation.Timeline loadingDotsTimeline;
+
     /** Screenshot callback – receives the PNG file path after capture. */
     private Consumer<String> onScreenshotSaved;
 
@@ -1622,6 +1629,66 @@ public class ChartController implements Initializable {
 
     // ── Chart loading ─────────────────────────────────────────
 
+    /**
+     * Builds (lazily) and shows a "loading" overlay on top of the chart canvas.
+     * The overlay shows an animated spinner + "Loading candles…" message.
+     * Must be called on the JavaFX Application Thread.
+     */
+    private void showChartLoadingOverlay() {
+        if (chartStack == null) return;
+        // Remove any stale overlay first
+        hideChartLoadingOverlay();
+
+        javafx.scene.control.ProgressIndicator spinner = new javafx.scene.control.ProgressIndicator();
+        spinner.setMaxWidth(40);
+        spinner.setMaxHeight(40);
+        spinner.setStyle("-fx-progress-color:#388bfd;");
+
+        // Animated dots label
+        javafx.scene.control.Label msgLabel = new javafx.scene.control.Label("Loading candles…");
+        msgLabel.setStyle("-fx-text-fill:#e6edf3; -fx-font-size:14px; -fx-font-weight:bold;");
+
+        javafx.scene.layout.VBox content = new javafx.scene.layout.VBox(10, spinner, msgLabel);
+        content.setAlignment(javafx.geometry.Pos.CENTER);
+
+        // Animate dots
+        final String[] dots = {"Loading candles…", "Loading candles  ", "Loading candles. ", "Loading candles.."};
+        final int[] dotIdx = {0};
+        loadingDotsTimeline = new javafx.animation.Timeline(
+                new javafx.animation.KeyFrame(Duration.millis(400), ae -> {
+                    dotIdx[0] = (dotIdx[0] + 1) % dots.length;
+                    msgLabel.setText(dots[dotIdx[0]]);
+                }));
+        loadingDotsTimeline.setCycleCount(javafx.animation.Timeline.INDEFINITE);
+        loadingDotsTimeline.play();
+
+        loadingOverlay = new javafx.scene.layout.StackPane(content);
+        loadingOverlay.setStyle("-fx-background-color:rgba(13,17,23,0.72);");
+        loadingOverlay.setMouseTransparent(true); // allow underlying canvas interaction
+
+        // Bind overlay to chartPane size so it covers only the chart area
+        loadingOverlay.prefWidthProperty().bind(chartPane.widthProperty());
+        loadingOverlay.prefHeightProperty().bind(chartPane.heightProperty());
+
+        // Add on top of chartStack (z-order last = on top)
+        chartStack.getChildren().add(loadingOverlay);
+    }
+
+    /**
+     * Hides and removes the loading overlay.
+     * Must be called on the JavaFX Application Thread.
+     */
+    private void hideChartLoadingOverlay() {
+        if (loadingDotsTimeline != null) {
+            loadingDotsTimeline.stop();
+            loadingDotsTimeline = null;
+        }
+        if (loadingOverlay != null && chartStack != null) {
+            chartStack.getChildren().remove(loadingOverlay);
+            loadingOverlay = null;
+        }
+    }
+
     @FXML public void onChartProviderChanged() {
         // Ignore programmatic updates (refreshProviderCombo setting value)
         if (updatingProviderCombo) return;
@@ -1632,11 +1699,14 @@ public class ChartController implements Initializable {
         activeProfile.setChartProvider(chosen.name());
         profilePersistence.saveAsync(activeProfile);
         showInfoNotification("Provider changed to " + chosen.getLabel() + " — refreshing chart…");
+        // Show loading overlay immediately on FX thread
+        showChartLoadingOverlay();
         Thread.ofVirtual().start(() -> {
-            // Fix 2: Invalidate the in-memory cache so the new provider fetches fresh data
+            // Invalidate the in-memory cache so the new provider fetches fresh data
             ohlcvStorageService.invalidateCache(currentSymbol, currentTimeframe);
-            ohlcvStorageService.refreshBars(currentSymbol, currentTimeframe, currentBars, activeProfile);
-            loadChart();
+            // Fetch directly from the chosen provider (not through the fallback chain)
+            // so that "COINGECKO selected" only calls CoinGecko, not Binance, etc.
+            loadChartForProvider(chosen, null);
         });
     }
 
@@ -1675,15 +1745,17 @@ public class ChartController implements Initializable {
     /**
      * Load chart with a 10-second timeout. If the chart hasn't updated within that
      * window, show a non-blocking error notification.
+     * Also shows the loading overlay for the duration.
      */
     private void loadChartWithTimeout() {
         AtomicBoolean completed = new AtomicBoolean(false);
-        // Start the load
+        // loadChart() shows the overlay itself
         loadChart(completed);
         // Schedule a 10-second timeout check on FX thread
         PauseTransition timeout = new PauseTransition(Duration.seconds(10));
         timeout.setOnFinished(e -> {
             if (!completed.get()) {
+                hideChartLoadingOverlay();
                 showErrorNotification("Failed to load requested candle count. Please try again.");
             }
         });
@@ -1695,79 +1767,236 @@ public class ChartController implements Initializable {
     }
 
     private void loadChart(AtomicBoolean completionFlag) {
+        // Show loading overlay before starting background fetch (always on FX thread)
+        if (Platform.isFxApplicationThread()) {
+            showChartLoadingOverlay();
+        } else {
+            Platform.runLater(this::showChartLoadingOverlay);
+        }
         // Feature 1: always guard against null profile
         if (activeProfile == null) {
             log.debug("loadChart() skipped — no active profile");
+            Platform.runLater(this::hideChartLoadingOverlay);
             return;
         }
         // Feature 4.3: enforce candle cap
         currentBars = Math.min(currentBars, authService.maxCandles());
 
-        Thread.ofVirtual().start(() -> {
-            try {
-                AnalysisResult result = loadAnalysisWithRetry();
-                var quoteOpt = priceRouter.getQuote(currentSymbol, activeProfile);
-                String provider = PriceRouter.getLastProviderName();
+        // Resolve which specific provider is selected (null = AUTO/fallback chain)
+        MarketDataProvider selectedProvider = MarketDataProvider.AUTO;
+        if (activeProfile.getChartProvider() != null) {
+            selectedProvider = MarketDataProvider.fromString(activeProfile.getChartProvider());
+        }
+        final MarketDataProvider providerToUse = selectedProvider;
 
-                if (!activeIndicators.isEmpty() && !result.getBars().isEmpty()) {
-                    BarSeries series = analysisService.buildBarSeries(
-                            result.getBars(), currentSymbol);
+        Thread.ofVirtual().start(() -> loadChartForProvider(providerToUse, completionFlag));
+    }
+
+    /**
+     * Core chart-load implementation.
+     * When {@code provider} is non-AUTO, fetches OHLCV and quote ONLY from that
+     * specific provider — no fallback to other APIs.
+     * Falls back to the full chain only when provider == AUTO.
+     *
+     * <p>Must be called on a background thread (not the FX Application Thread).
+     *
+     * @param provider       the chosen provider (AUTO = use full chain with fallback)
+     * @param completionFlag optional flag set to {@code true} when done (for timeout detection)
+     */
+    private void loadChartForProvider(MarketDataProvider provider, AtomicBoolean completionFlag) {
+        if (activeProfile == null) {
+            Platform.runLater(this::hideChartLoadingOverlay);
+            return;
+        }
+        try {
+            // ── Step 1: Fetch OHLCV bars from the selected (or auto) provider ──────
+            List<com.mst.matt.tradingplatformapp.model.OhlcvBar> bars;
+            String providerName;
+
+            if (provider != null && provider != MarketDataProvider.AUTO) {
+                // Strict provider isolation: only call the selected provider
+                var svcOpt = providerRegistry.get(provider);
+                if (svcOpt.isPresent()) {
+                    String normalized = com.mst.matt.tradingplatformapp.service.price
+                            .SymbolNormalizer.normalize(currentSymbol);
+                    try {
+                        bars = svcOpt.get().getOhlcv(normalized, currentTimeframe, currentBars);
+                        providerName = svcOpt.get().getProviderName();
+                    } catch (Exception ex) {
+                        log.warn("Provider {} OHLCV failed for {}: {}",
+                                provider.getLabel(), currentSymbol, ex.getMessage());
+                        bars = java.util.Collections.emptyList();
+                        providerName = provider.getLabel() + " (error)";
+                    }
+                    // If direct API call returned data, update DB cache for this provider
+                    if (!bars.isEmpty()) {
+                        final List<com.mst.matt.tradingplatformapp.model.OhlcvBar> finalBars = bars;
+                        final String sym = currentSymbol.toUpperCase();
+                        final String tf  = currentTimeframe;
+                        Thread.ofVirtual().start(() -> {
+                            try {
+                                ohlcvStorageService.storeProviderBars(sym, tf, provider.name(), finalBars);
+                            } catch (Exception ignore) {}
+                        });
+                    } else {
+                        // API returned nothing – try reading from DB for this provider
+                        bars = ohlcvStorageService.getBarsForProvider(
+                                currentSymbol, currentTimeframe, currentBars, provider.name());
+                        // Check staleness
+                        if (ohlcvStorageService.isStale(bars, currentTimeframe)) {
+                            final String msg = "Data from " + provider.getLabel()
+                                    + " may be stale (loaded from DB cache)";
+                            Platform.runLater(() -> showWarnNotification("⚠ " + msg));
+                        }
+                    }
+                } else {
+                    // Provider not available — fall back to full chain
+                    log.warn("Provider {} not available, falling back to AUTO", provider);
+                    bars = ohlcvStorageService.getBars(
+                            currentSymbol, currentTimeframe, currentBars, activeProfile);
+                    providerName = PriceRouter.getLastProviderName();
+                }
+            } else {
+                // AUTO mode: use the full fallback chain (existing behaviour)
+                AnalysisResult result = loadAnalysisWithRetry();
+                bars = result.getBars();
+                providerName = PriceRouter.getLastProviderName();
+
+                // Run full analysis pipeline
+                var quoteOpt = priceRouter.getQuote(currentSymbol, activeProfile);
+                if (!activeIndicators.isEmpty() && !bars.isEmpty()) {
+                    BarSeries series = analysisService.buildBarSeries(bars, currentSymbol);
                     indicatorComputeService.computeAll(activeIndicators, series);
                 }
-
                 if (completionFlag != null) completionFlag.set(true);
 
+                final List<com.mst.matt.tradingplatformapp.model.OhlcvBar> finalBars = bars;
+                final AnalysisResult finalResult = result;
+                final String finalProvider = providerName;
                 Platform.runLater(() -> {
-                    double lastPrice = result.getBars().isEmpty() ? Double.NaN
-                            : result.getBars().get(result.getBars().size() - 1)
-                            .getClose().doubleValue();
+                    hideChartLoadingOverlay();
+                    double lastPrice = finalBars.isEmpty() ? Double.NaN
+                            : finalBars.get(finalBars.size() - 1).getClose().doubleValue();
                     quoteOpt.filter(q -> q.getPrice() != null)
                             .ifPresent(q -> chart.setLastPrice(q.getPrice().doubleValue()));
                     if (Double.isNaN(chart.getLastPrice()) && !Double.isNaN(lastPrice))
                         chart.setLastPrice(lastPrice);
-
-                    chart.setData(result.getBars(), activeIndicators, result.getSrResult());
+                    chart.setData(finalBars, activeIndicators, finalResult.getSrResult());
                     loadDrawingsForChart();
-
-                    if (viewMode == ViewMode.ANALYSIS && result.getSignal() != null)
-                        updateSignalBar(result.getSignal());
-
-                    if (result.getIndicators() != null) {
-                        double px = quoteOpt
-                                .map(q -> q.getPrice())
+                    if (viewMode == ViewMode.ANALYSIS && finalResult.getSignal() != null)
+                        updateSignalBar(finalResult.getSignal());
+                    if (finalResult.getIndicators() != null) {
+                        double px = quoteOpt.map(q -> q.getPrice())
                                 .filter(p -> p != null)
                                 .map(java.math.BigDecimal::doubleValue)
                                 .orElse(lastPrice);
                         indicatorMixerController.setIndicatorData(
-                                result.getIndicators(), result.getSrResult(), px);
+                                finalResult.getIndicators(), finalResult.getSrResult(), px);
                     }
-
                     quoteOpt.filter(q -> q.getPrice() != null).ifPresent(q -> {
                         if (viewMode == ViewMode.ANALYSIS && currentPriceChartLabel != null) {
                             currentPriceChartLabel.setText(
-                                    "$" + q.getPrice().toPlainString()
-                                            + (q.isUp() ? " ▲" : " ▼"));
+                                    "$" + q.getPrice().toPlainString() + (q.isUp() ? " ▲" : " ▼"));
                             currentPriceChartLabel.setStyle(
                                     "-fx-font-size:18px;-fx-font-weight:bold;-fx-text-fill:"
                                             + (q.isUp() ? "#3fb950" : "#f85149") + ";");
                         }
                     });
-                    dataSourceLabel.setText("OHLCV via " + provider);
+                    dataSourceLabel.setText("OHLCV via " + finalProvider);
                     dataSourceLabel.setTooltip(new Tooltip(
                             "Last successful price provider for " + currentSymbol));
                     chartLiveSession.recordLoaded();
                 });
-            } catch (Exception e) {
-                if (completionFlag != null) completionFlag.set(true);
-                log.warn("Chart load failed for {} {}: {}", currentSymbol, currentTimeframe,
-                        e.getMessage());
-                Platform.runLater(() -> {
-                    dataSourceLabel.setText("⚠ Data unavailable — retrying…");
-                    showErrorNotification("Chart data unavailable for " + currentSymbol
-                            + " [" + currentTimeframe + "]. " + e.getMessage());
-                });
+                return; // early return — FX update already scheduled above
             }
-        });
+
+            // ── Step 2 (non-AUTO path): run analysis on bars ──────────────────────
+            AnalysisResult result = bars.isEmpty()
+                    ? com.mst.matt.tradingplatformapp.service.analysis.AnalysisService
+                        .AnalysisResult.empty(currentSymbol, currentTimeframe)
+                    : analysisService.analyzeFromBars(bars, currentSymbol, currentTimeframe, activeProfile);
+
+            // ── Step 3: get quote (only from selected provider if non-AUTO) ────────
+            java.util.Optional<com.mst.matt.tradingplatformapp.service.price.PriceQuote> quoteOpt;
+            if (provider != null && provider != MarketDataProvider.AUTO) {
+                var svcOpt = providerRegistry.get(provider);
+                if (svcOpt.isPresent()) {
+                    String normalized = com.mst.matt.tradingplatformapp.service.price
+                            .SymbolNormalizer.normalize(currentSymbol);
+                    try {
+                        quoteOpt = svcOpt.get().getQuote(normalized);
+                    } catch (Exception ex) {
+                        log.debug("Quote from {} failed: {}", provider, ex.getMessage());
+                        quoteOpt = java.util.Optional.empty();
+                    }
+                } else {
+                    quoteOpt = java.util.Optional.empty();
+                }
+            } else {
+                quoteOpt = priceRouter.getQuote(currentSymbol, activeProfile);
+            }
+
+            if (!activeIndicators.isEmpty() && !bars.isEmpty()) {
+                BarSeries series = analysisService.buildBarSeries(bars, currentSymbol);
+                indicatorComputeService.computeAll(activeIndicators, series);
+            }
+
+            if (completionFlag != null) completionFlag.set(true);
+
+            final List<com.mst.matt.tradingplatformapp.model.OhlcvBar> finalBars2 = bars;
+            final AnalysisResult finalResult2 = result;
+            final String finalProvider2 = providerName;
+            final java.util.Optional<com.mst.matt.tradingplatformapp.service.price.PriceQuote> finalQuote = quoteOpt;
+
+            Platform.runLater(() -> {
+                hideChartLoadingOverlay();
+                double lastPrice = finalBars2.isEmpty() ? Double.NaN
+                        : finalBars2.get(finalBars2.size() - 1).getClose().doubleValue();
+                finalQuote.filter(q -> q.getPrice() != null)
+                        .ifPresent(q -> chart.setLastPrice(q.getPrice().doubleValue()));
+                if (Double.isNaN(chart.getLastPrice()) && !Double.isNaN(lastPrice))
+                    chart.setLastPrice(lastPrice);
+                chart.setData(finalBars2, activeIndicators, finalResult2.getSrResult());
+                loadDrawingsForChart();
+                if (viewMode == ViewMode.ANALYSIS && finalResult2.getSignal() != null)
+                    updateSignalBar(finalResult2.getSignal());
+                if (finalResult2.getIndicators() != null) {
+                    double px = finalQuote.map(q -> q.getPrice())
+                            .filter(p -> p != null)
+                            .map(java.math.BigDecimal::doubleValue)
+                            .orElse(lastPrice);
+                    indicatorMixerController.setIndicatorData(
+                            finalResult2.getIndicators(), finalResult2.getSrResult(), px);
+                }
+                finalQuote.filter(q -> q.getPrice() != null).ifPresent(q -> {
+                    if (viewMode == ViewMode.ANALYSIS && currentPriceChartLabel != null) {
+                        currentPriceChartLabel.setText(
+                                "$" + q.getPrice().toPlainString() + (q.isUp() ? " ▲" : " ▼"));
+                        currentPriceChartLabel.setStyle(
+                                "-fx-font-size:18px;-fx-font-weight:bold;-fx-text-fill:"
+                                        + (q.isUp() ? "#3fb950" : "#f85149") + ";");
+                    }
+                });
+                dataSourceLabel.setText("OHLCV via " + finalProvider2);
+                dataSourceLabel.setTooltip(new Tooltip(
+                        "Last successful price provider for " + currentSymbol));
+                chartLiveSession.recordLoaded();
+                // Warn if DB data is stale
+                if (ohlcvStorageService.isStale(finalBars2, currentTimeframe)) {
+                    showWarnNotification("⚠ Displayed data may be stale — provider returned no new candles");
+                }
+            });
+        } catch (Exception e) {
+            if (completionFlag != null) completionFlag.set(true);
+            log.warn("Chart load failed for {} {}: {}", currentSymbol, currentTimeframe,
+                    e.getMessage());
+            Platform.runLater(() -> {
+                hideChartLoadingOverlay();
+                dataSourceLabel.setText("⚠ Data unavailable — retrying…");
+                showErrorNotification("Chart data unavailable for " + currentSymbol
+                        + " [" + currentTimeframe + "]. " + e.getMessage());
+            });
+        }
     }
 
     private void showErrorNotification(String message) {
