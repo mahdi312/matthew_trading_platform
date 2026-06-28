@@ -6,7 +6,10 @@ import com.google.gson.reflect.TypeToken;
 import com.mst.matt.tradingplatformapp.model.*;
 import com.mst.matt.tradingplatformapp.repository.ChartDrawingRepository;
 import com.mst.matt.tradingplatformapp.repository.DrawingLayoutRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Type;
@@ -15,6 +18,8 @@ import java.util.List;
 
 @Service
 public class ChartDrawingService {
+
+    private static final Logger log = LoggerFactory.getLogger(ChartDrawingService.class);
 
     // Use only simple types in the Gson graph — no java.time classes.
     private static final Gson GSON = new GsonBuilder()
@@ -85,14 +90,41 @@ public class ChartDrawingService {
         return list;
     }
 
+    /**
+     * Persists a drawing in its <em>own</em> independent transaction.
+     *
+     * <p><b>Bug fix — aborted-transaction propagation:</b>
+     * When the caller (e.g. {@code ChartController.persistDrawing()}) runs inside a
+     * transaction that has already been marked rollback-only (e.g. because an earlier
+     * {@code INSERT} failed due to the old CHECK constraint on {@code tool_type}),
+     * every subsequent statement in that transaction is rejected by PostgreSQL with
+     * {@code "current transaction is aborted, commands ignored until end of transaction block"}.
+     *
+     * <p>Using {@code propagation = REQUIRES_NEW} forces Spring to suspend any ambient
+     * transaction and open a brand-new one just for this save.  If the save fails
+     * the new transaction is rolled back but the caller's transaction (or lack thereof)
+     * is completely unaffected — preventing the cascade of secondary failures.</p>
+     *
+     * <p>The {@code REQUIRES_NEW} behaviour is especially important on PostgreSQL where
+     * a failed statement permanently aborts the surrounding transaction until an explicit
+     * rollback is issued.  SQLite (used in the default desktop profile) is also protected
+     * because each call now gets its own atomic transaction boundary.</p>
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ChartDrawing save(ChartDrawing drawing) {
-        dehydrate(drawing);
-        ChartDrawing saved = repository.save(drawing);
-        hydrate(saved);
-        return saved;
+        try {
+            dehydrate(drawing);
+            ChartDrawing saved = repository.save(drawing);
+            hydrate(saved);
+            return saved;
+        } catch (Exception e) {
+            log.error("Failed to persist chart drawing (toolType={}): {}",
+                    drawing.getToolType(), e.getMessage(), e);
+            throw e;   // re-throw so caller can handle / log the error
+        }
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void delete(Long id) {
         repository.deleteById(id);
     }

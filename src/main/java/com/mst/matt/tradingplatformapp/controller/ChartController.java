@@ -1074,10 +1074,20 @@ public class ChartController implements Initializable {
         drawing.setSymbol(currentSymbol);
         drawing.setTimeframe(currentTimeframe);
         Thread.ofVirtual().start(() -> {
-            ChartDrawing saved = chartDrawingService.save(drawing);
-            Platform.runLater(() -> {
-                if (drawing.getId() == null) drawing.setId(saved.getId());
-            });
+            try {
+                ChartDrawing saved = chartDrawingService.save(drawing);
+                Platform.runLater(() -> {
+                    if (drawing.getId() == null) drawing.setId(saved.getId());
+                });
+            } catch (Exception e) {
+                // Drawing save failed — log and show a non-intrusive toast.
+                // The failure is isolated (REQUIRES_NEW transaction) so it does NOT
+                // abort any surrounding transaction or affect subsequent chart data loads.
+                log.error("persistDrawing failed for toolType={}: {}", drawing.getToolType(), e.getMessage(), e);
+                Platform.runLater(() ->
+                    showWarnNotification("⚠ Could not save drawing (" + drawing.getToolType() + "): " + e.getMessage())
+                );
+            }
         });
     }
 
