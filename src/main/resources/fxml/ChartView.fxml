@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<!-- BorderPane keeps the symbol/toolbar row pinned at the top; chart fills center only. -->
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
-<!-- BorderPane keeps the symbol/toolbar row pinned at the top; chart fills center only. -->
 <BorderPane xmlns:fx="http://javafx.com/fxml"
             fx:id="chartRoot"
             fx:controller="com.mst.matt.tradingplatformapp.controller.ChartController"
@@ -27,7 +27,7 @@
                     <!-- ── Symbol group ── -->
                     <Label text="Sym" styleClass="chart-toolbar-label"/>
                     <ComboBox fx:id="symbolCombo"
-                              prefWidth="88" minWidth="72" maxWidth="110"
+                              prefWidth="95" minWidth="85" maxWidth="120"
                               styleClass="chart-toolbar-combo"
                               promptText="Symbol"/>
                     <TextField fx:id="symbolInput"
@@ -73,13 +73,13 @@
 
                     <!-- ── Bars count ── -->
                     <Label text="Bars" styleClass="chart-toolbar-label"/>
-                    <ComboBox fx:id="barsCombo" prefWidth="68" minWidth="56" maxWidth="80"
+                    <ComboBox fx:id="barsCombo" prefWidth="85" minWidth="68" maxWidth="100"
                               styleClass="chart-toolbar-combo"/>
 
                     <Separator orientation="VERTICAL" styleClass="chart-toolbar-sep"/>
 
                     <!-- ── Indicators button ── -->
-                    <Button fx:id="indicatorPickerBtn" text="📊 Ind"
+                    <Button fx:id="indicatorPickerBtn" text="📊 Indicators"
                             styleClass="btn-secondary chart-toolbar-btn"
                             onAction="#onOpenIndicatorPicker">
                         <tooltip><Tooltip text="Add/remove indicators"/></tooltip>
