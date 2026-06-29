@@ -292,6 +292,31 @@ public class IndicatorMixerController implements Initializable {
         });
     }
 
+    /**
+     * Issue #6: Called by MainDashboardController when the chart symbol changes.
+     * Updates the mixer's symbol field and reloads indicator data.
+     */
+    public void setSymbol(String symbol) {
+        if (symbol == null || symbol.isBlank()) return;
+        String sym = symbol.trim().toUpperCase();
+        if (sym.equals(mixerSymbol)) return;
+        mixerSymbol = sym;
+        javafx.application.Platform.runLater(() -> {
+            if (autocompleteField != null) {
+                autocompleteField.setSymbol(mixerSymbol);
+            } else if (mixerSymbolField != null) {
+                mixerSymbolField.setText(mixerSymbol);
+            }
+            if (mixerSymbolCombo != null
+                    && !mixerSymbol.equals(mixerSymbolCombo.getValue())) {
+                if (!mixerSymbolCombo.getItems().contains(mixerSymbol)) {
+                    mixerSymbolCombo.getItems().add(0, mixerSymbol);
+                }
+                mixerSymbolCombo.setValue(mixerSymbol);
+            }
+        });
+    }
+
     public void setProfile(UserProfile profile) {
         this.activeProfile = profile;
         if (profile == null) { loadConfig(); return; }

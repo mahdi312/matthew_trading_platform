@@ -118,6 +118,15 @@ public class MainDashboardController implements Initializable {
             if (activeProfile != null) dashboardCtrl.loadProfile(activeProfile);
             showView(dashboardView);
             setActiveNav(navDashboard);
+
+            // Issue #4: Initialize ticker bar with the active profile's watchlist
+            // rather than the hardcoded defaults from LiveTickerService.
+            if (activeProfile != null && liveTickerService != null) {
+                liveTickerService.applyProfileWatchlist(activeProfile);
+                if (scrollingTicker != null) {
+                    scrollingTicker.setSymbols(liveTickerService.allSymbols());
+                }
+            }
         });
     }
 
@@ -735,6 +744,30 @@ public class MainDashboardController implements Initializable {
         chartCtrl.setOnCreateTradeFromDrawing(this::openTradeEntryFromDrawing);
         chartCtrl.setOnInstantSaveTradeFromDrawing(this::instantSaveTradeFromDrawing);
         chartCtrl.setOnViewAllAlerts(this::onNavAlerts);
+        // Issue #6: Wire symbol-change propagation from chart to other tabs
+        chartCtrl.setOnSymbolChanged(this::onChartSymbolChanged);
+    }
+
+    /**
+     * Issue #6: Called whenever the user changes the symbol in the Live Chart or Analysis tab.
+     * Propagates the new symbol to Indicator Mixer, Yearly Profit, and AI News tabs.
+     */
+    private void onChartSymbolChanged(String newSymbol) {
+        if (newSymbol == null || newSymbol.isBlank()) return;
+        // Update Indicator Mixer
+        if (mixerCtrl != null) {
+            try { mixerCtrl.setSymbol(newSymbol); }
+            catch (Exception e) { /* ignore if method not yet available */ }
+        }
+        // Update Yearly Profit
+        if (yearlyProfitCtrl != null) {
+            try { yearlyProfitCtrl.setSymbol(newSymbol); }
+            catch (Exception e) { /* ignore */ }
+        }
+        // Update AI News
+        if (aiNewsCtrl != null) {
+            aiNewsCtrl.setCurrentSymbol(newSymbol);
+        }
     }
 
     private void openTradeEntryFromDrawing(TradeDrawingDraft draft) {

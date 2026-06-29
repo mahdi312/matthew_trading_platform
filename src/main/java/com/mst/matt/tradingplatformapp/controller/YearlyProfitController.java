@@ -118,6 +118,21 @@ public class YearlyProfitController implements Initializable {
         }
     }
 
+    /**
+     * Issue #6: Called by MainDashboardController when the chart symbol changes.
+     * Updates the symbol field to match the chart's active symbol.
+     */
+    public void setSymbol(String symbol) {
+        if (symbol == null || symbol.isBlank()) return;
+        String sym = symbol.trim().toUpperCase();
+        if (sym.equals(currentSymbol)) return;
+        currentSymbol = sym;
+        javafx.application.Platform.runLater(() -> {
+            if (symbolField != null) symbolField.setText(currentSymbol);
+            if (autocompleteField != null) autocompleteField.setSymbol(currentSymbol);
+        });
+    }
+
     public void setProfile(UserProfile profile) {
         this.activeProfile = profile;
         if (profile == null) return;

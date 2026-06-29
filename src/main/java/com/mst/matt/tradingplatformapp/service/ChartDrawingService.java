@@ -129,6 +129,26 @@ public class ChartDrawingService {
         repository.deleteById(id);
     }
 
+    /**
+     * Permanently deletes ALL drawings for a given profile/symbol/timeframe.
+     *
+     * <p>Called by "Delete All Drawings" button. Uses {@code REQUIRES_NEW} so any
+     * ambient (potentially aborted) transaction is bypassed, ensuring the DELETE
+     * always executes in a clean transaction.</p>
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void deleteAllDrawings(UserProfile profile, String symbol, String timeframe) {
+        if (profile == null || symbol == null || timeframe == null) return;
+        try {
+            repository.deleteByProfileAndSymbolAndTimeframe(profile, symbol, timeframe);
+            log.info("Deleted all active drawings for profile={} symbol={} timeframe={}",
+                    profile.getId(), symbol, timeframe);
+        } catch (Exception e) {
+            log.error("Failed to delete all drawings for {}/{}: {}", symbol, timeframe, e.getMessage(), e);
+            throw e;
+        }
+    }
+
     public ChartDrawing duplicate(ChartDrawing source) {
         ChartDrawing copy = ChartDrawing.builder()
                 .profile(source.getProfile())

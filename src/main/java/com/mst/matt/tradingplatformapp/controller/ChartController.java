@@ -116,6 +116,9 @@ public class ChartController implements Initializable {
     @Autowired @org.springframework.context.annotation.Lazy
     private IndicatorMixerController indicatorMixerController;
 
+    /** Optional: propagate symbol changes to other tabs (set by MainDashboardController). */
+    private java.util.function.Consumer<String> onSymbolChanged;
+
     @Value("${app.chart.default-bars:200}")
     private int defaultBars;
 
@@ -159,6 +162,12 @@ public class ChartController implements Initializable {
 
     /** True while a chart load is in progress — prevents overlapping requests. */
     private final AtomicBoolean chartLoading = new AtomicBoolean(false);
+
+    /**
+     * Issue #3: when {@code false}, drawings are only cached in memory (session-only)
+     * and are NOT saved to or loaded from the database.
+     */
+    private boolean saveDrawingsEnabled = true;
 
     /** Loading overlay shown over the chart while data is being fetched. */
     private javafx.scene.layout.StackPane loadingOverlay;
@@ -291,6 +300,19 @@ public class ChartController implements Initializable {
         toolbar.setOnToolSelected(chart::setActiveDrawingTool);
         toolbar.setOnDelete(() -> chart.getDrawingEngine().deleteSelected());
 
+        // Issue #2: Delete ALL drawings with confirmation
+        toolbar.setOnDeleteAll(this::onDeleteAllDrawings);
+
+        // Issue #3: Save Drawings toggle
+        toolbar.setOnToggleSaveDrawings(() -> {
+            saveDrawingsEnabled = toolbar.isSaveDrawingsEnabled();
+            if (saveDrawingsEnabled) {
+                showInfoNotification("Save Drawings ON — drawings will be persisted to database.");
+            } else {
+                showInfoNotification("Save Drawings OFF — drawings are session-only (not saved).");
+            }
+        });
+
         // Undo / Redo
         toolbar.setOnUndo(() -> chart.getDrawingEngine().undo());
         toolbar.setOnRedo(() -> chart.getDrawingEngine().redo());
@@ -325,6 +347,43 @@ public class ChartController implements Initializable {
 
         // Screenshot
         toolbar.setOnScreenshot(this::onCaptureScreenshot);
+    }
+
+    /**
+     * Issue #2: Prompts the user for confirmation, then deletes ALL drawings on the
+     * current chart (symbol + timeframe + active profile). Also clears the in-memory
+     * engine so they do not reappear without a reload.
+     */
+    private void onDeleteAllDrawings() {
+        if (activeProfile == null) { showWarnNotification("No active profile."); return; }
+        javafx.scene.control.Alert confirm = new javafx.scene.control.Alert(
+                javafx.scene.control.Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Delete All Drawings");
+        confirm.setHeaderText("Delete all drawings on " + currentSymbol + " " + currentTimeframe + "?");
+        confirm.setContentText(
+                "This will permanently remove ALL drawings on this chart. This cannot be undone.");
+        confirm.getButtonTypes().setAll(
+                javafx.scene.control.ButtonType.OK,
+                javafx.scene.control.ButtonType.CANCEL);
+        confirm.showAndWait().ifPresent(bt -> {
+            if (bt != javafx.scene.control.ButtonType.OK) return;
+            // Clear in-memory engine immediately
+            chart.getDrawingEngine().clearAllDrawings();
+            // Delete from database in background
+            Thread.ofVirtual().start(() -> {
+                try {
+                    chartDrawingService.deleteAllDrawings(
+                            activeProfile, currentSymbol, currentTimeframe);
+                    Platform.runLater(() ->
+                            showInfoNotification("All drawings deleted for "
+                                    + currentSymbol + " " + currentTimeframe + "."));
+                } catch (Exception e) {
+                    log.error("Failed to delete all drawings: {}", e.getMessage(), e);
+                    Platform.runLater(() ->
+                            showErrorNotification("Failed to delete all drawings: " + e.getMessage()));
+                }
+            });
+        });
     }
 
     public void setOnScreenshotSaved(Consumer<String> cb) { this.onScreenshotSaved = cb; }
@@ -882,6 +941,24 @@ public class ChartController implements Initializable {
     /** Returns the currently displayed symbol. */
     public String getCurrentSymbol() { return currentSymbol; }
 
+    /**
+     * Issue #6: Register a callback that is invoked whenever the chart's active symbol changes.
+     * Used by {@code MainDashboardController} to propagate symbol changes to other tabs.
+     */
+    public void setOnSymbolChanged(java.util.function.Consumer<String> callback) {
+        this.onSymbolChanged = callback;
+    }
+
+    /**
+     * Issue #6: Notifies registered listeners that the active symbol has changed.
+     * Called whenever the user confirms a new symbol by clicking "Load Chart".
+     */
+    private void fireSymbolChanged() {
+        if (onSymbolChanged != null && currentSymbol != null && !currentSymbol.isBlank()) {
+            Platform.runLater(() -> onSymbolChanged.accept(currentSymbol));
+        }
+    }
+
     /** Called when the Live Chart view becomes visible. */
     public void onChartActivated() {
         chartSessionActive = true;
@@ -948,8 +1025,16 @@ public class ChartController implements Initializable {
             refreshUndoRedoState();
         });
         engine.setOnDrawingDeleted(d -> {
-            if (d.getId() != null) {
-                Thread.ofVirtual().start(() -> chartDrawingService.delete(d.getId()));
+            // Issue #3: Only delete from DB if save-drawings is enabled and the drawing
+            // was previously persisted (has a database ID)
+            if (saveDrawingsEnabled && d.getId() != null) {
+                Thread.ofVirtual().start(() -> {
+                    try {
+                        chartDrawingService.delete(d.getId());
+                    } catch (Exception ex) {
+                        log.warn("Failed to delete drawing id={}: {}", d.getId(), ex.getMessage());
+                    }
+                });
             }
             refreshUndoRedoState();
         });
@@ -1073,6 +1158,13 @@ public class ChartController implements Initializable {
         drawing.setProfile(activeProfile);
         drawing.setSymbol(currentSymbol);
         drawing.setTimeframe(currentTimeframe);
+
+        // Issue #3: Only persist to DB if save-drawings toggle is ON
+        if (!saveDrawingsEnabled) {
+            log.debug("Save drawings disabled — skipping DB persist for toolType={}", drawing.getToolType());
+            return;
+        }
+
         Thread.ofVirtual().start(() -> {
             try {
                 ChartDrawing saved = chartDrawingService.save(drawing);
@@ -1093,10 +1185,21 @@ public class ChartController implements Initializable {
 
     private void loadDrawingsForChart() {
         if (activeProfile == null) return;
+        // Issue #3: If save-drawings is OFF, don't load from DB (session-only mode)
+        if (!saveDrawingsEnabled) {
+            log.debug("Save drawings disabled — skipping DB load for {}/{}", currentSymbol, currentTimeframe);
+            return;
+        }
         Thread.ofVirtual().start(() -> {
-            List<ChartDrawing> list = chartDrawingService.loadDrawings(
-                    activeProfile, currentSymbol, currentTimeframe);
-            Platform.runLater(() -> chart.setDrawings(list));
+            try {
+                List<ChartDrawing> list = chartDrawingService.loadDrawings(
+                        activeProfile, currentSymbol, currentTimeframe);
+                Platform.runLater(() -> chart.setDrawings(list));
+            } catch (Exception e) {
+                log.warn("Failed to load drawings for {}/{}: {}", currentSymbol, currentTimeframe, e.getMessage());
+                // Don't block chart display on drawing load failure
+                Platform.runLater(() -> chart.setDrawings(List.of()));
+            }
         });
     }
 
@@ -1236,6 +1339,7 @@ public class ChartController implements Initializable {
                 hideAutocomplete();
                 refreshProviderCombo();
                 syncSymbolComboToCurrentSymbol();  // Feature 3
+                fireSymbolChanged();               // Issue #6
                 loadChart();
             }
         });
@@ -1311,6 +1415,7 @@ public class ChartController implements Initializable {
                         hideAutocomplete();
                         refreshProviderCombo();
                         syncSymbolComboToCurrentSymbol();  // Feature 3
+                        fireSymbolChanged();               // Issue #6
                         loadChart();
                     }
                     e.consume();
@@ -1730,6 +1835,8 @@ public class ChartController implements Initializable {
         // Feature 3: sync the symbol combo box to the loaded symbol immediately so the
         // combo box always reflects what is currently displayed on the chart.
         syncSymbolComboToCurrentSymbol();
+        // Issue #6: propagate symbol change to other tabs (Indicator Mixer, Yearly Profit, AI)
+        fireSymbolChanged();
         loadChart();
     }
 
