@@ -2,6 +2,7 @@ package com.mst.matt.tradingplatformapp.controller;
 
 import com.mst.matt.tradingplatformapp.model.AppUser;
 import com.mst.matt.tradingplatformapp.service.auth.AuthService;
+import com.mst.matt.tradingplatformapp.service.price.LiveTickerService;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -29,8 +30,9 @@ public class LoginController implements Initializable {
     @FXML private PasswordField passwordField;
     @FXML private Label         errorLabel;
 
-    @Autowired private AuthService authService;
-    @Autowired private FxWeaver    fxWeaver;
+    @Autowired private AuthService     authService;
+    @Autowired private FxWeaver        fxWeaver;
+    @Autowired private LiveTickerService liveTickerService;
 
     /** Called by StageInitializer / parent when login succeeds. */
     private Runnable onLoginSuccess;
@@ -65,6 +67,11 @@ public class LoginController implements Initializable {
             Platform.runLater(() -> {
                 if (result.isPresent()) {
                     hideError();
+                    // ── Start live market streams NOW (after successful login) ──────────
+                    // This ensures no external API calls (Binance WS, Yahoo, CoinGecko)
+                    // are made before the user is authenticated.
+                    Thread.ofVirtual().name("live-streams-init").start(
+                            liveTickerService::startLiveStreams);
                     if (onLoginSuccess != null) onLoginSuccess.run();
                 } else {
                     showError("Invalid username or password.");

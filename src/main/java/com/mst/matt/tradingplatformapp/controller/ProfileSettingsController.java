@@ -639,33 +639,56 @@ public class ProfileSettingsController {
 
     @FXML
     public void onAssetFocusChanged() {
-        refreshChartProviders();
-        // Auto-update defaultSymbol to the focus's default when the user changes asset focus,
-        // but only if the field is currently empty or still shows the old default
         ProfileAssetFocus newFocus = assetFocusCombo.getValue();
-        if (newFocus != null && defaultSymbolField != null) {
-            String current = defaultSymbolField.getText();
-            // Determine if current value is one of the known defaults (any focus)
-            boolean isDefault = current == null || current.isBlank()
-                    || java.util.Arrays.stream(ProfileAssetFocus.values())
-                       .map(ProfileAssetFocus::defaultSymbol)
-                       .anyMatch(current.trim().toUpperCase()::equals);
-            if (isDefault) {
-                defaultSymbolField.setText(newFocus.defaultSymbol());
-            }
+        if (newFocus == null) return;
+
+        // ── 1. Auto-update Default Symbol ─────────────────────────────────────
+        // Always update when the user explicitly changes the asset focus.
+        String newDefaultSymbol = newFocus.defaultSymbol();
+        if (defaultSymbolField != null) {
+            defaultSymbolField.setText(newDefaultSymbol);
         }
-        // Update the watchlist field hint to show defaults for the new focus
-        if (watchlistField != null && activeProfile != null) {
-            String current = watchlistField.getText();
-            // Only replace if empty or if it was the old focus's default
-            if (current == null || current.isBlank()) {
-                watchlistField.setPromptText(
-                        "e.g. " + WatchlistDefaults.csvForFocus(newFocus));
-            }
-        }
-        // Update autocomplete filter so suggestions match the new asset class
-        if (defaultSymbolAutocomplete != null && newFocus != null) {
+        if (defaultSymbolAutocomplete != null) {
+            defaultSymbolAutocomplete.setSymbol(newDefaultSymbol);
             defaultSymbolAutocomplete.setFilterType(assetFocusToSymbolType(newFocus));
+        }
+
+        // ── 2. Refresh and auto-select Chart Data Provider ────────────────────
+        // refreshChartProviders() rebuilds the combo filtered by the new asset class
+        // and the current user's plan. After rebuild, pick the first non-AUTO option
+        // as the new default provider for this asset type (if available), otherwise AUTO.
+        refreshChartProviders();
+        if (chartProviderCombo != null && chartProviderCombo.getItems().size() > 1) {
+            // Prefer the first provider in the list that is not AUTO
+            MarketDataProvider firstReal = chartProviderCombo.getItems().stream()
+                    .filter(p -> p != MarketDataProvider.AUTO)
+                    .findFirst()
+                    .orElse(MarketDataProvider.AUTO);
+            chartProviderCombo.setValue(firstReal);
+        } else {
+            chartProviderCombo.setValue(MarketDataProvider.AUTO);
+        }
+
+        // ── 3. Update watchlist hint ───────────────────────────────────────────
+        if (watchlistField != null) {
+            String current = watchlistField.getText();
+            if (current == null || current.isBlank()) {
+                watchlistField.setPromptText("e.g. " + WatchlistDefaults.csvForFocus(newFocus));
+            }
+        }
+
+        // ── 4. Persist the changes immediately so they are saved per-user ──────
+        if (activeProfile != null && authService.isLoggedIn()) {
+            activeProfile.setAssetFocus(newFocus);
+            activeProfile.setDefaultSymbol(newDefaultSymbol);
+            MarketDataProvider chosen = chartProviderCombo.getValue();
+            if (chosen != null) activeProfile.setChartProvider(chosen.name());
+            profilePersistence.saveAsync(activeProfile);
+            if (savedLabel != null) {
+                savedLabel.setText("Asset focus set to " + newFocus.name()
+                        + " · default symbol: " + newDefaultSymbol
+                        + " · provider: " + (chosen != null ? chosen.getLabel() : "AUTO"));
+            }
         }
     }
 
@@ -694,7 +717,15 @@ public class ProfileSettingsController {
         String sym = defaultSymbolField.getText();
         activeProfile.setDefaultSymbol(sym != null ? sym.trim().toUpperCase() : null);
         MarketDataProvider chart = chartProviderCombo.getValue();
-        if (chart != null) activeProfile.setChartProvider(chart.name());
+        if (chart != null) {
+            // Guard: reject providers not allowed by this user's plan
+            if (!priceRegistry.isProviderAllowedForCurrentUser(chart.name())) {
+                chart = MarketDataProvider.AUTO;
+                chartProviderCombo.setValue(MarketDataProvider.AUTO);
+                savedLabel.setText("⚠ Provider not available for your plan — reset to AUTO.");
+            }
+            activeProfile.setChartProvider(chart.name());
+        }
         FundamentalDataProvider fund = fundamentalProviderCombo.getValue();
         if (fund != null) activeProfile.setFundamentalProvider(fund.name());
 
@@ -785,19 +816,44 @@ public class ProfileSettingsController {
             case FOREX  -> AssetClass.FOREX;
             case MULTI  -> AssetClass.STOCK;
         };
-        List<MarketDataProvider> enabled = new ArrayList<>();
-        enabled.add(MarketDataProvider.AUTO);
-        enabled.addAll(priceRegistry.enabledProvidersFor(asset));
-        chartProviderCombo.setItems(FXCollections.observableArrayList(enabled));
+
+        // ── Plan-filtered provider list ───────────────────────────────────────
+        // enabledProvidersFor already filters by the current user's role/plan.
+        List<MarketDataProvider> allowed = new ArrayList<>();
+        allowed.add(MarketDataProvider.AUTO);
+        allowed.addAll(priceRegistry.enabledProvidersFor(asset));
+
+        // Determine the user's plan label for the hint
+        com.mst.matt.tradingplatformapp.model.AppUser.Role userRole =
+                authService.currentUser()
+                        .map(com.mst.matt.tradingplatformapp.model.AppUser::getRole)
+                        .orElse(com.mst.matt.tradingplatformapp.model.AppUser.Role.REGULAR_USER);
+
+        chartProviderCombo.setItems(FXCollections.observableArrayList(allowed));
         chartProviderCombo.setCellFactory(lv -> new ListCell<>() {
             @Override protected void updateItem(MarketDataProvider p, boolean empty) {
                 super.updateItem(p, empty);
-                setText(empty || p == null ? null : p.getLabel());
+                if (empty || p == null) { setText(null); return; }
+                setText(p.getLabel());
             }
         });
         chartProviderCombo.setButtonCell(chartProviderCombo.getCellFactory().call(null));
-        chartProvidersHint.setText("Enabled for " + asset.name().toLowerCase()
-                + ": " + enabled.size() + " sources (keys in application.properties).");
+
+        if (chartProvidersHint != null) {
+            chartProvidersHint.setText(
+                    "Plan: " + userRole.label()
+                    + " · " + asset.name().charAt(0)
+                    + asset.name().substring(1).toLowerCase()
+                    + " providers: " + allowed.size()
+                    + " available (configure API keys in application.properties).");
+        }
+
+        // If the currently-selected provider is no longer allowed, reset to AUTO
+        MarketDataProvider current = chartProviderCombo.getValue();
+        if (current != null && current != MarketDataProvider.AUTO
+                && !allowed.contains(current)) {
+            chartProviderCombo.setValue(MarketDataProvider.AUTO);
+        }
     }
 
     // ── Callbacks ─────────────────────────────────────────────

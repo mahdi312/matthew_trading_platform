@@ -327,28 +327,52 @@ public class OhlcvStorageService {
         String sym = symbol.toUpperCase();
         DataFetchMode mode = appSettings.getDataFetchMode();
 
-        List<OhlcvBar> cached = chronological(barRepository
-                .findTopBySymbolAndTimeframe(sym, timeframe, PageRequest.of(0, limit)));
-
+        // ── OFFLINE_ONLY: never touch the API ─────────────────────────────────
         if (mode == DataFetchMode.OFFLINE_ONLY) {
+            List<OhlcvBar> cached = chronological(barRepository
+                    .findTopBySymbolAndTimeframe(sym, timeframe, PageRequest.of(0, limit)));
             log.debug("OFFLINE_ONLY mode — returning {} cached bars for {} {}", cached.size(), sym, timeframe);
             return cached;
         }
 
+        // ── FULL_ONLINE: always call the API; DB is only a write-through cache ─
+        if (mode == DataFetchMode.FULL_ONLINE) {
+            log.debug("FULL_ONLINE mode — fetching {} {} from API (no DB fallback)", sym, timeframe);
+            List<OhlcvBar> fresh = chronological(priceRouter.getOhlcv(sym, timeframe, limit, profile));
+            if (!fresh.isEmpty()) {
+                // Write-through: persist to DB for offline use later
+                for (OhlcvBar bar : fresh) { bar.setSymbol(sym); bar.setTimeframe(timeframe); }
+                Map<LocalDateTime, OhlcvBar> byTime = new LinkedHashMap<>();
+                fresh.forEach(b -> byTime.put(b.getOpenTime(), b));
+                barRepository.findTopBySymbolAndTimeframe(sym, timeframe, PageRequest.of(0, limit))
+                        .forEach(b -> byTime.putIfAbsent(b.getOpenTime(), b));
+                List<OhlcvBar> merged = byTime.values().stream()
+                        .sorted(Comparator.comparing(OhlcvBar::getOpenTime))
+                        .toList();
+                int from = Math.max(0, merged.size() - limit);
+                List<OhlcvBar> trimmed = new ArrayList<>(merged.subList(from, merged.size()));
+                try { barRepository.saveAll(trimmed); } catch (Exception e) {
+                    log.debug("FULL_ONLINE write-through failed: {}", e.getMessage());
+                }
+                return fresh;
+            }
+            // FULL_ONLINE: API failed → return empty (no DB fallback)
+            log.warn("FULL_ONLINE: API returned no data for {} {}", sym, timeframe);
+            return List.of();
+        }
+
+        // ── OFFLINE_ON_FAIL (default): try API first; fall back to DB on failure ──
+        List<OhlcvBar> cached = chronological(barRepository
+                .findTopBySymbolAndTimeframe(sym, timeframe, PageRequest.of(0, limit)));
+
         if (cached.size() >= limit) {
             log.debug("OHLCV cache hit: {} {} ({} bars)", sym, timeframe, cached.size());
-            if (appSettings.isApiFetchEnabled()) {
-                refreshFromApiAsync(sym, timeframe, limit, profile);
-            }
+            // Async background refresh so the UI never blocks
+            refreshFromApiAsync(sym, timeframe, limit, profile);
             return cached;
         }
 
-        if (!appSettings.isApiFetchEnabled()) {
-            log.info("Offline mode — serving {} cached bars for {} {}", cached.size(), sym, timeframe);
-            return cached;
-        }
-
-        log.info("Fetching OHLCV from API: {} {} {} bars", sym, timeframe, limit);
+        log.info("OFFLINE_ON_FAIL: fetching OHLCV from API: {} {} {} bars", sym, timeframe, limit);
         List<OhlcvBar> merged = mergeFromApi(sym, timeframe, limit, profile, cached);
         return merged.isEmpty() ? cached : merged;
     }
@@ -497,19 +521,55 @@ public class OhlcvStorageService {
         if (bars == null || bars.isEmpty()) return;
         String sym = symbol.toUpperCase();
 
-        // Docker/PostgreSQL mode: store via the dynamic-table registry
+        // Docker/PostgreSQL mode: upsert bars into the provider-specific dynamic table.
+        // The table name convention is:  <SYMBOL>_<PROVIDER>_<TIMEFRAME>
+        // If the registry entry doesn't exist yet we create it via MarketDataSyncService.register().
         if (marketDataProperties.getDynamicTables().isEnabled()) {
             try {
-                // Delegate to MarketDataSyncService so the table is created if needed
-                // (MarketDataTableRegistry → DynamicOhlcvTableService).
-                // We don't call register() here to avoid side-effects; instead we rely on
-                // the AggregatedCandleQueryService write path if available, or simply log.
-                log.debug("storeProviderBars (dynamic): {} bars for {}/{} from {}",
-                        bars.size(), sym, timeframe, provider);
-                // The actual write happens in MarketDataSyncService.syncRegistryEntry().
-                // This method is intentionally a no-op for the dynamic path because
-                // the sync service already wrote the data.  Keeping it as a hook for
-                // future fine-grained provider writes.
+                MarketDataTableRegistry entry;
+                try {
+                    // Build a transient profile-less registry entry so we can resolve
+                    // the correct table without needing a UserProfile here.
+                    entry = marketDataSyncService.registerForProvider(sym, timeframe, provider, null);
+                } catch (Exception regEx) {
+                    // Fallback: build the table name directly and ensure it exists
+                    String tableName = com.mst.matt.tradingplatformapp.service.marketdata
+                            .MarketDataTableNameUtil.buildTableName(
+                                sym,
+                                com.mst.matt.tradingplatformapp.service.price.MarketDataProvider
+                                        .fromString(provider),
+                                timeframe);
+                    AssetClassDetector.AssetClass ac = AssetClassDetector.detect(sym);
+                    Trade.AssetType assetType = switch (ac) {
+                        case CRYPTO    -> Trade.AssetType.CRYPTO;
+                        case FOREX     -> Trade.AssetType.FOREX;
+                        case COMMODITY -> Trade.AssetType.COMMODITY;
+                        case INDEX     -> Trade.AssetType.INDEX;
+                        default        -> Trade.AssetType.STOCK;
+                    };
+                    entry = MarketDataTableRegistry.builder()
+                            .tableName(tableName)
+                            .symbol(sym)
+                            .provider(com.mst.matt.tradingplatformapp.service.price.MarketDataProvider
+                                    .fromString(provider))
+                            .timeframe(timeframe)
+                            .assetType(assetType)
+                            .barCount(0)
+                            .build();
+                    log.debug("storeProviderBars: fallback table name {}", tableName);
+                }
+                // Upsert (merge) rather than full-replace to preserve existing bars
+                AssetClassDetector.AssetClass ac = AssetClassDetector.detect(sym);
+                Trade.AssetType assetType = switch (ac) {
+                    case CRYPTO    -> Trade.AssetType.CRYPTO;
+                    case FOREX     -> Trade.AssetType.FOREX;
+                    case COMMODITY -> Trade.AssetType.COMMODITY;
+                    case INDEX     -> Trade.AssetType.INDEX;
+                    default        -> Trade.AssetType.STOCK;
+                };
+                marketDataSyncService.upsertBarsToRegistry(entry, assetType, bars);
+                log.debug("storeProviderBars (dynamic): upserted {} bars for {}/{} into {}",
+                        bars.size(), sym, timeframe, entry.getTableName());
             } catch (Exception e) {
                 log.warn("storeProviderBars (dynamic) failed for {}/{} from {}: {}",
                         sym, timeframe, provider, e.getMessage());

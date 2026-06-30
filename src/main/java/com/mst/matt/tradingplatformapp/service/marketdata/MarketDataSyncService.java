@@ -116,6 +116,81 @@ public class MarketDataSyncService {
                 entry.getAssetType(), limit);
     }
 
+    /**
+     * Ensures a registry entry exists for the given symbol/timeframe/provider combination,
+     * creating the dynamic table if necessary.
+     *
+     * <p>This variant accepts an explicit provider name string so callers that have already
+     * resolved the provider (e.g. {@code PriceRouter.getOhlcv()}) don't need a full
+     * {@link UserProfile} context.
+     *
+     * @param symbol       trading symbol (e.g. "BTCUSDT"), will be upper-cased
+     * @param timeframe    timeframe string (e.g. "1h")
+     * @param providerName provider name string (e.g. "BINANCE")
+     * @param profile      optional user profile for asset-type detection; may be {@code null}
+     * @return the existing or newly-created registry entry
+     */
+    @Transactional
+    public MarketDataTableRegistry registerForProvider(String symbol, String timeframe,
+                                                        String providerName, UserProfile profile) {
+        String sym = symbol.toUpperCase();
+        String tf = timeframe.toLowerCase();
+        MarketDataProvider provider = MarketDataProvider.fromString(providerName);
+
+        Object lock = REGISTER_LOCKS.computeIfAbsent(sym + "_" + tf + "_" + provider.name(), k -> new Object());
+        synchronized (lock) {
+            Optional<MarketDataTableRegistry> existing =
+                    registryRepository.findBySymbolAndTimeframeAndProvider(sym, tf, provider);
+            if (existing.isPresent()) return existing.get();
+
+            AssetClass assetClass = profile != null
+                    ? AssetClassDetector.fromProfileFocus(profile.getAssetFocus(), sym)
+                    : AssetClassDetector.detect(sym);
+            Trade.AssetType assetType = toAssetType(assetClass);
+
+            String tableName = MarketDataTableNameUtil.buildTableName(sym, provider, tf);
+            dynamicTableService.ensureTable(tableName);
+
+            try {
+                return registryRepository.saveAndFlush(MarketDataTableRegistry.builder()
+                        .tableName(tableName)
+                        .symbol(sym)
+                        .provider(provider)
+                        .timeframe(tf)
+                        .assetType(assetType)
+                        .nextSyncAt(LocalDateTime.now())
+                        .barCount(0)
+                        .build());
+            } catch (DataIntegrityViolationException dup) {
+                log.debug("Registry race for {} {} {} — reloading", sym, tf, provider);
+                return registryRepository.findBySymbolAndTimeframeAndProvider(sym, tf, provider)
+                        .orElseThrow(() -> dup);
+            }
+        }
+    }
+
+    /**
+     * Upserts bars into the table identified by the registry entry
+     * (merges by open_time without full replacement).
+     * Called from {@code OhlcvStorageService.storeProviderBars()} write-through path.
+     */
+    @Transactional
+    public void upsertBarsToRegistry(MarketDataTableRegistry entry,
+                                      Trade.AssetType assetType, List<OhlcvBar> bars) {
+        if (bars == null || bars.isEmpty()) return;
+        dynamicTableService.upsertBars(entry.getTableName(), assetType, bars);
+        // Update registry stats
+        entry.setLastSyncAt(LocalDateTime.now());
+        entry.setBarCount(
+                (int) dynamicTableService.findBars(
+                        entry.getTableName(), entry.getSymbol(), entry.getTimeframe(),
+                        assetType, Integer.MAX_VALUE).size());
+        if (entry.getId() != null) {
+            registryRepository.save(entry);
+        }
+        log.debug("upsertBarsToRegistry: {} bars into {}", bars.size(), entry.getTableName());
+    }
+
     @Transactional
     public List<OhlcvBar> syncRegistryEntry(MarketDataTableRegistry entry, int limit, UserProfile profile) {
         String sym = entry.getSymbol();

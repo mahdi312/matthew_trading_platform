@@ -33,9 +33,17 @@ public class LiveTickerService {
     @Autowired private PriceRouter priceRouter;
     @Autowired private BinanceService binanceService;
     @Autowired private AppSettingsService appSettings;
+    @Autowired private com.mst.matt.tradingplatformapp.service.auth.AuthService authService;
     /** WS ticks feed the last-known-good cache so the chart never
      *  goes blank when REST providers are down. */
     @Autowired private PriceCacheService priceCache;
+
+    /**
+     * Set to {@code true} once a user has successfully logged in and
+     * {@link #startLiveStreams()} has been called.  All polling/WS activity
+     * is gated on this flag so we never make external API calls before login.
+     */
+    private volatile boolean streamsStarted = false;
 
     // ── Watchlists (user-managed, persisted via Settings) ─────────────────
     private final List<String> cryptoWatchlist = new ArrayList<>(List.of(
@@ -102,13 +110,25 @@ public class LiveTickerService {
     }
 
     /**
-     * Start WebSocket streams for enabled crypto symbols on app startup.
-     * Called by AppStartupService after the context is ready.
+     * Start WebSocket streams for enabled crypto symbols.
+     *
+     * <p>Must be called <b>after</b> the user has successfully logged in
+     * (triggered by {@code LoginController.onLoginSuccess()}).
+     * Calling this before login is a no-op (guarded by {@link #streamsStarted}).
      */
-    public void startLiveStreams() {
+    public synchronized void startLiveStreams() {
+        if (!authService.isLoggedIn()) {
+            log.warn("startLiveStreams() called without an authenticated user — ignored.");
+            return;
+        }
+        if (streamsStarted) {
+            log.debug("Live streams already running — skipping duplicate start.");
+            return;
+        }
         if (!appSettings.isApiFetchEnabled()) {
             log.info("Offline mode — live WebSocket streams skipped");
             replayCachedQuotes();
+            streamsStarted = true;
             return;
         }
         List<String> enabledCrypto = cryptoWatchlist.stream()
@@ -122,8 +142,25 @@ public class LiveTickerService {
                 notifyListeners(quote);
             }
         });
+        streamsStarted = true;
         log.info("Live WebSocket streams started for {} crypto pairs ({} enabled)",
                 cryptoWatchlist.size(), enabledCrypto.size());
+    }
+
+    /**
+     * Stop all live streams and reset the started flag.
+     * Called by {@code AuthService.logout()} so streams stop when the user logs out.
+     */
+    public synchronized void stopLiveStreams() {
+        if (!streamsStarted) return;
+        binanceService.unsubscribeAll();
+        if (pollFuture != null) {
+            pollFuture.cancel(false);
+            pollFuture = null;
+            scheduledIntervalSeconds = -1;
+        }
+        streamsStarted = false;
+        log.info("Live streams stopped (user logged out).");
     }
 
     private void replayCachedQuotes() {
@@ -138,6 +175,10 @@ public class LiveTickerService {
      * Crypto is handled by the Binance WebSocket above (no polling needed).
      */
     public void pollStocksAndForex() {
+        // Guard: never poll external APIs before a user has logged in
+        if (!streamsStarted || !authService.isLoggedIn()) {
+            return;
+        }
         if (!appSettings.isApiFetchEnabled()) {
             replayCachedQuotes();
             return;

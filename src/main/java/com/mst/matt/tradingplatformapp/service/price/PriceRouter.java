@@ -5,6 +5,7 @@ import com.mst.matt.tradingplatformapp.model.OhlcvBar;
 import com.mst.matt.tradingplatformapp.model.UserProfile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -30,6 +31,14 @@ public class PriceRouter {
 
     @Autowired
     private com.mst.matt.tradingplatformapp.service.AppSettingsService appSettings;
+
+    /**
+     * Lazy: OhlcvStorageService → PriceRouter creates a circular dependency
+     * if wired eagerly.  We only need it for the post-fetch write-through cache.
+     */
+    @Autowired(required = false)
+    @Lazy
+    private com.mst.matt.tradingplatformapp.service.OhlcvStorageService ohlcvStorage;
 
     public PriceRouter(PriceProviderRegistry registry,
                        BinanceService binanceService,
@@ -100,6 +109,25 @@ public class PriceRouter {
                 if (!bars.isEmpty()) {
                     lastProviderName = provider.getProviderName();
                     log.debug("OHLCV for {} ({}) from {}", normalized, timeframe, lastProviderName);
+
+                    // ── Write-through: persist fetched bars to the DB cache ─────────────
+                    // This ensures data fetched from any API call is always stored in the
+                    // relevant DB table (ohlcv_bars for SQLite / Symbol_Provider_TF for PG).
+                    // The call is fire-and-forget (virtual thread) so it never blocks the UI.
+                    final List<OhlcvBar> barsToStore = bars;
+                    final String providerName = provider.getProviderId().name();
+                    if (ohlcvStorage != null) {
+                        Thread.ofVirtual().name("ohlcv-store-" + normalized).start(() -> {
+                            try {
+                                ohlcvStorage.storeProviderBars(normalized, timeframe,
+                                        providerName, barsToStore);
+                            } catch (Exception ex) {
+                                log.debug("Write-through storage failed for {}/{}: {}",
+                                        normalized, timeframe, ex.getMessage());
+                            }
+                        });
+                    }
+
                     return bars;
                 }
             } catch (Exception e) {

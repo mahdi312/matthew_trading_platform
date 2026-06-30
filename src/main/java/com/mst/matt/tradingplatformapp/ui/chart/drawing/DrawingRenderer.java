@@ -685,7 +685,13 @@ public final class DrawingRenderer {
                 : Math.max(lineH + 10, lines.size() * lineH + 10);
         double boxY  = y - boxH + 4;
 
-        gc.setFill(Color.web("#1c2128ee")); gc.fillRoundRect(x, boxY, boxW, boxH, 4, 4);
+        // ── Background fill: use custom colour if set, otherwise default ─────
+        String bgHex = (props.getBackgroundColor() != null && !props.getBackgroundColor().isBlank())
+                ? props.getBackgroundColor() : "#1c2128";
+        double bgAlpha = props.getBackgroundOpacity() > 0 ? props.getBackgroundOpacity() : 0.87;
+        Color bgColor = safeColor(bgHex, "#1c2128");
+        gc.setFill(Color.color(bgColor.getRed(), bgColor.getGreen(), bgColor.getBlue(), bgAlpha));
+        gc.fillRoundRect(x, boxY, boxW, boxH, 4, 4);
         gc.setStroke(color); gc.setLineWidth(1.2);
         gc.strokeRoundRect(x, boxY, boxW, boxH, 4, 4);
 
@@ -718,7 +724,13 @@ public final class DrawingRenderer {
         double noteW = props.getTextBoxWidth()  > 0 ? props.getTextBoxWidth()  : 120;
         double noteH = props.getTextBoxHeight() > 0 ? props.getTextBoxHeight() : 80;
 
-        gc.setFill(Color.web("#2d2a00ee")); gc.fillRoundRect(x, y, noteW, noteH, 4, 4);
+        // ── Background fill: use custom colour if set ─────────────────────────
+        String noteBgHex = (props.getBackgroundColor() != null && !props.getBackgroundColor().isBlank())
+                ? props.getBackgroundColor() : "#2d2a00";
+        double noteBgAlpha = props.getBackgroundOpacity() > 0 ? props.getBackgroundOpacity() : 0.87;
+        Color noteBg = safeColor(noteBgHex, "#2d2a00");
+        gc.setFill(Color.color(noteBg.getRed(), noteBg.getGreen(), noteBg.getBlue(), noteBgAlpha));
+        gc.fillRoundRect(x, y, noteW, noteH, 4, 4);
         gc.setStroke(color); gc.setLineWidth(1.2); gc.strokeRoundRect(x, y, noteW, noteH, 4, 4);
 
         // Folded corner decoration
@@ -801,7 +813,13 @@ public final class DrawingRenderer {
         gc.strokeLine(tipX, tipY, tipX - 8 * Math.cos(angle - Math.PI / 6), tipY - 8 * Math.sin(angle - Math.PI / 6));
         gc.strokeLine(tipX, tipY, tipX - 8 * Math.cos(angle + Math.PI / 6), tipY - 8 * Math.sin(angle + Math.PI / 6));
         gc.setFill(color); gc.fillOval(tipX - 3, tipY - 3, 6, 6);
-        gc.setFill(Color.web("#1c2128ee")); gc.fillRoundRect(boxX, boxY, boxW, boxH, 4, 4);
+        // ── Background fill: use custom colour if set ─────────────────────────
+        String calloutBgHex = (props.getBackgroundColor() != null && !props.getBackgroundColor().isBlank())
+                ? props.getBackgroundColor() : "#162032";
+        double calloutBgAlpha = props.getBackgroundOpacity() > 0 ? props.getBackgroundOpacity() : 0.87;
+        Color calloutBg = safeColor(calloutBgHex, "#1c2128");
+        gc.setFill(Color.color(calloutBg.getRed(), calloutBg.getGreen(), calloutBg.getBlue(), calloutBgAlpha));
+        gc.fillRoundRect(boxX, boxY, boxW, boxH, 4, 4);
         gc.setStroke(color); gc.setLineWidth(1.2); gc.strokeRoundRect(boxX, boxY, boxW, boxH, 4, 4);
 
         // Render wrapped lines
