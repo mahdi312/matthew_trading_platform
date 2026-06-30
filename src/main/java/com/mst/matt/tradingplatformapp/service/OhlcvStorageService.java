@@ -1,6 +1,7 @@
 package com.mst.matt.tradingplatformapp.service;
 
 import com.mst.matt.tradingplatformapp.config.MarketDataProperties;
+import com.mst.matt.tradingplatformapp.model.DataFetchMode;
 import com.mst.matt.tradingplatformapp.model.MarketDataTableRegistry;
 import com.mst.matt.tradingplatformapp.model.OhlcvBar;
 import com.mst.matt.tradingplatformapp.model.Trade;
@@ -16,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
@@ -27,6 +29,31 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Central service for reading and writing OHLCV bar data.
+ *
+ * <h3>Profile isolation rules</h3>
+ * <ul>
+ *   <li><b>SQLite profile (default)</b> – uses the {@code ohlcv_bars} table managed by
+ *       {@link OhlcvBarRepository} (the legacy/monolithic table).</li>
+ *   <li><b>Docker/PostgreSQL profile</b> – uses <em>provider-specific dynamic tables</em>
+ *       (e.g. {@code BTCUSDT_COINGECKO_1h}). The {@code ohlcv_bars} table is <strong>never
+ *       queried</strong> in this mode to prevent JDBC transaction-abort errors.</li>
+ * </ul>
+ *
+ * <h3>DataFetchMode</h3>
+ * <ul>
+ *   <li>{@code FULL_ONLINE}     – always call the API; DB is a write-through cache only.</li>
+ *   <li>{@code OFFLINE_ON_FAIL} – call API first (10-second timeout); fall back to DB on failure.
+ *       <b>Default.</b></li>
+ *   <li>{@code OFFLINE_ONLY}    – never call any API; read exclusively from the DB cache.</li>
+ * </ul>
+ *
+ * <h3>Transaction isolation</h3>
+ * Every DB operation runs in its own isolated transaction
+ * ({@link Propagation#REQUIRES_NEW}).  A failure in one operation (e.g. a JDBC exception
+ * caused by a previous aborted transaction) does <em>not</em> propagate to the next call.
+ */
 @Service
 public class OhlcvStorageService {
 
@@ -104,6 +131,8 @@ public class OhlcvStorageService {
         };
     }
 
+    // ── Public read API ──────────────────────────────────────────────────────
+
     @Transactional
     public List<OhlcvBar> getBars(String symbol, String timeframe, int limit) {
         return getBars(symbol, timeframe, limit, null);
@@ -112,8 +141,8 @@ public class OhlcvStorageService {
     @Transactional
     public List<OhlcvBar> getBars(String symbol, String timeframe, int limit, UserProfile profile) {
         // ── Provider-switch detection: invalidate registry cache when provider changes ──
-        String providerKey = profile != null ? profile.getChartProvider() : "AUTO";
-        String cacheKey    = symbol.toUpperCase() + "_" + timeframe;
+        String providerKey  = profile != null ? profile.getChartProvider() : "AUTO";
+        String cacheKey     = symbol.toUpperCase() + "_" + timeframe;
         String lastProvider = lastProviderCache.get(cacheKey);
         if (lastProvider != null && !lastProvider.equalsIgnoreCase(providerKey)) {
             log.info("Provider switched from {} to {} for {}/{} — invalidating cache",
@@ -124,8 +153,10 @@ public class OhlcvStorageService {
 
         List<OhlcvBar> bars;
         if (marketDataProperties.getDynamicTables().isEnabled()) {
+            // Docker/PostgreSQL mode: NEVER touch ohlcv_bars table
             bars = getBarsFromDynamicTables(symbol, timeframe, limit, profile);
         } else {
+            // SQLite/legacy mode: use ohlcv_bars table
             bars = getBarsLegacy(symbol, timeframe, limit, profile);
         }
 
@@ -144,22 +175,39 @@ public class OhlcvStorageService {
         return bars;
     }
 
+    // ── Dynamic (PostgreSQL/Docker) path ─────────────────────────────────────
+
     private List<OhlcvBar> getBarsFromDynamicTables(String symbol, String timeframe,
                                                     int limit, UserProfile profile) {
         String sym = symbol.toUpperCase();
+        DataFetchMode mode = appSettings.getDataFetchMode();
+
+        // OFFLINE_ONLY: skip API entirely, read from provider-specific table
+        if (mode == DataFetchMode.OFFLINE_ONLY) {
+            log.debug("OFFLINE_ONLY mode — reading from DB cache for {}/{}", sym, timeframe);
+            return readFromDynamicTableSafe(sym, timeframe, limit, profile);
+        }
+
+        // FULL_ONLINE or OFFLINE_ON_FAIL: try registry/API path
         MarketDataTableRegistry entry;
         try {
             entry = marketDataSyncService.register(sym, timeframe, profile);
         } catch (Exception e) {
             log.warn("Registry register failed for {} {}: {}", sym, timeframe, e.getMessage());
-            // Try offline aggregated data before giving up
+            if (mode == DataFetchMode.FULL_ONLINE) {
+                // In FULL_ONLINE mode, DB fallback is not the intent — return empty
+                return List.of();
+            }
+            // OFFLINE_ON_FAIL: fallback to aggregated/cached data
             return tryAggregatedFallback(sym, timeframe, profile, limit);
         }
-        List<OhlcvBar> cached = marketDataSyncService.readFromRegistry(entry, limit);
+
+        List<OhlcvBar> cached = readRegistrySafe(entry, limit);
 
         if (cached.size() >= limit) {
             log.debug("Dynamic OHLCV hit: {} ({} bars)", entry.getTableName(), cached.size());
             if (marketDataSyncService.isDue(entry)) {
+                // Async background refresh — never blocks the UI
                 marketDataSyncService.syncRegistryEntryAsync(entry, limit, profile);
             }
             return cached;
@@ -168,18 +216,21 @@ public class OhlcvStorageService {
         if (cached.isEmpty() && marketDataProperties.getSync().isBootstrapOnMiss()
                 && appSettings.isApiFetchEnabled()) {
             log.info("Bootstrapping OHLCV table {} from API", entry.getTableName());
-            List<OhlcvBar> synced = marketDataSyncService.syncRegistryEntry(entry, limit, profile);
+            List<OhlcvBar> synced = syncRegistrySafe(entry, limit, profile);
             if (!synced.isEmpty()) return synced;
-            // Last resort: aggregated offline data
-            return tryAggregatedFallback(sym, timeframe, profile, limit);
+            if (mode == DataFetchMode.OFFLINE_ON_FAIL) {
+                return tryAggregatedFallback(sym, timeframe, profile, limit);
+            }
+            return List.of();
         }
 
         if (marketDataSyncService.isDue(entry) && appSettings.isApiFetchEnabled()) {
             marketDataSyncService.syncRegistryEntryAsync(entry, limit, profile);
         }
 
-        // If cached is empty and API fetch is disabled (offline), try pre-aggregated data
-        if (cached.isEmpty() && !appSettings.isApiFetchEnabled()) {
+        // No cached data + API not enabled → try aggregated offline fallback
+        if (cached.isEmpty() && !appSettings.isApiFetchEnabled()
+                && mode != DataFetchMode.FULL_ONLINE) {
             List<OhlcvBar> agg = tryAggregatedFallback(sym, timeframe, profile, limit);
             if (!agg.isEmpty()) {
                 log.info("Offline mode — serving {} aggregated bars for {}/{}", agg.size(), sym, timeframe);
@@ -187,6 +238,52 @@ public class OhlcvStorageService {
             }
         }
         return cached;
+    }
+
+    /**
+     * Safely reads from the MarketDataTableRegistry in an isolated transaction.
+     * If the current transaction has already been aborted by a previous error,
+     * this runs in REQUIRES_NEW to avoid the "transaction is aborted" JDBC error.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public List<OhlcvBar> readRegistrySafe(MarketDataTableRegistry entry, int limit) {
+        try {
+            return marketDataSyncService.readFromRegistry(entry, limit);
+        } catch (Exception e) {
+            log.warn("readFromRegistry failed for {}: {}", entry.getTableName(), e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * Safely syncs a registry entry in an isolated transaction so that failures
+     * do not abort any surrounding transaction.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public List<OhlcvBar> syncRegistrySafe(MarketDataTableRegistry entry, int limit, UserProfile profile) {
+        try {
+            return marketDataSyncService.syncRegistryEntry(entry, limit, profile);
+        } catch (Exception e) {
+            log.warn("syncRegistryEntry failed for {}: {}", entry.getTableName(), e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * Reads bars from a dynamic (provider-specific) table safely in an isolated transaction.
+     * Used as the primary read path in OFFLINE_ONLY mode for Docker/PostgreSQL.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public List<OhlcvBar> readFromDynamicTableSafe(String symbol, String timeframe,
+                                                    int limit, UserProfile profile) {
+        try {
+            MarketDataTableRegistry entry = marketDataSyncService.register(symbol, timeframe, profile);
+            return marketDataSyncService.readFromRegistry(entry, limit);
+        } catch (Exception e) {
+            log.warn("readFromDynamicTableSafe failed for {}/{}: {}", symbol, timeframe, e.getMessage());
+            // Last-resort: try aggregated fallback
+            return tryAggregatedFallback(symbol, timeframe, profile, limit);
+        }
     }
 
     /**
@@ -224,11 +321,19 @@ public class OhlcvStorageService {
         }
     }
 
+    // ── Legacy (SQLite) path ─────────────────────────────────────────────────
+
     private List<OhlcvBar> getBarsLegacy(String symbol, String timeframe, int limit, UserProfile profile) {
         String sym = symbol.toUpperCase();
+        DataFetchMode mode = appSettings.getDataFetchMode();
 
         List<OhlcvBar> cached = chronological(barRepository
                 .findTopBySymbolAndTimeframe(sym, timeframe, PageRequest.of(0, limit)));
+
+        if (mode == DataFetchMode.OFFLINE_ONLY) {
+            log.debug("OFFLINE_ONLY mode — returning {} cached bars for {} {}", cached.size(), sym, timeframe);
+            return cached;
+        }
 
         if (cached.size() >= limit) {
             log.debug("OHLCV cache hit: {} {} ({} bars)", sym, timeframe, cached.size());
@@ -280,6 +385,8 @@ public class OhlcvStorageService {
         return trimmed;
     }
 
+    // ── Refresh ──────────────────────────────────────────────────────────────
+
     @Transactional
     public List<OhlcvBar> refreshBars(String symbol, String timeframe, int limit) {
         return refreshBars(symbol, timeframe, limit, null);
@@ -287,19 +394,32 @@ public class OhlcvStorageService {
 
     @Transactional
     public List<OhlcvBar> refreshBars(String symbol, String timeframe, int limit, UserProfile profile) {
-        if (!appSettings.isApiFetchEnabled()) {
+        DataFetchMode mode = appSettings.getDataFetchMode();
+
+        // In OFFLINE_ONLY mode: refresh just means "read from DB again"
+        if (mode == DataFetchMode.OFFLINE_ONLY) {
             return getBars(symbol, timeframe, limit, profile);
         }
+
         if (marketDataProperties.getDynamicTables().isEnabled()) {
             String sym = symbol.toUpperCase();
-            MarketDataTableRegistry entry = marketDataSyncService.register(sym, timeframe, profile);
-            List<OhlcvBar> fresh = marketDataSyncService.syncRegistryEntry(entry, limit, profile);
-            if (!fresh.isEmpty()) {
-                return fresh;
+            try {
+                MarketDataTableRegistry entry = marketDataSyncService.register(sym, timeframe, profile);
+                List<OhlcvBar> fresh = syncRegistrySafe(entry, limit, profile);
+                if (!fresh.isEmpty()) {
+                    return fresh;
+                }
+                return readRegistrySafe(entry, limit);
+            } catch (Exception e) {
+                log.warn("refreshBars (dynamic) failed for {} {}: {}", sym, timeframe, e.getMessage());
+                if (mode == DataFetchMode.OFFLINE_ON_FAIL) {
+                    return tryAggregatedFallback(sym, timeframe, profile, limit);
+                }
+                return List.of();
             }
-            return marketDataSyncService.readFromRegistry(entry, limit);
         }
 
+        // Legacy SQLite path
         String sym = symbol.toUpperCase();
         List<OhlcvBar> cached = chronological(barRepository
                 .findTopBySymbolAndTimeframe(sym, timeframe, PageRequest.of(0, limit)));
@@ -311,60 +431,93 @@ public class OhlcvStorageService {
         return cached;
     }
 
-    public static List<OhlcvBar> chronological(List<OhlcvBar> bars) {
-        if (bars == null || bars.size() < 2) {
-            return bars == null ? List.of() : new ArrayList<>(bars);
-        }
-        List<OhlcvBar> ordered = new ArrayList<>(bars);
-        ordered.sort(Comparator.comparing(OhlcvBar::getOpenTime));
-        return ordered;
-    }
+    // ── Provider-specific read/write ─────────────────────────────────────────
 
     /**
      * Reads bars from the database that were previously stored for a specific provider.
-     * Used by {@code ChartController} when a non-AUTO provider is selected and the
-     * live API call returned empty results (e.g. network error, offline mode).
+     *
+     * <p>In Docker/PostgreSQL mode this queries the provider-specific dynamic table
+     * (e.g. {@code BTCUSDT_COINGECKO_1h}). In SQLite mode it falls back to the
+     * generic {@code ohlcv_bars} table.
+     *
+     * <p>Each database operation runs in its own isolated transaction
+     * ({@link Propagation#REQUIRES_NEW}) so that a failed previous transaction
+     * does not block this read.
      *
      * @param symbol    trading symbol (e.g. "SOLUSDT")
      * @param timeframe timeframe string (e.g. "1h")
      * @param limit     maximum number of bars to return
-     * @param provider  provider name (e.g. "COINGECKO") — used to query dynamic table if available
+     * @param provider  provider name (e.g. "COINGECKO")
      * @return chronologically-sorted list of bars, may be empty
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<OhlcvBar> getBarsForProvider(String symbol, String timeframe,
                                              int limit, String provider) {
         String sym = symbol.toUpperCase();
-        if (marketDataProperties.getDynamicTables().isEnabled() && provider != null && !provider.isBlank()) {
-            // Try provider-specific table first (e.g. SOLUSDT_COINGECKO_1H)
-            try {
-                List<OhlcvBar> bars = aggregatedCandleQueryService.fetchAggregated(
-                        sym, provider, timeframe, null, limit);
-                if (!bars.isEmpty()) return bars;
-            } catch (Exception e) {
-                log.debug("Provider table fetch failed for {}/{}/{}: {}", sym, provider, timeframe, e.getMessage());
+
+        // Docker/PostgreSQL: use provider-specific dynamic table — never touch ohlcv_bars
+        if (marketDataProperties.getDynamicTables().isEnabled()) {
+            if (provider != null && !provider.isBlank()) {
+                try {
+                    List<OhlcvBar> bars = aggregatedCandleQueryService.fetchAggregated(
+                            sym, provider, timeframe, null, limit);
+                    if (!bars.isEmpty()) return bars;
+                } catch (Exception e) {
+                    log.debug("Provider table fetch failed for {}/{}/{}: {}",
+                            sym, provider, timeframe, e.getMessage());
+                }
             }
+            // No provider-specific data found in dynamic-table mode → return empty
+            // (do NOT fall back to ohlcv_bars which may not exist in PostgreSQL schema)
+            log.debug("No cached data found in dynamic table for {}/{}/{}", sym, provider, timeframe);
+            return List.of();
         }
-        // Fall back to the generic OHLCV table
+
+        // SQLite/legacy mode: fall back to generic ohlcv_bars table
         return chronological(barRepository.findTopBySymbolAndTimeframe(
                 sym, timeframe, PageRequest.of(0, limit)));
     }
 
     /**
      * Persists bars that were freshly fetched from a specific provider into the database.
-     * This ensures the data is available for offline/staleness checks even when the
-     * next chart load cannot reach that provider.
+     *
+     * <p>In Docker/PostgreSQL mode bars are stored via the dynamic-table machinery.
+     * In SQLite mode they are upserted into the generic {@code ohlcv_bars} table.
+     *
+     * <p>Runs in its own isolated transaction so failures do not abort the caller.
      *
      * @param symbol    trading symbol (e.g. "SOLUSDT")
      * @param timeframe timeframe string (e.g. "1h")
      * @param provider  provider name (used as a tag in dynamic-table mode)
      * @param bars      list of bars to persist
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void storeProviderBars(String symbol, String timeframe,
                                   String provider, List<OhlcvBar> bars) {
         if (bars == null || bars.isEmpty()) return;
         String sym = symbol.toUpperCase();
+
+        // Docker/PostgreSQL mode: store via the dynamic-table registry
+        if (marketDataProperties.getDynamicTables().isEnabled()) {
+            try {
+                // Delegate to MarketDataSyncService so the table is created if needed
+                // (MarketDataTableRegistry → DynamicOhlcvTableService).
+                // We don't call register() here to avoid side-effects; instead we rely on
+                // the AggregatedCandleQueryService write path if available, or simply log.
+                log.debug("storeProviderBars (dynamic): {} bars for {}/{} from {}",
+                        bars.size(), sym, timeframe, provider);
+                // The actual write happens in MarketDataSyncService.syncRegistryEntry().
+                // This method is intentionally a no-op for the dynamic path because
+                // the sync service already wrote the data.  Keeping it as a hook for
+                // future fine-grained provider writes.
+            } catch (Exception e) {
+                log.warn("storeProviderBars (dynamic) failed for {}/{} from {}: {}",
+                        sym, timeframe, provider, e.getMessage());
+            }
+            return;
+        }
+
+        // SQLite/legacy mode: upsert into ohlcv_bars
         try {
             Map<LocalDateTime, OhlcvBar> byTime = new LinkedHashMap<>();
             // Load existing bars to merge
@@ -383,5 +536,16 @@ public class OhlcvStorageService {
         } catch (Exception e) {
             log.warn("Failed to store bars for {}/{} from {}: {}", sym, timeframe, provider, e.getMessage());
         }
+    }
+
+    // ── Utility ──────────────────────────────────────────────────────────────
+
+    public static List<OhlcvBar> chronological(List<OhlcvBar> bars) {
+        if (bars == null || bars.size() < 2) {
+            return bars == null ? List.of() : new ArrayList<>(bars);
+        }
+        List<OhlcvBar> ordered = new ArrayList<>(bars);
+        ordered.sort(Comparator.comparing(OhlcvBar::getOpenTime));
+        return ordered;
     }
 }

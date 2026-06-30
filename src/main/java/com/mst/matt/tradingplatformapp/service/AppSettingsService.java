@@ -1,5 +1,6 @@
 package com.mst.matt.tradingplatformapp.service;
 
+import com.mst.matt.tradingplatformapp.model.DataFetchMode;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,7 +15,7 @@ import java.time.ZoneId;
 
 /**
  * User preferences persisted under {@code ~/.trading-platform/app-settings.properties}.
- * Controls offline mode, timezone override, default timeframe, theme, and favorite timeframes.
+ * Controls offline/online mode, timezone override, default timeframe, theme, and favorite timeframes.
  */
 @Service
 public class AppSettingsService {
@@ -29,11 +30,18 @@ public class AppSettingsService {
     private static final String KEY_TICKER_DISABLED  = "ticker.symbols.disabled";
     /** Polling interval for stocks/forex ticker in seconds (default 15). */
     private static final String KEY_TICKER_INTERVAL  = "ticker.poll.interval.seconds";
+    /** Data-fetch mode: FULL_ONLINE | OFFLINE_ON_FAIL | OFFLINE_ONLY */
+    private static final String KEY_DATA_FETCH_MODE  = "data.fetch.mode";
 
     private final Path settingsFile =
             Path.of(System.getProperty("user.home"), ".trading-platform", "app-settings.properties");
 
     private volatile boolean apiFetchEnabled   = true;
+    /**
+     * Three-way data-fetch mode (replaces the old boolean {@code apiFetchEnabled}).
+     * {@code OFFLINE_ON_FAIL} is the safe default: try API → fall back to DB cache.
+     */
+    private volatile DataFetchMode dataFetchMode = DataFetchMode.OFFLINE_ON_FAIL;
     private volatile String  timezoneId        = ZoneId.systemDefault().getId();
     private volatile String  defaultTimeframe  = "1h";
     private volatile String  theme             = "dark";
@@ -57,6 +65,14 @@ public class AppSettingsService {
         try (InputStream in = Files.newInputStream(settingsFile)) {
             props.load(in);
             apiFetchEnabled  = Boolean.parseBoolean(props.getProperty(KEY_API_FETCH, "true"));
+            // Load the three-way data-fetch mode (added later; fall back from old boolean)
+            String rawMode = props.getProperty(KEY_DATA_FETCH_MODE);
+            if (rawMode != null && !rawMode.isBlank()) {
+                dataFetchMode = DataFetchMode.fromString(rawMode);
+            } else {
+                // Migrate from old boolean: offline=true → OFFLINE_ONLY, else OFFLINE_ON_FAIL
+                dataFetchMode = apiFetchEnabled ? DataFetchMode.OFFLINE_ON_FAIL : DataFetchMode.OFFLINE_ONLY;
+            }
             timezoneId       = props.getProperty(KEY_TIMEZONE, ZoneId.systemDefault().getId());
             defaultTimeframe = props.getProperty(KEY_DEFAULT_TF, "1h");
             theme            = props.getProperty(KEY_THEME, "dark");
@@ -91,11 +107,43 @@ public class AppSettingsService {
 
     // ── API fetch / offline mode ─────────────────────────────
 
-    public boolean isApiFetchEnabled()  { return apiFetchEnabled; }
-    public boolean isOfflineMode()      { return !apiFetchEnabled; }
+    /**
+     * Returns {@code true} when the application is allowed to call external APIs.
+     * Equivalent to {@code dataFetchMode != OFFLINE_ONLY}.
+     */
+    public boolean isApiFetchEnabled()  {
+        return dataFetchMode != DataFetchMode.OFFLINE_ONLY;
+    }
 
+    /** Convenience: {@code true} only in strict offline-only mode. */
+    public boolean isOfflineMode()      { return dataFetchMode == DataFetchMode.OFFLINE_ONLY; }
+
+    /** @deprecated Use {@link #setDataFetchMode(DataFetchMode)} instead. */
+    @Deprecated
     public synchronized void setApiFetchEnabled(boolean enabled) {
         this.apiFetchEnabled = enabled;
+        // Keep the three-way mode in sync with the legacy boolean
+        if (enabled) {
+            if (dataFetchMode == DataFetchMode.OFFLINE_ONLY)
+                dataFetchMode = DataFetchMode.OFFLINE_ON_FAIL;
+        } else {
+            dataFetchMode = DataFetchMode.OFFLINE_ONLY;
+        }
+        persist();
+    }
+
+    // ── Three-way data-fetch mode ─────────────────────────────
+
+    /** Returns the current {@link DataFetchMode}. Never {@code null}. */
+    public DataFetchMode getDataFetchMode() { return dataFetchMode; }
+
+    /**
+     * Sets the three-way data-fetch mode and persists the setting immediately.
+     * Also keeps the legacy {@code apiFetchEnabled} boolean in sync.
+     */
+    public synchronized void setDataFetchMode(DataFetchMode mode) {
+        this.dataFetchMode  = mode != null ? mode : DataFetchMode.OFFLINE_ON_FAIL;
+        this.apiFetchEnabled = this.dataFetchMode != DataFetchMode.OFFLINE_ONLY;
         persist();
     }
 
@@ -226,6 +274,7 @@ public class AppSettingsService {
                     String.join(",", tickerDisabledSymbols));
             props.setProperty(KEY_TICKER_INTERVAL,
                     String.valueOf(tickerPollIntervalSeconds));
+            props.setProperty(KEY_DATA_FETCH_MODE, dataFetchMode.name());
             // Persist extra settings
             extraSettings.forEach(props::setProperty);
             try (OutputStream out = Files.newOutputStream(settingsFile)) {

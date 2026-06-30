@@ -1746,10 +1746,18 @@ public class ChartController implements Initializable {
 
     /**
      * Builds (lazily) and shows a "loading" overlay on top of the chart canvas.
-     * The overlay shows an animated spinner + "Loading candles…" message.
+     * Shows a spinner and "Loading {SYMBOL} from {PROVIDER}…" message.
      * Must be called on the JavaFX Application Thread.
      */
     private void showChartLoadingOverlay() {
+        showChartLoadingOverlay(currentSymbol, resolveProviderLabel());
+    }
+
+    /**
+     * Shows a loading overlay with a contextual message: "Loading {symbol} from {provider}…".
+     * Must be called on the JavaFX Application Thread.
+     */
+    private void showChartLoadingOverlay(String symbol, String providerLabel) {
         if (chartStack == null) return;
         // Remove any stale overlay first
         hideChartLoadingOverlay();
@@ -1759,18 +1767,18 @@ public class ChartController implements Initializable {
         spinner.setMaxHeight(40);
         spinner.setStyle("-fx-progress-color:#388bfd;");
 
-        // Animated dots label
-        javafx.scene.control.Label msgLabel = new javafx.scene.control.Label("Loading candles…");
+        String baseMsg = "Loading " + symbol + " from " + providerLabel + "...";
+        javafx.scene.control.Label msgLabel = new javafx.scene.control.Label(baseMsg);
         msgLabel.setStyle("-fx-text-fill:#e6edf3; -fx-font-size:14px; -fx-font-weight:bold;");
 
         javafx.scene.layout.VBox content = new javafx.scene.layout.VBox(10, spinner, msgLabel);
         content.setAlignment(javafx.geometry.Pos.CENTER);
 
         // Animate dots
-        final String[] dots = {"Loading candles…", "Loading candles  ", "Loading candles. ", "Loading candles.."};
+        final String[] dots = {baseMsg, baseMsg + ".", baseMsg + "..", baseMsg + "..."};
         final int[] dotIdx = {0};
         loadingDotsTimeline = new javafx.animation.Timeline(
-                new javafx.animation.KeyFrame(Duration.millis(400), ae -> {
+                new javafx.animation.KeyFrame(Duration.millis(500), ae -> {
                     dotIdx[0] = (dotIdx[0] + 1) % dots.length;
                     msgLabel.setText(dots[dotIdx[0]]);
                 }));
@@ -1778,7 +1786,7 @@ public class ChartController implements Initializable {
         loadingDotsTimeline.play();
 
         loadingOverlay = new javafx.scene.layout.StackPane(content);
-        loadingOverlay.setStyle("-fx-background-color:rgba(13,17,23,0.72);");
+        loadingOverlay.setStyle("-fx-background-color:rgba(13,17,23,0.80);");
         loadingOverlay.setMouseTransparent(true); // allow underlying canvas interaction
 
         // Bind overlay to chartPane size so it covers only the chart area
@@ -1787,6 +1795,13 @@ public class ChartController implements Initializable {
 
         // Add on top of chartStack (z-order last = on top)
         chartStack.getChildren().add(loadingOverlay);
+    }
+
+    /** Returns a human-friendly label for the currently-selected provider. */
+    private String resolveProviderLabel() {
+        if (activeProfile == null) return "Auto";
+        MarketDataProvider p = MarketDataProvider.fromString(activeProfile.getChartProvider());
+        return (p != null && p != MarketDataProvider.AUTO) ? p.getLabel() : "Auto";
     }
 
     /**
@@ -1814,8 +1829,10 @@ public class ChartController implements Initializable {
         activeProfile.setChartProvider(chosen.name());
         profilePersistence.saveAsync(activeProfile);
         showInfoNotification("Provider changed to " + chosen.getLabel() + " — refreshing chart…");
-        // Show loading overlay immediately on FX thread
-        showChartLoadingOverlay();
+        // Show contextual loading overlay: "Loading BTCUSDT from CoinGecko..."
+        final String sym = currentSymbol;
+        final String provLabel = chosen.getLabel();
+        Platform.runLater(() -> showChartLoadingOverlay(sym, provLabel));
         Thread.ofVirtual().start(() -> {
             // Invalidate the in-memory cache so the new provider fetches fresh data
             ohlcvStorageService.invalidateCache(currentSymbol, currentTimeframe);
@@ -1860,20 +1877,55 @@ public class ChartController implements Initializable {
     }
 
     /**
-     * Load chart with a 10-second timeout. If the chart hasn't updated within that
-     * window, show a non-blocking error notification.
-     * Also shows the loading overlay for the duration.
+     * Load chart with a 10-second timeout.
+     * Step 1: show loading overlay.
+     * Step 2: attempt API fetch (handled inside loadChart / loadChartForProvider).
+     * Step 3: if API succeeds within 10s → update chart, hide overlay.
+     * Step 4: if API fails/times out → try DB cache; show yellow warning or red error.
      */
     private void loadChartWithTimeout() {
         AtomicBoolean completed = new AtomicBoolean(false);
-        // loadChart() shows the overlay itself
+        // loadChart() shows the overlay itself on the FX thread
         loadChart(completed);
         // Schedule a 10-second timeout check on FX thread
         PauseTransition timeout = new PauseTransition(Duration.seconds(10));
         timeout.setOnFinished(e -> {
             if (!completed.get()) {
                 hideChartLoadingOverlay();
-                showErrorNotification("Failed to load requested candle count. Please try again.");
+                // Try to recover using DB cache
+                Thread.ofVirtual().start(() -> {
+                    MarketDataProvider p = activeProfile != null
+                            ? MarketDataProvider.fromString(activeProfile.getChartProvider())
+                            : MarketDataProvider.AUTO;
+                    String pName = (p != null && p != MarketDataProvider.AUTO) ? p.name() : null;
+                    List<com.mst.matt.tradingplatformapp.model.OhlcvBar> cached =
+                            ohlcvStorageService.getBarsForProvider(
+                                    currentSymbol, currentTimeframe, currentBars, pName);
+                    if (cached != null && !cached.isEmpty()) {
+                        // Show cached data with a yellow warning
+                        com.mst.matt.tradingplatformapp.model.OhlcvBar lastBar =
+                                cached.get(cached.size() - 1);
+                        String lastUpdate = lastBar.getOpenTime() != null
+                                ? lastBar.getOpenTime().toString().replace("T", " ") : "unknown";
+                        String provLabel = resolveProviderLabel();
+                        final List<com.mst.matt.tradingplatformapp.model.OhlcvBar> finalCached = cached;
+                        Platform.runLater(() -> {
+                            chart.setData(finalCached, activeIndicators, null);
+                            dataSourceLabel.setText("OHLCV via " + provLabel + " (cached)");
+                            showWarnNotification(
+                                    "Using offline/cached data for " + currentSymbol
+                                    + " (" + provLabel + ", " + currentTimeframe + ")."
+                                    + " Last update: " + lastUpdate + ".");
+                        });
+                    } else {
+                        // No data at all — show red error with Retry hint
+                        String provLabel = resolveProviderLabel();
+                        Platform.runLater(() -> showErrorNotification(
+                                "\u26A0\uFE0F Failed to load chart data for " + currentSymbol
+                                + " (" + currentTimeframe + ") from " + provLabel
+                                + ". Click \"Retry\" to try again, or change the provider."));
+                    }
+                });
             }
         });
         timeout.play();
@@ -1884,11 +1936,21 @@ public class ChartController implements Initializable {
     }
 
     private void loadChart(AtomicBoolean completionFlag) {
-        // Show loading overlay before starting background fetch (always on FX thread)
+        // Resolve provider for the contextual loading message
+        MarketDataProvider selectedProvider = MarketDataProvider.AUTO;
+        if (activeProfile != null && activeProfile.getChartProvider() != null) {
+            selectedProvider = MarketDataProvider.fromString(activeProfile.getChartProvider());
+        }
+        final MarketDataProvider providerToUse = selectedProvider;
+        final String provLabel = (providerToUse != null && providerToUse != MarketDataProvider.AUTO)
+                ? providerToUse.getLabel() : "Auto";
+
+        // Show contextual loading overlay on FX thread: "Loading BTCUSDT from CoinGecko..."
         if (Platform.isFxApplicationThread()) {
-            showChartLoadingOverlay();
+            showChartLoadingOverlay(currentSymbol, provLabel);
         } else {
-            Platform.runLater(this::showChartLoadingOverlay);
+            final String sym = currentSymbol;
+            Platform.runLater(() -> showChartLoadingOverlay(sym, provLabel));
         }
         // Feature 1: always guard against null profile
         if (activeProfile == null) {
@@ -1898,13 +1960,6 @@ public class ChartController implements Initializable {
         }
         // Feature 4.3: enforce candle cap
         currentBars = Math.min(currentBars, authService.maxCandles());
-
-        // Resolve which specific provider is selected (null = AUTO/fallback chain)
-        MarketDataProvider selectedProvider = MarketDataProvider.AUTO;
-        if (activeProfile.getChartProvider() != null) {
-            selectedProvider = MarketDataProvider.fromString(activeProfile.getChartProvider());
-        }
-        final MarketDataProvider providerToUse = selectedProvider;
 
         Thread.ofVirtual().start(() -> loadChartForProvider(providerToUse, completionFlag));
     }
@@ -2107,11 +2162,52 @@ public class ChartController implements Initializable {
             if (completionFlag != null) completionFlag.set(true);
             log.warn("Chart load failed for {} {}: {}", currentSymbol, currentTimeframe,
                     e.getMessage());
-            Platform.runLater(() -> {
-                hideChartLoadingOverlay();
-                dataSourceLabel.setText("⚠ Data unavailable — retrying…");
-                showErrorNotification("Chart data unavailable for " + currentSymbol
-                        + " [" + currentTimeframe + "]. " + e.getMessage());
+
+            // Step 5: attempt to recover with DB cache before showing an error
+            final String sym          = currentSymbol;
+            final String tf           = currentTimeframe;
+            final String pName;
+            {
+                MarketDataProvider _p = activeProfile != null
+                        ? MarketDataProvider.fromString(activeProfile.getChartProvider())
+                        : MarketDataProvider.AUTO;
+                pName = (_p != null && _p != MarketDataProvider.AUTO) ? _p.name() : null;
+            }
+            final String finalProvLabel = resolveProviderLabel();
+
+            Thread.ofVirtual().start(() -> {
+                List<com.mst.matt.tradingplatformapp.model.OhlcvBar> cached;
+                try {
+                    cached = ohlcvStorageService.getBarsForProvider(sym, tf, currentBars, pName);
+                } catch (Exception dbEx) {
+                    log.debug("DB cache read also failed for {}/{}: {}", sym, tf, dbEx.getMessage());
+                    cached = java.util.Collections.emptyList();
+                }
+
+                final List<com.mst.matt.tradingplatformapp.model.OhlcvBar> finalCached = cached;
+                Platform.runLater(() -> {
+                    hideChartLoadingOverlay();
+                    if (finalCached != null && !finalCached.isEmpty()) {
+                        // Serve cached data with yellow warning
+                        chart.setData(finalCached, activeIndicators, null);
+                        dataSourceLabel.setText("OHLCV via " + finalProvLabel + " (cached)");
+                        com.mst.matt.tradingplatformapp.model.OhlcvBar lastBar =
+                                finalCached.get(finalCached.size() - 1);
+                        String lastUpdate = lastBar.getOpenTime() != null
+                                ? lastBar.getOpenTime().toString().replace("T", " ") : "unknown";
+                        showWarnNotification(
+                                "Using offline/cached data for " + sym
+                                + " (" + finalProvLabel + ", " + tf + ")."
+                                + " Last update: " + lastUpdate + ".");
+                    } else {
+                        // No data at all — red error with Retry hint
+                        dataSourceLabel.setText("\u26A0 Data unavailable");
+                        showErrorNotification(
+                                "\u26A0\uFE0F Failed to load chart data for " + sym
+                                + " (" + tf + ") from " + finalProvLabel
+                                + ". Click \"Retry\" to try again, or change the provider.");
+                    }
+                });
             });
         }
     }

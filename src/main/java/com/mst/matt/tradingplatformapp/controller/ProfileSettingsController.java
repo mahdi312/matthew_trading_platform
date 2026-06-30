@@ -1,5 +1,6 @@
 package com.mst.matt.tradingplatformapp.controller;
 
+import com.mst.matt.tradingplatformapp.model.DataFetchMode;
 import com.mst.matt.tradingplatformapp.model.UserProfile;
 import com.mst.matt.tradingplatformapp.model.UserProfile.ProfileAssetFocus;
 import com.mst.matt.tradingplatformapp.repository.UserProfileRepository;
@@ -57,6 +58,12 @@ public class ProfileSettingsController {
     @FXML private ToggleButton darkThemeBtn;
     @FXML private ToggleButton lightThemeBtn;
     @FXML private ToggleGroup themeGroup;
+
+    // ── Data Fetch Mode radio buttons ─────────────────────────
+    @FXML private RadioButton fetchModeFullOnlineRadio;
+    @FXML private RadioButton fetchModeOfflineOnFailRadio;
+    @FXML private RadioButton fetchModeOfflineOnlyRadio;
+    @FXML private ToggleGroup dataFetchModeGroup;
 
     // ── Sensitivity sliders ───────────────────────────────────
     @FXML private javafx.scene.control.Slider zoomSensitivitySlider;
@@ -466,6 +473,8 @@ public class ProfileSettingsController {
         if (offlineModeCheck != null) {
             offlineModeCheck.setSelected(appSettings.isOfflineMode());
         }
+        // Data Fetch Mode radio buttons
+        applyDataFetchModeToUI(appSettings.getDataFetchMode());
 
         // Timezone
         if (timezoneCombo != null) {
@@ -515,10 +524,46 @@ public class ProfileSettingsController {
     @FXML
     public void onOfflineModeChanged() {
         if (offlineModeCheck == null) return;
-        appSettings.setApiFetchEnabled(!offlineModeCheck.isSelected());
+        // Legacy checkbox: map to DataFetchMode for backward compatibility
+        DataFetchMode mode = offlineModeCheck.isSelected()
+                ? DataFetchMode.OFFLINE_ONLY : DataFetchMode.OFFLINE_ON_FAIL;
+        appSettings.setDataFetchMode(mode);
+        applyDataFetchModeToUI(mode);
         savedLabel.setText(offlineModeCheck.isSelected()
                 ? "Offline mode on — using cached data."
                 : "Live API fetching enabled.");
+    }
+
+    /**
+     * Called when any of the three Data Fetch Mode radio buttons is clicked.
+     * Persists the chosen mode immediately so it takes effect right away.
+     */
+    @FXML
+    public void onDataFetchModeChanged() {
+        DataFetchMode mode = selectedDataFetchMode();
+        appSettings.setDataFetchMode(mode);
+        // Keep legacy offline checkbox in sync
+        if (offlineModeCheck != null) {
+            offlineModeCheck.setSelected(mode == DataFetchMode.OFFLINE_ONLY);
+        }
+        savedLabel.setText("Data fetch mode: " + mode.label);
+    }
+
+    /** Returns the {@link DataFetchMode} corresponding to the currently-selected radio button. */
+    private DataFetchMode selectedDataFetchMode() {
+        if (fetchModeOfflineOnlyRadio != null && fetchModeOfflineOnlyRadio.isSelected())
+            return DataFetchMode.OFFLINE_ONLY;
+        if (fetchModeFullOnlineRadio != null && fetchModeFullOnlineRadio.isSelected())
+            return DataFetchMode.FULL_ONLINE;
+        return DataFetchMode.OFFLINE_ON_FAIL; // default
+    }
+
+    /** Reflects the given {@link DataFetchMode} on the radio buttons (no event fired). */
+    private void applyDataFetchModeToUI(DataFetchMode mode) {
+        if (mode == null) mode = DataFetchMode.OFFLINE_ON_FAIL;
+        if (fetchModeFullOnlineRadio    != null) fetchModeFullOnlineRadio.setSelected(mode == DataFetchMode.FULL_ONLINE);
+        if (fetchModeOfflineOnFailRadio != null) fetchModeOfflineOnFailRadio.setSelected(mode == DataFetchMode.OFFLINE_ON_FAIL);
+        if (fetchModeOfflineOnlyRadio   != null) fetchModeOfflineOnlyRadio.setSelected(mode == DataFetchMode.OFFLINE_ONLY);
     }
 
     @FXML
@@ -550,8 +595,11 @@ public class ProfileSettingsController {
             activeProfile.setWatchlist(csv.isEmpty() ? null : csv.toUpperCase());
             liveTickerService.applyProfileWatchlist(activeProfile);
         }
+        // Data Fetch Mode — save the three-way radio selection
+        DataFetchMode chosenMode = selectedDataFetchMode();
+        appSettings.setDataFetchMode(chosenMode);
         if (offlineModeCheck != null) {
-            appSettings.setApiFetchEnabled(!offlineModeCheck.isSelected());
+            offlineModeCheck.setSelected(chosenMode == DataFetchMode.OFFLINE_ONLY);
         }
 
         // ── App settings ─────────────────────────────────────

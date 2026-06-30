@@ -1,5 +1,6 @@
 package com.mst.matt.tradingplatformapp.service.price;
 
+import com.mst.matt.tradingplatformapp.model.DataFetchMode;
 import com.mst.matt.tradingplatformapp.model.OhlcvBar;
 import com.mst.matt.tradingplatformapp.model.UserProfile;
 import org.slf4j.Logger;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * Routes price requests through {@link PriceProviderRegistry} with profile-aware
@@ -25,6 +27,9 @@ public class PriceRouter {
     /** P3 (LOG-FIX): last-known-good cache served when every provider is down. */
     private final PriceCacheService priceCache;
     private volatile UserProfile activeProfile;
+
+    @Autowired
+    private com.mst.matt.tradingplatformapp.service.AppSettingsService appSettings;
 
     public PriceRouter(PriceProviderRegistry registry,
                        BinanceService binanceService,
@@ -81,6 +86,14 @@ public class PriceRouter {
 
     public List<OhlcvBar> getOhlcv(String symbol, String timeframe, int limit, UserProfile profile) {
         String normalized = SymbolNormalizer.normalize(symbol);
+
+        // OFFLINE_ONLY: never call any external API
+        if (appSettings != null
+                && appSettings.getDataFetchMode() == DataFetchMode.OFFLINE_ONLY) {
+            log.debug("OFFLINE_ONLY mode — skipping API call for OHLCV {}/{}", normalized, timeframe);
+            return Collections.emptyList();
+        }
+
         for (PriceService provider : resolveProviders(normalized, profile)) {
             try {
                 List<OhlcvBar> bars = provider.getOhlcv(normalized, timeframe, limit);
