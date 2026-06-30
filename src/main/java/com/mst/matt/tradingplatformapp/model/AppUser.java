@@ -59,6 +59,44 @@ public class AppUser {
                         List.of("1h","4h","1d","1w","1mo");
             };
         }
+
+        /**
+         * Returns the set of market-data providers available to this role.
+         *
+         * <ul>
+         *   <li><b>ADMIN / PRO_PLUS</b> – all providers, including premium ones (Binance, Polygon,
+         *       Alpha Vantage, Twelve Data, Marketstack, Fixer, etc.).</li>
+         *   <li><b>PRO</b> – most providers except the most premium ones.</li>
+         *   <li><b>REGULAR</b> – only free providers: CoinGecko, Yahoo Finance, Frankfurter.</li>
+         * </ul>
+         *
+         * The list is ordered: first entry is the suggested default (AUTO is always prepended by the
+         * UI layer so it is not included here).
+         */
+        public List<String> allowedProviders() {
+            return switch (this) {
+                case ADMIN, PRO_PLUS_USER -> List.of(
+                        "BINANCE", "COINGECKO", "YAHOO", "FINNHUB",
+                        "ALPHA_VANTAGE", "POLYGON", "TWELVE_DATA",
+                        "MARKETSTACK", "FRANKFURTER",
+                        "FIXER", "FREE_CURRENCY_API", "OPEN_EXCHANGE_RATES",
+                        "EXCHANGE_RATE_API", "CURRENCY_LAYER");
+                case PRO_USER -> List.of(
+                        "COINGECKO", "YAHOO", "FINNHUB",
+                        "ALPHA_VANTAGE", "TWELVE_DATA", "FRANKFURTER",
+                        "FREE_CURRENCY_API", "OPEN_EXCHANGE_RATES", "EXCHANGE_RATE_API");
+                case REGULAR_USER -> List.of(
+                        "COINGECKO", "YAHOO", "FRANKFURTER",
+                        "FREE_CURRENCY_API", "EXCHANGE_RATE_API");
+            };
+        }
+
+        /** Returns {@code true} if this role is allowed to use the named provider. */
+        public boolean canUseProvider(String providerName) {
+            if (providerName == null || providerName.equalsIgnoreCase("AUTO")) return true;
+            return allowedProviders().stream()
+                    .anyMatch(p -> p.equalsIgnoreCase(providerName));
+        }
     }
 
     @Id

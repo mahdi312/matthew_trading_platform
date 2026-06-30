@@ -1,9 +1,14 @@
 package com.mst.matt.tradingplatformapp.controller;
 
+import com.mst.matt.tradingplatformapp.config.StageInitializer;
+import com.mst.matt.tradingplatformapp.model.DataFetchMode;
+import com.mst.matt.tradingplatformapp.model.SymbolEntry;
 import com.mst.matt.tradingplatformapp.model.UserProfile;
 import com.mst.matt.tradingplatformapp.model.UserProfile.ProfileAssetFocus;
+import com.mst.matt.tradingplatformapp.repository.SymbolEntryRepository;
 import com.mst.matt.tradingplatformapp.repository.UserProfileRepository;
 import com.mst.matt.tradingplatformapp.service.AppSettingsService;
+import com.mst.matt.tradingplatformapp.service.AppSettingsService.AppTheme;
 import com.mst.matt.tradingplatformapp.service.ProfilePersistenceService;
 import com.mst.matt.tradingplatformapp.service.WatchlistDefaults;
 import com.mst.matt.tradingplatformapp.service.auth.AuthService;
@@ -14,6 +19,7 @@ import com.mst.matt.tradingplatformapp.service.price.LiveTickerService;
 import com.mst.matt.tradingplatformapp.service.price.MarketDataProvider;
 import com.mst.matt.tradingplatformapp.service.price.PriceProviderRegistry;
 import com.mst.matt.tradingplatformapp.service.price.PriceRouter;
+import com.mst.matt.tradingplatformapp.ui.AutocompleteSymbolField;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
@@ -56,13 +62,26 @@ public class ProfileSettingsController {
     @FXML private FlowPane favTfPane;
     @FXML private ToggleButton darkThemeBtn;
     @FXML private ToggleButton lightThemeBtn;
+    @FXML private ToggleButton amazonGreenThemeBtn;
+    @FXML private ToggleButton lightBlueThemeBtn;
     @FXML private ToggleGroup themeGroup;
+    @FXML private Label themeStatusLabel;
+
+    // ── Data Fetch Mode radio buttons ─────────────────────────
+    @FXML private RadioButton fetchModeFullOnlineRadio;
+    @FXML private RadioButton fetchModeOfflineOnFailRadio;
+    @FXML private RadioButton fetchModeOfflineOnlyRadio;
+    @FXML private ToggleGroup dataFetchModeGroup;
 
     // ── Sensitivity sliders ───────────────────────────────────
     @FXML private javafx.scene.control.Slider zoomSensitivitySlider;
     @FXML private javafx.scene.control.Label  zoomSensitivityLabel;
     @FXML private javafx.scene.control.Slider panSensitivitySlider;
     @FXML private javafx.scene.control.Label  panSensitivityLabel;
+
+    // ── Ticker fetch controls ─────────────────────────────────
+    @FXML private javafx.scene.control.Spinner<Integer> tickerIntervalSpinner;
+    @FXML private FlowPane tickerSymbolPane;
 
     /** Callback to apply changed sensitivity values to the live chart canvas. */
     private java.util.function.Consumer<double[]> onSensitivityChanged;
@@ -76,6 +95,11 @@ public class ProfileSettingsController {
     @Autowired private PriceRouter priceRouter;
     @Autowired private LiveTickerService liveTickerService;
     @Autowired private AuthService authService;
+    @Autowired private StageInitializer stageInitializer;
+    @Autowired private SymbolEntryRepository symbolEntryRepository;
+
+    /** Autocomplete wrapper around the plain defaultSymbolField TextField. */
+    private AutocompleteSymbolField defaultSymbolAutocomplete;
 
     /** Optional callback: called when timezone changes so ChartController can update. */
     private java.util.function.Consumer<ZoneId> onTimezoneChanged;
@@ -97,6 +121,21 @@ public class ProfileSettingsController {
         assetFocusCombo.setCellFactory(lv -> labelCell());
         assetFocusCombo.setButtonCell(labelCell());
 
+        // ── Swap plain defaultSymbolField with autocomplete field ─────────────
+        if (defaultSymbolField != null && defaultSymbolField.getParent() instanceof javafx.scene.layout.VBox parent) {
+            int idx = parent.getChildren().indexOf(defaultSymbolField);
+            if (idx >= 0) {
+                defaultSymbolAutocomplete = new AutocompleteSymbolField(symbolEntryRepository);
+                defaultSymbolAutocomplete.setMaxWidth(320);
+                defaultSymbolAutocomplete.setPromptText("e.g. AAPL, BTCUSDT, EURUSD");
+                // Mirror text back to the original field so existing save logic still works
+                defaultSymbolAutocomplete.textProperty().addListener((o, a, n) -> {
+                    if (defaultSymbolField != null) defaultSymbolField.setText(n);
+                });
+                parent.getChildren().set(idx, defaultSymbolAutocomplete);
+            }
+        }
+
         // Fundamental provider
         fundamentalProviderCombo.setItems(FXCollections.observableArrayList(
                 fundamentalRouter.enabledProviders()));
@@ -116,16 +155,17 @@ public class ProfileSettingsController {
         defaultTfCombo.setItems(FXCollections.observableArrayList(ALL_TIMEFRAMES));
         defaultTfCombo.setValue(appSettings.getDefaultTimeframe());
 
-        // Theme buttons
-        boolean dark = appSettings.isDarkTheme();
-        if (darkThemeBtn  != null) darkThemeBtn.setSelected(dark);
-        if (lightThemeBtn != null) lightThemeBtn.setSelected(!dark);
+        // Theme buttons — set initial selection from saved theme
+        applyThemeSelectionToButtons(appSettings.getTheme());
 
         // Favorite timeframes pane
         buildFavoritesPane();
 
         // ── Sensitivity sliders ───────────────────────────────
         initSensitivitySliders();
+
+        // ── Ticker interval spinner ───────────────────────────
+        initTickerIntervalSpinner();
     }
 
     private void initSensitivitySliders() {
@@ -158,6 +198,141 @@ public class ProfileSettingsController {
                 }
             });
         }
+    }
+
+    private void initTickerIntervalSpinner() {
+        if (tickerIntervalSpinner == null) return;
+        tickerIntervalSpinner.setValueFactory(
+                new javafx.scene.control.SpinnerValueFactory.IntegerSpinnerValueFactory(5, 300,
+                        appSettings.getTickerPollIntervalSeconds()));
+    }
+
+    // ── Add-symbol text field (built programmatically) ─────
+    private javafx.scene.control.TextField addSymbolField;
+
+    /**
+     * Build the symbol toggle chips from the current watchlist + disabled state.
+     * Each chip has an enabled toggle AND a small "✕" delete button.
+     * At the bottom there is an "+ Add Symbol" row.
+     */
+    private void buildTickerSymbolPane() {
+        if (tickerSymbolPane == null) return;
+        tickerSymbolPane.getChildren().clear();
+
+        List<String> symbols = liveTickerService.allSymbols();
+        if (symbols.isEmpty()) {
+            javafx.scene.control.Label noSyms = new javafx.scene.control.Label(
+                    "No symbols in watchlist. Add one below.");
+            noSyms.setStyle("-fx-text-fill:#8b949e;");
+            tickerSymbolPane.getChildren().add(noSyms);
+        } else {
+            for (String sym : new ArrayList<>(symbols)) {
+                tickerSymbolPane.getChildren().add(buildSymbolChip(sym));
+            }
+        }
+
+        // ── Add-symbol row ─────────────────────────────────────
+        javafx.scene.layout.HBox addRow = new javafx.scene.layout.HBox(6);
+        addRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+
+        addSymbolField = new javafx.scene.control.TextField();
+        addSymbolField.setPromptText("e.g. SOLUSDT, AMZN, GBPUSD");
+        addSymbolField.setPrefWidth(180);
+        addSymbolField.setStyle("-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;"
+                + "-fx-border-color:#30363d; -fx-border-radius:6;"
+                + "-fx-background-radius:6; -fx-padding:4 10;");
+        // Allow Enter to trigger add
+        addSymbolField.setOnAction(ev -> onAddTickerSymbol());
+
+        javafx.scene.control.Button addBtn = new javafx.scene.control.Button("+ Add");
+        addBtn.setStyle("-fx-background-color:#1f6feb; -fx-text-fill:white;"
+                + "-fx-background-radius:6; -fx-padding:4 12; -fx-cursor:hand; -fx-font-weight:bold;");
+        addBtn.setOnAction(ev -> onAddTickerSymbol());
+
+        // Width forces the add-row to span the full FlowPane on its own "line"
+        javafx.scene.layout.HBox.setHgrow(addSymbolField, javafx.scene.layout.Priority.ALWAYS);
+        addRow.getChildren().addAll(addSymbolField, addBtn);
+        tickerSymbolPane.getChildren().add(addRow);
+    }
+
+    /** Build one symbol chip (toggle + delete button). */
+    private javafx.scene.layout.HBox buildSymbolChip(String sym) {
+        boolean enabled = appSettings.isTickerSymbolEnabled(sym);
+
+        javafx.scene.control.ToggleButton chip = new javafx.scene.control.ToggleButton(sym);
+        chip.setSelected(enabled);
+        chip.setStyle(tickerChipStyle(enabled));
+        chip.selectedProperty().addListener((o, a, sel) -> {
+            appSettings.setTickerSymbolEnabled(sym, sel);
+            chip.setStyle(tickerChipStyle(sel));
+            liveTickerService.applyTickerSymbolSettings();
+        });
+
+        // Small delete button
+        javafx.scene.control.Button delBtn = new javafx.scene.control.Button("✕");
+        delBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#f85149;"
+                + "-fx-cursor:hand; -fx-padding:2 4; -fx-font-size:10px; -fx-border-width:0;");
+        delBtn.setOnAction(ev -> {
+            liveTickerService.removeFromWatchlist(sym);
+            buildTickerSymbolPane(); // rebuild to reflect removal
+        });
+        delBtn.setTooltip(new javafx.scene.control.Tooltip("Remove " + sym + " from watchlist"));
+
+        javafx.scene.layout.HBox row = new javafx.scene.layout.HBox(2, chip, delBtn);
+        row.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        row.setStyle("-fx-background-color:#161b22; -fx-background-radius:8;"
+                + "-fx-border-color:#30363d; -fx-border-radius:8; -fx-border-width:1;"
+                + "-fx-padding:2 4 2 2;");
+        return row;
+    }
+
+    private static String tickerChipStyle(boolean enabled) {
+        return enabled
+                ? "-fx-background-color:#1a4a1a; -fx-text-fill:#3fb950;"
+                  + "-fx-background-radius:6; -fx-padding:4 12; -fx-cursor:hand;"
+                  + "-fx-border-color:#3fb950; -fx-border-radius:6; -fx-border-width:1;"
+                : "-fx-background-color:#21262d; -fx-text-fill:#8b949e;"
+                  + "-fx-background-radius:6; -fx-padding:4 12; -fx-cursor:hand;"
+                  + "-fx-border-color:#30363d; -fx-border-radius:6; -fx-border-width:1;";
+    }
+
+    /** Called by the Add button or pressing Enter in the add-symbol text field. */
+    @FXML
+    public void onAddTickerSymbol() {
+        if (addSymbolField == null) return;
+        String raw = addSymbolField.getText();
+        if (raw == null || raw.isBlank()) return;
+        // Support multiple symbols separated by commas/spaces
+        for (String token : raw.split("[,;\\s]+")) {
+            String s = token.trim().toUpperCase();
+            if (!s.isEmpty()) {
+                liveTickerService.addToWatchlist(s);
+                appSettings.setTickerSymbolEnabled(s, true); // enabled by default
+            }
+        }
+        addSymbolField.clear();
+        buildTickerSymbolPane(); // rebuild to show new symbols
+    }
+
+    @FXML
+    public void onRefreshTickerSymbols() {
+        buildTickerSymbolPane();
+    }
+
+    // ── Ticker interval preset shortcuts ──────────────────────────────────
+
+    @FXML public void onTickerPreset15s() { setTickerInterval(15); }
+    @FXML public void onTickerPreset1m()  { setTickerInterval(60); }
+    @FXML public void onTickerPreset5m()  { setTickerInterval(300); }
+    @FXML public void onTickerPreset1h()  { setTickerInterval(3600); }
+
+    private void setTickerInterval(int seconds) {
+        if (tickerIntervalSpinner == null) return;
+        tickerIntervalSpinner.getValueFactory().setValue(seconds);
+        // Immediately apply (same as hitting Save for just this setting)
+        appSettings.setTickerPollIntervalSeconds(seconds);
+        liveTickerService.applyPollIntervalSetting();
+        if (savedLabel != null) savedLabel.setText("Interval set to " + seconds + " s");
     }
 
     private void updateSensitivityLabel(javafx.scene.control.Label lbl, double v) {
@@ -265,21 +440,63 @@ public class ProfileSettingsController {
 
     // ── Theme ─────────────────────────────────────────────────
 
+    /**
+     * Called when any theme toggle button is clicked.
+     * Determines which button is selected, applies the theme immediately,
+     * and persists the setting.
+     */
     @FXML
     public void onThemeChanged() {
-        // Theme is persisted on save
-        updateThemeBtnStyles();
+        String themeId = selectedThemeId();
+        // Instant switch — no restart required
+        stageInitializer.applyTheme(themeId);
+        updateThemeBtnStyles(themeId);
+        if (themeStatusLabel != null) {
+            themeStatusLabel.setText("Theme applied: " + AppTheme.fromId(themeId).id.replace("_", " "));
+        }
     }
 
-    private void updateThemeBtnStyles() {
-        if (darkThemeBtn == null || lightThemeBtn == null) return;
-        boolean dark = darkThemeBtn.isSelected();
-        darkThemeBtn.setStyle(dark
-                ? "-fx-background-color:#1f6feb; -fx-text-fill:white;"
-                  + "-fx-background-radius:6; -fx-padding:8 20; -fx-cursor:hand;"
-                : "-fx-background-color:#21262d; -fx-text-fill:#8b949e;"
-                  + "-fx-background-radius:6; -fx-padding:8 20; -fx-cursor:hand;");
-        lightThemeBtn.setStyle(!dark
+    @FXML
+    public void onUseSystemTheme() {
+        boolean osDark = AppSettingsService.isOsDarkMode();
+        String themeId = osDark ? "dark" : "light";
+        applyThemeSelectionToButtons(themeId);
+        stageInitializer.applyTheme(themeId);
+        if (themeStatusLabel != null) {
+            themeStatusLabel.setText("System theme applied: " + (osDark ? "Dark" : "Light"));
+        }
+    }
+
+    /** Returns the theme ID for the currently-selected toggle button. */
+    private String selectedThemeId() {
+        if (darkThemeBtn       != null && darkThemeBtn.isSelected())       return "dark";
+        if (lightThemeBtn      != null && lightThemeBtn.isSelected())      return "light";
+        if (amazonGreenThemeBtn != null && amazonGreenThemeBtn.isSelected()) return "amazon_green";
+        if (lightBlueThemeBtn  != null && lightBlueThemeBtn.isSelected())  return "light_blue";
+        return "dark"; // fallback
+    }
+
+    /** Selects the correct toggle button for the given theme ID. */
+    private void applyThemeSelectionToButtons(String themeId) {
+        AppTheme t = AppTheme.fromId(themeId);
+        if (darkThemeBtn       != null) darkThemeBtn.setSelected(t == AppTheme.DARK);
+        if (lightThemeBtn      != null) lightThemeBtn.setSelected(t == AppTheme.LIGHT);
+        if (amazonGreenThemeBtn != null) amazonGreenThemeBtn.setSelected(t == AppTheme.AMAZON_GREEN);
+        if (lightBlueThemeBtn  != null) lightBlueThemeBtn.setSelected(t == AppTheme.LIGHT_BLUE);
+        updateThemeBtnStyles(themeId);
+    }
+
+    private void updateThemeBtnStyles(String activeThemeId) {
+        AppTheme active = AppTheme.fromId(activeThemeId);
+        styleThemeBtn(darkThemeBtn,       active == AppTheme.DARK);
+        styleThemeBtn(lightThemeBtn,      active == AppTheme.LIGHT);
+        styleThemeBtn(amazonGreenThemeBtn, active == AppTheme.AMAZON_GREEN);
+        styleThemeBtn(lightBlueThemeBtn,  active == AppTheme.LIGHT_BLUE);
+    }
+
+    private void styleThemeBtn(ToggleButton btn, boolean selected) {
+        if (btn == null) return;
+        btn.setStyle(selected
                 ? "-fx-background-color:#1f6feb; -fx-text-fill:white;"
                   + "-fx-background-radius:6; -fx-padding:8 20; -fx-cursor:hand;"
                 : "-fx-background-color:#21262d; -fx-text-fill:#8b949e;"
@@ -307,9 +524,15 @@ public class ProfileSettingsController {
         profileNameLabel.setText(profile.getName() + "  ["
                 + authService.currentUser().map(u -> u.getDisplayName()).orElse("—") + "]");
         assetFocusCombo.setValue(focus);
-        defaultSymbolField.setText(profile.getDefaultSymbol() != null
+        String sym = profile.getDefaultSymbol() != null
                 ? profile.getDefaultSymbol()
-                : focus.defaultSymbol());
+                : focus.defaultSymbol();
+        defaultSymbolField.setText(sym);
+        if (defaultSymbolAutocomplete != null) {
+            defaultSymbolAutocomplete.setSymbol(sym);
+            // Filter autocomplete suggestions based on asset focus
+            defaultSymbolAutocomplete.setFilterType(assetFocusToSymbolType(focus));
+        }
         refreshChartProviders();
         chartProviderCombo.setValue(
                 MarketDataProvider.fromString(profile.getChartProvider()));
@@ -324,6 +547,8 @@ public class ProfileSettingsController {
         if (offlineModeCheck != null) {
             offlineModeCheck.setSelected(appSettings.isOfflineMode());
         }
+        // Data Fetch Mode radio buttons
+        applyDataFetchModeToUI(appSettings.getDataFetchMode());
 
         // Timezone
         if (timezoneCombo != null) {
@@ -342,10 +567,7 @@ public class ProfileSettingsController {
         buildFavoritesPane();
 
         // Theme
-        boolean dark = appSettings.isDarkTheme();
-        if (darkThemeBtn  != null) darkThemeBtn.setSelected(dark);
-        if (lightThemeBtn != null) lightThemeBtn.setSelected(!dark);
-        updateThemeBtnStyles();
+        applyThemeSelectionToButtons(appSettings.getTheme());
 
         // Sensitivity sliders
         if (zoomSensitivitySlider != null) {
@@ -359,21 +581,126 @@ public class ProfileSettingsController {
             updateSensitivityLabel(panSensitivityLabel, pv);
         }
 
+        // Ticker interval
+        if (tickerIntervalSpinner != null) {
+            tickerIntervalSpinner.getValueFactory()
+                    .setValue(appSettings.getTickerPollIntervalSeconds());
+        }
+        // Ticker symbol toggles
+        buildTickerSymbolPane();
+
         savedLabel.setText("");
     }
 
     @FXML
     public void onOfflineModeChanged() {
         if (offlineModeCheck == null) return;
-        appSettings.setApiFetchEnabled(!offlineModeCheck.isSelected());
+        // Legacy checkbox: map to DataFetchMode for backward compatibility
+        DataFetchMode mode = offlineModeCheck.isSelected()
+                ? DataFetchMode.OFFLINE_ONLY : DataFetchMode.OFFLINE_ON_FAIL;
+        appSettings.setDataFetchMode(mode);
+        applyDataFetchModeToUI(mode);
         savedLabel.setText(offlineModeCheck.isSelected()
                 ? "Offline mode on — using cached data."
                 : "Live API fetching enabled.");
     }
 
+    /**
+     * Called when any of the three Data Fetch Mode radio buttons is clicked.
+     * Persists the chosen mode immediately so it takes effect right away.
+     */
+    @FXML
+    public void onDataFetchModeChanged() {
+        DataFetchMode mode = selectedDataFetchMode();
+        appSettings.setDataFetchMode(mode);
+        // Keep legacy offline checkbox in sync
+        if (offlineModeCheck != null) {
+            offlineModeCheck.setSelected(mode == DataFetchMode.OFFLINE_ONLY);
+        }
+        savedLabel.setText("Data fetch mode: " + mode.label);
+    }
+
+    /** Returns the {@link DataFetchMode} corresponding to the currently-selected radio button. */
+    private DataFetchMode selectedDataFetchMode() {
+        if (fetchModeOfflineOnlyRadio != null && fetchModeOfflineOnlyRadio.isSelected())
+            return DataFetchMode.OFFLINE_ONLY;
+        if (fetchModeFullOnlineRadio != null && fetchModeFullOnlineRadio.isSelected())
+            return DataFetchMode.FULL_ONLINE;
+        return DataFetchMode.OFFLINE_ON_FAIL; // default
+    }
+
+    /** Reflects the given {@link DataFetchMode} on the radio buttons (no event fired). */
+    private void applyDataFetchModeToUI(DataFetchMode mode) {
+        if (mode == null) mode = DataFetchMode.OFFLINE_ON_FAIL;
+        if (fetchModeFullOnlineRadio    != null) fetchModeFullOnlineRadio.setSelected(mode == DataFetchMode.FULL_ONLINE);
+        if (fetchModeOfflineOnFailRadio != null) fetchModeOfflineOnFailRadio.setSelected(mode == DataFetchMode.OFFLINE_ON_FAIL);
+        if (fetchModeOfflineOnlyRadio   != null) fetchModeOfflineOnlyRadio.setSelected(mode == DataFetchMode.OFFLINE_ONLY);
+    }
+
     @FXML
     public void onAssetFocusChanged() {
+        ProfileAssetFocus newFocus = assetFocusCombo.getValue();
+        if (newFocus == null) return;
+
+        // ── 1. Auto-update Default Symbol ─────────────────────────────────────
+        // Always update when the user explicitly changes the asset focus.
+        String newDefaultSymbol = newFocus.defaultSymbol();
+        if (defaultSymbolField != null) {
+            defaultSymbolField.setText(newDefaultSymbol);
+        }
+        if (defaultSymbolAutocomplete != null) {
+            defaultSymbolAutocomplete.setSymbol(newDefaultSymbol);
+            defaultSymbolAutocomplete.setFilterType(assetFocusToSymbolType(newFocus));
+        }
+
+        // ── 2. Refresh and auto-select Chart Data Provider ────────────────────
+        // refreshChartProviders() rebuilds the combo filtered by the new asset class
+        // and the current user's plan. After rebuild, pick the first non-AUTO option
+        // as the new default provider for this asset type (if available), otherwise AUTO.
         refreshChartProviders();
+        if (chartProviderCombo != null && chartProviderCombo.getItems().size() > 1) {
+            // Prefer the first provider in the list that is not AUTO
+            MarketDataProvider firstReal = chartProviderCombo.getItems().stream()
+                    .filter(p -> p != MarketDataProvider.AUTO)
+                    .findFirst()
+                    .orElse(MarketDataProvider.AUTO);
+            chartProviderCombo.setValue(firstReal);
+        } else {
+            chartProviderCombo.setValue(MarketDataProvider.AUTO);
+        }
+
+        // ── 3. Update watchlist hint ───────────────────────────────────────────
+        if (watchlistField != null) {
+            String current = watchlistField.getText();
+            if (current == null || current.isBlank()) {
+                watchlistField.setPromptText("e.g. " + WatchlistDefaults.csvForFocus(newFocus));
+            }
+        }
+
+        // ── 4. Persist the changes immediately so they are saved per-user ──────
+        if (activeProfile != null && authService.isLoggedIn()) {
+            activeProfile.setAssetFocus(newFocus);
+            activeProfile.setDefaultSymbol(newDefaultSymbol);
+            MarketDataProvider chosen = chartProviderCombo.getValue();
+            if (chosen != null) activeProfile.setChartProvider(chosen.name());
+            profilePersistence.saveAsync(activeProfile);
+            if (savedLabel != null) {
+                savedLabel.setText("Asset focus set to " + newFocus.name()
+                        + " · default symbol: " + newDefaultSymbol
+                        + " · provider: " + (chosen != null ? chosen.getLabel() : "AUTO"));
+            }
+        }
+    }
+
+    /** Map ProfileAssetFocus to SymbolEntry.AssetType for the autocomplete filter. */
+    private static SymbolEntry.AssetType assetFocusToSymbolType(ProfileAssetFocus focus) {
+        if (focus == null) return null;
+        return switch (focus) {
+            case CRYPTO -> SymbolEntry.AssetType.CRYPTO;
+            case STOCK  -> SymbolEntry.AssetType.STOCK;
+            case FOREX  -> SymbolEntry.AssetType.FOREX;
+            case MULTI  -> null; // no filter → search all asset types
+        };
     }
 
     @FXML
@@ -390,18 +717,38 @@ public class ProfileSettingsController {
         String sym = defaultSymbolField.getText();
         activeProfile.setDefaultSymbol(sym != null ? sym.trim().toUpperCase() : null);
         MarketDataProvider chart = chartProviderCombo.getValue();
-        if (chart != null) activeProfile.setChartProvider(chart.name());
+        if (chart != null) {
+            // Guard: reject providers not allowed by this user's plan
+            if (!priceRegistry.isProviderAllowedForCurrentUser(chart.name())) {
+                chart = MarketDataProvider.AUTO;
+                chartProviderCombo.setValue(MarketDataProvider.AUTO);
+                savedLabel.setText("⚠ Provider not available for your plan — reset to AUTO.");
+            }
+            activeProfile.setChartProvider(chart.name());
+        }
         FundamentalDataProvider fund = fundamentalProviderCombo.getValue();
         if (fund != null) activeProfile.setFundamentalProvider(fund.name());
 
         if (watchlistField != null) {
             String csv = watchlistField.getText() == null ? ""
                     : watchlistField.getText().trim();
-            activeProfile.setWatchlist(csv.isEmpty() ? null : csv.toUpperCase());
+            // Normalize: upper-case and deduplicate
+            String normalized = java.util.Arrays.stream(csv.split("[,;\\s]+"))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .map(String::toUpperCase)
+                    .distinct()
+                    .collect(java.util.stream.Collectors.joining(", "));
+            activeProfile.setWatchlist(normalized.isEmpty() ? null : normalized);
             liveTickerService.applyProfileWatchlist(activeProfile);
+            // Rebuild symbol chip pane so it reflects the saved watchlist immediately
+            buildTickerSymbolPane();
         }
+        // Data Fetch Mode — save the three-way radio selection
+        DataFetchMode chosenMode = selectedDataFetchMode();
+        appSettings.setDataFetchMode(chosenMode);
         if (offlineModeCheck != null) {
-            appSettings.setApiFetchEnabled(!offlineModeCheck.isSelected());
+            offlineModeCheck.setSelected(chosenMode == DataFetchMode.OFFLINE_ONLY);
         }
 
         // ── App settings ─────────────────────────────────────
@@ -425,10 +772,8 @@ public class ProfileSettingsController {
         authService.saveFavoriteTimeframes(favs);
         appSettings.setFavoriteTimeframes(String.join(",", favs));
 
-        // Theme
-        if (darkThemeBtn != null) {
-            appSettings.setTheme(darkThemeBtn.isSelected() ? "dark" : "light");
-        }
+        // Theme — persist the currently-selected theme (already applied live via onThemeChanged)
+        appSettings.setTheme(selectedThemeId());
 
         // Sensitivity
         if (zoomSensitivitySlider != null) {
@@ -446,6 +791,15 @@ public class ProfileSettingsController {
             onSensitivityChanged.accept(new double[]{zv, pv});
         }
 
+        // Ticker interval — save and immediately reschedule the poller
+        if (tickerIntervalSpinner != null && tickerIntervalSpinner.getValue() != null) {
+            appSettings.setTickerPollIntervalSeconds(tickerIntervalSpinner.getValue());
+            liveTickerService.applyPollIntervalSetting();
+        }
+        // Ticker symbol settings are applied immediately via chip toggle listeners;
+        // call applyTickerSymbolSettings once more on explicit save for safety.
+        liveTickerService.applyTickerSymbolSettings();
+
         // Profile save
         profilePersistence.saveAsync(activeProfile);
         priceRouter.setActiveProfile(activeProfile);
@@ -462,19 +816,44 @@ public class ProfileSettingsController {
             case FOREX  -> AssetClass.FOREX;
             case MULTI  -> AssetClass.STOCK;
         };
-        List<MarketDataProvider> enabled = new ArrayList<>();
-        enabled.add(MarketDataProvider.AUTO);
-        enabled.addAll(priceRegistry.enabledProvidersFor(asset));
-        chartProviderCombo.setItems(FXCollections.observableArrayList(enabled));
+
+        // ── Plan-filtered provider list ───────────────────────────────────────
+        // enabledProvidersFor already filters by the current user's role/plan.
+        List<MarketDataProvider> allowed = new ArrayList<>();
+        allowed.add(MarketDataProvider.AUTO);
+        allowed.addAll(priceRegistry.enabledProvidersFor(asset));
+
+        // Determine the user's plan label for the hint
+        com.mst.matt.tradingplatformapp.model.AppUser.Role userRole =
+                authService.currentUser()
+                        .map(com.mst.matt.tradingplatformapp.model.AppUser::getRole)
+                        .orElse(com.mst.matt.tradingplatformapp.model.AppUser.Role.REGULAR_USER);
+
+        chartProviderCombo.setItems(FXCollections.observableArrayList(allowed));
         chartProviderCombo.setCellFactory(lv -> new ListCell<>() {
             @Override protected void updateItem(MarketDataProvider p, boolean empty) {
                 super.updateItem(p, empty);
-                setText(empty || p == null ? null : p.getLabel());
+                if (empty || p == null) { setText(null); return; }
+                setText(p.getLabel());
             }
         });
         chartProviderCombo.setButtonCell(chartProviderCombo.getCellFactory().call(null));
-        chartProvidersHint.setText("Enabled for " + asset.name().toLowerCase()
-                + ": " + enabled.size() + " sources (keys in application.properties).");
+
+        if (chartProvidersHint != null) {
+            chartProvidersHint.setText(
+                    "Plan: " + userRole.label()
+                    + " · " + asset.name().charAt(0)
+                    + asset.name().substring(1).toLowerCase()
+                    + " providers: " + allowed.size()
+                    + " available (configure API keys in application.properties).");
+        }
+
+        // If the currently-selected provider is no longer allowed, reset to AUTO
+        MarketDataProvider current = chartProviderCombo.getValue();
+        if (current != null && current != MarketDataProvider.AUTO
+                && !allowed.contains(current)) {
+            chartProviderCombo.setValue(MarketDataProvider.AUTO);
+        }
     }
 
     // ── Callbacks ─────────────────────────────────────────────

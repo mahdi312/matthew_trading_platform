@@ -122,7 +122,7 @@
                 </VBox>
             </HBox>
 
-            <!-- ── Row 4: SL / TP / Fee ── -->
+            <!-- ── Row 4: SL / TP / Fee / Leverage ── -->
             <HBox spacing="16">
                 <VBox spacing="6" HBox.hgrow="ALWAYS">
                     <Label text="Stop Loss" styleClass="label-subtitle"/>
@@ -130,6 +130,9 @@
                                style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
                                       -fx-border-color:#f85149; -fx-border-radius:6;
                                       -fx-background-radius:6; -fx-padding:8 12;"/>
+                    <!-- Live SL % relative to entry price -->
+                    <Label fx:id="slPctLabel" text=""
+                           style="-fx-text-fill:#f85149; -fx-font-size:11px; -fx-font-weight:bold;"/>
                 </VBox>
                 <VBox spacing="6" HBox.hgrow="ALWAYS">
                     <Label text="Take Profit" styleClass="label-subtitle"/>
@@ -137,6 +140,9 @@
                                style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
                                       -fx-border-color:#3fb950; -fx-border-radius:6;
                                       -fx-background-radius:6; -fx-padding:8 12;"/>
+                    <!-- Live TP % relative to entry price -->
+                    <Label fx:id="tpPctLabel" text=""
+                           style="-fx-text-fill:#3fb950; -fx-font-size:11px; -fx-font-weight:bold;"/>
                 </VBox>
                 <VBox spacing="6" HBox.hgrow="ALWAYS">
                     <Label text="Fee" styleClass="label-subtitle"/>
@@ -144,6 +150,18 @@
                                style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
                                       -fx-border-color:#30363d; -fx-border-radius:6;
                                       -fx-background-radius:6; -fx-padding:8 12;"/>
+                </VBox>
+                <VBox spacing="6" minWidth="120">
+                    <Label text="Leverage (×)" styleClass="label-subtitle"/>
+                    <HBox spacing="6" alignment="CENTER_LEFT">
+                        <TextField fx:id="leverageField" promptText="1" prefWidth="80"
+                                   style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
+                                          -fx-border-color:#bc8cff; -fx-border-radius:6;
+                                          -fx-background-radius:6; -fx-padding:8 12;"/>
+                        <Label fx:id="leverageLabel" text="×1"
+                               style="-fx-text-fill:#bc8cff; -fx-font-weight:bold; -fx-font-size:13px;"/>
+                    </HBox>
+                    <Label text="Default: 1 (no leverage)" style="-fx-text-fill:#8b949e; -fx-font-size:10px;"/>
                 </VBox>
             </HBox>
 
@@ -198,6 +216,15 @@
                     <Label text="R:R RATIO" styleClass="label-muted"/>
                     <Label fx:id="rrLabel" text="—"
                            style="-fx-font-size:26px; -fx-font-weight:bold; -fx-text-fill:#388bfd;"/>
+                </VBox>
+                <Separator orientation="VERTICAL" style="-fx-background-color:#30363d;"/>
+                <VBox alignment="CENTER" spacing="4" HBox.hgrow="ALWAYS">
+                    <padding><Insets left="24" right="24"/></padding>
+                    <Label text="LEVERAGE P&amp;L" styleClass="label-muted"/>
+                    <Label fx:id="leveragedPnlLabel" text="—"
+                           style="-fx-font-size:20px; -fx-font-weight:bold; -fx-text-fill:#bc8cff;"/>
+                    <Label fx:id="leveragedPnlHint" text="×1 leverage"
+                           style="-fx-text-fill:#8b949e; -fx-font-size:10px;"/>
                 </VBox>
             </HBox>
 

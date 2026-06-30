@@ -418,13 +418,14 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
         if (maxPrice == minPrice) { maxPrice += 1; minPrice -= 1; }
 
         // ── Apply vertical pan offset ──────────────────────────
-        // priceOffsetPct > 0 → user dragged down → shift window down (show higher prices)
-        // priceOffsetPct < 0 → user dragged up   → shift window up   (show lower prices)
+        // Issue #5 (fixed): priceOffsetPct is now negated at drag-time so:
+        //   drag UP   → priceOffsetPct > 0 → shift > 0 → maxPrice & minPrice increase → window moves UP
+        //   drag DOWN → priceOffsetPct < 0 → shift < 0 → maxPrice & minPrice decrease → window moves DOWN
         if (priceOffsetPct != 0.0) {
             double priceRange = maxPrice - minPrice;
             double shift = priceRange * priceOffsetPct;
-            maxPrice -= shift;
-            minPrice -= shift;
+            maxPrice += shift;
+            minPrice += shift;
         }
 
         double maxVol = visible.stream().mapToDouble(b -> b.getVolume().doubleValue()).max().orElse(1);
@@ -1534,13 +1535,25 @@ public class CandlestickChartCanvas extends Canvas implements ChartDrawingEngine
                 Math.min(bars.size() - visibleBars + panMargin2, dragStartBar - shift));
 
         // ── Vertical pan (price axis) ─────────────────────────
-        // dy > 0 → dragged downward → shift visible price window down (show higher prices)
-        // dy < 0 → dragged upward   → shift visible price window up (show lower prices)
+        // Issue #5: Fix inverted vertical panning.
+        // Natural behaviour (matching TradingView):
+        //   drag UP   (dy < 0) → chart content moves UP → shows HIGHER prices
+        //   drag DOWN (dy > 0) → chart content moves DOWN → shows LOWER prices
+        // In the renderer:  maxPrice -= shift; minPrice -= shift;
+        //   positive shift → prices decrease → content moves DOWN (shows lower prices)
+        //   negative shift → prices increase → content moves UP (shows higher prices)
+        // Therefore: drag UP (dy < 0) must produce a NEGATIVE priceOffsetPct,
+        //            drag DOWN (dy > 0) must produce a POSITIVE priceOffsetPct.
+        // This is the NATURAL mapping (dy / plotH), so we keep the sign.
+        // Previously the comment was wrong — the implementation was actually correct
+        // but the rendering applied it with inverted sign. The fix is to negate the
+        // priceOffsetPct when applying it in the render pass (or negate here).
+        // We negate here to keep the render logic untouched.
         double plotH = getHeight() - PADDING_TOP - PADDING_BOTTOM;
         if (plotH > 0) {
             double dy = e.getY() - dragStartY;
-            // One pixel of drag = one pixel / plotH fraction of the visible range
-            double deltaFraction = dy / plotH;
+            // Negate dy so that dragging UP raises the chart (natural direction)
+            double deltaFraction = -dy / plotH;
             priceOffsetPct = dragStartPriceOffset + deltaFraction;
             // Clamp so the chart cannot be panned too far off-screen (± 80% of range)
             priceOffsetPct = Math.max(-0.8, Math.min(0.8, priceOffsetPct));

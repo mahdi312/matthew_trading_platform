@@ -14,14 +14,16 @@
     </HBox>
 
     <!-- Create new alert form -->
-    <VBox styleClass="card" spacing="12"
+    <VBox styleClass="card" spacing="10"
           style="-fx-background-radius:0; -fx-border-radius:0;
                  -fx-border-width:0 0 1 0;">
         <padding>
             <Insets top="16" right="24" bottom="16" left="24"/>
         </padding>
         <Label text="Create New Alert" styleClass="label-subtitle"/>
+        <!-- Row 1: symbol + type + target + channels + message + add -->
         <HBox spacing="12" alignment="CENTER_LEFT">
+            <!-- newSymbolField is replaced at runtime by AutocompleteSymbolField -->
             <TextField fx:id="newSymbolField" promptText="Symbol"  prefWidth="140"/>
             <ComboBox  fx:id="alertTypeCombo" prefWidth="200"/>
             <TextField fx:id="targetPriceField" promptText="Target Price / %" prefWidth="140"/>
@@ -33,6 +35,10 @@
                        HBox.hgrow="ALWAYS"/>
             <Button text="+ Add Alert" styleClass="btn-primary" onAction="#onAddAlert"/>
         </HBox>
+        <!-- Row 2: channel warning label (shown only when a channel is misconfigured) -->
+        <Label fx:id="channelStatusLabel" text="" visible="false" managed="false"
+               style="-fx-text-fill:#d29922; -fx-font-size:11px; -fx-wrap-text:true;"
+               wrapText="true"/>
     </VBox>
 
     <!-- Alerts table -->

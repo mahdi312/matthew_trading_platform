@@ -112,6 +112,40 @@ public class DrawingPropertiesDialog {
             grid.add(opRow, 1, row++);
         }
 
+        // ── Background colour (NOTE and TEXT shapes only) ──────────────────────
+        boolean hasBackground = hasBackgroundProperty(drawing);
+        final String[] bgColorHolder = {props.getBackgroundColor()};
+        ColorPicker bgColorPicker = null;
+        Slider bgOpacitySlider = null;
+        if (hasBackground) {
+            // Background colour picker
+            grid.add(label("Background:"), 0, row);
+            String initBg = props.getBackgroundColor() != null
+                    ? props.getBackgroundColor()
+                    : defaultBackgroundColor(drawing.getToolType());
+            bgColorHolder[0] = initBg;
+            ColorPicker bgPicker = new ColorPicker(safeColor(initBg, "#1c2128"));
+            bgPicker.setStyle("-fx-background-color:#21262d; -fx-text-fill:#e6edf3; -fx-cursor:hand;");
+            bgPicker.setPrefWidth(200);
+            bgPicker.setOnAction(e -> bgColorHolder[0] = toHex(bgPicker.getValue()));
+            grid.add(bgPicker, 1, row++);
+            bgColorPicker = bgPicker;
+
+            // Background opacity slider
+            grid.add(label("BG Opacity:"), 0, row);
+            double initOpacity = props.getBackgroundOpacity() > 0 ? props.getBackgroundOpacity() : 0.87;
+            bgOpacitySlider = new Slider(0, 1, Math.max(0, Math.min(1, initOpacity)));
+            bgOpacitySlider.setPrefWidth(180);
+            bgOpacitySlider.setStyle("-fx-control-inner-background:#21262d;");
+            Label bgOpLabel = label(String.format("%.0f%%", bgOpacitySlider.getValue() * 100));
+            Slider finalBgOpSlider = bgOpacitySlider;
+            bgOpacitySlider.valueProperty().addListener((o, a, n) ->
+                    bgOpLabel.setText(String.format("%.0f%%", n.doubleValue() * 100)));
+            HBox bgOpRow = new HBox(8, bgOpacitySlider, bgOpLabel);
+            bgOpRow.setAlignment(Pos.CENTER_LEFT);
+            grid.add(bgOpRow, 1, row++);
+        }
+
         root.getChildren().add(grid);
 
         // ── Fibonacci Custom Levels panel ─────────────────────────────────────
@@ -134,7 +168,8 @@ public class DrawingPropertiesDialog {
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         styleDialogButtons(dialog.getDialogPane());
 
-        final Slider finalOpacity = opacitySlider;
+        final Slider finalOpacity   = opacitySlider;
+        final Slider finalBgOpacity = bgOpacitySlider;
         ChartDrawingProperties finalProps = props;
         dialog.showAndWait().ifPresent(bt -> {
             if (bt == ButtonType.OK) {
@@ -143,6 +178,13 @@ public class DrawingPropertiesDialog {
                 finalProps.setLineStyle(styleCombo.getValue());
                 if (hasFill && finalOpacity != null) {
                     finalProps.setFillOpacity(finalOpacity.getValue());
+                }
+                // Save background colour for NOTE / TEXT shapes
+                if (hasBackground) {
+                    finalProps.setBackgroundColor(bgColorHolder[0]);
+                    if (finalBgOpacity != null) {
+                        finalProps.setBackgroundOpacity(finalBgOpacity.getValue());
+                    }
                 }
                 if (isFibTool) {
                     // Save custom Fib levels (sorted ascending)
@@ -313,6 +355,23 @@ public class DrawingPropertiesDialog {
                  GANN_BOX, GANN_SQUARE_FIXED, GANN_SQUARE, SECTOR,
                  POSITION_FORECAST, BARS_PATTERN, DATE_AND_PRICE_RANGE -> true;
             default -> false;
+        };
+    }
+
+    /** Returns {@code true} when the shape supports a customisable background colour. */
+    private static boolean hasBackgroundProperty(ChartDrawing d) {
+        if (d.getToolType() == null) return false;
+        return d.getToolType() == ChartDrawingToolType.NOTE_ICON
+                || d.getToolType() == ChartDrawingToolType.TEXT_LABEL
+                || d.getToolType() == ChartDrawingToolType.CALLOUT;
+    }
+
+    /** Default background colour for NOTE vs TEXT vs CALLOUT shapes. */
+    private static String defaultBackgroundColor(ChartDrawingToolType type) {
+        return switch (type) {
+            case NOTE_ICON   -> "#2d2a00";
+            case CALLOUT     -> "#162032";
+            default          -> "#1c2128"; // TEXT_LABEL
         };
     }
 

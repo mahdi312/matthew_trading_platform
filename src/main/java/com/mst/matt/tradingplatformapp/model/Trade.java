@@ -2,16 +2,23 @@ package com.mst.matt.tradingplatformapp.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 /**
  * A single trade record.
  * Supports both Long and Short directions across all asset types.
+ *
+ * <p>Uses id-only {@code equals}/{@code hashCode} so JavaFX table updates never
+ * touch the lazy {@code profile} proxy after the Hibernate session closes.
  */
 @Entity
 @Table(name = "trades")
-@Data
+@Getter
+@Setter
+@ToString(exclude = "profile")
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -60,6 +67,13 @@ public class Trade {
 
     @Column(precision = 20, scale = 8)
     private BigDecimal fee;                 // Trading fees
+
+    /**
+     * Leverage multiplier used for this trade (default 1 = no leverage).
+     * When set to values > 1 (e.g. 10x, 20x), P&L is scaled by this factor.
+     */
+    @Column(precision = 10, scale = 2)
+    private BigDecimal leverage;            // e.g. 1, 5, 10, 20, 100
 
     @Column(nullable = false)
     private LocalDateTime entryTime;
@@ -114,8 +128,14 @@ public class Trade {
     }
 
     /**
-     * Recomputes P&L fields based on direction and prices.
+     * Recomputes P&L fields based on direction, prices and leverage.
      * Called automatically before every persist/update.
+     *
+     * <p>With leverage > 1, the P&L amount is multiplied by the leverage factor:
+     * <pre>
+     *   pnlAmount  = (priceDiff × qty × leverage) − fee
+     *   pnlPercent = (priceDiff / entry) × leverage × 100
+     * </pre>
      */
     public void computePnL() {
         if (entryPrice == null || quantity == null) return;
@@ -129,16 +149,20 @@ public class Trade {
             return;
         }
 
+        BigDecimal lev = (leverage != null && leverage.compareTo(BigDecimal.ONE) > 0)
+                ? leverage : BigDecimal.ONE;
+
         BigDecimal priceDiff = direction == TradeDirection.LONG
                 ? exitPrice.subtract(entryPrice)
                 : entryPrice.subtract(exitPrice);
 
-        pnlAmount = priceDiff.multiply(quantity);
+        pnlAmount = priceDiff.multiply(quantity).multiply(lev);
         if (fee != null) pnlAmount = pnlAmount.subtract(fee);
 
         if (entryPrice.compareTo(BigDecimal.ZERO) != 0) {
             pnlPercent = priceDiff
                     .divide(entryPrice, 8, java.math.RoundingMode.HALF_UP)
+                    .multiply(lev)
                     .multiply(BigDecimal.valueOf(100));
         }
     }
@@ -146,4 +170,17 @@ public class Trade {
     public enum AssetType   { CRYPTO, STOCK, FOREX, COMMODITY, INDEX }
     public enum TradeDirection { LONG, SHORT }
     public enum TradeStatus  { OPEN, CLOSED, CANCELLED }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Trade other)) return false;
+        if (id == null || other.id == null) return false;
+        return Objects.equals(id, other.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return id != null ? Objects.hash(id) : System.identityHashCode(this);
+    }
 }

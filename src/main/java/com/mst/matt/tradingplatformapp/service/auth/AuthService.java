@@ -5,8 +5,10 @@ import com.mst.matt.tradingplatformapp.model.AppUser.Role;
 import com.mst.matt.tradingplatformapp.model.RolePermission;
 import com.mst.matt.tradingplatformapp.repository.AppUserRepository;
 import com.mst.matt.tradingplatformapp.repository.RolePermissionRepository;
+import com.mst.matt.tradingplatformapp.service.price.LiveTickerService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,11 +35,20 @@ public class AuthService {
     private final AppUserRepository userRepo;
     private final RolePermissionRepository permRepo;
 
+    /**
+     * Lazy to break the circular dependency:
+     * AuthService → LiveTickerService → AuthService
+     */
+    private final LiveTickerService liveTickerService;
+
     private volatile AppUser currentUser;
 
-    public AuthService(AppUserRepository userRepo, RolePermissionRepository permRepo) {
+    public AuthService(AppUserRepository userRepo,
+                       RolePermissionRepository permRepo,
+                       @Lazy LiveTickerService liveTickerService) {
         this.userRepo = userRepo;
         this.permRepo = permRepo;
+        this.liveTickerService = liveTickerService;
         ensureAdminExists();
     }
 
@@ -81,6 +92,12 @@ public class AuthService {
         if (currentUser != null)
             log.info("User '{}' logged out", currentUser.getUsername());
         this.currentUser = null;
+        // Stop live market streams so no external API calls are made after logout
+        try {
+            liveTickerService.stopLiveStreams();
+        } catch (Exception e) {
+            log.warn("Error stopping live streams on logout: {}", e.getMessage());
+        }
     }
 
     /** @return the currently logged-in user, or empty if not authenticated. */

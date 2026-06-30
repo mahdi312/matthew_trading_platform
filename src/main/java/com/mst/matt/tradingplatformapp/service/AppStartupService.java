@@ -11,7 +11,17 @@ import org.springframework.stereotype.Service;
 
 /**
  * Runs after Spring context is fully up.
- * Starts WebSocket streams and other background services.
+ *
+ * <p><b>Live-stream deferred to login</b>: External API calls (Binance WebSocket,
+ * Yahoo Finance, CoinGecko) must NOT start before a user logs in.  This service
+ * intentionally does <em>not</em> call {@link LiveTickerService#startLiveStreams()}
+ * at application-ready time.
+ *
+ * <p>Instead, {@link LiveTickerService#startLiveStreams()} is called by
+ * {@code LoginController.onLoginSuccess()} after a successful authentication,
+ * and stopped by {@code AuthService.logout()}.  The {@code LiveTickerService}
+ * itself still creates its scheduler thread at construction time (harmless), but
+ * the scheduler fires a no-op poll until {@code startLiveStreams()} is called.
  */
 @Service
 @ConditionalOnProperty(name = "app.live.startup-enabled", havingValue = "true", matchIfMissing = true)
@@ -23,8 +33,8 @@ public class AppStartupService {
 
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
-        log.info("Application ready — starting live market streams...");
-        liveTickerService.startLiveStreams();
-        log.info("Live streams started.");
+        log.info("Application ready — live market streams deferred until user login.");
+        // Do NOT call liveTickerService.startLiveStreams() here.
+        // Streams are started in LoginController.onLoginSuccess() after authentication.
     }
 }

@@ -268,6 +268,18 @@
     -fx-background-radius: 6;
     -fx-padding: 8;
 }
+/* Inner content area of TextArea — must also be dark so text is readable */
+.text-area .content {
+    -fx-background-color: #0d1117;
+    -fx-text-fill: #e6edf3;
+}
+.text-area:focused {
+    -fx-border-color: #388bfd;
+}
+/* Highlight colour when text is selected */
+.text-area .selection {
+    -fx-fill: #388bfd55;
+}
 
 /* ── Labels ───────────────────────────────────────────────── */
 .label-title   { -fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #e6edf3; }
@@ -535,10 +547,101 @@
 }
 
 /* ── Chart toolbar ────────────────────────────────────────── */
+.chart-toolbar-scroll {
+    -fx-background-color: #1c2128;
+    -fx-background: #1c2128;
+    -fx-border-color: #30363d;
+    -fx-border-width: 0 0 1 0;
+}
+.chart-toolbar-row {
+    -fx-background-color: #1c2128;
+    -fx-padding: 4 8 4 8;
+    -fx-alignment: center-left;
+}
+.chart-toolbar-label {
+    -fx-font-size: 10px;
+    -fx-text-fill: #6e7681;
+    -fx-min-width: 22;
+    -fx-padding: 0 2 0 0;
+}
+.chart-toolbar-combo {
+    -fx-font-size: 11px;
+    -fx-min-height: 28;
+    -fx-pref-height: 28;
+    -fx-max-height: 28;
+}
+.chart-toolbar-field {
+    -fx-font-size: 11px;
+    -fx-padding: 2 6;
+    -fx-min-height: 28;
+    -fx-pref-height: 28;
+    -fx-max-height: 28;
+}
+.chart-toolbar-btn {
+    -fx-font-size: 11px;
+    -fx-padding: 2 7;
+    -fx-min-width: 28;
+    -fx-min-height: 28;
+    -fx-pref-height: 28;
+    -fx-max-height: 28;
+}
+.chart-toolbar-btn-wide {
+    -fx-font-size: 11px;
+    -fx-padding: 2 8;
+    -fx-min-width: 68;
+    -fx-min-height: 28;
+    -fx-pref-height: 28;
+    -fx-max-height: 28;
+}
+.chart-toolbar-sep {
+    -fx-pref-height: 22;
+    -fx-opacity: 0.4;
+}
+.chart-toolbar-source-label {
+    -fx-font-size: 10px;
+    -fx-text-fill: #8b949e;
+    -fx-max-width: 64;
+    -fx-min-width: 0;
+}
 .chart-tf-btn {
-    -fx-min-width: 42px;
-    -fx-padding: 5 10;
+    -fx-min-width: 32px;
+    -fx-padding: 2 8;
+    -fx-font-size: 11px;
+    -fx-min-height: 28;
+    -fx-pref-height: 28;
+    -fx-max-height: 28;
+}
+
+/* ── Analysis signal bar ──────────────────────────────────── */
+.signal-bar-scroll {
+    -fx-background-color: #161b22;
+    -fx-background: #161b22;
+    -fx-border-color: #30363d;
+    -fx-border-width: 0 0 1 0;
+}
+.signal-bar-row {
+    -fx-background-color: #161b22;
+    -fx-padding: 6 12 6 12;
+    -fx-alignment: center-left;
+}
+.signal-bar-title {
+    -fx-font-weight: bold;
+    -fx-font-size: 13px;
+}
+.signal-bar-buy {
+    -fx-text-fill: #3fb950;
+    -fx-font-weight: bold;
     -fx-font-size: 12px;
+}
+.signal-bar-sell {
+    -fx-text-fill: #f85149;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+}
+.signal-bar-price {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #e6edf3;
 }
 
 /* ── Trade Journal Table ──────────────────────────────────── */
@@ -559,13 +662,13 @@
     -fx-background-color: #238636;
     -fx-text-fill: white;
     -fx-background-radius: 50%;
-    -fx-min-width: 36px;
-    -fx-min-height: 36px;
-    -fx-max-width: 36px;
-    -fx-max-height: 36px;
+    -fx-min-width: 32px;
+    -fx-min-height: 32px;
+    -fx-max-width: 32px;
+    -fx-max-height: 32px;
     -fx-alignment: center;
     -fx-font-weight: bold;
-    -fx-font-size: 13px;
+    -fx-font-size: 12px;
     -fx-border-radius: 50%;
     -fx-border-color: #3fb950;
     -fx-border-width: 2;
@@ -574,13 +677,13 @@
     -fx-background-color: #da3633;
     -fx-text-fill: white;
     -fx-background-radius: 50%;
-    -fx-min-width: 36px;
-    -fx-min-height: 36px;
-    -fx-max-width: 36px;
-    -fx-max-height: 36px;
+    -fx-min-width: 32px;
+    -fx-min-height: 32px;
+    -fx-max-width: 32px;
+    -fx-max-height: 32px;
     -fx-alignment: center;
     -fx-font-weight: bold;
-    -fx-font-size: 13px;
+    -fx-font-size: 12px;
     -fx-border-radius: 50%;
     -fx-border-color: #f85149;
     -fx-border-width: 2;
@@ -589,14 +692,59 @@
     -fx-background-color: #2d333b;
     -fx-text-fill: #e6edf3;
     -fx-background-radius: 50%;
-    -fx-min-width: 36px;
-    -fx-min-height: 36px;
-    -fx-max-width: 36px;
-    -fx-max-height: 36px;
+    -fx-min-width: 32px;
+    -fx-min-height: 32px;
+    -fx-max-width: 32px;
+    -fx-max-height: 32px;
     -fx-alignment: center;
     -fx-font-weight: bold;
-    -fx-font-size: 13px;
+    -fx-font-size: 12px;
     -fx-border-radius: 50%;
     -fx-border-color: #8b949e;
+    -fx-border-width: 2;
+}
+.sentiment-circle-buying-dim {
+    -fx-background-color: #1a2b1a;
+    -fx-text-fill: #8b949e;
+    -fx-background-radius: 50%;
+    -fx-min-width: 32px;
+    -fx-min-height: 32px;
+    -fx-max-width: 32px;
+    -fx-max-height: 32px;
+    -fx-alignment: center;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+    -fx-border-radius: 50%;
+    -fx-border-color: #30363d;
+    -fx-border-width: 2;
+}
+.sentiment-circle-neutral-dim {
+    -fx-background-color: #161b22;
+    -fx-text-fill: #484f58;
+    -fx-background-radius: 50%;
+    -fx-min-width: 32px;
+    -fx-min-height: 32px;
+    -fx-max-width: 32px;
+    -fx-max-height: 32px;
+    -fx-alignment: center;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+    -fx-border-radius: 50%;
+    -fx-border-color: #30363d;
+    -fx-border-width: 2;
+}
+.sentiment-circle-selling-dim {
+    -fx-background-color: #2b1a1a;
+    -fx-text-fill: #8b949e;
+    -fx-background-radius: 50%;
+    -fx-min-width: 32px;
+    -fx-min-height: 32px;
+    -fx-max-width: 32px;
+    -fx-max-height: 32px;
+    -fx-alignment: center;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+    -fx-border-radius: 50%;
+    -fx-border-color: #30363d;
     -fx-border-width: 2;
 }

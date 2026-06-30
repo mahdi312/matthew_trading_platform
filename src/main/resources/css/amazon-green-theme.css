@@ -1,0 +1,322 @@
+/* ═══════════════════════════════════════════════════════════
+   Trading Intelligence Platform — Amazon Green Theme
+   Dark background with Amazon-inspired green accents
+   ═══════════════════════════════════════════════════════════ */
+
+.root {
+    -tp-bg-primary:    #0f1111;
+    -tp-bg-secondary:  #131a20;
+    -tp-bg-card:       #1c2a20;
+    -tp-bg-hover:      #1e3a24;
+    -tp-bg-active:     #25472c;
+
+    -tp-accent-blue:   #00a88e;
+    -tp-accent-green:  #3ddc84;
+    -tp-accent-red:    #ff5252;
+    -tp-accent-yellow: #ffa500;
+    -tp-accent-purple: #c792ea;
+    -tp-accent-orange: #f0a800;
+
+    -tp-text-primary:  #e0f2e9;
+    -tp-text-secondary:#8dba99;
+    -tp-text-muted:    #4d7a59;
+
+    -tp-border:        #2d5233;
+    -tp-border-focus:  #3ddc84;
+
+    -tp-candle-bull:   #3ddc84;
+    -tp-candle-bear:   #ff5252;
+
+    -fx-background-color: #0f1111;
+    -fx-font-family: "Segoe UI", "SF Pro Display", "Helvetica Neue", sans-serif;
+    -fx-font-size: 13px;
+    -fx-text-fill: #e0f2e9;
+}
+
+.scene-root { -fx-background-color: #0f1111; }
+
+.card {
+    -fx-background-color: #1c2a20;
+    -fx-background-radius: 8;
+    -fx-border-color: #2d5233;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 16;
+}
+.card:hover { -fx-border-color: #3ddc8455; }
+
+/* ── Sidebar ──────────────────────────────────────────────── */
+.sidebar {
+    -fx-background-color: #131a20;
+    -fx-border-color: #2d5233;
+    -fx-border-width: 0 1 0 0;
+    -fx-pref-width: 56px; -fx-min-width: 56px; -fx-max-width: 56px;
+}
+.sidebar.sidebar-expanded {
+    -fx-pref-width: 220px; -fx-min-width: 200px; -fx-max-width: 260px;
+}
+.sidebar.sidebar-collapsed .nav-item {
+    -fx-padding: 10 4 10 4; -fx-alignment: center;
+    -fx-content-display: graphic-only;
+    -fx-pref-width: 44px; -fx-min-width: 44px; -fx-graphic-text-gap: 0;
+}
+.sidebar.sidebar-expanded .nav-item {
+    -fx-content-display: left; -fx-alignment: center-left;
+    -fx-graphic-text-gap: 8; -fx-padding: 10 12 10 12;
+}
+.nav-icon {
+    -fx-font-size: 18px; -fx-padding: 0; -fx-text-fill: inherit;
+    -fx-min-width: 22px; -fx-alignment: center;
+}
+.nav-item {
+    -fx-background-color: transparent; -fx-text-fill: #8dba99;
+    -fx-font-size: 13px; -fx-padding: 10 16 10 16;
+    -fx-background-radius: 6; -fx-cursor: hand;
+    -fx-alignment: CENTER_LEFT; -fx-pref-width: 188px;
+}
+.nav-item:hover { -fx-background-color: #1e3a24; -fx-text-fill: #e0f2e9; }
+.nav-item-active {
+    -fx-background-color: #3ddc8422; -fx-text-fill: #3ddc84;
+    -fx-border-color: #3ddc84; -fx-border-width: 0 0 0 3;
+    -fx-border-radius: 0; -fx-background-radius: 0 6 6 0;
+}
+.nav-item-active .nav-icon { -fx-text-fill: #3ddc84; }
+
+/* ── Header ───────────────────────────────────────────────── */
+.header-bar {
+    -fx-background-color: #131a20;
+    -fx-border-color: #2d5233;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 0 24 0 24;
+    -fx-min-height: 56px; -fx-max-height: 56px;
+}
+.header-title { -fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #e0f2e9; }
+
+/* ── Ticker Bar ───────────────────────────────────────────── */
+.ticker-bar {
+    -fx-background-color: #0f1111;
+    -fx-border-color: #2d5233;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 4 16 4 16;
+    -fx-min-height: 32px; -fx-max-height: 32px;
+}
+.ticker-item { -fx-font-size: 12px; -fx-text-fill: #e0f2e9; -fx-padding: 0 12 0 0; }
+.ticker-price-up   { -fx-text-fill: #3ddc84; }
+.ticker-price-down { -fx-text-fill: #ff5252; }
+
+/* ── Buttons ──────────────────────────────────────────────── */
+.btn-primary {
+    -fx-background-color: #1e6e3e; -fx-text-fill: white;
+    -fx-font-size: 13px; -fx-font-weight: bold;
+    -fx-padding: 8 20 8 20; -fx-background-radius: 6; -fx-cursor: hand;
+    -fx-border-color: #3ddc84; -fx-border-radius: 6; -fx-border-width: 1;
+}
+.btn-primary:hover  { -fx-background-color: #2a9a54; }
+.btn-primary:pressed{ -fx-background-color: #1a5a32; }
+.btn-secondary {
+    -fx-background-color: #1e3a24; -fx-text-fill: #e0f2e9;
+    -fx-font-size: 13px; -fx-padding: 8 20; -fx-background-radius: 6; -fx-cursor: hand;
+    -fx-border-color: #2d5233; -fx-border-radius: 6; -fx-border-width: 1;
+}
+.btn-secondary:hover { -fx-background-color: #25472c; }
+.btn-danger {
+    -fx-background-color: #8b0000; -fx-text-fill: white;
+    -fx-font-size: 13px; -fx-padding: 8 20; -fx-background-radius: 6; -fx-cursor: hand;
+}
+.btn-danger:hover { -fx-background-color: #ff5252; }
+.btn-blue {
+    -fx-background-color: #006b5e; -fx-text-fill: white;
+    -fx-font-size: 13px; -fx-padding: 8 20; -fx-background-radius: 6; -fx-cursor: hand;
+    -fx-border-color: #00a88e; -fx-border-radius: 6; -fx-border-width: 1;
+}
+.btn-blue:hover { -fx-background-color: #00a88e; }
+
+/* ── Table ────────────────────────────────────────────────── */
+.table-view {
+    -fx-background-color: #1c2a20; -fx-border-color: #2d5233; -fx-border-radius: 8;
+}
+.table-view .column-header-background { -fx-background-color: #131a20; }
+.table-view .column-header, .table-view .filler {
+    -fx-background-color: #131a20; -fx-border-color: #2d5233;
+    -fx-border-width: 0 1 1 0; -fx-size: 36px;
+}
+.table-view .column-header .label {
+    -fx-text-fill: #8dba99; -fx-font-size: 12px; -fx-font-weight: bold;
+}
+.table-row-cell {
+    -fx-background-color: #1c2a20; -fx-border-color: #2d5233;
+    -fx-border-width: 0 0 1 0; -fx-text-fill: #e0f2e9;
+}
+.table-row-cell:selected { -fx-background-color: #25472c; }
+.table-row-cell:hover    { -fx-background-color: #1e3a24; }
+.table-cell { -fx-text-fill: #e0f2e9; -fx-padding: 6 12 6 12; }
+
+.row-profit { -fx-background-color: #1a3a1a; }
+.row-loss   { -fx-background-color: #3a1a1a; }
+.text-profit{ -fx-text-fill: #3ddc84 !important; }
+.text-loss  { -fx-text-fill: #ff5252 !important; }
+.text-neutral{ -fx-text-fill: #8dba99 !important; }
+
+/* ── Text Inputs ──────────────────────────────────────────── */
+.text-field, .combo-box, .date-picker .text-field {
+    -fx-background-color: #0f1111; -fx-text-fill: #e0f2e9;
+    -fx-border-color: #2d5233; -fx-border-radius: 6;
+    -fx-background-radius: 6; -fx-padding: 8 12 8 12; -fx-font-size: 13px;
+}
+.text-field:focused, .combo-box:focused { -fx-border-color: #3ddc84; }
+.text-area {
+    -fx-background-color: #0f1111; -fx-text-fill: #e0f2e9;
+    -fx-border-color: #2d5233; -fx-border-radius: 6;
+    -fx-background-radius: 6; -fx-padding: 8;
+}
+.text-area .content { -fx-background-color: #0f1111; -fx-text-fill: #e0f2e9; }
+.text-area:focused  { -fx-border-color: #3ddc84; }
+.text-area .selection { -fx-fill: #3ddc8455; }
+
+/* ── Labels ───────────────────────────────────────────────── */
+.label-title   { -fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #e0f2e9; }
+.label-subtitle{ -fx-font-size: 14px; -fx-text-fill: #8dba99; }
+.label-value   { -fx-font-size: 28px; -fx-font-weight: bold; -fx-text-fill: #e0f2e9; }
+.label-muted   { -fx-font-size: 11px; -fx-text-fill: #4d7a59; }
+
+/* ── Stat Cards ───────────────────────────────────────────── */
+.stat-card {
+    -fx-background-color: #1c2a20; -fx-background-radius: 8;
+    -fx-border-color: #2d5233; -fx-border-radius: 8;
+    -fx-border-width: 1; -fx-padding: 20; -fx-min-width: 180px;
+}
+.stat-card-green { -fx-border-color: #3ddc8444; }
+.stat-card-red   { -fx-border-color: #ff525244; }
+.stat-card-blue  { -fx-border-color: #00a88e44; }
+
+/* ── Signal Badges ────────────────────────────────────────── */
+.signal-strong-buy  { -fx-background-color: #1a3a1a; -fx-text-fill: #3ddc84; -fx-background-radius: 12; -fx-padding: 4 12; -fx-font-weight: bold; }
+.signal-buy         { -fx-background-color: #1a3a1a; -fx-text-fill: #7ee787; -fx-background-radius: 12; -fx-padding: 4 12; }
+.signal-neutral     { -fx-background-color: #25472c; -fx-text-fill: #8dba99; -fx-background-radius: 12; -fx-padding: 4 12; }
+.signal-sell        { -fx-background-color: #3a1a1a; -fx-text-fill: #ff8a80; -fx-background-radius: 12; -fx-padding: 4 12; }
+.signal-strong-sell { -fx-background-color: #4a1a1a; -fx-text-fill: #ff5252; -fx-background-radius: 12; -fx-padding: 4 12; -fx-font-weight: bold; }
+
+/* ── Alert Badge ──────────────────────────────────────────── */
+.alert-badge {
+    -fx-background-color: #ff5252; -fx-text-fill: white;
+    -fx-background-radius: 10; -fx-min-width: 20px; -fx-min-height: 20px;
+    -fx-font-size: 10px; -fx-font-weight: bold; -fx-alignment: center;
+}
+
+/* ── Spinner ──────────────────────────────────────────────── */
+.spinner {
+    -fx-background-color: #0f1111; -fx-border-color: #2d5233;
+    -fx-border-radius: 6; -fx-background-radius: 6;
+}
+.spinner .text-field {
+    -fx-background-color: #0f1111; -fx-text-fill: #e0f2e9;
+    -fx-border-color: transparent; -fx-padding: 6 8;
+}
+.spinner .increment-arrow-button,
+.spinner .decrement-arrow-button { -fx-background-color: #1e3a24; -fx-border-color: #2d5233; }
+.spinner .increment-arrow-button:hover,
+.spinner .decrement-arrow-button:hover { -fx-background-color: #25472c; }
+.spinner .increment-arrow-button .increment-arrow,
+.spinner .decrement-arrow-button .decrement-arrow { -fx-background-color: #8dba99; }
+
+/* ── Slider ───────────────────────────────────────────────── */
+.slider .thumb { -fx-background-color: #3ddc84; -fx-background-radius: 50%; -fx-border-width: 0; }
+.slider .track { -fx-background-color: #2d5233; -fx-background-radius: 4; }
+
+/* ── Separator ────────────────────────────────────────────── */
+.separator .line { -fx-border-color: #2d5233; -fx-border-width: 1; }
+
+/* ── ScrollBar ────────────────────────────────────────────── */
+.scroll-bar:vertical   { -fx-background-color: #131a20; -fx-pref-width: 8; }
+.scroll-bar:horizontal { -fx-background-color: #131a20; -fx-pref-height: 8; }
+.scroll-bar .thumb     { -fx-background-color: #2d5233; -fx-background-radius: 4; }
+.scroll-bar .thumb:hover{ -fx-background-color: #4d7a59; }
+.scroll-bar .increment-button, .scroll-bar .decrement-button { -fx-background-color: transparent; -fx-padding: 0; }
+.scroll-bar .increment-arrow, .scroll-bar .decrement-arrow   { -fx-shape: ""; -fx-padding: 0; }
+
+/* ── ComboBox ─────────────────────────────────────────────── */
+.combo-box {
+    -fx-background-color: #0f1111; -fx-text-fill: #e0f2e9;
+    -fx-border-color: #2d5233; -fx-border-radius: 6;
+    -fx-background-radius: 6; -fx-padding: 4 8;
+}
+.combo-box .list-cell { -fx-background-color: #0f1111; -fx-text-fill: #e0f2e9; }
+.combo-box .arrow-button { -fx-background-color: #1e3a24; -fx-border-color: #2d5233; -fx-border-radius: 0 6 6 0; }
+.combo-box .arrow-button .arrow { -fx-background-color: #8dba99; }
+.combo-box:focused { -fx-border-color: #3ddc84; }
+.combo-box-popup .list-view { -fx-background-color: #1c2a20; -fx-border-color: #3ddc84; -fx-border-radius: 6; }
+.combo-box-popup .list-cell { -fx-background-color: #1c2a20; -fx-text-fill: #e0f2e9; -fx-padding: 6 12; }
+.combo-box-popup .list-cell:hover { -fx-background-color: #25472c; }
+
+/* ── Tabs ─────────────────────────────────────────────────── */
+.tab-pane > .tab-header-area > .tab-header-background { -fx-background-color: #131a20; -fx-border-color: #2d5233; -fx-border-width: 0 0 1 0; }
+.tab { -fx-background-color: transparent; -fx-text-fill: #8dba99; -fx-padding: 8 16; -fx-cursor: hand; }
+.tab:selected { -fx-background-color: transparent; -fx-text-fill: #e0f2e9; -fx-border-color: #3ddc84; -fx-border-width: 0 0 2 0; }
+.table-row-cell:selected { -fx-background-color: #3ddc8433; -fx-text-fill: #e0f2e9; }
+.list-cell:selected { -fx-background-color: #3ddc8433; -fx-text-fill: #e0f2e9; }
+.tab:hover { -fx-text-fill: #e0f2e9; }
+
+/* ── Tooltip ──────────────────────────────────────────────── */
+.tooltip {
+    -fx-background-color: #1c2a20; -fx-text-fill: #e0f2e9;
+    -fx-border-color: #3ddc84; -fx-border-radius: 6;
+    -fx-background-radius: 6; -fx-font-size: 12px; -fx-padding: 6 10;
+}
+
+/* ── Progress Bar ─────────────────────────────────────────── */
+.progress-bar > .bar { -fx-background-color: #3ddc84; -fx-background-radius: 4; }
+.progress-bar > .track { -fx-background-color: #1e3a24; -fx-background-radius: 4; }
+
+/* ── CheckBox ─────────────────────────────────────────────── */
+.check-box .box { -fx-background-color: #0f1111; -fx-border-color: #2d5233; -fx-border-radius: 4; -fx-background-radius: 4; }
+.check-box:selected .box { -fx-background-color: #1e6e3e; -fx-border-color: #3ddc84; }
+.check-box .mark { -fx-background-color: white; }
+.check-box { -fx-text-fill: #e0f2e9; }
+
+/* ── DatePicker ───────────────────────────────────────────── */
+.date-picker { -fx-background-color: #0f1111; -fx-border-color: #2d5233; -fx-border-radius: 6; -fx-background-radius: 6; }
+.date-picker .text-field { -fx-background-color: #0f1111; -fx-text-fill: #e0f2e9; -fx-border-color: transparent; -fx-padding: 8 12; }
+.date-picker .arrow-button { -fx-background-color: #1e3a24; -fx-border-color: #2d5233; -fx-border-radius: 0 6 6 0; }
+.date-picker .arrow-button .arrow { -fx-background-color: #8dba99; }
+.date-picker-popup .month-year-pane { -fx-background-color: #131a20; }
+.date-picker-popup > * > .spinner { -fx-background-color: #131a20; }
+.date-picker-popup > * > .spinner > .button, .date-picker-popup > * > .spinner > .label { -fx-background-color: #131a20; -fx-text-fill: #e0f2e9; }
+.date-picker-popup > * > .day-name-cell, .date-picker-popup > * > .week-number-cell { -fx-text-fill: #8dba99; -fx-background-color: #131a20; }
+.date-picker-popup .calendar-grid { -fx-background-color: #1c2a20; }
+.date-picker-popup .day-cell { -fx-background-color: #1c2a20; -fx-text-fill: #e0f2e9; }
+.date-picker-popup .day-cell:hover { -fx-background-color: #1e3a24; -fx-text-fill: #e0f2e9; }
+.date-picker-popup .day-cell.today { -fx-border-color: #3ddc84; -fx-border-radius: 4; }
+.date-picker-popup .day-cell:selected { -fx-background-color: #1e6e3e; -fx-text-fill: white; -fx-background-radius: 4; }
+.date-picker-popup .day-cell.other-month { -fx-text-fill: #4d7a59; }
+
+/* ── ScrollPane ───────────────────────────────────────────── */
+.scroll-pane { -fx-background-color: #0f1111; -fx-background: #0f1111; }
+.scroll-pane > .viewport { -fx-background-color: #0f1111; }
+
+/* ── Chart toolbar ────────────────────────────────────────── */
+.chart-toolbar-scroll { -fx-background-color: #1c2a20; -fx-background: #1c2a20; -fx-border-color: #2d5233; -fx-border-width: 0 0 1 0; }
+.chart-toolbar-row { -fx-background-color: #1c2a20; -fx-padding: 4 8; -fx-alignment: center-left; }
+.chart-toolbar-label { -fx-font-size: 10px; -fx-text-fill: #8dba99; -fx-min-width: 22; -fx-padding: 0 2 0 0; }
+.chart-toolbar-combo, .chart-toolbar-field, .chart-toolbar-btn, .chart-toolbar-btn-wide, .chart-tf-btn { -fx-font-size: 11px; -fx-min-height: 28; -fx-pref-height: 28; -fx-max-height: 28; }
+.chart-toolbar-btn, .chart-tf-btn { -fx-padding: 2 7; -fx-min-width: 28; }
+.chart-toolbar-btn-wide { -fx-padding: 2 8; -fx-min-width: 68; }
+.chart-toolbar-sep { -fx-pref-height: 22; -fx-opacity: 0.4; }
+.chart-toolbar-source-label { -fx-font-size: 10px; -fx-text-fill: #8dba99; -fx-max-width: 64; -fx-min-width: 0; }
+
+/* ── Analysis signal bar ──────────────────────────────────── */
+.signal-bar-scroll { -fx-background-color: #131a20; -fx-background: #131a20; -fx-border-color: #2d5233; -fx-border-width: 0 0 1 0; }
+.signal-bar-row { -fx-background-color: #131a20; -fx-padding: 6 12; -fx-alignment: center-left; }
+.signal-bar-title { -fx-font-weight: bold; -fx-font-size: 13px; }
+.signal-bar-buy  { -fx-text-fill: #3ddc84; -fx-font-weight: bold; -fx-font-size: 12px; }
+.signal-bar-sell { -fx-text-fill: #ff5252; -fx-font-weight: bold; -fx-font-size: 12px; }
+.signal-bar-price { -fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #e0f2e9; }
+
+/* ── Trade Journal Table ──────────────────────────────────── */
+.table-view .virtual-flow { -fx-background-color: #1c2a20; }
+.table-view .placeholder .label { -fx-text-fill: #8dba99; -fx-font-size: 13px; }
+.table-view:focused { -fx-border-color: #3ddc8455; }
+
+/* ── Sentiment Circles ────────────────────────────────────── */
+.sentiment-circle-buying { -fx-background-color: #1e6e3e; -fx-text-fill: white; -fx-background-radius: 50%; -fx-min-width: 32px; -fx-min-height: 32px; -fx-max-width: 32px; -fx-max-height: 32px; -fx-alignment: center; -fx-font-weight: bold; -fx-font-size: 12px; -fx-border-radius: 50%; -fx-border-color: #3ddc84; -fx-border-width: 2; }
+.sentiment-circle-selling { -fx-background-color: #8b0000; -fx-text-fill: white; -fx-background-radius: 50%; -fx-min-width: 32px; -fx-min-height: 32px; -fx-max-width: 32px; -fx-max-height: 32px; -fx-alignment: center; -fx-font-weight: bold; -fx-font-size: 12px; -fx-border-radius: 50%; -fx-border-color: #ff5252; -fx-border-width: 2; }
+.sentiment-circle-neutral { -fx-background-color: #25472c; -fx-text-fill: #e0f2e9; -fx-background-radius: 50%; -fx-min-width: 32px; -fx-min-height: 32px; -fx-max-width: 32px; -fx-max-height: 32px; -fx-alignment: center; -fx-font-weight: bold; -fx-font-size: 12px; -fx-border-radius: 50%; -fx-border-color: #2d5233; -fx-border-width: 2; }

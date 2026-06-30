@@ -159,6 +159,49 @@ public class AnalysisService {
         return indicatorComputeService.toBarSeries(bars, name);
     }
 
+    /**
+     * Runs the full analysis pipeline on a pre-loaded list of bars.
+     * Used by ChartController when bars have already been fetched from a specific
+     * provider (non-AUTO mode) so we don't need to re-fetch from DB.
+     *
+     * @param bars      already-fetched OHLCV bars (must be non-empty)
+     * @param symbol    trading symbol for the BarSeries name
+     * @param timeframe timeframe string for cache key
+     * @param profile   active user profile for indicator config
+     * @return full analysis result
+     */
+    public AnalysisResult analyzeFromBars(List<OhlcvBar> bars, String symbol,
+                                          String timeframe, UserProfile profile) {
+        if (bars == null || bars.isEmpty()) {
+            return AnalysisResult.empty(symbol, timeframe);
+        }
+
+        IndicatorConfig config = configRepo.findByProfile(profile)
+                .orElse(IndicatorConfig.fromProfile(
+                        IndicatorConfig.IndicatorProfile.SWING_TRADING, profile));
+
+        BarSeries series = indicatorService.toBarSeries(bars, symbol);
+        IndicatorResult indicators = indicatorService.compute(series, config);
+        SupportResistanceService.SRResult sr = srService.analyze(
+                bars, config.getFibonacciLookback() > 0 ? config.getFibonacciLookback() : 50);
+        double currentPrice = bars.get(bars.size() - 1).getClose().doubleValue();
+        SignalScoringService.SignalResult signal = scoringService.score(indicators, sr, config, currentPrice);
+
+        AnalysisResult result = AnalysisResult.builder()
+                .symbol(symbol)
+                .timeframe(timeframe)
+                .bars(bars)
+                .series(series)
+                .indicators(indicators)
+                .srResult(sr)
+                .signal(signal)
+                .currentPrice(currentPrice)
+                .config(config)
+                .build();
+        analysisCache.put(symbol + "_" + timeframe, result);
+        return result;
+    }
+
     // ── Result DTO ───────────────────────────────────────────
 
     @lombok.Data @lombok.Builder

@@ -1,7 +1,9 @@
 package com.mst.matt.tradingplatformapp.service.price;
 
 import com.mst.matt.tradingplatformapp.config.MarketApiProperties;
+import com.mst.matt.tradingplatformapp.model.AppUser;
 import com.mst.matt.tradingplatformapp.model.UserProfile;
+import com.mst.matt.tradingplatformapp.service.auth.AuthService;
 import com.mst.matt.tradingplatformapp.service.price.AssetClassDetector.AssetClass;
 import org.springframework.stereotype.Component;
 
@@ -9,15 +11,25 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Builds ordered provider chains per asset class, honoring profile preference and API key availability.
+ * Builds ordered provider chains per asset class, honouring:
+ * <ol>
+ *   <li>API key availability (providers without a key are skipped)</li>
+ *   <li>Profile preference (preferred provider is moved to the front)</li>
+ *   <li><b>User plan (role) restrictions</b> – REGULAR users can only use free providers;
+ *       PRO users have most providers; ADMIN / PRO_PLUS have all providers.</li>
+ * </ol>
  */
 @Component
 public class PriceProviderRegistry {
 
     private final Map<MarketDataProvider, PriceService> byId = new EnumMap<>(MarketDataProvider.class);
     private final List<PriceService> allServices;
+    private final AuthService authService;
 
-    public PriceProviderRegistry(List<PriceService> services, MarketApiProperties keys) {
+    public PriceProviderRegistry(List<PriceService> services,
+                                  MarketApiProperties keys,
+                                  AuthService authService) {
+        this.authService = authService;
         this.allServices = services.stream()
                 .filter(PriceService::isEnabled)
                 .toList();
@@ -26,6 +38,12 @@ public class PriceProviderRegistry {
         }
     }
 
+    // ── Public API ────────────────────────────────────────────────────────────
+
+    /**
+     * Returns the ordered provider chain for the given symbol + profile,
+     * filtered by the currently-logged-in user's plan.
+     */
     public List<PriceService> chainFor(String symbol, UserProfile profile) {
         String s = SymbolNormalizer.normalize(symbol);
         AssetClass asset = profile != null
@@ -41,7 +59,11 @@ public class PriceProviderRegistry {
             order = prioritize(order, preferred);
         }
 
+        // Filter by user-plan restrictions
+        AppUser.Role role = currentRole();
+
         return order.stream()
+                .filter(p -> role.canUseProvider(p.name()))
                 .map(byId::get)
                 .filter(Objects::nonNull)
                 .filter(p -> p.supports(s))
@@ -49,10 +71,36 @@ public class PriceProviderRegistry {
                 .collect(Collectors.toCollection(ArrayList::new));
     }
 
+    /**
+     * Returns the list of providers enabled for the given asset class AND
+     * allowed by the current user's plan.
+     */
     public List<MarketDataProvider> enabledProvidersFor(AssetClass asset) {
+        AppUser.Role role = currentRole();
         return defaultOrder(asset).stream()
                 .filter(byId::containsKey)
+                .filter(p -> role.canUseProvider(p.name()))
                 .toList();
+    }
+
+    /**
+     * Returns the list of providers enabled for the given asset class AND
+     * allowed by a specific role. Used by the admin panel to preview restrictions.
+     */
+    public List<MarketDataProvider> enabledProvidersFor(AssetClass asset, AppUser.Role role) {
+        AppUser.Role effectiveRole = role != null ? role : AppUser.Role.REGULAR_USER;
+        return defaultOrder(asset).stream()
+                .filter(byId::containsKey)
+                .filter(p -> effectiveRole.canUseProvider(p.name()))
+                .toList();
+    }
+
+    /**
+     * Returns {@code true} if the current user's plan allows the named provider.
+     * AUTO is always allowed.
+     */
+    public boolean isProviderAllowedForCurrentUser(String providerName) {
+        return currentRole().canUseProvider(providerName);
     }
 
     public Optional<PriceService> get(MarketDataProvider id) {
@@ -61,6 +109,15 @@ public class PriceProviderRegistry {
 
     public String lastSuccessfulProviderName() {
         return PriceRouter.getLastProviderName();
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /** Returns the current user's role, falling back to REGULAR_USER if not logged in. */
+    private AppUser.Role currentRole() {
+        return authService.currentUser()
+                .map(AppUser::getRole)
+                .orElse(AppUser.Role.REGULAR_USER);
     }
 
     private static List<MarketDataProvider> defaultOrder(AssetClass asset) {
