@@ -1,10 +1,14 @@
 package com.mst.matt.tradingplatformapp.controller;
 
+import com.mst.matt.tradingplatformapp.config.StageInitializer;
 import com.mst.matt.tradingplatformapp.model.DataFetchMode;
+import com.mst.matt.tradingplatformapp.model.SymbolEntry;
 import com.mst.matt.tradingplatformapp.model.UserProfile;
 import com.mst.matt.tradingplatformapp.model.UserProfile.ProfileAssetFocus;
+import com.mst.matt.tradingplatformapp.repository.SymbolEntryRepository;
 import com.mst.matt.tradingplatformapp.repository.UserProfileRepository;
 import com.mst.matt.tradingplatformapp.service.AppSettingsService;
+import com.mst.matt.tradingplatformapp.service.AppSettingsService.AppTheme;
 import com.mst.matt.tradingplatformapp.service.ProfilePersistenceService;
 import com.mst.matt.tradingplatformapp.service.WatchlistDefaults;
 import com.mst.matt.tradingplatformapp.service.auth.AuthService;
@@ -15,6 +19,7 @@ import com.mst.matt.tradingplatformapp.service.price.LiveTickerService;
 import com.mst.matt.tradingplatformapp.service.price.MarketDataProvider;
 import com.mst.matt.tradingplatformapp.service.price.PriceProviderRegistry;
 import com.mst.matt.tradingplatformapp.service.price.PriceRouter;
+import com.mst.matt.tradingplatformapp.ui.AutocompleteSymbolField;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
@@ -57,7 +62,10 @@ public class ProfileSettingsController {
     @FXML private FlowPane favTfPane;
     @FXML private ToggleButton darkThemeBtn;
     @FXML private ToggleButton lightThemeBtn;
+    @FXML private ToggleButton amazonGreenThemeBtn;
+    @FXML private ToggleButton lightBlueThemeBtn;
     @FXML private ToggleGroup themeGroup;
+    @FXML private Label themeStatusLabel;
 
     // ── Data Fetch Mode radio buttons ─────────────────────────
     @FXML private RadioButton fetchModeFullOnlineRadio;
@@ -87,6 +95,11 @@ public class ProfileSettingsController {
     @Autowired private PriceRouter priceRouter;
     @Autowired private LiveTickerService liveTickerService;
     @Autowired private AuthService authService;
+    @Autowired private StageInitializer stageInitializer;
+    @Autowired private SymbolEntryRepository symbolEntryRepository;
+
+    /** Autocomplete wrapper around the plain defaultSymbolField TextField. */
+    private AutocompleteSymbolField defaultSymbolAutocomplete;
 
     /** Optional callback: called when timezone changes so ChartController can update. */
     private java.util.function.Consumer<ZoneId> onTimezoneChanged;
@@ -108,6 +121,21 @@ public class ProfileSettingsController {
         assetFocusCombo.setCellFactory(lv -> labelCell());
         assetFocusCombo.setButtonCell(labelCell());
 
+        // ── Swap plain defaultSymbolField with autocomplete field ─────────────
+        if (defaultSymbolField != null && defaultSymbolField.getParent() instanceof javafx.scene.layout.VBox parent) {
+            int idx = parent.getChildren().indexOf(defaultSymbolField);
+            if (idx >= 0) {
+                defaultSymbolAutocomplete = new AutocompleteSymbolField(symbolEntryRepository);
+                defaultSymbolAutocomplete.setMaxWidth(320);
+                defaultSymbolAutocomplete.setPromptText("e.g. AAPL, BTCUSDT, EURUSD");
+                // Mirror text back to the original field so existing save logic still works
+                defaultSymbolAutocomplete.textProperty().addListener((o, a, n) -> {
+                    if (defaultSymbolField != null) defaultSymbolField.setText(n);
+                });
+                parent.getChildren().set(idx, defaultSymbolAutocomplete);
+            }
+        }
+
         // Fundamental provider
         fundamentalProviderCombo.setItems(FXCollections.observableArrayList(
                 fundamentalRouter.enabledProviders()));
@@ -127,10 +155,8 @@ public class ProfileSettingsController {
         defaultTfCombo.setItems(FXCollections.observableArrayList(ALL_TIMEFRAMES));
         defaultTfCombo.setValue(appSettings.getDefaultTimeframe());
 
-        // Theme buttons
-        boolean dark = appSettings.isDarkTheme();
-        if (darkThemeBtn  != null) darkThemeBtn.setSelected(dark);
-        if (lightThemeBtn != null) lightThemeBtn.setSelected(!dark);
+        // Theme buttons — set initial selection from saved theme
+        applyThemeSelectionToButtons(appSettings.getTheme());
 
         // Favorite timeframes pane
         buildFavoritesPane();
@@ -414,21 +440,63 @@ public class ProfileSettingsController {
 
     // ── Theme ─────────────────────────────────────────────────
 
+    /**
+     * Called when any theme toggle button is clicked.
+     * Determines which button is selected, applies the theme immediately,
+     * and persists the setting.
+     */
     @FXML
     public void onThemeChanged() {
-        // Theme is persisted on save
-        updateThemeBtnStyles();
+        String themeId = selectedThemeId();
+        // Instant switch — no restart required
+        stageInitializer.applyTheme(themeId);
+        updateThemeBtnStyles(themeId);
+        if (themeStatusLabel != null) {
+            themeStatusLabel.setText("Theme applied: " + AppTheme.fromId(themeId).id.replace("_", " "));
+        }
     }
 
-    private void updateThemeBtnStyles() {
-        if (darkThemeBtn == null || lightThemeBtn == null) return;
-        boolean dark = darkThemeBtn.isSelected();
-        darkThemeBtn.setStyle(dark
-                ? "-fx-background-color:#1f6feb; -fx-text-fill:white;"
-                  + "-fx-background-radius:6; -fx-padding:8 20; -fx-cursor:hand;"
-                : "-fx-background-color:#21262d; -fx-text-fill:#8b949e;"
-                  + "-fx-background-radius:6; -fx-padding:8 20; -fx-cursor:hand;");
-        lightThemeBtn.setStyle(!dark
+    @FXML
+    public void onUseSystemTheme() {
+        boolean osDark = AppSettingsService.isOsDarkMode();
+        String themeId = osDark ? "dark" : "light";
+        applyThemeSelectionToButtons(themeId);
+        stageInitializer.applyTheme(themeId);
+        if (themeStatusLabel != null) {
+            themeStatusLabel.setText("System theme applied: " + (osDark ? "Dark" : "Light"));
+        }
+    }
+
+    /** Returns the theme ID for the currently-selected toggle button. */
+    private String selectedThemeId() {
+        if (darkThemeBtn       != null && darkThemeBtn.isSelected())       return "dark";
+        if (lightThemeBtn      != null && lightThemeBtn.isSelected())      return "light";
+        if (amazonGreenThemeBtn != null && amazonGreenThemeBtn.isSelected()) return "amazon_green";
+        if (lightBlueThemeBtn  != null && lightBlueThemeBtn.isSelected())  return "light_blue";
+        return "dark"; // fallback
+    }
+
+    /** Selects the correct toggle button for the given theme ID. */
+    private void applyThemeSelectionToButtons(String themeId) {
+        AppTheme t = AppTheme.fromId(themeId);
+        if (darkThemeBtn       != null) darkThemeBtn.setSelected(t == AppTheme.DARK);
+        if (lightThemeBtn      != null) lightThemeBtn.setSelected(t == AppTheme.LIGHT);
+        if (amazonGreenThemeBtn != null) amazonGreenThemeBtn.setSelected(t == AppTheme.AMAZON_GREEN);
+        if (lightBlueThemeBtn  != null) lightBlueThemeBtn.setSelected(t == AppTheme.LIGHT_BLUE);
+        updateThemeBtnStyles(themeId);
+    }
+
+    private void updateThemeBtnStyles(String activeThemeId) {
+        AppTheme active = AppTheme.fromId(activeThemeId);
+        styleThemeBtn(darkThemeBtn,       active == AppTheme.DARK);
+        styleThemeBtn(lightThemeBtn,      active == AppTheme.LIGHT);
+        styleThemeBtn(amazonGreenThemeBtn, active == AppTheme.AMAZON_GREEN);
+        styleThemeBtn(lightBlueThemeBtn,  active == AppTheme.LIGHT_BLUE);
+    }
+
+    private void styleThemeBtn(ToggleButton btn, boolean selected) {
+        if (btn == null) return;
+        btn.setStyle(selected
                 ? "-fx-background-color:#1f6feb; -fx-text-fill:white;"
                   + "-fx-background-radius:6; -fx-padding:8 20; -fx-cursor:hand;"
                 : "-fx-background-color:#21262d; -fx-text-fill:#8b949e;"
@@ -456,9 +524,15 @@ public class ProfileSettingsController {
         profileNameLabel.setText(profile.getName() + "  ["
                 + authService.currentUser().map(u -> u.getDisplayName()).orElse("—") + "]");
         assetFocusCombo.setValue(focus);
-        defaultSymbolField.setText(profile.getDefaultSymbol() != null
+        String sym = profile.getDefaultSymbol() != null
                 ? profile.getDefaultSymbol()
-                : focus.defaultSymbol());
+                : focus.defaultSymbol();
+        defaultSymbolField.setText(sym);
+        if (defaultSymbolAutocomplete != null) {
+            defaultSymbolAutocomplete.setSymbol(sym);
+            // Filter autocomplete suggestions based on asset focus
+            defaultSymbolAutocomplete.setFilterType(assetFocusToSymbolType(focus));
+        }
         refreshChartProviders();
         chartProviderCombo.setValue(
                 MarketDataProvider.fromString(profile.getChartProvider()));
@@ -493,10 +567,7 @@ public class ProfileSettingsController {
         buildFavoritesPane();
 
         // Theme
-        boolean dark = appSettings.isDarkTheme();
-        if (darkThemeBtn  != null) darkThemeBtn.setSelected(dark);
-        if (lightThemeBtn != null) lightThemeBtn.setSelected(!dark);
-        updateThemeBtnStyles();
+        applyThemeSelectionToButtons(appSettings.getTheme());
 
         // Sensitivity sliders
         if (zoomSensitivitySlider != null) {
@@ -569,6 +640,44 @@ public class ProfileSettingsController {
     @FXML
     public void onAssetFocusChanged() {
         refreshChartProviders();
+        // Auto-update defaultSymbol to the focus's default when the user changes asset focus,
+        // but only if the field is currently empty or still shows the old default
+        ProfileAssetFocus newFocus = assetFocusCombo.getValue();
+        if (newFocus != null && defaultSymbolField != null) {
+            String current = defaultSymbolField.getText();
+            // Determine if current value is one of the known defaults (any focus)
+            boolean isDefault = current == null || current.isBlank()
+                    || java.util.Arrays.stream(ProfileAssetFocus.values())
+                       .map(ProfileAssetFocus::defaultSymbol)
+                       .anyMatch(current.trim().toUpperCase()::equals);
+            if (isDefault) {
+                defaultSymbolField.setText(newFocus.defaultSymbol());
+            }
+        }
+        // Update the watchlist field hint to show defaults for the new focus
+        if (watchlistField != null && activeProfile != null) {
+            String current = watchlistField.getText();
+            // Only replace if empty or if it was the old focus's default
+            if (current == null || current.isBlank()) {
+                watchlistField.setPromptText(
+                        "e.g. " + WatchlistDefaults.csvForFocus(newFocus));
+            }
+        }
+        // Update autocomplete filter so suggestions match the new asset class
+        if (defaultSymbolAutocomplete != null && newFocus != null) {
+            defaultSymbolAutocomplete.setFilterType(assetFocusToSymbolType(newFocus));
+        }
+    }
+
+    /** Map ProfileAssetFocus to SymbolEntry.AssetType for the autocomplete filter. */
+    private static SymbolEntry.AssetType assetFocusToSymbolType(ProfileAssetFocus focus) {
+        if (focus == null) return null;
+        return switch (focus) {
+            case CRYPTO -> SymbolEntry.AssetType.CRYPTO;
+            case STOCK  -> SymbolEntry.AssetType.STOCK;
+            case FOREX  -> SymbolEntry.AssetType.FOREX;
+            case MULTI  -> null; // no filter → search all asset types
+        };
     }
 
     @FXML
@@ -592,8 +701,17 @@ public class ProfileSettingsController {
         if (watchlistField != null) {
             String csv = watchlistField.getText() == null ? ""
                     : watchlistField.getText().trim();
-            activeProfile.setWatchlist(csv.isEmpty() ? null : csv.toUpperCase());
+            // Normalize: upper-case and deduplicate
+            String normalized = java.util.Arrays.stream(csv.split("[,;\\s]+"))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .map(String::toUpperCase)
+                    .distinct()
+                    .collect(java.util.stream.Collectors.joining(", "));
+            activeProfile.setWatchlist(normalized.isEmpty() ? null : normalized);
             liveTickerService.applyProfileWatchlist(activeProfile);
+            // Rebuild symbol chip pane so it reflects the saved watchlist immediately
+            buildTickerSymbolPane();
         }
         // Data Fetch Mode — save the three-way radio selection
         DataFetchMode chosenMode = selectedDataFetchMode();
@@ -623,10 +741,8 @@ public class ProfileSettingsController {
         authService.saveFavoriteTimeframes(favs);
         appSettings.setFavoriteTimeframes(String.join(",", favs));
 
-        // Theme
-        if (darkThemeBtn != null) {
-            appSettings.setTheme(darkThemeBtn.isSelected() ? "dark" : "light");
-        }
+        // Theme — persist the currently-selected theme (already applied live via onThemeChanged)
+        appSettings.setTheme(selectedThemeId());
 
         // Sensitivity
         if (zoomSensitivitySlider != null) {

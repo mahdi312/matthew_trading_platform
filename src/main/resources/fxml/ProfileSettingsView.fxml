@@ -132,16 +132,28 @@
                 <Separator/>
 
                 <Label text="Theme" styleClass="label-subtitle"/>
-                <HBox spacing="12">
+                <Label text="Theme switches instantly — no restart required."
+                       styleClass="label-muted" style="-fx-wrap-text:true;"/>
+                <HBox spacing="12" alignment="CENTER_LEFT">
                     <ToggleButton fx:id="darkThemeBtn" text="🌙 Dark"
                                   toggleGroup="$themeGroup"
                                   styleClass="btn-secondary" onAction="#onThemeChanged"/>
                     <ToggleButton fx:id="lightThemeBtn" text="☀ Light"
                                   toggleGroup="$themeGroup"
                                   styleClass="btn-secondary" onAction="#onThemeChanged"/>
+                    <ToggleButton fx:id="amazonGreenThemeBtn" text="🌿 Amazon Green"
+                                  toggleGroup="$themeGroup"
+                                  styleClass="btn-secondary" onAction="#onThemeChanged"/>
+                    <ToggleButton fx:id="lightBlueThemeBtn" text="💙 Light Blue"
+                                  toggleGroup="$themeGroup"
+                                  styleClass="btn-secondary" onAction="#onThemeChanged"/>
                 </HBox>
-                <Label text="Theme change takes effect after restarting the application."
-                       styleClass="label-muted" style="-fx-wrap-text:true;"/>
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                    <Button text="🖥 Use System Theme" styleClass="btn-secondary"
+                            onAction="#onUseSystemTheme"
+                            style="-fx-font-size:11px; -fx-padding:4 12;"/>
+                    <Label fx:id="themeStatusLabel" text="" styleClass="label-muted"/>
+                </HBox>
             </VBox>
 
             <!-- ════ TOUCH &amp; INPUT SENSITIVITY SECTION ════ -->
@@ -208,7 +220,10 @@
                 <Label text="Comma- or space-separated symbols shown in the top live ticker bar. Leave blank to keep platform defaults."
                        styleClass="label-muted" style="-fx-wrap-text:true;"/>
                 <TextArea fx:id="watchlistField" prefRowCount="3" wrapText="true"
-                          promptText="e.g. BTCUSDT, ETHUSDT, AAPL, MSFT, EURUSD"/>
+                          promptText="e.g. BTCUSDT, ETHUSDT, AAPL, MSFT, EURUSD"
+                          style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
+                                 -fx-border-color:#30363d; -fx-border-radius:6;
+                                 -fx-background-radius:6; -fx-padding:8;"/>
             </VBox>
 
             <!-- ════ TICKER FETCH CONTROL SECTION ════ -->

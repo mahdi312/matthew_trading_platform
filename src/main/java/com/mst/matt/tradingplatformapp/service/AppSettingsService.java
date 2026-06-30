@@ -181,11 +181,78 @@ public class AppSettingsService {
 
     // ── Theme ─────────────────────────────────────────────────
 
+    /** All supported theme identifiers. */
+    public enum AppTheme {
+        DARK("dark", "/css/dark-theme.css"),
+        LIGHT("light", "/css/light-theme.css"),
+        AMAZON_GREEN("amazon_green", "/css/amazon-green-theme.css"),
+        LIGHT_BLUE("light_blue", "/css/light-blue-theme.css");
+
+        public final String id;
+        public final String cssPath;
+
+        AppTheme(String id, String cssPath) {
+            this.id = id;
+            this.cssPath = cssPath;
+        }
+
+        public static AppTheme fromId(String id) {
+            if (id == null) return DARK;
+            for (AppTheme t : values()) {
+                if (t.id.equalsIgnoreCase(id)) return t;
+            }
+            // Legacy: "light" → LIGHT, else → DARK
+            return "light".equalsIgnoreCase(id) ? LIGHT : DARK;
+        }
+
+        /** Returns {@code true} for themes that use a dark background. */
+        public boolean isDark() {
+            return this == DARK || this == AMAZON_GREEN;
+        }
+    }
+
     public String getTheme()            { return theme; }
-    public boolean isDarkTheme()        { return !"light".equals(theme); }
+    public boolean isDarkTheme()        { return AppTheme.fromId(theme).isDark(); }
+
+    /** Returns the CSS resource path for the current theme. */
+    public String getThemeCssPath() {
+        return AppTheme.fromId(theme).cssPath;
+    }
+
+    /**
+     * Detect OS-level dark/light preference.
+     * On Windows, checks the registry key
+     * {@code HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme}.
+     * On macOS, checks {@code defaults read -g AppleInterfaceStyle}.
+     * Falls back to "dark" if detection fails or is unsupported.
+     */
+    public static boolean isOsDarkMode() {
+        String os = System.getProperty("os.name", "").toLowerCase();
+        try {
+            if (os.contains("win")) {
+                // Read Windows registry via reg.exe
+                Process p = Runtime.getRuntime().exec(new String[]{
+                        "reg", "query",
+                        "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                        "/v", "AppsUseLightTheme"
+                });
+                String out = new String(p.getInputStream().readAllBytes());
+                // 0x0 = dark, 0x1 = light
+                return out.contains("0x0");
+            } else if (os.contains("mac")) {
+                Process p = Runtime.getRuntime().exec(new String[]{
+                        "defaults", "read", "-g", "AppleInterfaceStyle"
+                });
+                String out = new String(p.getInputStream().readAllBytes()).trim();
+                return "Dark".equalsIgnoreCase(out);
+            }
+        } catch (Exception ignored) {}
+        // Default to dark if detection fails
+        return true;
+    }
 
     public synchronized void setTheme(String t) {
-        this.theme = t != null ? t : "dark";
+        this.theme = (t != null && !t.isBlank()) ? t : "dark";
         persist();
     }
 

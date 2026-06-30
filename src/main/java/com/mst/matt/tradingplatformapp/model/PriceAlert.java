@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 // Prevent Lombok-generated equals/hashCode from touching the lazy UserProfile proxy.
 // A closed Hibernate session causes LazyInitializationException when JavaFX
 // TableView calls equals() during rendering (Fix for Issue #2).
