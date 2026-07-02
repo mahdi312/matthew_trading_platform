@@ -19,7 +19,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+
+import java.util.function.Function;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -68,6 +71,9 @@ public class CoinGeckoService implements PriceService {
     private final CoinGeckoRateLimiter rateLimiter;
     private final Gson gson = new Gson();
 
+    /** DB-backed symbol→coinId lookup (injected lazily to avoid circular dependency). */
+    private Function<String, String> coinIdLookup = s -> null;
+
     // Map from trading symbols to CoinGecko coin IDs
     private static final Map<String, String> SYMBOL_TO_ID = Map.ofEntries(
             Map.entry("BTC",  "bitcoin"),
@@ -96,6 +102,15 @@ public class CoinGeckoService implements PriceService {
                              @Autowired CoinGeckoRateLimiter rateLimiter) {
         this.httpClient = httpClient;
         this.rateLimiter = rateLimiter;
+    }
+
+    /**
+     * Wires the DB-backed coin-ID resolver from {@link CoinGeckoSearchService}.
+     * Lazy injection breaks the CoinGeckoService ↔ CoinGeckoSearchService cycle.
+     */
+    @Autowired
+    void setCoinIdLookup(@Lazy CoinGeckoSearchService searchService) {
+        this.coinIdLookup = searchService::lookupCoinIdFromDb;
     }
 
     @Override
@@ -153,7 +168,14 @@ public class CoinGeckoService implements PriceService {
         String coinId = toCoinId(symbol);
         if (coinId == null) return Collections.emptyList();
 
-        // CoinGecko OHLC endpoint: days param drives how much history
+        // Sub-daily timeframes: synthesise candles from /market_chart (finer granularity).
+        String tf = timeframe == null ? "" : timeframe.toLowerCase();
+        if (List.of("1m", "5m", "15m", "30m", "1h", "4h").contains(tf)) {
+            List<OhlcvBar> fromChart = getOhlcvFromMarketChart(symbol, timeframe, limit);
+            if (!fromChart.isEmpty()) return fromChart;
+        }
+
+        // Daily+ timeframes: use /ohlc (supported days: 1,7,14,30,90,180,365,max)
         int days = toDays(timeframe, limit);
         String url = baseUrl + "/coins/" + coinId
                 + "/ohlc?vs_currency=usd&days=" + days;
@@ -376,6 +398,16 @@ public class CoinGeckoService implements PriceService {
      */
     public String resolveCoinId(String symbol) {
         return toCoinId(symbol);
+    }
+
+    /**
+     * Fast-path resolver using only the static map (~20 major coins).
+     * Used by {@link CoinGeckoSearchService} to avoid recursive lookup.
+     */
+    public String lookupStaticCoinId(String symbol) {
+        if (symbol == null || symbol.isBlank()) return null;
+        String base = stripSuffix(symbol.toUpperCase());
+        return SYMBOL_TO_ID.get(base);
     }
 
     // ── CoinGecko endpoint wrappers (raw JSON helpers for free endpoints) ──
@@ -850,14 +882,20 @@ public class CoinGeckoService implements PriceService {
     }
 
     public Optional<JsonArray> getSearchTrending() {
+        return getSearchTrendingFull()
+                .filter(obj -> obj.has("coins"))
+                .map(obj -> obj.getAsJsonArray("coins"));
+    }
+
+    /** Returns the full /search/trending response (coins, nfts, categories). */
+    public Optional<JsonObject> getSearchTrendingFull() {
         String url = baseUrl + "/search/trending";
         rateLimiter.acquire();
         try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
             handleRateLimitHeaders(r);
             if (!r.isSuccessful() || r.body() == null) return Optional.empty();
             JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
-            if (obj.has("coins")) return Optional.ofNullable(obj.getAsJsonArray("coins"));
-            return Optional.empty();
+            return Optional.ofNullable(obj);
         } catch (IOException e) {
             log.error("CoinGecko trending error: {}", e.getMessage());
             return Optional.empty();
@@ -893,15 +931,23 @@ public class CoinGeckoService implements PriceService {
         }
     }
 
-    public Optional<JsonArray> getPoolsByNetwork(String network, int perPage, int page, String order) {
-        String url = baseUrl + "/onchain/" + urlEncode(network) + "/pools?per_page=" + perPage + "&page=" + page
+    public Optional<JsonObject> getPoolsByNetwork(String network, int perPage, int page, String order) {
+        String url = baseUrl + "/onchain/networks/" + urlEncode(network)
+                + "/pools?per_page=" + perPage + "&page=" + page
                 + (order == null ? "" : "&order=" + urlEncode(order));
         rateLimiter.acquire();
         try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
             handleRateLimitHeaders(r);
             if (!r.isSuccessful() || r.body() == null) return Optional.empty();
-            JsonArray arr = gson.fromJson(r.body().string(), JsonArray.class);
-            return Optional.ofNullable(arr);
+            com.google.gson.JsonElement parsed = gson.fromJson(r.body().string(), com.google.gson.JsonElement.class);
+            if (parsed == null) return Optional.empty();
+            if (parsed.isJsonObject()) return Optional.of(parsed.getAsJsonObject());
+            if (parsed.isJsonArray()) {
+                JsonObject wrapper = new JsonObject();
+                wrapper.add("data", parsed.getAsJsonArray());
+                return Optional.of(wrapper);
+            }
+            return Optional.empty();
         } catch (IOException e) {
             log.error("CoinGecko onchain pools error: {}", e.getMessage());
             return Optional.empty();
@@ -1205,9 +1251,10 @@ public class CoinGeckoService implements PriceService {
     // ── Helpers ─────────────────────────────────────────────
 
     private String toCoinId(String symbol) {
-        // Strip common suffixes: BTCUSDT → BTC
-        String base = stripSuffix(symbol.toUpperCase());
-        return SYMBOL_TO_ID.get(base);
+        if (symbol == null || symbol.isBlank()) return null;
+        String id = lookupStaticCoinId(symbol);
+        if (id != null) return id;
+        return coinIdLookup.apply(symbol);
     }
 
     private String stripSuffix(String s) {

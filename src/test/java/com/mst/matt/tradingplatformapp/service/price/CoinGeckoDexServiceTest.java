@@ -118,7 +118,9 @@ class CoinGeckoDexServiceTest {
 
     @Test
     void getTopPools_returnsDataWrapperWithPoolArray() throws Exception {
-        String poolsJson = "[{\"id\":\"eth_0x88e6\"},{\"id\":\"eth_0xabcd\"}]";
+        String poolsJson = """
+                {"data":[{"id":"eth_0x88e6","type":"pool","attributes":{"name":"WETH/USDC"}}]}
+                """;
         server.enqueue(new MockResponse()
                 .setBody(poolsJson)
                 .addHeader("Content-Type", "application/json"));
@@ -129,6 +131,9 @@ class CoinGeckoDexServiceTest {
         assertTrue(result.get().has("data"), "Result should have 'data' key");
         assertTrue(result.get().getAsJsonArray("data").size() > 0,
                 "Data array should not be empty");
+        assertEquals("/onchain/networks/eth/pools",
+                server.takeRequest().getPath().split("\\?")[0],
+                "Should call /onchain/networks/{network}/pools");
     }
 
     @Test

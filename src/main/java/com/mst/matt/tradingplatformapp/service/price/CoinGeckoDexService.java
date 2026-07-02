@@ -105,13 +105,11 @@ public class CoinGeckoDexService {
         CacheEntry<JsonObject> cached = poolsCache.get(cacheKey);
         if (cached != null && !cached.isExpired()) return Optional.ofNullable(cached.value);
 
-        // CoinGeckoService.getPoolsByNetwork returns JsonArray
-        Optional<JsonArray> raw = coinGeckoService.getPoolsByNetwork(network, 20, page, null);
-        return raw.map(arr -> {
-            JsonObject wrapper = new JsonObject();
-            wrapper.add("data", arr);
-            poolsCache.put(cacheKey, new CacheEntry<>(wrapper, POOLS_CACHE_TTL_MS));
-            return wrapper;
+        // CoinGeckoService.getPoolsByNetwork returns JsonObject with "data" array
+        Optional<JsonObject> raw = coinGeckoService.getPoolsByNetwork(network, 20, page, null);
+        return raw.map(obj -> {
+            poolsCache.put(cacheKey, new CacheEntry<>(obj, POOLS_CACHE_TTL_MS));
+            return obj;
         });
     }
 

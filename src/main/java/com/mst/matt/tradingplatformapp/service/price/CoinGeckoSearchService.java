@@ -81,21 +81,27 @@ public class CoinGeckoSearchService {
      * @return CoinGecko coin ID (e.g. "bitcoin"), or {@code null} if unresolved
      */
     public String resolveCoinId(String symbol) {
-        // 1. Delegate to CoinGeckoService static map (covers the ~20 most common coins)
-        String id = coinGeckoService.resolveCoinId(symbol);
+        String id = coinGeckoService.lookupStaticCoinId(symbol);
         if (id != null) return id;
+        return lookupCoinIdFromDb(symbol);
+    }
 
-        // 2. Refresh in-memory cache from DB if stale (max once per hour)
+    /**
+     * Resolves a symbol using only the DB-backed lookup table (no static map).
+     * Called by {@link CoinGeckoService} after the static fast-path misses.
+     */
+    public String lookupCoinIdFromDb(String symbol) {
+        if (symbol == null || symbol.isBlank()) return null;
+
+        // Refresh in-memory cache from DB if stale (max once per hour)
         if (System.currentTimeMillis() - symbolCacheLoadedAt > 3_600_000L) {
             loadSymbolCacheFromDb();
         }
 
         String upper = symbol.toUpperCase();
-        // Try direct symbol match
-        id = symbolToIdCache.get(upper);
+        String id = symbolToIdCache.get(upper);
         if (id != null) return id;
 
-        // Try stripping common suffixes (BTCUSDT → BTC)
         for (String suffix : List.of("USDT", "USD", "BTC", "ETH", "BNB", "BUSD")) {
             if (upper.endsWith(suffix) && upper.length() > suffix.length()) {
                 String stripped = upper.substring(0, upper.length() - suffix.length());
@@ -159,18 +165,7 @@ public class CoinGeckoSearchService {
      * @return typed trending result, or empty on error
      */
     public Optional<CoinGeckoTrendingResult> getTrending() {
-        if (trendingCache != null && !trendingCache.isExpired())
-            return Optional.ofNullable(trendingCache.value);
-
-        Optional<com.google.gson.JsonObject> raw = coinGeckoService.search("trending");
-        // /search/trending is a separate endpoint
-        return coinGeckoService.getSearchTrending().map(arr -> {
-            // arr is the "coins" array from /search/trending — wrap in result
-            CoinGeckoTrendingResult result = coinGeckoService.getGson().fromJson(
-                    buildTrendingWrapper(arr), CoinGeckoTrendingResult.class);
-            trendingCache = new CacheEntry<>(result, TRENDING_CACHE_TTL_MS);
-            return result;
-        });
+        return getTrendingFull();
     }
 
     /** Fetches trending directly from /search/trending endpoint. */
@@ -178,11 +173,7 @@ public class CoinGeckoSearchService {
         if (trendingCache != null && !trendingCache.isExpired())
             return Optional.ofNullable(trendingCache.value);
 
-        // Call the raw /search/trending endpoint
-        String url = coinGeckoService.getBaseUrl() + "/search/trending";
-        // Use the underlying service's HTTP client via a wrapper method
-        Optional<com.google.gson.JsonObject> rawOpt = getTrendingRaw();
-        return rawOpt.map(json -> {
+        return coinGeckoService.getSearchTrendingFull().map(json -> {
             CoinGeckoTrendingResult result = coinGeckoService.getGson()
                     .fromJson(json, CoinGeckoTrendingResult.class);
             trendingCache = new CacheEntry<>(result, TRENDING_CACHE_TTL_MS);
@@ -191,20 +182,7 @@ public class CoinGeckoSearchService {
     }
 
     private Optional<com.google.gson.JsonObject> getTrendingRaw() {
-        // Re-use search() which delegates to the CoinGeckoService.search() endpoint;
-        // for /search/trending we need to call it directly via a dedicated route.
-        // The getSearchTrending() returns only the coins array, so we reconstruct:
-        return coinGeckoService.getSearchTrending().map(coinsArr -> {
-            com.google.gson.JsonObject obj = new com.google.gson.JsonObject();
-            obj.add("coins", coinsArr);
-            return obj;
-        });
-    }
-
-    private com.google.gson.JsonElement buildTrendingWrapper(com.google.gson.JsonArray coinsArr) {
-        com.google.gson.JsonObject obj = new com.google.gson.JsonObject();
-        obj.add("coins", coinsArr);
-        return obj;
+        return coinGeckoService.getSearchTrendingFull();
     }
 
     // ── /coins/list — daily DB sync ────────────────────────────────────────────

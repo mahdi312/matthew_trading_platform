@@ -191,7 +191,7 @@ class CoinGeckoSearchServiceTest {
 
         // Make batchUpdate callable (mock)
         when(mockJdbc.batchUpdate(anyString(), anyList(), anyInt(), any()))
-                .thenReturn(new int[]{1, 1, 1, 1});
+                .thenReturn(new int[][]{{1}, {1}, {1}, {1}});
         doNothing().when(mockJdbc).execute(anyString());
 
         // No exception should be thrown

@@ -57,8 +57,8 @@ public class MainDashboardController implements Initializable {
     @FXML private Button alertBellBtn;
     @FXML private Button navDashboard, navChart, navTrades,
             navAnalysis, navAlerts, navMixer,
-            navPortfolio, navFundamentals, navExport, navSettings,
-            navAiNews;
+            navPortfolio, navFundamentals, navDefi, navNft, navOnchain,
+            navExport, navSettings, navAiNews;
 
     @Autowired private FxWeaver              fxWeaver;
     @Autowired private UserProfileRepository profileRepository;
@@ -71,7 +71,7 @@ public class MainDashboardController implements Initializable {
 
     private Parent dashboardView, chartView, tradeEntryView,
             alertsView, mixerView, exportView, fundamentalsView, settingsView, adminView,
-            aiNewsView;
+            aiNewsView, defiView, nftView, onchainView;
 
     /** Callback invoked on logout — provided by StageInitializer. */
     private Runnable onLogout;
@@ -143,6 +143,9 @@ public class MainDashboardController implements Initializable {
         setNavVisible(navAlerts,       authService.canSeeTab("ALERTS"));
         setNavVisible(navExport,       authService.canSeeTab("EXPORT"));
         setNavVisible(navFundamentals, authService.canSeeTab("FUNDAMENTALS"));
+        setNavVisible(navDefi,     authService.canSeeTab("DEFI"));
+        setNavVisible(navNft,      authService.canSeeTab("NFT"));
+        setNavVisible(navOnchain,  authService.canSeeTab("ONCHAIN"));
         // AI News & Insights — always visible for all roles
         if (navAiNews != null) { navAiNews.setVisible(true); navAiNews.setManaged(true); }
         // Settings always visible; admin panel shown only to ADMIN
@@ -164,6 +167,9 @@ public class MainDashboardController implements Initializable {
         setNavTip(navMixer, "Indicator Mixer");
         setNavTip(navPortfolio, "Portfolio");
         setNavTip(navFundamentals, "Yearly Profit");
+        setNavTip(navDefi, "DeFi Dashboard");
+        setNavTip(navNft, "NFT Explorer");
+        setNavTip(navOnchain, "Onchain Pools");
         setNavTip(navAiNews, "AI News & Insights");
         setNavTip(navExport, "Export Excel");
         setNavTip(navSettings, "Settings");
@@ -232,7 +238,8 @@ public class MainDashboardController implements Initializable {
 
     private void expandNavLabels(boolean expanded, double btnWidth) {
         for (Button b : List.of(navDashboard, navChart, navTrades, navAnalysis,
-                navAlerts, navMixer, navPortfolio, navFundamentals, navAiNews, navExport, navSettings)) {
+                navAlerts, navMixer, navPortfolio, navFundamentals, navDefi, navNft, navOnchain,
+                navAiNews, navExport, navSettings)) {
             if (b == null) continue;
             String label = (String) b.getProperties().get("navLabel");
             if (label == null) label = (String) b.getUserData();
@@ -896,6 +903,33 @@ public class MainDashboardController implements Initializable {
         showView(fundamentalsView);
     }
 
+    @FXML public void onNavDefi() {
+        setActiveNav(navDefi);
+        if (defiView == null) {
+            var wc = fxWeaver.load(DeFiDashboardController.class);
+            defiView = asParent(wc.getView().orElseThrow());
+        }
+        showView(defiView);
+    }
+
+    @FXML public void onNavNft() {
+        setActiveNav(navNft);
+        if (nftView == null) {
+            var wc = fxWeaver.load(NftExplorerController.class);
+            nftView = asParent(wc.getView().orElseThrow());
+        }
+        showView(nftView);
+    }
+
+    @FXML public void onNavOnchain() {
+        setActiveNav(navOnchain);
+        if (onchainView == null) {
+            var wc = fxWeaver.load(OnchainPoolsController.class);
+            onchainView = asParent(wc.getView().orElseThrow());
+        }
+        showView(onchainView);
+    }
+
     @FXML public void onNavAnalysis() {
         ensureChartLoaded();
         if (activeProfile != null) chartCtrl.setProfile(activeProfile);
@@ -1084,7 +1118,7 @@ public class MainDashboardController implements Initializable {
     private void setActiveNav(Button active) {
         List.of(navDashboard, navChart, navTrades, navAnalysis,
                         navAlerts, navMixer, navPortfolio, navFundamentals,
-                        navAiNews, navExport, navSettings)
+                        navDefi, navNft, navOnchain, navAiNews, navExport, navSettings)
                 .forEach(b -> {
                     if (b == null) return;
                     b.getStyleClass().remove("nav-item-active");
