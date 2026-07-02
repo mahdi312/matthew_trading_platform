@@ -24,7 +24,7 @@ class CoinGeckoServiceTypedTest {
         server = new MockWebServer();
         server.start();
         OkHttpClient client = new PriceHttpConfig().priceHttpClient(5, 5, 0);
-        service = new CoinGeckoService(client);
+        service = new CoinGeckoService(client, new CoinGeckoRateLimiter());
         PriceServiceTestSupport.setBaseUrl(service, "baseUrl", server.url("").toString().replaceAll("/$", ""));
         PriceServiceTestSupport.setBaseUrl(service, "apiKey", "test-key");
     }
