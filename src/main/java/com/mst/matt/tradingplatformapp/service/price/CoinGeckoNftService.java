@@ -244,12 +244,19 @@ public class CoinGeckoNftService {
         jdbc.execute(ddl);
     }
 
+    /**
+     * Returns {@code true} when the configured datasource is PostgreSQL.
+     *
+     * <p><b>Connection-leak fix:</b> the previous implementation called
+     * {@code DataSource.getConnection()} and never closed the returned
+     * {@code Connection}, leaking it back into the HikariCP pool permanently.
+     * We now use a try-with-resources block so the connection is always
+     * returned to the pool after the metadata URL is read.</p>
+     */
     private boolean isPostgres() {
-        try {
-            String url = jdbc.getDataSource() != null
-                    ? jdbc.getDataSource().getConnection().getMetaData().getURL()
-                    : "";
-            return url.startsWith("jdbc:postgresql");
+        if (jdbc.getDataSource() == null) return false;
+        try (java.sql.Connection conn = jdbc.getDataSource().getConnection()) {
+            return conn.getMetaData().getURL().startsWith("jdbc:postgresql");
         } catch (Exception e) {
             return false;
         }

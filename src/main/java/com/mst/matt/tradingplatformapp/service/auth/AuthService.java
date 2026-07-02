@@ -100,7 +100,10 @@ public class AuthService {
         }
     }
 
-    /** @return the currently logged-in user, or empty if not authenticated. */
+    /**
+     * @return the currently logged-in user, or empty if not authenticated.
+     * No DB access — returns the in-memory reference.
+     */
     public Optional<AppUser> currentUser() {
         return Optional.ofNullable(currentUser);
     }
@@ -241,6 +244,7 @@ public class AuthService {
     }
 
     /** Returns all registered users (ADMIN only). */
+    @Transactional(readOnly = true)
     public List<AppUser> allUsers() {
         requireAdmin();
         return userRepo.findAllByOrderByCreatedAtDesc();
@@ -253,7 +257,13 @@ public class AuthService {
 
     // ── Favorites ──────────────────────────────────────────────
 
-    /** Persist the current user's favorite timeframes. */
+    /**
+     * Persist the current user's favorite timeframes.
+     *
+     * <p>The transaction is intentionally kept short: only the single
+     * {@code UPDATE} statement is executed inside it.  No external calls
+     * or heavy logic is performed while the connection is held.</p>
+     */
     @Transactional
     public void saveFavoriteTimeframes(List<String> favorites) {
         if (currentUser == null) return;
@@ -262,7 +272,14 @@ public class AuthService {
         userRepo.save(currentUser);
     }
 
-    /** Get the current user's favorite timeframes (filtered to allowed). */
+    /**
+     * Get the current user's favorite timeframes (filtered to allowed).
+     *
+     * <p>Read-only: marks the transaction as such so the database can
+     * optimise the query and the connection is released immediately after
+     * the single SELECT completes.</p>
+     */
+    @Transactional(readOnly = true)
     public List<String> getFavoriteTimeframes() {
         if (currentUser == null) return List.of();
         List<String> favs = currentUser.favoriteTimeframeList();

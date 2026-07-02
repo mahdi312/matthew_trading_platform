@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -22,6 +23,23 @@ import java.util.Optional;
  * Polls all active alerts every 10 seconds.
  * When triggered: fires email, Telegram, and/or desktop notification
  * based on the alert's configuration.
+ *
+ * <h3>Connection-pool hygiene</h3>
+ * The polling loop ({@link #checkAlerts}) is deliberately <em>not</em>
+ * annotated with {@code @Transactional} at the method level.  Doing so
+ * would hold a JDBC connection open across every external price-API call,
+ * exhausting the HikariCP pool under load.  Instead the work is split into
+ * three clearly-bounded phases:
+ * <ol>
+ *   <li><strong>Read</strong>  – fetch active alerts inside a short
+ *       read-only transaction ({@link #fetchActiveAlerts}).</li>
+ *   <li><strong>Evaluate</strong> – call the price router and evaluate
+ *       conditions with <em>no</em> database connection held.</li>
+ *   <li><strong>Write</strong>  – persist the triggered state inside a
+ *       short, focused write transaction ({@link #persistTriggeredAlert}).
+ *       Uses {@code REQUIRES_NEW} so each update is committed independently
+ *       and a single failure does not roll back the others.</li>
+ * </ol>
  */
 @Service
 public class AlertService {
@@ -37,23 +55,42 @@ public class AlertService {
      * Interval is controlled by app.alert.poll-interval-ms (default 10 000 ms).
      * Use milliseconds directly — Spring @Scheduled does not support
      * arithmetic inside ${...} placeholders.
+     *
+     * <p><b>NOT annotated with {@code @Transactional}</b> — see class-level
+     * javadoc for the reasoning.  Transactions are opened only in the helper
+     * methods below, each of which is short-lived.</p>
      */
     @Scheduled(fixedRateString = "${app.alert.poll-interval-ms:10000}")
-    @Transactional
     public void checkAlerts() {
-        List<PriceAlert> activeAlerts = alertRepository.findByActiveTrue();
+        // Phase 1: read — short read-only TX, connection released immediately after.
+        List<PriceAlert> activeAlerts = fetchActiveAlerts();
         if (activeAlerts.isEmpty()) return;
 
+        // Phase 2: evaluate — no DB connection held during external API calls.
         for (PriceAlert alert : activeAlerts) {
             try {
-                checkSingleAlert(alert);
+                evaluateAndFire(alert);
             } catch (Exception e) {
                 log.error("Error checking alert {}: {}", alert.getId(), e.getMessage());
             }
         }
     }
 
-    private void checkSingleAlert(PriceAlert alert) {
+    /**
+     * Phase 1 – fetch active alerts.
+     * Short read-only transaction; connection is released as soon as this
+     * method returns.
+     */
+    @Transactional(readOnly = true)
+    protected List<PriceAlert> fetchActiveAlerts() {
+        return alertRepository.findByActiveTrue();
+    }
+
+    /**
+     * Phase 2 – evaluate condition and fire notifications (no DB connection held).
+     * If the alert should fire, delegates persistence to {@link #persistTriggeredAlert}.
+     */
+    private void evaluateAndFire(PriceAlert alert) {
         // Indicator alerts are fired by AnalysisService via triggerIndicatorAlert()
         if (alert.getAlertType() == AlertType.INDICATOR_BUY_SIGNAL
                 || alert.getAlertType() == AlertType.INDICATOR_SELL_SIGNAL) {
@@ -63,6 +100,7 @@ public class AlertService {
         // Skip already-triggered non-repeating alerts
         if (alert.isTriggered() && !alert.isRepeating()) return;
 
+        // External API call — must NOT be inside a DB transaction.
         Optional<PriceQuote> quoteOpt = priceRouter.getQuote(alert.getSymbol());
         if (quoteOpt.isEmpty()) return;
 
@@ -70,15 +108,29 @@ public class AlertService {
         boolean shouldFire = evaluateCondition(alert, quote);
 
         if (shouldFire) {
+            // Fire notifications (no DB connection required).
             fireAlert(alert, quote);
 
-            alert.setTriggered(true);
-            alert.setTriggeredAt(LocalDateTime.now());
-
-            // Deactivate if not repeating
-            if (!alert.isRepeating()) alert.setActive(false);
-            alertRepository.save(alert);
+            // Phase 3: write — short, independent transaction per alert.
+            persistTriggeredAlert(alert.getId(), alert.isRepeating());
         }
+    }
+
+    /**
+     * Phase 3 – persist the triggered state.
+     * Uses {@code REQUIRES_NEW} so each alert update is committed in its own
+     * short transaction, independent of any surrounding context.  This
+     * guarantees the connection is released quickly even if caller code holds
+     * an outer transaction.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    protected void persistTriggeredAlert(Long alertId, boolean repeating) {
+        alertRepository.findById(alertId).ifPresent(a -> {
+            a.setTriggered(true);
+            a.setTriggeredAt(LocalDateTime.now());
+            if (!repeating) a.setActive(false);
+            alertRepository.save(a);
+        });
     }
 
     /**
@@ -174,14 +226,17 @@ public class AlertService {
 
     // ── CRUD ────────────────────────────────────────────────
 
+    @Transactional
     public PriceAlert createAlert(PriceAlert alert) {
         return alertRepository.save(alert);
     }
 
+    @Transactional
     public void deleteAlert(Long id) {
         alertRepository.deleteById(id);
     }
 
+    @Transactional
     public void toggleAlert(Long id, boolean active) {
         alertRepository.findById(id).ifPresent(a -> {
             a.setActive(active);
@@ -190,6 +245,7 @@ public class AlertService {
         });
     }
 
+    @Transactional(readOnly = true)
     public List<PriceAlert> getAlertsForProfile(UserProfile profile) {
         return alertRepository.findByProfileOrderByCreatedAtDesc(profile);
     }
@@ -197,12 +253,16 @@ public class AlertService {
     /**
      * Called by AnalysisService when a composite indicator signal fires.
      * Delivers notifications immediately (not via the price polling loop).
+     *
+     * <p>The price lookup is done outside any transaction; only the final
+     * persistence step opens a short write transaction.</p>
      */
     public void triggerIndicatorAlert(String symbol, boolean isBuySignal) {
         AlertType type = isBuySignal
                 ? AlertType.INDICATOR_BUY_SIGNAL
                 : AlertType.INDICATOR_SELL_SIGNAL;
 
+        // External call — no DB connection held.
         Optional<PriceQuote> quoteOpt = priceRouter.getQuote(symbol);
         if (quoteOpt.isEmpty()) {
             log.warn("Indicator alert skipped — no quote for {}", symbol);
@@ -210,18 +270,26 @@ public class AlertService {
         }
         PriceQuote quote = quoteOpt.get();
 
-        alertRepository.findByActiveTrue().stream()
+        // Read matching alerts in a short read-only TX.
+        List<PriceAlert> candidates = fetchIndicatorAlertCandidates(symbol, type);
+
+        // Fire notifications (no DB connection held).
+        for (PriceAlert a : candidates) {
+            fireAlert(a, quote);
+            // Persist result in its own short TX.
+            persistTriggeredAlert(a.getId(), a.isRepeating());
+        }
+    }
+
+    /**
+     * Fetch indicator alert candidates in a short read-only transaction.
+     */
+    @Transactional(readOnly = true)
+    protected List<PriceAlert> fetchIndicatorAlertCandidates(String symbol, AlertType type) {
+        return alertRepository.findByActiveTrue().stream()
                 .filter(a -> a.getSymbol().equalsIgnoreCase(symbol)
                         && a.getAlertType() == type
                         && (!a.isTriggered() || a.isRepeating()))
-                .forEach(a -> {
-                    fireAlert(a, quote);
-                    a.setTriggered(true);
-                    a.setTriggeredAt(LocalDateTime.now());
-                    if (!a.isRepeating()) {
-                        a.setActive(false);
-                    }
-                    alertRepository.save(a);
-                });
+                .toList();
     }
 }
