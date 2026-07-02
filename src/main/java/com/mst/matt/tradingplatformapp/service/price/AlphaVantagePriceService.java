@@ -13,6 +13,26 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Alpha Vantage price-data service — free-tier integration.
+ *
+ * <h3>Free-tier OHLCV endpoints supported:</h3>
+ * <ul>
+ *   <li>{@code GLOBAL_QUOTE}                — real-time quote (OHLCV + change)</li>
+ *   <li>{@code TIME_SERIES_INTRADAY}        — intraday OHLCV (1min/5min/15min/30min/60min)</li>
+ *   <li>{@code TIME_SERIES_DAILY}           — daily OHLCV (up to 100 compact bars)</li>
+ *   <li>{@code TIME_SERIES_DAILY_ADJUSTED}  — daily adjusted OHLCV</li>
+ *   <li>{@code TIME_SERIES_WEEKLY}          — weekly OHLCV</li>
+ *   <li>{@code TIME_SERIES_WEEKLY_ADJUSTED} — weekly adjusted OHLCV</li>
+ *   <li>{@code TIME_SERIES_MONTHLY}         — monthly OHLCV</li>
+ *   <li>{@code TIME_SERIES_MONTHLY_ADJUSTED}— monthly adjusted OHLCV</li>
+ * </ul>
+ *
+ * <h3>Rate limiting:</h3>
+ * The shared {@code "alphavantage"} throttle bucket enforces 5 req/min (free tier).
+ * All services that call Alpha Vantage must pass {@code THROTTLE_KEY} to
+ * {@link HttpJsonClient#getJson(String, String, String)}.
+ */
 @Service
 public class AlphaVantagePriceService implements PriceService {
 
@@ -24,7 +44,7 @@ public class AlphaVantagePriceService implements PriceService {
     private final MarketApiProperties keys;
 
     /** Throttle key passed to {@link HttpJsonClient} (T-23). */
-    private static final String THROTTLE_KEY = "alphavantage";
+    static final String THROTTLE_KEY = "alphavantage";
 
     public AlphaVantagePriceService(HttpJsonClient http, MarketApiProperties keys) {
         this.http = http;
@@ -50,29 +70,60 @@ public class AlphaVantagePriceService implements PriceService {
                         .map(q -> q.toPriceQuote(sym, assetType(sym))));
     }
 
+    /**
+     * Fetches OHLCV bars for the given symbol and timeframe.
+     *
+     * <p>Timeframe routing:
+     * <ul>
+     *   <li>{@code 1m, 5m, 15m, 30m, 1h, 4h} → TIME_SERIES_INTRADAY with appropriate interval</li>
+     *   <li>{@code 1d}                         → TIME_SERIES_DAILY</li>
+     *   <li>{@code 1w}                         → TIME_SERIES_WEEKLY</li>
+     *   <li>{@code 1mo}                        → TIME_SERIES_MONTHLY</li>
+     * </ul>
+     */
     @Override
     public List<OhlcvBar> getOhlcv(String symbol, String timeframe, int limit) {
         String sym = SymbolNormalizer.normalize(symbol);
-        boolean intraday = !timeframe.equalsIgnoreCase("1d")
-                && !timeframe.equalsIgnoreCase("1w");
-        String function = intraday ? "TIME_SERIES_INTRADAY" : "TIME_SERIES_DAILY";
+        String tf = timeframe.toLowerCase();
+
+        String function;
+        String intervalParam = null;
+        boolean intraday = false;
+
+        switch (tf) {
+            case "1m", "5m", "15m", "30m", "1h", "4h" -> {
+                function = "TIME_SERIES_INTRADAY";
+                intervalParam = mapInterval(tf);
+                intraday = true;
+            }
+            case "1d" -> function = "TIME_SERIES_DAILY";
+            case "1w" -> function = "TIME_SERIES_WEEKLY";
+            case "1mo", "1month" -> function = "TIME_SERIES_MONTHLY";
+            default -> {
+                // Fallback: intraday for unknown short intervals, daily for longer
+                if (tf.endsWith("m") || tf.endsWith("h")) {
+                    function = "TIME_SERIES_INTRADAY";
+                    intervalParam = mapInterval(tf);
+                    intraday = true;
+                } else {
+                    function = "TIME_SERIES_DAILY";
+                }
+            }
+        }
+
         StringBuilder url = new StringBuilder(baseUrl)
                 .append("?function=").append(function)
                 .append("&symbol=").append(sym)
                 .append("&apikey=").append(keys.getAlphavantageKey())
                 .append("&outputsize=compact");
-        if (intraday) {
-            url.append("&interval=").append(mapInterval(timeframe));
+        if (intervalParam != null) {
+            url.append("&interval=").append(intervalParam);
         }
+        final boolean isIntraday = intraday;
         return http.getJson(url.toString(), null, THROTTLE_KEY)
-                .map(root -> parseSeries(root, sym, timeframe, limit, intraday))
+                .map(root -> AlphaVantageTimeSeriesParser.parse(
+                        root, sym, timeframe, limit, isIntraday, assetType(sym)))
                 .orElse(List.of());
-    }
-
-    private List<OhlcvBar> parseSeries(JsonObject root, String sym, String tf,
-                                       int limit, boolean intraday) {
-        return AlphaVantageTimeSeriesParser.parse(
-                root, sym, tf, limit, intraday, assetType(sym));
     }
 
     @Override
@@ -86,19 +137,29 @@ public class AlphaVantagePriceService implements PriceService {
     @Override
     public MarketDataProvider getProviderId() { return MarketDataProvider.ALPHA_VANTAGE; }
 
-    private static String mapInterval(String tf) {
+    /**
+     * Maps internal timeframe codes to Alpha Vantage {@code interval} values for
+     * {@code TIME_SERIES_INTRADAY}.
+     */
+    static String mapInterval(String tf) {
         return switch (tf.toLowerCase()) {
-            case "1m" -> "1min";
-            case "5m" -> "5min";
+            case "1m"  -> "1min";
+            case "5m"  -> "5min";
             case "15m" -> "15min";
-            case "30m", "1h", "4h" -> "60min";
+            case "30m" -> "30min";
+            case "1h", "4h" -> "60min";
             default -> "5min";
         };
     }
 
-    private static AssetType assetType(String s) {
+    static AssetType assetType(String s) {
         if (AssetClassDetector.isCrypto(s)) return AssetType.CRYPTO;
         if (AssetClassDetector.isForex(s)) return AssetType.FOREX;
         return AssetType.STOCK;
     }
+
+    // Package-private for use by AlphaVantageMarketService
+    String getBaseUrl()             { return baseUrl; }
+    MarketApiProperties getKeys()   { return keys; }
+    HttpJsonClient getHttp()        { return http; }
 }
