@@ -1,11 +1,18 @@
 package com.mst.matt.tradingplatformapp.service.price;
 
-import com.google.gson.*;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.mst.matt.tradingplatformapp.model.OhlcvBar;
 import com.mst.matt.tradingplatformapp.model.Trade.AssetType;
-import com.mst.matt.tradingplatformapp.service.price.api.CoinGeckoMarketCoin;
-import com.mst.matt.tradingplatformapp.service.price.api.CoinGeckoSimplePrice;
-import okhttp3.*;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoFullCoin;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoMarketChart;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoMarketCoin;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoSimplePrice;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +22,11 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.time.*;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.*;
 
 /**
@@ -175,6 +186,560 @@ public class CoinGeckoService implements PriceService {
 
     @Override
     public MarketDataProvider getProviderId() { return MarketDataProvider.COINGECKO; }
+
+    // ── CoinGecko endpoint wrappers (raw JSON helpers for free endpoints) ──
+
+    // --- Simple ---
+    public Optional<JsonObject> getSimplePrice(String idsCsv, String vsCurrency,
+                                               boolean includeMarketCap, boolean include24hChange,
+                                               boolean includeLastUpdatedAt) {
+        String url = baseUrl + "/simple/price?ids=" + urlEncode(idsCsv)
+                + "&vs_currencies=" + urlEncode(vsCurrency)
+                + "&include_market_cap=" + includeMarketCap
+                + "&include_24hr_vol=" + include24hChange
+                + "&include_24hr_change=" + include24hChange
+                + "&include_last_updated_at=" + includeLastUpdatedAt;
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko getSimplePrice error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public List<String> getSupportedVsCurrencies() {
+        String url = baseUrl + "/simple/supported_vs_currencies";
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Collections.emptyList();
+            JsonArray arr = gson.fromJson(r.body().string(), JsonArray.class);
+            List<String> res = new ArrayList<>();
+            if (arr != null) for (JsonElement e : arr) res.add(e.getAsString());
+            return res;
+        } catch (IOException e) {
+            log.error("CoinGecko supported currencies error: {}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    public Optional<JsonObject> getSimpleTokenPrice(String platform, String contractAddressesCsv, String vsCurrencies,
+                                                    boolean includeMarketCap, boolean include24hChange,
+                                                    boolean includeLastUpdatedAt) {
+        String url = baseUrl + "/simple/token_price/" + urlEncode(platform)
+                + "?contract_addresses=" + urlEncode(contractAddressesCsv)
+                + "&vs_currencies=" + urlEncode(vsCurrencies)
+                + "&include_market_cap=" + includeMarketCap
+                + "&include_24hr_vol=" + include24hChange
+                + "&include_24hr_change=" + include24hChange
+                + "&include_last_updated_at=" + includeLastUpdatedAt;
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko token price error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    // --- Coins ---
+    public Optional<JsonArray> getCoinsMarkets(String vsCurrency, String idsCsv, String order, int perPage, int page,
+                                               boolean sparkline, String priceChangePercentage) {
+        String url = baseUrl + "/coins/markets?vs_currency=" + urlEncode(vsCurrency)
+                + (idsCsv == null || idsCsv.isBlank() ? "" : "&ids=" + urlEncode(idsCsv))
+                + "&order=" + urlEncode(order)
+                + "&per_page=" + perPage
+                + "&page=" + page
+                + "&sparkline=" + sparkline
+                + (priceChangePercentage == null ? "" : "&price_change_percentage=" + urlEncode(priceChangePercentage));
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonArray arr = gson.fromJson(r.body().string(), JsonArray.class);
+            return Optional.ofNullable(arr);
+        } catch (IOException e) {
+            log.error("CoinGecko coins/markets error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonObject> getCoinById(String id, boolean localization, boolean marketData,
+                                            boolean communityData, boolean developerData, boolean sparkline) {
+        String url = baseUrl + "/coins/" + urlEncode(id)
+                + "?localization=" + localization
+                + "&market_data=" + marketData
+                + "&community_data=" + communityData
+                + "&developer_data=" + developerData
+                + "&sparkline=" + sparkline;
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko coin by id error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonObject> getCoinHistory(String id, String date, boolean localization) {
+        String url = baseUrl + "/coins/" + urlEncode(id) + "/history?date=" + urlEncode(date)
+                + "&localization=" + localization;
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko coin history error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonObject> getCoinMarketChart(String id, String vsCurrency, String days, String interval) {
+        String url = baseUrl + "/coins/" + urlEncode(id) + "/market_chart?vs_currency=" + urlEncode(vsCurrency)
+                + "&days=" + urlEncode(days)
+                + (interval == null ? "" : "&interval=" + urlEncode(interval));
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko market chart error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonObject> getCoinMarketChartRange(String id, String vsCurrency, long from, long to) {
+        String url = baseUrl + "/coins/" + urlEncode(id) + "/market_chart/range?vs_currency=" + urlEncode(vsCurrency)
+                + "&from=" + from + "&to=" + to;
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko market chart range error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonObject> getCoinTickers(String id, String exchangeIds, boolean includeExchangeLogo, String order, int page) {
+        String url = baseUrl + "/coins/" + urlEncode(id) + "/tickers"
+                + (exchangeIds == null || exchangeIds.isBlank() ? "" : "?exchange_ids=" + urlEncode(exchangeIds))
+                + "&include_exchange_logo=" + includeExchangeLogo
+                + "&page=" + page
+                + (order == null ? "" : "&order=" + urlEncode(order));
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko coin tickers error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonArray> getCoinOhlcRange(String id, String vsCurrency, long from, long to) {
+        String url = baseUrl + "/coins/" + urlEncode(id) + "/ohlc?vs_currency=" + urlEncode(vsCurrency)
+                + "&days=1"; // CoinGecko OHLC uses days param; range OHLC not universally available
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonArray arr = gson.fromJson(r.body().string(), JsonArray.class);
+            return Optional.ofNullable(arr);
+        } catch (IOException e) {
+            log.error("CoinGecko coin ohlc error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    // --- Contract ---
+    public Optional<JsonObject> getTokenByContract(String platform, String contractAddress,
+                                                   boolean localization, boolean marketData,
+                                                   boolean communityData, boolean developerData,
+                                                   boolean sparkline) {
+        String url = baseUrl + "/coins/" + urlEncode(platform) + "/contract/" + urlEncode(contractAddress)
+                + "?localization=" + localization
+                + "&market_data=" + marketData
+                + "&community_data=" + communityData
+                + "&developer_data=" + developerData
+                + "&sparkline=" + sparkline;
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko contract token error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonObject> getTokenMarketChartByContract(String platform, String contractAddress,
+                                                              String vsCurrency, String days, String interval) {
+        String url = baseUrl + "/coins/" + urlEncode(platform) + "/contract/" + urlEncode(contractAddress) + "/market_chart?vs_currency="
+                + urlEncode(vsCurrency) + "&days=" + urlEncode(days) + (interval == null ? "" : "&interval=" + urlEncode(interval));
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko contract market chart error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonObject> getTokenMarketChartRangeByContract(String platform, String contractAddress,
+                                                                   String vsCurrency, long from, long to) {
+        String url = baseUrl + "/coins/" + urlEncode(platform) + "/contract/" + urlEncode(contractAddress) + "/market_chart/range?vs_currency="
+                + urlEncode(vsCurrency) + "&from=" + from + "&to=" + to;
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko contract market chart range error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    // --- NFT ---
+    public Optional<JsonObject> listNftCollections(int perPage, int page, String order) {
+        String url = baseUrl + "/nfts/list?per_page=" + perPage + "&page=" + page + (order == null ? "" : "&order=" + urlEncode(order));
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko nfts list error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonObject> getNftCollection(String id, boolean localization) {
+        String url = baseUrl + "/nfts/" + urlEncode(id) + "?localization=" + localization;
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko nft collection error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonObject> getNftMarketChart(String id, String days, String order) {
+        String url = baseUrl + "/nfts/" + urlEncode(id) + "/market_chart?days=" + urlEncode(days) + (order == null ? "" : "&order=" + urlEncode(order));
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko nft market chart error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    // --- Exchanges ---
+    public Optional<JsonArray> listExchanges(int perPage, int page) {
+        String url = baseUrl + "/exchanges?per_page=" + perPage + "&page=" + page;
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonArray arr = gson.fromJson(r.body().string(), JsonArray.class);
+            return Optional.ofNullable(arr);
+        } catch (IOException e) {
+            log.error("CoinGecko exchanges list error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonObject> getExchangeById(String id) {
+        String url = baseUrl + "/exchanges/" + urlEncode(id);
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko exchange error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonObject> getExchangeTickers(String id, String coinIds, boolean includeExchangeLogo, String order, int page) {
+        String url = baseUrl + "/exchanges/" + urlEncode(id) + "/tickers"
+                + (coinIds == null || coinIds.isBlank() ? "" : "?coin_ids=" + urlEncode(coinIds))
+                + "&include_exchange_logo=" + includeExchangeLogo
+                + "&page=" + page
+                + (order == null ? "" : "&order=" + urlEncode(order));
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko exchange tickers error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonArray> getExchangeVolumeChart(String id, String days) {
+        String url = baseUrl + "/exchanges/" + urlEncode(id) + "/volume_chart?days=" + urlEncode(days);
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonArray arr = gson.fromJson(r.body().string(), JsonArray.class);
+            return Optional.ofNullable(arr);
+        } catch (IOException e) {
+            log.error("CoinGecko exchange volume error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonArray> getExchangeBtcVolumeChart(String id, String days) {
+        String url = baseUrl + "/exchanges/" + urlEncode(id) + "/btc_volume_chart?days=" + urlEncode(days);
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonArray arr = gson.fromJson(r.body().string(), JsonArray.class);
+            return Optional.ofNullable(arr);
+        } catch (IOException e) {
+            log.error("CoinGecko exchange btc volume error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    // --- Derivatives ---
+    public Optional<JsonArray> listDerivatives(int perPage, int page, String order) {
+        String url = baseUrl + "/derivatives?per_page=" + perPage + "&page=" + page + (order == null ? "" : "&order=" + urlEncode(order));
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonArray arr = gson.fromJson(r.body().string(), JsonArray.class);
+            return Optional.ofNullable(arr);
+        } catch (IOException e) {
+            log.error("CoinGecko derivatives list error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonArray> getDerivativeExchanges(int perPage, int page, String order) {
+        String url = baseUrl + "/derivatives/exchanges?per_page=" + perPage + "&page=" + page + (order == null ? "" : "&order=" + urlEncode(order));
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonArray arr = gson.fromJson(r.body().string(), JsonArray.class);
+            return Optional.ofNullable(arr);
+        } catch (IOException e) {
+            log.error("CoinGecko derivatives exchanges error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonObject> getDerivativeExchangeById(String id) {
+        String url = baseUrl + "/derivatives/exchanges/" + urlEncode(id);
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko derivative exchange error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonArray> getDerivativeExchangeVolumeChart(String id, String days) {
+        String url = baseUrl + "/derivatives/exchanges/" + urlEncode(id) + "/volume_chart?days=" + urlEncode(days);
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonArray arr = gson.fromJson(r.body().string(), JsonArray.class);
+            return Optional.ofNullable(arr);
+        } catch (IOException e) {
+            log.error("CoinGecko derivative volume error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    // --- Treasury & Market-wide ---
+    public Optional<JsonObject> getGlobalData() {
+        String url = baseUrl + "/global";
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko global error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonObject> getGlobalDeFiData() {
+        String url = baseUrl + "/global/decentralized_finance_defi";
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko global defi error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonArray> getSearchTrending() {
+        String url = baseUrl + "/search/trending";
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            if (obj.has("coins")) return Optional.ofNullable(obj.getAsJsonArray("coins"));
+            return Optional.empty();
+        } catch (IOException e) {
+            log.error("CoinGecko trending error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonObject> search(String query) {
+        String url = baseUrl + "/search?query=" + urlEncode(query);
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko search error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    // --- Onchain / DEX ---
+    public Optional<JsonArray> listNetworks() {
+        String url = baseUrl + "/onchain/networks";
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonArray arr = gson.fromJson(r.body().string(), JsonArray.class);
+            return Optional.ofNullable(arr);
+        } catch (IOException e) {
+            log.error("CoinGecko onchain networks error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonArray> getPoolsByNetwork(String network, int perPage, int page, String order) {
+        String url = baseUrl + "/onchain/" + urlEncode(network) + "/pools?per_page=" + perPage + "&page=" + page
+                + (order == null ? "" : "&order=" + urlEncode(order));
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonArray arr = gson.fromJson(r.body().string(), JsonArray.class);
+            return Optional.ofNullable(arr);
+        } catch (IOException e) {
+            log.error("CoinGecko onchain pools error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonObject> getPoolData(String network, String poolAddress) {
+        String url = baseUrl + "/onchain/" + urlEncode(network) + "/pools/" + urlEncode(poolAddress);
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko pool data error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonArray> getTokensByNetwork(String network, int perPage, int page, String order) {
+        String url = baseUrl + "/onchain/" + urlEncode(network) + "/tokens?per_page=" + perPage + "&page=" + page
+                + (order == null ? "" : "&order=" + urlEncode(order));
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonArray arr = gson.fromJson(r.body().string(), JsonArray.class);
+            return Optional.ofNullable(arr);
+        } catch (IOException e) {
+            log.error("CoinGecko onchain tokens error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonObject> getTokenData(String network, String contractAddress) {
+        String url = baseUrl + "/onchain/" + urlEncode(network) + "/tokens/" + urlEncode(contractAddress);
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko onchain token error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonArray> getDexesByNetwork(String network, int perPage, int page, String order) {
+        String url = baseUrl + "/onchain/" + urlEncode(network) + "/dexes?per_page=" + perPage + "&page=" + page
+                + (order == null ? "" : "&order=" + urlEncode(order));
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonArray arr = gson.fromJson(r.body().string(), JsonArray.class);
+            return Optional.ofNullable(arr);
+        } catch (IOException e) {
+            log.error("CoinGecko onchain dexes error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    public Optional<JsonObject> getDexData(String network, String dexName) {
+        String url = baseUrl + "/onchain/" + urlEncode(network) + "/dexes/" + urlEncode(dexName);
+        try (Response r = httpClient.newCall(buildRequest(url)).execute()) {
+            if (!r.isSuccessful() || r.body() == null) return Optional.empty();
+            JsonObject obj = gson.fromJson(r.body().string(), JsonObject.class);
+            return Optional.ofNullable(obj);
+        } catch (IOException e) {
+            log.error("CoinGecko onchain dex error: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    // --- Typed POJO wrappers ---
+    public Map<String, CoinGeckoSimplePrice> getSimplePriceTyped(String idsCsv, String vsCurrency,
+                                                                 boolean includeMarketCap, boolean include24hChange,
+                                                                 boolean includeLastUpdatedAt) {
+        Optional<JsonObject> rootOpt = getSimplePrice(idsCsv, vsCurrency, includeMarketCap, include24hChange, includeLastUpdatedAt);
+        if (rootOpt.isEmpty()) return Collections.emptyMap();
+        JsonObject root = rootOpt.get();
+        Map<String, CoinGeckoSimplePrice> out = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> e : root.entrySet()) {
+            try {
+                JsonObject coinNode = e.getValue().getAsJsonObject();
+                CoinGeckoSimplePrice.fromCoinNode(coinNode).ifPresent(p -> out.put(e.getKey(), p));
+            } catch (Exception ex) {
+                log.debug("parse simple price entry {} failed: {}", e.getKey(), ex.getMessage());
+            }
+        }
+        return out;
+    }
+
+    public List<CoinGeckoMarketCoin> getCoinsMarketsTyped(String vsCurrency, String idsCsv, String order, int perPage, int page,
+                                                          boolean sparkline, String priceChangePercentage) {
+        Optional<JsonArray> arrOpt = getCoinsMarkets(vsCurrency, idsCsv, order, perPage, page, sparkline, priceChangePercentage);
+        if (arrOpt.isEmpty()) return Collections.emptyList();
+        JsonArray arr = arrOpt.get();
+        List<CoinGeckoMarketCoin> out = new ArrayList<>();
+        for (JsonElement el : arr) {
+            try {
+                JsonObject node = el.getAsJsonObject();
+                CoinGeckoMarketCoin.fromJson(node).ifPresent(out::add);
+            } catch (Exception ex) {
+                log.debug("parse markets row failed: {}", ex.getMessage());
+            }
+        }
+        return out;
+    }
+
+    public Optional<CoinGeckoFullCoin> getCoinByIdTyped(String id, boolean localization, boolean marketData,
+                                                        boolean communityData, boolean developerData, boolean sparkline) {
+        Optional<JsonObject> obj = getCoinById(id, localization, marketData, communityData, developerData, sparkline);
+        return obj.map(j -> gson.fromJson(j, CoinGeckoFullCoin.class));
+    }
+
+    public Optional<CoinGeckoMarketChart> getCoinMarketChartTyped(String id, String vsCurrency, String days, String interval) {
+        Optional<JsonObject> obj = getCoinMarketChart(id, vsCurrency, days, interval);
+        return obj.map(j -> gson.fromJson(j, CoinGeckoMarketChart.class));
+    }
+
+    // --- Utilities ---
+    private String urlEncode(String s) {
+        if (s == null) return "";
+        return URLEncoder.encode(s, StandardCharsets.UTF_8);
+    }
 
     // ── Helpers ─────────────────────────────────────────────
 
