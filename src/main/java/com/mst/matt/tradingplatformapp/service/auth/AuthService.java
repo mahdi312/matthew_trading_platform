@@ -75,14 +75,14 @@ public class AuthService {
     /**
      * Attempt login. Returns the logged-in user on success, empty on failure.
      */
-    @Transactional
+    @Transactional(timeout = 5)
     public Optional<AppUser> login(String username, String password) {
         Optional<AppUser> opt = userRepo.findByUsername(username.toLowerCase().trim());
         if (opt.isEmpty()) return Optional.empty();
         AppUser user = opt.get();
         if (!user.isActive() || !user.checkPassword(password)) return Optional.empty();
         user.setLastLoginAt(LocalDateTime.now());
-        userRepo.save(user);
+        userRepo.saveAndFlush(user);
         this.currentUser = user;
         log.info("User '{}' logged in (role={})", username, user.getRole());
         return Optional.of(user);
