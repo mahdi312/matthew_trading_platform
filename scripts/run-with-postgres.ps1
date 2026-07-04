@@ -27,4 +27,4 @@ Write-Host "Postgres ready ($ports). Launching app with docker profile..."
 $env:SPRING_PROFILES_ACTIVE = "docker"
 $env:POSTGRES_HOST = "localhost"
 $env:POSTGRES_PORT = "5432"
-mvn javafx:run
+mvn clean package -DskipTests javafx:run
