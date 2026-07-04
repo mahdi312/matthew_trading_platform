@@ -14,9 +14,27 @@ import java.util.concurrent.TimeUnit;
 /**
  * Shared HTTP client for market-data providers — longer timeouts and simple retries
  * for flaky or slow networks (common cause of empty ticker/chart data).
+ *
+ * <p>Also provides a dedicated WebSocket client ({@code wsHttpClient}) used by
+ * {@link com.mst.matt.tradingplatformapp.service.price.FinnhubWebSocketService}.
  */
 @Configuration
 public class PriceHttpConfig {
+
+    /**
+     * Dedicated OkHttpClient for WebSocket connections (no call timeout,
+     * no retry interceptor, standard timeouts).
+     */
+    @Bean(name = "wsHttpClient")
+    public OkHttpClient wsHttpClient() {
+        return new OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(0, TimeUnit.SECONDS)   // no read timeout for WS
+                .writeTimeout(10, TimeUnit.SECONDS)
+                .pingInterval(20, TimeUnit.SECONDS) // keep WebSocket alive
+                .retryOnConnectionFailure(true)
+                .build();
+    }
 
     @Bean(name = "priceHttpClient")
     public OkHttpClient priceHttpClient(
