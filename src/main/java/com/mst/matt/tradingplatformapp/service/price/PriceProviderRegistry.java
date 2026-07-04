@@ -125,6 +125,7 @@ public class PriceProviderRegistry {
             case CRYPTO -> List.of(
                     MarketDataProvider.BINANCE,
                     MarketDataProvider.COINGECKO,
+                    MarketDataProvider.COINMARKETCAP,
                     MarketDataProvider.TWELVE_DATA,
                     MarketDataProvider.ALPHA_VANTAGE,
                     MarketDataProvider.FINNHUB,

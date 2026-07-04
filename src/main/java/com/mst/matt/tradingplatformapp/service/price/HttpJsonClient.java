@@ -74,17 +74,30 @@ public class HttpJsonClient {
     }
 
     public Optional<JsonObject> getJson(String url) {
-        return getJson(url, null, null);
+        return getJson(url, null, null, null);
     }
 
     public Optional<JsonObject> getJson(String url, String userAgent) {
-        return getJson(url, userAgent, null);
+        return getJson(url, userAgent, null, null);
     }
 
     /**
      * T-23 throttled overload + P3 circuit-breaker gate.
      */
     public Optional<JsonObject> getJson(String url, String userAgent, String throttleKey) {
+        return getJson(url, userAgent, throttleKey, null);
+    }
+
+    /**
+     * Full overload supporting custom HTTP headers (e.g. {@code X-CMC_PRO_API_KEY}).
+     *
+     * @param url          full request URL
+     * @param userAgent    optional User-Agent header value (null = skip)
+     * @param throttleKey  optional sliding-window throttle key (null = no throttle)
+     * @param extraHeaders optional extra headers map (null = none); e.g. for CMC API key
+     */
+    public Optional<JsonObject> getJson(String url, String userAgent, String throttleKey,
+                                        java.util.Map<String, String> extraHeaders) {
         String host = hostOf(url);
 
         // P3 (LOG-FIX): short-circuit dead providers instead of waiting for timeouts.
@@ -102,6 +115,9 @@ public class HttpJsonClient {
                 .addHeader("Accept", "application/json");
         if (userAgent != null) {
             builder.addHeader("User-Agent", userAgent);
+        }
+        if (extraHeaders != null) {
+            extraHeaders.forEach(builder::addHeader);
         }
         try (Response response = http.newCall(builder.build()).execute()) {
             if (!response.isSuccessful() || response.body() == null) {

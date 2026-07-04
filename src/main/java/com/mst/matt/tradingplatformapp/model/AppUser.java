@@ -76,17 +76,17 @@ public class AppUser {
         public List<String> allowedProviders() {
             return switch (this) {
                 case ADMIN, PRO_PLUS_USER -> List.of(
-                        "BINANCE", "COINGECKO", "YAHOO", "FINNHUB",
+                        "BINANCE", "COINGECKO", "COINMARKETCAP", "YAHOO", "FINNHUB",
                         "ALPHA_VANTAGE", "POLYGON", "TWELVE_DATA",
                         "MARKETSTACK", "FRANKFURTER",
                         "FIXER", "FREE_CURRENCY_API", "OPEN_EXCHANGE_RATES",
                         "EXCHANGE_RATE_API", "CURRENCY_LAYER");
                 case PRO_USER -> List.of(
-                        "COINGECKO", "YAHOO", "FINNHUB",
+                        "COINGECKO", "COINMARKETCAP", "YAHOO", "FINNHUB",
                         "ALPHA_VANTAGE", "TWELVE_DATA", "FRANKFURTER",
                         "FREE_CURRENCY_API", "OPEN_EXCHANGE_RATES", "EXCHANGE_RATE_API");
                 case REGULAR_USER -> List.of(
-                        "COINGECKO", "YAHOO", "FRANKFURTER",
+                        "COINGECKO", "COINMARKETCAP", "YAHOO", "FRANKFURTER",
                         "FREE_CURRENCY_API", "EXCHANGE_RATE_API");
             };
         }

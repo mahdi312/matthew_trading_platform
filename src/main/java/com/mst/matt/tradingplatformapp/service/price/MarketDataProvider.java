@@ -14,6 +14,7 @@ public enum MarketDataProvider {
     FINNHUB("Finnhub"),
     TWELVE_DATA("Twelve Data"),
     MARKETSTACK("Marketstack"),
+    COINMARKETCAP("CoinMarketCap"),
     FIXER("Fixer.io"),
     FREE_CURRENCY_API("FreeCurrencyAPI"),
     OPEN_EXCHANGE_RATES("Open Exchange Rates"),
