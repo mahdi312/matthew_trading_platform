@@ -1,6 +1,7 @@
 package com.mst.matt.tradingplatformapp.service.price;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mst.matt.tradingplatformapp.service.price.api.ApiErrorDetector;
 import okhttp3.OkHttpClient;
@@ -98,6 +99,21 @@ public class HttpJsonClient {
      */
     public Optional<JsonObject> getJson(String url, String userAgent, String throttleKey,
                                         java.util.Map<String, String> extraHeaders) {
+        return getJsonElement(url, userAgent, throttleKey, extraHeaders)
+                .filter(JsonElement::isJsonObject)
+                .map(JsonElement::getAsJsonObject);
+    }
+
+    public Optional<JsonElement> getJsonElement(String url) {
+        return getJsonElement(url, null, null, null);
+    }
+
+    public Optional<JsonElement> getJsonElement(String url, String userAgent, String throttleKey) {
+        return getJsonElement(url, userAgent, throttleKey, null);
+    }
+
+    public Optional<JsonElement> getJsonElement(String url, String userAgent, String throttleKey,
+                                                java.util.Map<String, String> extraHeaders) {
         String host = hostOf(url);
 
         // P3 (LOG-FIX): short-circuit dead providers instead of waiting for timeouts.
@@ -133,10 +149,10 @@ public class HttpJsonClient {
                 log.warn("Non-JSON body for {}", abbreviate(url));
                 return Optional.empty();
             }
-            JsonObject root = gson.fromJson(body, JsonObject.class);
-            if (root == null) return Optional.empty();
-            if (ApiErrorDetector.isErrorPayload(root)) {
-                log.warn("API error payload for {}: {}", abbreviate(url), abbreviateError(root));
+            JsonElement root = gson.fromJson(body, JsonElement.class);
+            if (root == null || root.isJsonNull()) return Optional.empty();
+            if (root.isJsonObject() && ApiErrorDetector.isErrorPayload(root.getAsJsonObject())) {
+                log.warn("API error payload for {}: {}", abbreviate(url), abbreviateError(root.getAsJsonObject()));
                 return Optional.empty();
             }
             // P3 success path: reset the failure counter for this host.

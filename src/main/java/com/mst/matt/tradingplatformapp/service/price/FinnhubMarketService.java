@@ -224,7 +224,7 @@ public class FinnhubMarketService {
         if (cached != null && !cached.isExpired()) return cached.value;
 
         String url = buildUrl("/stock/symbol", "exchange=" + urlEnc(exchange));
-        return http.getJson(url, null, THROTTLE_KEY)
+        return http.getJsonElement(url, null, THROTTLE_KEY)
                 .map(root -> {
                     if (!root.isJsonArray()) return Collections.<FinnhubSymbolEntry>emptyList();
                     List<FinnhubSymbolEntry> list = new ArrayList<>();
@@ -256,7 +256,7 @@ public class FinnhubMarketService {
         if (cached != null && !cached.isExpired()) return cached.value;
 
         String url = buildUrl("/forex/symbol", "exchange=" + urlEnc(exc));
-        return http.getJson(url, null, THROTTLE_KEY)
+        return http.getJsonElement(url, null, THROTTLE_KEY)
                 .map(root -> parseSymbolArray(root))
                 .map(list -> {
                     symbolsCache.put(key, new CacheEntry<>(list, SYMBOLS_CACHE_TTL_MS));
@@ -280,7 +280,7 @@ public class FinnhubMarketService {
         if (cached != null && !cached.isExpired()) return cached.value;
 
         String url = buildUrl("/crypto/symbol", "exchange=" + urlEnc(exc));
-        return http.getJson(url, null, THROTTLE_KEY)
+        return http.getJsonElement(url, null, THROTTLE_KEY)
                 .map(root -> parseSymbolArray(root))
                 .map(list -> {
                     symbolsCache.put(key, new CacheEntry<>(list, SYMBOLS_CACHE_TTL_MS));
@@ -337,7 +337,7 @@ public class FinnhubMarketService {
         if (cached != null && !cached.isExpired()) return cached.value;
 
         String url = buildUrl("/stock/peers", "symbol=" + sym);
-        return http.getJson(url, null, THROTTLE_KEY)
+        return http.getJsonElement(url, null, THROTTLE_KEY)
                 .map(root -> {
                     if (!root.isJsonArray()) return Collections.<String>emptyList();
                     List<String> peers = new ArrayList<>();
@@ -373,7 +373,7 @@ public class FinnhubMarketService {
 
         String params = "symbol=" + sym + "&from=" + from + "&to=" + to;
         String url = buildUrl("/stock/dividend", params);
-        return http.getJson(url, null, THROTTLE_KEY)
+        return http.getJsonElement(url, null, THROTTLE_KEY)
                 .map(root -> parseArray(root, FinnhubDividend.class))
                 .map(list -> {
                     dividendCache.put(key, new CacheEntry<>(list, DIVIDEND_CACHE_TTL_MS));
@@ -402,7 +402,7 @@ public class FinnhubMarketService {
 
         String params = "symbol=" + sym + "&from=" + from + "&to=" + to;
         String url = buildUrl("/stock/split", params);
-        return http.getJson(url, null, THROTTLE_KEY)
+        return http.getJsonElement(url, null, THROTTLE_KEY)
                 .map(root -> parseArray(root, FinnhubSplit.class))
                 .map(list -> {
                     splitCache.put(key, new CacheEntry<>(list, SPLIT_CACHE_TTL_MS));
@@ -430,7 +430,7 @@ public class FinnhubMarketService {
 
         int lim = limit > 0 ? limit : 4;
         String url = buildUrl("/stock/earnings", "symbol=" + sym + "&limit=" + lim);
-        return http.getJson(url, null, THROTTLE_KEY)
+        return http.getJsonElement(url, null, THROTTLE_KEY)
                 .map(root -> parseArray(root, FinnhubEarningsSurprise.class))
                 .map(list -> {
                     earningsCache.put(key, new CacheEntry<>(list, EARNINGS_CACHE_TTL_MS));
@@ -455,7 +455,7 @@ public class FinnhubMarketService {
         if (cached != null && !cached.isExpired()) return cached.value;
 
         String url = buildUrl("/stock/recommendation", "symbol=" + sym);
-        return http.getJson(url, null, THROTTLE_KEY)
+        return http.getJsonElement(url, null, THROTTLE_KEY)
                 .map(root -> parseArray(root, FinnhubRecommendationTrend.class))
                 .map(list -> {
                     recCache.put(sym, new CacheEntry<>(list, RECOMMEND_CACHE_TTL_MS));
@@ -708,7 +708,7 @@ public class FinnhubMarketService {
         if (cached != null && !cached.isExpired()) return cached.value;
 
         String url = buildUrl("/news", "category=" + cat);
-        return http.getJson(url, null, THROTTLE_KEY)
+        return http.getJsonElement(url, null, THROTTLE_KEY)
                 .map(root -> parseArticleArray(root))
                 .map(list -> {
                     newsCache.put(cat, new CacheEntry<>(list, NEWS_CACHE_TTL_MS));
@@ -735,7 +735,7 @@ public class FinnhubMarketService {
 
         String params = "symbol=" + sym + "&from=" + from + "&to=" + to;
         String url = buildUrl("/company-news", params);
-        return http.getJson(url, null, THROTTLE_KEY)
+        return http.getJsonElement(url, null, THROTTLE_KEY)
                 .map(root -> parseArticleArray(root))
                 .map(list -> {
                     newsCache.put(key, new CacheEntry<>(list, NEWS_CACHE_TTL_MS));
@@ -1024,15 +1024,17 @@ public class FinnhubMarketService {
             return Optional.ofNullable(econCodesCache.value);
 
         String url = buildUrl("/economic/code", "");
-        return http.getJson(url, null, THROTTLE_KEY)
+        return http.getJsonElement(url, null, THROTTLE_KEY)
                 .map(root -> {
                     if (root.isJsonArray()) {
                         JsonArray arr = root.getAsJsonArray();
                         econCodesCache = new CacheEntry<>(arr, ECONOMIC_CACHE_TTL_MS);
                         return arr;
                     }
-                    if (root.has("data") && root.get("data").isJsonArray()) {
-                        JsonArray arr = root.getAsJsonArray("data");
+                    if (root.isJsonObject()
+                            && root.getAsJsonObject().has("data")
+                            && root.getAsJsonObject().get("data").isJsonArray()) {
+                        JsonArray arr = root.getAsJsonObject().getAsJsonArray("data");
                         econCodesCache = new CacheEntry<>(arr, ECONOMIC_CACHE_TTL_MS);
                         return arr;
                     }
@@ -1053,7 +1055,7 @@ public class FinnhubMarketService {
         if (cached != null && !cached.isExpired()) return cached.value;
 
         String url = buildUrl("/economic", "code=" + urlEnc(code));
-        return http.getJson(url, null, THROTTLE_KEY)
+        return http.getJsonElement(url, null, THROTTLE_KEY)
                 .map(root -> {
                     // Response can be an array at root or wrapped in a field
                     if (root.isJsonArray()) {
@@ -1295,11 +1297,13 @@ public class FinnhubMarketService {
 
     // ─── Parse helpers ────────────────────────────────────────────────────────
 
-    private List<FinnhubSymbolEntry> parseSymbolArray(JsonObject root) {
+    private List<FinnhubSymbolEntry> parseSymbolArray(JsonElement root) {
         if (!root.isJsonArray()) {
             // Sometimes the response is wrapped in a field
-            if (root.has("data") && root.get("data").isJsonArray()) {
-                return parseSymbolEntries(root.getAsJsonArray("data"));
+            if (root.isJsonObject()
+                    && root.getAsJsonObject().has("data")
+                    && root.getAsJsonObject().get("data").isJsonArray()) {
+                return parseSymbolEntries(root.getAsJsonObject().getAsJsonArray("data"));
             }
             return Collections.emptyList();
         }
@@ -1315,13 +1319,15 @@ public class FinnhubMarketService {
         return list;
     }
 
-    private <T> List<T> parseArray(JsonObject root, Class<T> type) {
+    private <T> List<T> parseArray(JsonElement root, Class<T> type) {
         List<T> list = new ArrayList<>();
         JsonArray arr = null;
         if (root.isJsonArray()) {
             arr = root.getAsJsonArray();
-        } else if (root.has("data") && root.get("data").isJsonArray()) {
-            arr = root.getAsJsonArray("data");
+        } else if (root.isJsonObject()
+                && root.getAsJsonObject().has("data")
+                && root.getAsJsonObject().get("data").isJsonArray()) {
+            arr = root.getAsJsonObject().getAsJsonArray("data");
         }
         if (arr != null) {
             arr.forEach(el -> {
@@ -1334,7 +1340,7 @@ public class FinnhubMarketService {
         return list;
     }
 
-    private List<FinnhubNewsArticle> parseArticleArray(JsonObject root) {
+    private List<FinnhubNewsArticle> parseArticleArray(JsonElement root) {
         if (!root.isJsonArray()) return Collections.emptyList();
         return parseArray(root, FinnhubNewsArticle.class);
     }

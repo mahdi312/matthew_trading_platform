@@ -21,7 +21,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 /**
@@ -105,7 +106,7 @@ class AlertServiceTest {
         PriceQuote quote = buildQuote("BTCUSDT", "75000", "2.5");
         when(alertRepository.findByActiveTrue()).thenReturn(List.of(baseAlert));
         when(priceRouter.getQuote("BTCUSDT")).thenReturn(Optional.of(quote));
-        when(alertRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        stubTriggeredPersistence(baseAlert);
 
         alertService.checkAlerts();
 
@@ -142,7 +143,7 @@ class AlertServiceTest {
         PriceQuote quote = buildQuote("BTCUSDT", "55000", "-3.0");
         when(alertRepository.findByActiveTrue()).thenReturn(List.of(belowAlert));
         when(priceRouter.getQuote("BTCUSDT")).thenReturn(Optional.of(quote));
-        when(alertRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        stubTriggeredPersistence(belowAlert);
 
         alertService.checkAlerts();
 
@@ -161,7 +162,7 @@ class AlertServiceTest {
         PriceQuote quote = buildQuote("BTCUSDT", "70000", "7.5");
         when(alertRepository.findByActiveTrue()).thenReturn(List.of(pctAlert));
         when(priceRouter.getQuote("BTCUSDT")).thenReturn(Optional.of(quote));
-        when(alertRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        stubTriggeredPersistence(pctAlert);
 
         alertService.checkAlerts();
 
@@ -176,7 +177,7 @@ class AlertServiceTest {
 
         when(alertRepository.findByActiveTrue()).thenReturn(List.of(repeating));
         when(priceRouter.getQuote("BTCUSDT")).thenReturn(Optional.of(quote));
-        when(alertRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        stubTriggeredPersistence(repeating);
 
         alertService.checkAlerts();
 
@@ -222,7 +223,7 @@ class AlertServiceTest {
 
         when(alertRepository.findByActiveTrue()).thenReturn(List.of(emailAlert));
         when(priceRouter.getQuote("BTCUSDT")).thenReturn(Optional.of(quote));
-        when(alertRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        stubTriggeredPersistence(emailAlert);
 
         alertService.checkAlerts();
 
@@ -241,7 +242,7 @@ class AlertServiceTest {
 
         when(alertRepository.findByActiveTrue()).thenReturn(List.of(tgAlert));
         when(priceRouter.getQuote("BTCUSDT")).thenReturn(Optional.of(quote));
-        when(alertRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        stubTriggeredPersistence(tgAlert);
 
         alertService.checkAlerts();
 
@@ -260,7 +261,7 @@ class AlertServiceTest {
 
         when(alertRepository.findByActiveTrue()).thenReturn(List.of(allChannels));
         when(priceRouter.getQuote("BTCUSDT")).thenReturn(Optional.of(quote));
-        when(alertRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        stubTriggeredPersistence(allChannels);
 
         alertService.checkAlerts();
 
@@ -348,7 +349,7 @@ class AlertServiceTest {
         PriceQuote quote = buildQuote("BTCUSDT", "70000", "1.0");
         when(alertRepository.findByActiveTrue()).thenReturn(List.of(buyAlert));
         when(priceRouter.getQuote("BTCUSDT")).thenReturn(Optional.of(quote));
-        when(alertRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        stubTriggeredPersistence(buyAlert);
 
         alertService.triggerIndicatorAlert("BTCUSDT", true);
 
@@ -420,5 +421,10 @@ class AlertServiceTest {
                 .changePct24h(new BigDecimal(changePct))
                 .isUp(new BigDecimal(changePct).compareTo(BigDecimal.ZERO) > 0)
                 .build();
+    }
+
+    private void stubTriggeredPersistence(PriceAlert alert) {
+        when(alertRepository.findById(alert.getId())).thenReturn(Optional.of(alert));
+        when(alertRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 }
