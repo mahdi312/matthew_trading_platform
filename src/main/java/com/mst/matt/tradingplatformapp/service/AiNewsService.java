@@ -1,5 +1,7 @@
 package com.mst.matt.tradingplatformapp.service;
 
+import com.mst.matt.tradingplatformapp.service.ai.AiLlmModel;
+import com.mst.matt.tradingplatformapp.service.ai.AiLlmModelRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,24 +16,25 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * AI News & Insights service.
  *
  * <p>Aggregates recent news from Finnhub (if API key is configured) and
- * generates AI-powered investment summaries using OpenAI GPT (if key is
- * configured in application-local.properties).
+ * generates AI-powered investment summaries using a user-selected LLM provider
+ * (OpenAI, Groq, Cerebras, DeepSeek, Anthropic Claude, etc.).
  *
  * <p>Priority:
  * <ol>
  *   <li>Fetch live news from Finnhub (if {@code app.api.finnhub.key} is set)</li>
- *   <li>Generate AI recommendation via OpenAI (if {@code app.api.openai.key} is set)</li>
- *   <li>Fall back to rule-based recommendation when OpenAI is not configured</li>
+ *   <li>Generate AI recommendation via the selected LLM (if its API key is set)</li>
+ *   <li>Fall back to rule-based recommendation when no LLM key is configured</li>
  *   <li>Use sample news only when Finnhub is also not configured</li>
  * </ol>
  *
- * <p>Results are cached per symbol with a 15-minute TTL to avoid rate-limit pressure.
+ * <p>Results are cached per symbol + model with a 15-minute TTL to avoid rate-limit pressure.
  */
 @Service
 public class AiNewsService {
@@ -39,25 +42,20 @@ public class AiNewsService {
     private static final Logger log = LoggerFactory.getLogger(AiNewsService.class);
     private static final Duration CACHE_TTL = Duration.ofMinutes(15);
 
-    // Keys read from application-local.properties (or application.properties as fallback)
     @Value("${app.api.finnhub.key:}")
     private String finnhubKey;
 
     @Value("${app.api.alphavantage.key:}")
     private String alphaVantageKey;
 
-    @Value("${app.api.openai.key:}")
-    private String openAiKey;
-
-    @Value("${app.api.openai.model:gpt-4o-mini}")
-    private String openAiModel;
-
-    @Value("${app.api.openai.base-url:https://api.openai.com/v1}")
-    private String openAiBaseUrl;
-
+    private final AiLlmModelRegistry modelRegistry;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
+
+    public AiNewsService(AiLlmModelRegistry modelRegistry) {
+        this.modelRegistry = modelRegistry;
+    }
 
     // ── In-memory cache ────────────────────────────────────────────────────────
 
@@ -81,6 +79,9 @@ public class AiNewsService {
             String overallSentiment,   // "BULLISH", "NEUTRAL", "BEARISH"
             String recommendation,
             String riskWarning,
+            String modelLabel,
+            boolean aiGenerated,
+            String llmNotice,
             LocalDateTime generatedAt
     ) {}
 
@@ -98,23 +99,52 @@ public class AiNewsService {
      * @return       insight, never null
      */
     public AiInsight getInsight(String query) {
-        if (query == null || query.isBlank()) query = "MARKET";
-        String key = query.trim().toUpperCase();
+        return getInsight(query, null);
+    }
 
-        CachedInsight cached = cache.get(key);
+    /**
+     * Fetches AI-generated news insight using the selected LLM model.
+     *
+     * @param query    symbol or natural-language query
+     * @param modelId  registry id (e.g. {@code groq:llama-3.3-70b}); uses default when null
+     */
+    public AiInsight getInsight(String query, String modelId) {
+        if (query == null || query.isBlank()) query = "MARKET";
+        String normalizedQuery = query.trim().toUpperCase();
+        AiLlmModel model = resolveModel(modelId).orElse(null);
+        String cacheKey = cacheKey(normalizedQuery, model);
+
+        CachedInsight cached = cache.get(cacheKey);
         if (cached != null && cached.isValid()) {
-            log.debug("AI news cache hit for '{}'", key);
+            log.debug("AI news cache hit for '{}'", cacheKey);
             return cached.insight();
         }
 
-        AiInsight insight = fetchInsight(key);
-        cache.put(key, new CachedInsight(insight, LocalDateTime.now().plus(CACHE_TTL)));
+        AiInsight insight = fetchInsight(normalizedQuery, model);
+        cache.put(cacheKey, new CachedInsight(insight, LocalDateTime.now().plus(CACHE_TTL)));
         return insight;
     }
 
-    /** Clears the cache entry for a specific symbol/query. */
+    /** Returns all models for the UI picker. */
+    public List<AiLlmModel> availableModels() {
+        return modelRegistry.allModels();
+    }
+
+    /** Returns models that have an API key configured. */
+    public List<AiLlmModel> configuredModels() {
+        return modelRegistry.configuredModels();
+    }
+
+    /** Default model based on {@code app.api.openai.model} or first configured provider. */
+    public Optional<AiLlmModel> defaultModel() {
+        return modelRegistry.defaultModel();
+    }
+
+    /** Clears cached insights for a specific symbol/query (all models). */
     public void invalidate(String query) {
-        if (query != null) cache.remove(query.trim().toUpperCase());
+        if (query == null) return;
+        String prefix = query.trim().toUpperCase() + "::";
+        cache.keySet().removeIf(k -> k.equals(query.trim().toUpperCase()) || k.startsWith(prefix));
     }
 
     /** Returns a list of popular symbols for the autocomplete dropdown. */
@@ -129,7 +159,21 @@ public class AiNewsService {
 
     // ── Private implementation ─────────────────────────────────────────────────
 
-    private AiInsight fetchInsight(String query) {
+    private Optional<AiLlmModel> resolveModel(String modelId) {
+        if (modelId != null && !modelId.isBlank()) {
+            return modelRegistry.findById(modelId)
+                    .filter(modelRegistry::hasApiKey)
+                    .map(modelRegistry::effectiveModel);
+        }
+        return modelRegistry.defaultModel();
+    }
+
+    private static String cacheKey(String query, AiLlmModel model) {
+        String modelPart = model != null ? model.id() + ":" + model.modelId() : "rule-based";
+        return query + "::" + modelPart;
+    }
+
+    private AiInsight fetchInsight(String query, AiLlmModel model) {
         boolean isSymbol = query.matches("[A-Z0-9]{2,12}");
 
         List<NewsItem> news = new ArrayList<>();
@@ -141,31 +185,45 @@ public class AiNewsService {
         }
 
         // 2. If Finnhub returned nothing (or no key), use sample news as context
-        boolean usedSampleNews = false;
         if (news.isEmpty()) {
             news.addAll(generateSampleNews(query));
-            usedSampleNews = true;
         }
 
-        // 3. Generate AI recommendation — real OpenAI if key is set, otherwise rule-based
+        // 3. Generate AI recommendation — selected LLM if key is set, otherwise rule-based
         String sentiment = computeOverallSentiment(news);
         String recommendation;
         String risk;
+        String modelLabel;
+        boolean aiGenerated;
+        String llmNotice = null;
 
-        if (!openAiKey.isBlank()) {
-            // Use OpenAI to generate a real AI recommendation
-            recommendation = generateOpenAiRecommendation(query, news, sentiment);
-            risk = generateOpenAiRiskWarning(query, news);
+        if (model != null && modelRegistry.hasApiKey(model)) {
+            LlmTextResult recResult = generateLlmRecommendation(model, query, news, sentiment);
+            LlmTextResult riskResult = generateLlmRiskWarning(model, query, news);
+            recommendation = recResult.text();
+            risk = riskResult.text();
+            aiGenerated = recResult.aiGenerated() && riskResult.aiGenerated();
+            modelLabel = aiGenerated ? model.label() : "Rule-based fallback";
+            llmNotice = firstNonBlank(recResult.error(), riskResult.error());
         } else {
-            // Rule-based fallback (no OpenAI key configured)
-            log.debug("OpenAI key not configured — using rule-based recommendation for {}", query);
-            recommendation = generateRuleBasedRecommendation(query, sentiment, news);
+            modelLabel = "Rule-based (no AI key)";
+            aiGenerated = false;
+            log.debug("No LLM API key configured — using rule-based recommendation for {}", query);
+            recommendation = generateRuleBasedRecommendation(query, sentiment, news, false);
             risk = generateRuleBasedRiskWarning(query, news);
         }
 
-        return new AiInsight(query, query, news, sentiment, recommendation, risk,
-                LocalDateTime.now());
+        return new AiInsight(query, query, news, sentiment, recommendation, risk, modelLabel,
+                aiGenerated, llmNotice, LocalDateTime.now());
     }
+
+    private static String firstNonBlank(String a, String b) {
+        if (a != null && !a.isBlank()) return a;
+        if (b != null && !b.isBlank()) return b;
+        return null;
+    }
+
+    private record LlmTextResult(String text, String error, boolean aiGenerated) {}
 
     // ── Finnhub news fetching ──────────────────────────────────────────────────
 
@@ -217,17 +275,10 @@ public class AiNewsService {
         return items;
     }
 
-    // ── OpenAI recommendation generation ──────────────────────────────────────
+    // ── LLM recommendation generation ─────────────────────────────────────────
 
-    /**
-     * Calls OpenAI Chat Completions to generate a real AI investment recommendation
-     * based on the collected news items.
-     *
-     * <p>The API key is read from {@code app.api.openai.key} in
-     * {@code application-local.properties}.
-     */
-    private String generateOpenAiRecommendation(String query, List<NewsItem> news,
-                                                  String sentiment) {
+    private LlmTextResult generateLlmRecommendation(AiLlmModel model, String query, List<NewsItem> news,
+                                                    String sentiment) {
         try {
             StringBuilder newsContext = new StringBuilder();
             for (NewsItem item : news) {
@@ -242,22 +293,25 @@ public class AiNewsService {
                     + "\nProvide a practical recommendation including suggested action, "
                     + "key levels to watch, and important caveats. Be specific and professional.";
 
-            String requestBody = buildOpenAiRequest(prompt, 200);
-            String response = callOpenAi(requestBody);
-            if (response != null && !response.isBlank()) {
-                return response;
+            LlmCallResult response = callLlm(model, prompt, 200);
+            if (response.success()) {
+                return new LlmTextResult(response.content(), null, true);
             }
+            return new LlmTextResult(
+                    generateRuleBasedRecommendation(query, sentiment, news, true),
+                    response.error(),
+                    false);
         } catch (Exception e) {
-            log.warn("OpenAI recommendation generation failed for {}: {}", query, e.getMessage());
+            log.warn("{} recommendation generation failed for {}: {}",
+                    model.providerName(), query, e.getMessage());
+            return new LlmTextResult(
+                    generateRuleBasedRecommendation(query, sentiment, news, true),
+                    model.providerName() + " error: " + e.getMessage(),
+                    false);
         }
-        // Fallback to rule-based
-        return generateRuleBasedRecommendation(query, sentiment, news);
     }
 
-    /**
-     * Calls OpenAI Chat Completions to generate a concise risk warning.
-     */
-    private String generateOpenAiRiskWarning(String query, List<NewsItem> news) {
+    private LlmTextResult generateLlmRiskWarning(AiLlmModel model, String query, List<NewsItem> news) {
         try {
             StringBuilder newsContext = new StringBuilder();
             for (NewsItem item : news) {
@@ -269,24 +323,94 @@ public class AiNewsService {
                     + "aware of. Keep it concise (2-3 sentences total). Focus on actionable risks.\n\n"
                     + "News:\n" + newsContext;
 
-            String requestBody = buildOpenAiRequest(prompt, 120);
-            String response = callOpenAi(requestBody);
-            if (response != null && !response.isBlank()) {
-                return response;
+            LlmCallResult response = callLlm(model, prompt, 120);
+            if (response.success()) {
+                return new LlmTextResult(response.content(), null, true);
             }
+            return new LlmTextResult(
+                    generateRuleBasedRiskWarning(query, news),
+                    response.error(),
+                    false);
         } catch (Exception e) {
-            log.warn("OpenAI risk warning generation failed for {}: {}", query, e.getMessage());
+            log.warn("{} risk warning generation failed for {}: {}",
+                    model.providerName(), query, e.getMessage());
+            return new LlmTextResult(
+                    generateRuleBasedRiskWarning(query, news),
+                    model.providerName() + " error: " + e.getMessage(),
+                    false);
         }
-        return generateRuleBasedRiskWarning(query, news);
     }
 
-    /**
-     * Builds the JSON payload for the OpenAI Chat Completions API.
-     */
-    private String buildOpenAiRequest(String userPrompt, int maxTokens) {
-        // Use Gson to safely build JSON without string interpolation issues
+    private record LlmCallResult(String content, String error) {
+        boolean success() {
+            return content != null && !content.isBlank();
+        }
+    }
+
+    private LlmCallResult callLlm(AiLlmModel model, String userPrompt, int maxTokens) throws Exception {
+        String apiKey = modelRegistry.resolveApiKey(model);
+        if (apiKey.isBlank()) {
+            return new LlmCallResult(null, "API key not configured for " + model.providerName());
+        }
+
+        String requestBody = model.format() == AiLlmModel.ApiFormat.ANTHROPIC
+                ? buildAnthropicRequest(model, userPrompt, maxTokens)
+                : buildOpenAiCompatRequest(model, userPrompt, maxTokens);
+
+        HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
+                .timeout(Duration.ofSeconds(30))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody));
+
+        if (model.format() == AiLlmModel.ApiFormat.ANTHROPIC) {
+            reqBuilder.uri(URI.create(model.baseUrl() + "/messages"))
+                    .header("x-api-key", apiKey)
+                    .header("anthropic-version", "2023-06-01");
+        } else {
+            reqBuilder.uri(URI.create(model.baseUrl() + "/chat/completions"))
+                    .header("Authorization", "Bearer " + apiKey);
+        }
+
+        HttpResponse<String> resp = httpClient.send(reqBuilder.build(), HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() != 200) {
+            String error = parseApiError(model.providerName(), resp.statusCode(), resp.body());
+            log.warn("{} API returned HTTP {}: {}", model.providerName(), resp.statusCode(), error);
+            return new LlmCallResult(null, error);
+        }
+
+        String content = model.format() == AiLlmModel.ApiFormat.ANTHROPIC
+                ? parseAnthropicResponse(resp.body())
+                : parseOpenAiCompatResponse(resp.body());
+        if (content == null || content.isBlank()) {
+            return new LlmCallResult(null, model.providerName() + " returned an empty response");
+        }
+        return new LlmCallResult(content, null);
+    }
+
+    private String parseApiError(String provider, int statusCode, String body) {
+        try {
+            var json = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+            if (json.has("error")) {
+                var err = json.get("error");
+                if (err.isJsonObject() && err.getAsJsonObject().has("message")) {
+                    return provider + " HTTP " + statusCode + ": "
+                            + err.getAsJsonObject().get("message").getAsString();
+                }
+                return provider + " HTTP " + statusCode + ": " + err.getAsString();
+            }
+            if (json.has("message")) {
+                return provider + " HTTP " + statusCode + ": " + json.get("message").getAsString();
+            }
+        } catch (Exception ignored) {
+            // fall through
+        }
+        String snippet = body != null && body.length() > 160 ? body.substring(0, 160) + "…" : body;
+        return provider + " HTTP " + statusCode + (snippet != null ? ": " + snippet : "");
+    }
+
+    private String buildOpenAiCompatRequest(AiLlmModel model, String userPrompt, int maxTokens) {
         com.google.gson.JsonObject root = new com.google.gson.JsonObject();
-        root.addProperty("model", openAiModel);
+        root.addProperty("model", model.modelId());
         root.addProperty("max_tokens", maxTokens);
         root.addProperty("temperature", 0.7);
 
@@ -300,35 +424,35 @@ public class AiNewsService {
         return new com.google.gson.Gson().toJson(root);
     }
 
-    /**
-     * Sends a request to the OpenAI Chat Completions endpoint and returns the
-     * content of the first choice, or {@code null} on error.
-     */
-    private String callOpenAi(String requestBody) throws Exception {
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(openAiBaseUrl + "/chat/completions"))
-                .timeout(Duration.ofSeconds(30))
-                .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + openAiKey)
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .build();
+    private String buildAnthropicRequest(AiLlmModel model, String userPrompt, int maxTokens) {
+        com.google.gson.JsonObject root = new com.google.gson.JsonObject();
+        root.addProperty("model", model.modelId());
+        root.addProperty("max_tokens", maxTokens);
 
-        HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        if (resp.statusCode() != 200) {
-            log.warn("OpenAI API returned HTTP {}: {}", resp.statusCode(),
-                    resp.body().length() > 200 ? resp.body().substring(0, 200) : resp.body());
-            return null;
-        }
+        com.google.gson.JsonArray messages = new com.google.gson.JsonArray();
+        com.google.gson.JsonObject msg = new com.google.gson.JsonObject();
+        msg.addProperty("role", "user");
+        msg.addProperty("content", userPrompt);
+        messages.add(msg);
+        root.add("messages", messages);
 
-        // Parse the response: choices[0].message.content
-        com.google.gson.JsonObject json = com.google.gson.JsonParser
-                .parseString(resp.body()).getAsJsonObject();
+        return new com.google.gson.Gson().toJson(root);
+    }
+
+    private String parseOpenAiCompatResponse(String body) {
+        com.google.gson.JsonObject json = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
         var choices = json.getAsJsonArray("choices");
         if (choices == null || choices.isEmpty()) return null;
-        var message = choices.get(0).getAsJsonObject()
-                .getAsJsonObject("message");
+        var message = choices.get(0).getAsJsonObject().getAsJsonObject("message");
         if (message == null) return null;
         return message.get("content").getAsString().trim();
+    }
+
+    private String parseAnthropicResponse(String body) {
+        com.google.gson.JsonObject json = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+        var content = json.getAsJsonArray("content");
+        if (content == null || content.isEmpty()) return null;
+        return content.get(0).getAsJsonObject().get("text").getAsString().trim();
     }
 
     // ── Heuristic helpers ──────────────────────────────────────────────────────
@@ -360,22 +484,23 @@ public class AiNewsService {
     // ── Rule-based fallbacks (used when OpenAI key is not configured) ──────────
 
     private String generateRuleBasedRecommendation(String query, String sentiment,
-                                                    List<NewsItem> news) {
+                                                    List<NewsItem> news, boolean afterLlmFailure) {
         long bull = news.stream().filter(n -> "BULLISH".equals(n.sentiment())).count();
         long bear = news.stream().filter(n -> "BEARISH".equals(n.sentiment())).count();
+        String suffix = afterLlmFailure
+                ? ""
+                : " (Configure an AI provider API key in application-local.properties for AI-generated analysis.)";
         return switch (sentiment) {
             case "BULLISH" -> query + " is showing positive momentum with " + bull
                     + " bullish signal(s). Consider a long position with a defined stop-loss "
                     + "below recent support. Confirm with volume and technical trend direction "
-                    + "before entering. (Configure app.api.openai.key for AI-generated analysis.)";
+                    + "before entering." + suffix;
             case "BEARISH" -> query + " faces " + bear + " bearish headwind(s). Exercise caution — "
                     + "consider waiting for a confirmed reversal or managing existing longs with "
-                    + "tighter stops. Short positions may be viable for experienced traders. "
-                    + "(Configure app.api.openai.key for AI-generated analysis.)";
+                    + "tighter stops. Short positions may be viable for experienced traders." + suffix;
             default -> query + " sentiment is mixed. News flow is balanced between positive and "
                     + "negative catalysts. Consider waiting for a clearer directional signal "
-                    + "before opening new positions. Monitor key support/resistance levels closely. "
-                    + "(Configure app.api.openai.key for AI-generated analysis.)";
+                    + "before opening new positions. Monitor key support/resistance levels closely." + suffix;
         };
     }
 

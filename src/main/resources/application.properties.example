@@ -19,9 +19,14 @@ api.coingecko-key=
 api.polygon-key=
 api.marketstack-key=
 api.finnhub-key=
-# OpenAI — required for AI News & Insights tab
+# OpenAI — AI News & Insights tab
 app.api.openai.key=
 app.api.openai.model=gpt-4o-mini
+# Additional LLM providers (optional)
+app.api.groq.key=
+app.api.cerebras.key=
+app.api.deepseek.key=
+app.api.anthropic.key=
 api.fred-key=
 api.coinmarketcap-key=
 api.openexchangerates-key=
