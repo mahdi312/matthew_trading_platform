@@ -292,20 +292,106 @@ public class IndicatorMixerController implements Initializable {
         });
     }
 
+    /**
+     * Issue #6: Called by MainDashboardController when the chart symbol changes.
+     * Updates the mixer's symbol field and reloads indicator data.
+     */
+    public void setSymbol(String symbol) {
+        if (symbol == null || symbol.isBlank()) return;
+        String sym = symbol.trim().toUpperCase();
+        if (sym.equals(mixerSymbol)) return;
+        mixerSymbol = sym;
+        javafx.application.Platform.runLater(() -> {
+            if (autocompleteField != null) {
+                autocompleteField.setSymbol(mixerSymbol);
+            } else if (mixerSymbolField != null) {
+                mixerSymbolField.setText(mixerSymbol);
+            }
+            if (mixerSymbolCombo != null
+                    && !mixerSymbol.equals(mixerSymbolCombo.getValue())) {
+                if (!mixerSymbolCombo.getItems().contains(mixerSymbol)) {
+                    mixerSymbolCombo.getItems().add(0, mixerSymbol);
+                }
+                mixerSymbolCombo.setValue(mixerSymbol);
+            }
+        });
+    }
+
     public void setProfile(UserProfile profile) {
         this.activeProfile = profile;
-        // Update mixer symbol to match profile default if not already customized
-        if (profile != null && profile.getDefaultSymbol() != null
-                && !profile.getDefaultSymbol().isBlank()) {
-            mixerSymbol = profile.getDefaultSymbol().toUpperCase();
-            if (autocompleteField != null) autocompleteField.setSymbol(mixerSymbol);
-            else if (mixerSymbolField != null) mixerSymbolField.setText(mixerSymbol);
-            if (mixerSymbolCombo != null) {
-                // Refresh symbol list for this profile's asset focus
-                populateMixerSymbolCombo();
+        if (profile == null) { loadConfig(); return; }
+
+        // Always update mixer symbol to match the new profile's default symbol.
+        // This ensures the symbol field stays in sync whenever the active profile changes.
+        String profileSymbol = profile.getDefaultSymbol();
+        if (profileSymbol != null && !profileSymbol.isBlank()) {
+            String newSym = profileSymbol.toUpperCase();
+            if (!newSym.equals(mixerSymbol)) {
+                mixerSymbol = newSym;
+                // Sync all symbol UI components
+                if (autocompleteField != null) {
+                    autocompleteField.setSymbol(mixerSymbol);
+                } else if (mixerSymbolField != null) {
+                    mixerSymbolField.setText(mixerSymbol);
+                }
             }
         }
+
+        // Always rebuild the symbol combo for the new profile's asset focus
+        // (so the dropdown shows relevant symbols for crypto/stock/forex profiles)
+        populateMixerSymbolComboForProfile(profile);
+
         loadConfig();
+        // Reload indicators for the (potentially new) symbol
+        reloadMixerIndicators();
+    }
+
+    /**
+     * Populate the mixer symbol combo filtered for the given profile's asset focus.
+     * Falls back to the full list if no focus-specific symbols are available.
+     */
+    private void populateMixerSymbolComboForProfile(UserProfile profile) {
+        if (mixerSymbolCombo == null) return;
+        Thread.ofVirtual().start(() -> {
+            try {
+                List<String> symbols = symbolEntryRepository.findAll()
+                        .stream().map(SymbolEntry::getSymbol).sorted()
+                        .collect(Collectors.toList());
+
+                // Filter by asset focus when possible
+                if (profile != null && profile.getAssetFocus() != null && !symbols.isEmpty()) {
+                    String focus = profile.getAssetFocus().name(); // CRYPTO / STOCK / FOREX / MULTI
+                    List<String> filtered = symbols.stream().filter(s -> {
+                        switch (focus) {
+                            case "CRYPTO" -> { return s.endsWith("USDT") || s.endsWith("BTC"); }
+                            case "FOREX"  -> { return s.length() == 6 && s.matches("[A-Z]+"); }
+                            case "STOCK"  -> { return !s.endsWith("USDT") && !s.endsWith("BTC")
+                                    && !(s.length() == 6 && s.matches("[A-Z]+")); }
+                            default -> { return true; } // MULTI: show all
+                        }
+                    }).collect(Collectors.toList());
+                    if (!filtered.isEmpty()) symbols = filtered;
+                }
+
+                if (symbols.isEmpty()) {
+                    symbols = List.of("BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT",
+                            "AAPL","TSLA","MSFT","EURUSD","GBPUSD");
+                }
+                final List<String> finalSymbols = symbols;
+                final String sym = mixerSymbol;
+                Platform.runLater(() -> {
+                    mixerSymbolCombo.setItems(FXCollections.observableArrayList(finalSymbols));
+                    // Select the current mixerSymbol if it's in the list, else select first
+                    if (finalSymbols.contains(sym)) {
+                        mixerSymbolCombo.setValue(sym);
+                    } else if (!finalSymbols.isEmpty()) {
+                        mixerSymbolCombo.setValue(finalSymbols.get(0));
+                    }
+                });
+            } catch (Exception ex) {
+                log.warn("Could not populate mixer symbol combo for profile: {}", ex.getMessage());
+            }
+        });
     }
 
     public void setIndicatorData(IndicatorResult indicators,

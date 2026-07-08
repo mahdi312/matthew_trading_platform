@@ -60,6 +60,10 @@
             <Button fx:id="navMixer" text="🎚" styleClass="nav-item" onAction="#onNavMixer"/>
             <Button fx:id="navPortfolio" text="💼" styleClass="nav-item" onAction="#onNavPortfolio"/>
             <Button fx:id="navFundamentals" text="📑" styleClass="nav-item" onAction="#onNavFundamentals"/>
+            <!-- CoinGecko discovery tabs -->
+            <Button fx:id="navDefi" text="⛓" styleClass="nav-item" onAction="#onNavDefi"/>
+            <Button fx:id="navNft" text="🖼" styleClass="nav-item" onAction="#onNavNft"/>
+            <Button fx:id="navOnchain" text="🔗" styleClass="nav-item" onAction="#onNavOnchain"/>
             <!-- AI News & Insights tab -->
             <Button fx:id="navAiNews" text="🤖" styleClass="nav-item" onAction="#onNavAiNews"/>
 

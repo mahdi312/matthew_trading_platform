@@ -54,8 +54,25 @@ public class ChartDrawing {
     @Column(nullable = false, length = 10)
     private String timeframe;
 
+    /**
+     * Tool type stored as a plain VARCHAR without a database CHECK constraint.
+     *
+     * <p><b>Bug fix — ConstraintViolationException:</b>
+     * When Hibernate generates the DDL for an {@code @Enumerated(EnumType.STRING)} column
+     * it adds a CHECK constraint listing every enum constant that was present at schema-
+     * creation time.  New enum constants added later (e.g. {@code HEAD_AND_SHOULDERS},
+     * {@code XABCD_PATTERN}) are <em>not</em> in that list, so any INSERT/UPDATE with a
+     * new value throws a {@code ConstraintViolationException} and aborts the transaction.
+     *
+     * <p>Solution: use {@code columnDefinition = "VARCHAR(60)"} to tell Hibernate to emit
+     * a plain VARCHAR column instead of a constrained enum column.  The Java-side
+     * {@code @Enumerated(EnumType.STRING)} annotation still handles the
+     * string ↔ enum conversion correctly; we just prevent the DB-level CHECK from being
+     * generated (or, on existing schemas, the column type change via {@code ddl-auto=update}
+     * drops the old constraint automatically on PostgreSQL).
+     */
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 40)
+    @Column(nullable = false, columnDefinition = "VARCHAR(60)")
     private ChartDrawingToolType toolType;
 
     /** JSON array of {time, price} anchor points. time is stored as epoch-millis (long). */

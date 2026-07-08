@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<!--
+    NFT Explorer Tab
+    ════════════════
+    Browse top NFT collections, floor prices, market caps, and 24h volumes
+    sourced from CoinGecko free-tier endpoints:
+      - GET /nfts/list
+      - GET /nfts/{id}
+-->
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.mst.matt.tradingplatformapp.controller.NftExplorerController"
+      spacing="0"
+      maxWidth="Infinity" maxHeight="Infinity"
+      style="-fx-background-color:#0d1117;">
+
+    <!-- ══ Header ═══════════════════════════════════════════════════════════ -->
+    <VBox spacing="0"
+          style="-fx-background-color:#161b22; -fx-border-color:#30363d; -fx-border-width:0 0 1 0;">
+        <padding><Insets top="16" right="20" bottom="16" left="20"/></padding>
+
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <Label text="🖼 NFT Explorer"
+                   style="-fx-font-size:18px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
+            <Label text="Powered by CoinGecko Free API"
+                   style="-fx-font-size:11px; -fx-text-fill:#8b949e;"/>
+            <Pane HBox.hgrow="ALWAYS"/>
+            <Button fx:id="refreshBtn" text="↺ Refresh" onAction="#onRefresh"
+                    style="-fx-background-color:#21262d; -fx-text-fill:#e6edf3;
+                           -fx-background-radius:6; -fx-padding:6 14;
+                           -fx-font-size:12px; -fx-cursor:hand;
+                           -fx-border-color:#30363d; -fx-border-radius:6; -fx-border-width:1;"/>
+            <ProgressIndicator fx:id="loadingSpinner" prefWidth="20" prefHeight="20"
+                               visible="false" managed="false"/>
+        </HBox>
+
+        <!-- Search row -->
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <padding><Insets top="10" bottom="0" left="0" right="0"/></padding>
+            <TextField fx:id="searchField" promptText="Search NFT collection (e.g. bored-ape-yacht-club)…"
+                       HBox.hgrow="ALWAYS"
+                       style="-fx-background-color:#21262d; -fx-text-fill:#e6edf3;
+                              -fx-border-color:#30363d; -fx-border-radius:6;
+                              -fx-background-radius:6; -fx-padding:7 12; -fx-font-size:13px;"/>
+            <Button text="🔍 Search" onAction="#onSearch"
+                    style="-fx-background-color:#1f6feb; -fx-text-fill:white;
+                           -fx-background-radius:6; -fx-padding:7 14;
+                           -fx-font-size:13px; -fx-cursor:hand;"/>
+        </HBox>
+
+        <Label fx:id="lastUpdateLabel" text="Last updated: —"
+               style="-fx-text-fill:#484f58; -fx-font-size:10px; -fx-padding:4 0 0 0;"/>
+    </VBox>
+
+    <!-- ══ Main content ═══════════════════════════════════════════════════ -->
+    <VBox spacing="16" VBox.vgrow="ALWAYS" style="-fx-background-color:#0d1117;">
+        <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+
+        <!-- ── Collection Detail Panel (shown when selected) ───────────── -->
+        <VBox fx:id="detailPanel" spacing="12" visible="false" managed="false"
+              style="-fx-background-color:#161b22; -fx-background-radius:8;
+                     -fx-border-color:#1f6feb44; -fx-border-radius:8; -fx-border-width:1;">
+            <padding><Insets top="16" right="20" bottom="16" left="20"/></padding>
+            <HBox alignment="CENTER_LEFT" spacing="10">
+                <Label text="🖼" style="-fx-font-size:24px;"/>
+                <VBox spacing="2">
+                    <Label fx:id="detailNameLabel" text="—"
+                           style="-fx-font-size:16px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
+                    <Label fx:id="detailIdLabel" text="—"
+                           style="-fx-font-size:11px; -fx-text-fill:#8b949e;"/>
+                </VBox>
+                <Pane HBox.hgrow="ALWAYS"/>
+                <Button text="✕" onAction="#onCloseDetail"
+                        style="-fx-background-color:transparent; -fx-text-fill:#8b949e;
+                               -fx-font-size:14px; -fx-cursor:hand;"/>
+            </HBox>
+            <HBox spacing="24">
+                <VBox spacing="2">
+                    <Label text="FLOOR PRICE" style="-fx-font-size:10px; -fx-text-fill:#8b949e;"/>
+                    <Label fx:id="detailFloorLabel" text="—"
+                           style="-fx-font-size:18px; -fx-font-weight:bold; -fx-text-fill:#3fb950;"/>
+                </VBox>
+                <VBox spacing="2">
+                    <Label text="MARKET CAP" style="-fx-font-size:10px; -fx-text-fill:#8b949e;"/>
+                    <Label fx:id="detailMarketCapLabel" text="—"
+                           style="-fx-font-size:18px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
+                </VBox>
+                <VBox spacing="2">
+                    <Label text="VOLUME 24H" style="-fx-font-size:10px; -fx-text-fill:#8b949e;"/>
+                    <Label fx:id="detailVolumeLabel" text="—"
+                           style="-fx-font-size:18px; -fx-font-weight:bold; -fx-text-fill:#58a6ff;"/>
+                </VBox>
+                <VBox spacing="2">
+                    <Label text="PLATFORM" style="-fx-font-size:10px; -fx-text-fill:#8b949e;"/>
+                    <Label fx:id="detailPlatformLabel" text="—"
+                           style="-fx-font-size:14px; -fx-text-fill:#8b949e;"/>
+                </VBox>
+            </HBox>
+        </VBox>
+
+        <!-- ── Collections Table ─────────────────────────────────────── -->
+        <Label text="📋 Top NFT Collections"
+               style="-fx-font-size:14px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
+
+        <VBox spacing="0" VBox.vgrow="ALWAYS"
+              style="-fx-background-color:#161b22; -fx-background-radius:8;
+                     -fx-border-color:#30363d; -fx-border-radius:8; -fx-border-width:1;">
+
+            <!-- Table header -->
+            <HBox spacing="0"
+                  style="-fx-background-color:#21262d; -fx-background-radius:8 8 0 0;
+                         -fx-padding:8 16; -fx-border-color:#30363d; -fx-border-width:0 0 1 0;">
+                <Label text="#" prefWidth="36"
+                       style="-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#8b949e;"/>
+                <Label text="Collection" HBox.hgrow="ALWAYS"
+                       style="-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#8b949e;"/>
+                <Label text="Symbol" prefWidth="80"
+                       style="-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#8b949e;"/>
+                <Label text="Floor Price (USD)" prefWidth="140" alignment="CENTER_RIGHT"
+                       style="-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#8b949e;"/>
+                <Label text="Market Cap" prefWidth="130" alignment="CENTER_RIGHT"
+                       style="-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#8b949e;"/>
+                <Label text="Volume 24H" prefWidth="120" alignment="CENTER_RIGHT"
+                       style="-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#8b949e;"/>
+            </HBox>
+
+            <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS"
+                        style="-fx-background-color:transparent; -fx-background:transparent;">
+                <VBox fx:id="collectionsContainer" spacing="0">
+                    <!-- Collection rows injected dynamically -->
+                </VBox>
+            </ScrollPane>
+        </VBox>
+
+        <!-- Pagination -->
+        <HBox alignment="CENTER_RIGHT" spacing="8">
+            <Label fx:id="pageLabel" text="Page 1"
+                   style="-fx-text-fill:#8b949e; -fx-font-size:12px;"/>
+            <Button fx:id="prevPageBtn" text="◀ Prev" onAction="#onPrevPage"
+                    style="-fx-background-color:#21262d; -fx-text-fill:#e6edf3;
+                           -fx-background-radius:4; -fx-padding:4 10;
+                           -fx-font-size:11px; -fx-cursor:hand;
+                           -fx-border-color:#30363d; -fx-border-radius:4; -fx-border-width:1;"/>
+            <Button fx:id="nextPageBtn" text="Next ▶" onAction="#onNextPage"
+                    style="-fx-background-color:#21262d; -fx-text-fill:#e6edf3;
+                           -fx-background-radius:4; -fx-padding:4 10;
+                           -fx-font-size:11px; -fx-cursor:hand;
+                           -fx-border-color:#30363d; -fx-border-radius:4; -fx-border-width:1;"/>
+        </HBox>
+
+        <!-- Status label -->
+        <Label fx:id="statusLabel" text=""
+               style="-fx-text-fill:#8b949e; -fx-font-size:11px;"/>
+
+    </VBox>
+
+</VBox>

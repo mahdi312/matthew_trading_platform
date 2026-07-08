@@ -92,6 +92,7 @@ public class ChartController implements Initializable {
     @FXML private Button tfDropdownBtn;
     @FXML private Button indicatorPickerBtn;
     @FXML private Button analyzeBtn;
+    @FXML private ScrollPane signalBarScroll;
     @FXML private HBox   signalBar;
     @FXML private HBox   sentimentBox;
     @FXML private Label  signalLabel, confidenceLabel, bestBuyLabel,
@@ -114,6 +115,9 @@ public class ChartController implements Initializable {
     @Autowired private ChartLiveSessionService chartLiveSession;
     @Autowired @org.springframework.context.annotation.Lazy
     private IndicatorMixerController indicatorMixerController;
+
+    /** Optional: propagate symbol changes to other tabs (set by MainDashboardController). */
+    private java.util.function.Consumer<String> onSymbolChanged;
 
     @Value("${app.chart.default-bars:200}")
     private int defaultBars;
@@ -156,6 +160,19 @@ public class ChartController implements Initializable {
     /** Current global drawing settings (persisted via AppSettingsService). */
     private GlobalDrawingSettings drawingSettings = new GlobalDrawingSettings();
 
+    /** True while a chart load is in progress — prevents overlapping requests. */
+    private final AtomicBoolean chartLoading = new AtomicBoolean(false);
+
+    /**
+     * Issue #3: when {@code false}, drawings are only cached in memory (session-only)
+     * and are NOT saved to or loaded from the database.
+     */
+    private boolean saveDrawingsEnabled = true;
+
+    /** Loading overlay shown over the chart while data is being fetched. */
+    private javafx.scene.layout.StackPane loadingOverlay;
+    private javafx.animation.Timeline loadingDotsTimeline;
+
     /** Screenshot callback – receives the PNG file path after capture. */
     private Consumer<String> onScreenshotSaved;
 
@@ -189,8 +206,9 @@ public class ChartController implements Initializable {
         wireDrawingEngine();
         setupKeyboardShortcuts();
 
-        if (signalBar != null)
-            signalBar.managedProperty().bind(signalBar.visibleProperty());
+        if (signalBarScroll != null)
+            signalBarScroll.managedProperty().bind(signalBarScroll.visibleProperty());
+        setupSentimentBarTooltips();
 
         chartProviderCombo.setCellFactory(lv -> providerLabelCell());
         chartProviderCombo.setButtonCell(providerLabelCell());
@@ -259,6 +277,12 @@ public class ChartController implements Initializable {
         }
         if (chartToolbarScroll != null) {
             VBox.setVgrow(chartToolbarScroll, Priority.NEVER);
+            // fitToWidth="true" in FXML already expands the inner HBox to the
+            // full scroll-pane width, so we do NOT bind prefWidth here (that
+            // would fight with fitToWidth and create duplicate sizing paths).
+            chartToolbarScroll.setMinHeight(40);
+            chartToolbarScroll.setPrefHeight(40);
+            chartToolbarScroll.setMaxHeight(40);
         }
         if (chartStack != null) {
             chartStack.setMinSize(0, 0);
@@ -275,6 +299,19 @@ public class ChartController implements Initializable {
         drawingToolbarPane.attachTo(chartStack);
         toolbar.setOnToolSelected(chart::setActiveDrawingTool);
         toolbar.setOnDelete(() -> chart.getDrawingEngine().deleteSelected());
+
+        // Issue #2: Delete ALL drawings with confirmation
+        toolbar.setOnDeleteAll(this::onDeleteAllDrawings);
+
+        // Issue #3: Save Drawings toggle
+        toolbar.setOnToggleSaveDrawings(() -> {
+            saveDrawingsEnabled = toolbar.isSaveDrawingsEnabled();
+            if (saveDrawingsEnabled) {
+                showInfoNotification("Save Drawings ON — drawings will be persisted to database.");
+            } else {
+                showInfoNotification("Save Drawings OFF — drawings are session-only (not saved).");
+            }
+        });
 
         // Undo / Redo
         toolbar.setOnUndo(() -> chart.getDrawingEngine().undo());
@@ -310,6 +347,43 @@ public class ChartController implements Initializable {
 
         // Screenshot
         toolbar.setOnScreenshot(this::onCaptureScreenshot);
+    }
+
+    /**
+     * Issue #2: Prompts the user for confirmation, then deletes ALL drawings on the
+     * current chart (symbol + timeframe + active profile). Also clears the in-memory
+     * engine so they do not reappear without a reload.
+     */
+    private void onDeleteAllDrawings() {
+        if (activeProfile == null) { showWarnNotification("No active profile."); return; }
+        javafx.scene.control.Alert confirm = new javafx.scene.control.Alert(
+                javafx.scene.control.Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Delete All Drawings");
+        confirm.setHeaderText("Delete all drawings on " + currentSymbol + " " + currentTimeframe + "?");
+        confirm.setContentText(
+                "This will permanently remove ALL drawings on this chart. This cannot be undone.");
+        confirm.getButtonTypes().setAll(
+                javafx.scene.control.ButtonType.OK,
+                javafx.scene.control.ButtonType.CANCEL);
+        confirm.showAndWait().ifPresent(bt -> {
+            if (bt != javafx.scene.control.ButtonType.OK) return;
+            // Clear in-memory engine immediately
+            chart.getDrawingEngine().clearAllDrawings();
+            // Delete from database in background
+            Thread.ofVirtual().start(() -> {
+                try {
+                    chartDrawingService.deleteAllDrawings(
+                            activeProfile, currentSymbol, currentTimeframe);
+                    Platform.runLater(() ->
+                            showInfoNotification("All drawings deleted for "
+                                    + currentSymbol + " " + currentTimeframe + "."));
+                } catch (Exception e) {
+                    log.error("Failed to delete all drawings: {}", e.getMessage(), e);
+                    Platform.runLater(() ->
+                            showErrorNotification("Failed to delete all drawings: " + e.getMessage()));
+                }
+            });
+        });
     }
 
     public void setOnScreenshotSaved(Consumer<String> cb) { this.onScreenshotSaved = cb; }
@@ -867,6 +941,24 @@ public class ChartController implements Initializable {
     /** Returns the currently displayed symbol. */
     public String getCurrentSymbol() { return currentSymbol; }
 
+    /**
+     * Issue #6: Register a callback that is invoked whenever the chart's active symbol changes.
+     * Used by {@code MainDashboardController} to propagate symbol changes to other tabs.
+     */
+    public void setOnSymbolChanged(java.util.function.Consumer<String> callback) {
+        this.onSymbolChanged = callback;
+    }
+
+    /**
+     * Issue #6: Notifies registered listeners that the active symbol has changed.
+     * Called whenever the user confirms a new symbol by clicking "Load Chart".
+     */
+    private void fireSymbolChanged() {
+        if (onSymbolChanged != null && currentSymbol != null && !currentSymbol.isBlank()) {
+            Platform.runLater(() -> onSymbolChanged.accept(currentSymbol));
+        }
+    }
+
     /** Called when the Live Chart view becomes visible. */
     public void onChartActivated() {
         chartSessionActive = true;
@@ -933,8 +1025,16 @@ public class ChartController implements Initializable {
             refreshUndoRedoState();
         });
         engine.setOnDrawingDeleted(d -> {
-            if (d.getId() != null) {
-                Thread.ofVirtual().start(() -> chartDrawingService.delete(d.getId()));
+            // Issue #3: Only delete from DB if save-drawings is enabled and the drawing
+            // was previously persisted (has a database ID)
+            if (saveDrawingsEnabled && d.getId() != null) {
+                Thread.ofVirtual().start(() -> {
+                    try {
+                        chartDrawingService.delete(d.getId());
+                    } catch (Exception ex) {
+                        log.warn("Failed to delete drawing id={}: {}", d.getId(), ex.getMessage());
+                    }
+                });
             }
             refreshUndoRedoState();
         });
@@ -1058,20 +1158,48 @@ public class ChartController implements Initializable {
         drawing.setProfile(activeProfile);
         drawing.setSymbol(currentSymbol);
         drawing.setTimeframe(currentTimeframe);
+
+        // Issue #3: Only persist to DB if save-drawings toggle is ON
+        if (!saveDrawingsEnabled) {
+            log.debug("Save drawings disabled — skipping DB persist for toolType={}", drawing.getToolType());
+            return;
+        }
+
         Thread.ofVirtual().start(() -> {
-            ChartDrawing saved = chartDrawingService.save(drawing);
-            Platform.runLater(() -> {
-                if (drawing.getId() == null) drawing.setId(saved.getId());
-            });
+            try {
+                ChartDrawing saved = chartDrawingService.save(drawing);
+                Platform.runLater(() -> {
+                    if (drawing.getId() == null) drawing.setId(saved.getId());
+                });
+            } catch (Exception e) {
+                // Drawing save failed — log and show a non-intrusive toast.
+                // The failure is isolated (REQUIRES_NEW transaction) so it does NOT
+                // abort any surrounding transaction or affect subsequent chart data loads.
+                log.error("persistDrawing failed for toolType={}: {}", drawing.getToolType(), e.getMessage(), e);
+                Platform.runLater(() ->
+                    showWarnNotification("⚠ Could not save drawing (" + drawing.getToolType() + "): " + e.getMessage())
+                );
+            }
         });
     }
 
     private void loadDrawingsForChart() {
         if (activeProfile == null) return;
+        // Issue #3: If save-drawings is OFF, don't load from DB (session-only mode)
+        if (!saveDrawingsEnabled) {
+            log.debug("Save drawings disabled — skipping DB load for {}/{}", currentSymbol, currentTimeframe);
+            return;
+        }
         Thread.ofVirtual().start(() -> {
-            List<ChartDrawing> list = chartDrawingService.loadDrawings(
-                    activeProfile, currentSymbol, currentTimeframe);
-            Platform.runLater(() -> chart.setDrawings(list));
+            try {
+                List<ChartDrawing> list = chartDrawingService.loadDrawings(
+                        activeProfile, currentSymbol, currentTimeframe);
+                Platform.runLater(() -> chart.setDrawings(list));
+            } catch (Exception e) {
+                log.warn("Failed to load drawings for {}/{}: {}", currentSymbol, currentTimeframe, e.getMessage());
+                // Don't block chart display on drawing load failure
+                Platform.runLater(() -> chart.setDrawings(List.of()));
+            }
         });
     }
 
@@ -1126,7 +1254,7 @@ public class ChartController implements Initializable {
             analyzeBtn.setVisible(analysis);
             analyzeBtn.setManaged(analysis);
         }
-        if (signalBar != null && !analysis) signalBar.setVisible(false);
+        if (!analysis) setSignalBarVisible(false);
         chart.setAnalysisMode(analysis);
     }
 
@@ -1211,6 +1339,7 @@ public class ChartController implements Initializable {
                 hideAutocomplete();
                 refreshProviderCombo();
                 syncSymbolComboToCurrentSymbol();  // Feature 3
+                fireSymbolChanged();               // Issue #6
                 loadChart();
             }
         });
@@ -1286,6 +1415,7 @@ public class ChartController implements Initializable {
                         hideAutocomplete();
                         refreshProviderCombo();
                         syncSymbolComboToCurrentSymbol();  // Feature 3
+                        fireSymbolChanged();               // Issue #6
                         loadChart();
                     }
                     e.consume();
@@ -1437,6 +1567,11 @@ public class ChartController implements Initializable {
     private void rebuildFavoritesBar(List<String> allowed, List<String> favorites) {
         if (favTfBar == null) return;
         favTfBar.getChildren().clear();
+        // Reset to compact/natural width so the bar shrinks when TFs are removed.
+        // Without this, JavaFX keeps the previous width, leaving an empty gap.
+        favTfBar.setPrefWidth(javafx.scene.layout.Region.USE_COMPUTED_SIZE);
+        favTfBar.setMinWidth(javafx.scene.layout.Region.USE_COMPUTED_SIZE);
+        favTfBar.setMaxWidth(javafx.scene.layout.Region.USE_COMPUTED_SIZE);
 
         if (favorites.isEmpty()) {
             // No favorites: show a hint label
@@ -1609,6 +1744,81 @@ public class ChartController implements Initializable {
 
     // ── Chart loading ─────────────────────────────────────────
 
+    /**
+     * Builds (lazily) and shows a "loading" overlay on top of the chart canvas.
+     * Shows a spinner and "Loading {SYMBOL} from {PROVIDER}…" message.
+     * Must be called on the JavaFX Application Thread.
+     */
+    private void showChartLoadingOverlay() {
+        showChartLoadingOverlay(currentSymbol, resolveProviderLabel());
+    }
+
+    /**
+     * Shows a loading overlay with a contextual message: "Loading {symbol} from {provider}…".
+     * Must be called on the JavaFX Application Thread.
+     */
+    private void showChartLoadingOverlay(String symbol, String providerLabel) {
+        if (chartStack == null) return;
+        // Remove any stale overlay first
+        hideChartLoadingOverlay();
+
+        javafx.scene.control.ProgressIndicator spinner = new javafx.scene.control.ProgressIndicator();
+        spinner.setMaxWidth(40);
+        spinner.setMaxHeight(40);
+        spinner.setStyle("-fx-progress-color:#388bfd;");
+
+        String baseMsg = "Loading " + symbol + " from " + providerLabel + "...";
+        javafx.scene.control.Label msgLabel = new javafx.scene.control.Label(baseMsg);
+        msgLabel.setStyle("-fx-text-fill:#e6edf3; -fx-font-size:14px; -fx-font-weight:bold;");
+
+        javafx.scene.layout.VBox content = new javafx.scene.layout.VBox(10, spinner, msgLabel);
+        content.setAlignment(javafx.geometry.Pos.CENTER);
+
+        // Animate dots
+        final String[] dots = {baseMsg, baseMsg + ".", baseMsg + "..", baseMsg + "..."};
+        final int[] dotIdx = {0};
+        loadingDotsTimeline = new javafx.animation.Timeline(
+                new javafx.animation.KeyFrame(Duration.millis(500), ae -> {
+                    dotIdx[0] = (dotIdx[0] + 1) % dots.length;
+                    msgLabel.setText(dots[dotIdx[0]]);
+                }));
+        loadingDotsTimeline.setCycleCount(javafx.animation.Timeline.INDEFINITE);
+        loadingDotsTimeline.play();
+
+        loadingOverlay = new javafx.scene.layout.StackPane(content);
+        loadingOverlay.setStyle("-fx-background-color:rgba(13,17,23,0.80);");
+        loadingOverlay.setMouseTransparent(true); // allow underlying canvas interaction
+
+        // Bind overlay to chartPane size so it covers only the chart area
+        loadingOverlay.prefWidthProperty().bind(chartPane.widthProperty());
+        loadingOverlay.prefHeightProperty().bind(chartPane.heightProperty());
+
+        // Add on top of chartStack (z-order last = on top)
+        chartStack.getChildren().add(loadingOverlay);
+    }
+
+    /** Returns a human-friendly label for the currently-selected provider. */
+    private String resolveProviderLabel() {
+        if (activeProfile == null) return "Auto";
+        MarketDataProvider p = MarketDataProvider.fromString(activeProfile.getChartProvider());
+        return (p != null && p != MarketDataProvider.AUTO) ? p.getLabel() : "Auto";
+    }
+
+    /**
+     * Hides and removes the loading overlay.
+     * Must be called on the JavaFX Application Thread.
+     */
+    private void hideChartLoadingOverlay() {
+        if (loadingDotsTimeline != null) {
+            loadingDotsTimeline.stop();
+            loadingDotsTimeline = null;
+        }
+        if (loadingOverlay != null && chartStack != null) {
+            chartStack.getChildren().remove(loadingOverlay);
+            loadingOverlay = null;
+        }
+    }
+
     @FXML public void onChartProviderChanged() {
         // Ignore programmatic updates (refreshProviderCombo setting value)
         if (updatingProviderCombo) return;
@@ -1619,11 +1829,16 @@ public class ChartController implements Initializable {
         activeProfile.setChartProvider(chosen.name());
         profilePersistence.saveAsync(activeProfile);
         showInfoNotification("Provider changed to " + chosen.getLabel() + " — refreshing chart…");
+        // Show contextual loading overlay: "Loading BTCUSDT from CoinGecko..."
+        final String sym = currentSymbol;
+        final String provLabel = chosen.getLabel();
+        Platform.runLater(() -> showChartLoadingOverlay(sym, provLabel));
         Thread.ofVirtual().start(() -> {
-            // Fix 2: Invalidate the in-memory cache so the new provider fetches fresh data
+            // Invalidate the in-memory cache so the new provider fetches fresh data
             ohlcvStorageService.invalidateCache(currentSymbol, currentTimeframe);
-            ohlcvStorageService.refreshBars(currentSymbol, currentTimeframe, currentBars, activeProfile);
-            loadChart();
+            // Fetch directly from the chosen provider (not through the fallback chain)
+            // so that "COINGECKO selected" only calls CoinGecko, not Binance, etc.
+            loadChartForProvider(chosen, null);
         });
     }
 
@@ -1637,6 +1852,8 @@ public class ChartController implements Initializable {
         // Feature 3: sync the symbol combo box to the loaded symbol immediately so the
         // combo box always reflects what is currently displayed on the chart.
         syncSymbolComboToCurrentSymbol();
+        // Issue #6: propagate symbol change to other tabs (Indicator Mixer, Yearly Profit, AI)
+        fireSymbolChanged();
         loadChart();
     }
 
@@ -1660,18 +1877,55 @@ public class ChartController implements Initializable {
     }
 
     /**
-     * Load chart with a 10-second timeout. If the chart hasn't updated within that
-     * window, show a non-blocking error notification.
+     * Load chart with a 10-second timeout.
+     * Step 1: show loading overlay.
+     * Step 2: attempt API fetch (handled inside loadChart / loadChartForProvider).
+     * Step 3: if API succeeds within 10s → update chart, hide overlay.
+     * Step 4: if API fails/times out → try DB cache; show yellow warning or red error.
      */
     private void loadChartWithTimeout() {
         AtomicBoolean completed = new AtomicBoolean(false);
-        // Start the load
+        // loadChart() shows the overlay itself on the FX thread
         loadChart(completed);
         // Schedule a 10-second timeout check on FX thread
         PauseTransition timeout = new PauseTransition(Duration.seconds(10));
         timeout.setOnFinished(e -> {
             if (!completed.get()) {
-                showErrorNotification("Failed to load requested candle count. Please try again.");
+                hideChartLoadingOverlay();
+                // Try to recover using DB cache
+                Thread.ofVirtual().start(() -> {
+                    MarketDataProvider p = activeProfile != null
+                            ? MarketDataProvider.fromString(activeProfile.getChartProvider())
+                            : MarketDataProvider.AUTO;
+                    String pName = (p != null && p != MarketDataProvider.AUTO) ? p.name() : null;
+                    List<com.mst.matt.tradingplatformapp.model.OhlcvBar> cached =
+                            ohlcvStorageService.getBarsForProvider(
+                                    currentSymbol, currentTimeframe, currentBars, pName);
+                    if (cached != null && !cached.isEmpty()) {
+                        // Show cached data with a yellow warning
+                        com.mst.matt.tradingplatformapp.model.OhlcvBar lastBar =
+                                cached.get(cached.size() - 1);
+                        String lastUpdate = lastBar.getOpenTime() != null
+                                ? lastBar.getOpenTime().toString().replace("T", " ") : "unknown";
+                        String provLabel = resolveProviderLabel();
+                        final List<com.mst.matt.tradingplatformapp.model.OhlcvBar> finalCached = cached;
+                        Platform.runLater(() -> {
+                            chart.setData(finalCached, activeIndicators, null);
+                            dataSourceLabel.setText("OHLCV via " + provLabel + " (cached)");
+                            showWarnNotification(
+                                    "Using offline/cached data for " + currentSymbol
+                                    + " (" + provLabel + ", " + currentTimeframe + ")."
+                                    + " Last update: " + lastUpdate + ".");
+                        });
+                    } else {
+                        // No data at all — show red error with Retry hint
+                        String provLabel = resolveProviderLabel();
+                        Platform.runLater(() -> showErrorNotification(
+                                "\u26A0\uFE0F Failed to load chart data for " + currentSymbol
+                                + " (" + currentTimeframe + ") from " + provLabel
+                                + ". Click \"Retry\" to try again, or change the provider."));
+                    }
+                });
             }
         });
         timeout.play();
@@ -1682,79 +1936,280 @@ public class ChartController implements Initializable {
     }
 
     private void loadChart(AtomicBoolean completionFlag) {
+        // Resolve provider for the contextual loading message
+        MarketDataProvider selectedProvider = MarketDataProvider.AUTO;
+        if (activeProfile != null && activeProfile.getChartProvider() != null) {
+            selectedProvider = MarketDataProvider.fromString(activeProfile.getChartProvider());
+        }
+        final MarketDataProvider providerToUse = selectedProvider;
+        final String provLabel = (providerToUse != null && providerToUse != MarketDataProvider.AUTO)
+                ? providerToUse.getLabel() : "Auto";
+
+        // Show contextual loading overlay on FX thread: "Loading BTCUSDT from CoinGecko..."
+        if (Platform.isFxApplicationThread()) {
+            showChartLoadingOverlay(currentSymbol, provLabel);
+        } else {
+            final String sym = currentSymbol;
+            Platform.runLater(() -> showChartLoadingOverlay(sym, provLabel));
+        }
         // Feature 1: always guard against null profile
         if (activeProfile == null) {
             log.debug("loadChart() skipped — no active profile");
+            Platform.runLater(this::hideChartLoadingOverlay);
             return;
         }
         // Feature 4.3: enforce candle cap
         currentBars = Math.min(currentBars, authService.maxCandles());
 
-        Thread.ofVirtual().start(() -> {
-            try {
-                AnalysisResult result = loadAnalysisWithRetry();
-                var quoteOpt = priceRouter.getQuote(currentSymbol, activeProfile);
-                String provider = PriceRouter.getLastProviderName();
+        Thread.ofVirtual().start(() -> loadChartForProvider(providerToUse, completionFlag));
+    }
 
-                if (!activeIndicators.isEmpty() && !result.getBars().isEmpty()) {
-                    BarSeries series = analysisService.buildBarSeries(
-                            result.getBars(), currentSymbol);
+    /**
+     * Core chart-load implementation.
+     * When {@code provider} is non-AUTO, fetches OHLCV and quote ONLY from that
+     * specific provider — no fallback to other APIs.
+     * Falls back to the full chain only when provider == AUTO.
+     *
+     * <p>Must be called on a background thread (not the FX Application Thread).
+     *
+     * @param provider       the chosen provider (AUTO = use full chain with fallback)
+     * @param completionFlag optional flag set to {@code true} when done (for timeout detection)
+     */
+    private void loadChartForProvider(MarketDataProvider provider, AtomicBoolean completionFlag) {
+        if (activeProfile == null) {
+            Platform.runLater(this::hideChartLoadingOverlay);
+            return;
+        }
+        try {
+            // ── Step 1: Fetch OHLCV bars from the selected (or auto) provider ──────
+            List<com.mst.matt.tradingplatformapp.model.OhlcvBar> bars;
+            String providerName;
+
+            if (provider != null && provider != MarketDataProvider.AUTO) {
+                // Strict provider isolation: only call the selected provider
+                var svcOpt = providerRegistry.get(provider);
+                if (svcOpt.isPresent()) {
+                    String normalized = com.mst.matt.tradingplatformapp.service.price
+                            .SymbolNormalizer.normalize(currentSymbol);
+                    try {
+                        bars = svcOpt.get().getOhlcv(normalized, currentTimeframe, currentBars);
+                        providerName = svcOpt.get().getProviderName();
+                    } catch (Exception ex) {
+                        log.warn("Provider {} OHLCV failed for {}: {}",
+                                provider.getLabel(), currentSymbol, ex.getMessage());
+                        bars = java.util.Collections.emptyList();
+                        providerName = provider.getLabel() + " (error)";
+                    }
+                    // If direct API call returned data, update DB cache for this provider
+                    if (!bars.isEmpty()) {
+                        final List<com.mst.matt.tradingplatformapp.model.OhlcvBar> finalBars = bars;
+                        final String sym = currentSymbol.toUpperCase();
+                        final String tf  = currentTimeframe;
+                        Thread.ofVirtual().start(() -> {
+                            try {
+                                ohlcvStorageService.storeProviderBars(sym, tf, provider.name(), finalBars);
+                            } catch (Exception ignore) {}
+                        });
+                    } else {
+                        // API returned nothing – try reading from DB for this provider
+                        bars = ohlcvStorageService.getBarsForProvider(
+                                currentSymbol, currentTimeframe, currentBars, provider.name());
+                        // Check staleness
+                        if (ohlcvStorageService.isStale(bars, currentTimeframe)) {
+                            final String msg = "Data from " + provider.getLabel()
+                                    + " may be stale (loaded from DB cache)";
+                            Platform.runLater(() -> showWarnNotification("⚠ " + msg));
+                        }
+                    }
+                } else {
+                    // Provider not available — fall back to full chain
+                    log.warn("Provider {} not available, falling back to AUTO", provider);
+                    bars = ohlcvStorageService.getBars(
+                            currentSymbol, currentTimeframe, currentBars, activeProfile);
+                    providerName = PriceRouter.getLastProviderName();
+                }
+            } else {
+                // AUTO mode: use the full fallback chain (existing behaviour)
+                AnalysisResult result = loadAnalysisWithRetry();
+                bars = result.getBars();
+                providerName = PriceRouter.getLastProviderName();
+
+                // Run full analysis pipeline
+                var quoteOpt = priceRouter.getQuote(currentSymbol, activeProfile);
+                if (!activeIndicators.isEmpty() && !bars.isEmpty()) {
+                    BarSeries series = analysisService.buildBarSeries(bars, currentSymbol);
                     indicatorComputeService.computeAll(activeIndicators, series);
                 }
-
                 if (completionFlag != null) completionFlag.set(true);
 
+                final List<com.mst.matt.tradingplatformapp.model.OhlcvBar> finalBars = bars;
+                final AnalysisResult finalResult = result;
+                final String finalProvider = providerName;
                 Platform.runLater(() -> {
-                    double lastPrice = result.getBars().isEmpty() ? Double.NaN
-                            : result.getBars().get(result.getBars().size() - 1)
-                            .getClose().doubleValue();
+                    hideChartLoadingOverlay();
+                    double lastPrice = finalBars.isEmpty() ? Double.NaN
+                            : finalBars.get(finalBars.size() - 1).getClose().doubleValue();
                     quoteOpt.filter(q -> q.getPrice() != null)
                             .ifPresent(q -> chart.setLastPrice(q.getPrice().doubleValue()));
                     if (Double.isNaN(chart.getLastPrice()) && !Double.isNaN(lastPrice))
                         chart.setLastPrice(lastPrice);
-
-                    chart.setData(result.getBars(), activeIndicators, result.getSrResult());
+                    chart.setData(finalBars, activeIndicators, finalResult.getSrResult());
                     loadDrawingsForChart();
-
-                    if (viewMode == ViewMode.ANALYSIS && result.getSignal() != null)
-                        updateSignalBar(result.getSignal());
-
-                    if (result.getIndicators() != null) {
-                        double px = quoteOpt
-                                .map(q -> q.getPrice())
+                    if (viewMode == ViewMode.ANALYSIS && finalResult.getSignal() != null)
+                        updateSignalBar(finalResult.getSignal());
+                    if (finalResult.getIndicators() != null) {
+                        double px = quoteOpt.map(q -> q.getPrice())
                                 .filter(p -> p != null)
                                 .map(java.math.BigDecimal::doubleValue)
                                 .orElse(lastPrice);
                         indicatorMixerController.setIndicatorData(
-                                result.getIndicators(), result.getSrResult(), px);
+                                finalResult.getIndicators(), finalResult.getSrResult(), px);
                     }
-
                     quoteOpt.filter(q -> q.getPrice() != null).ifPresent(q -> {
                         if (viewMode == ViewMode.ANALYSIS && currentPriceChartLabel != null) {
                             currentPriceChartLabel.setText(
-                                    "$" + q.getPrice().toPlainString()
-                                            + (q.isUp() ? " ▲" : " ▼"));
+                                    "$" + q.getPrice().toPlainString() + (q.isUp() ? " ▲" : " ▼"));
                             currentPriceChartLabel.setStyle(
                                     "-fx-font-size:18px;-fx-font-weight:bold;-fx-text-fill:"
                                             + (q.isUp() ? "#3fb950" : "#f85149") + ";");
                         }
                     });
-                    dataSourceLabel.setText("OHLCV via " + provider);
+                    dataSourceLabel.setText("OHLCV via " + finalProvider);
                     dataSourceLabel.setTooltip(new Tooltip(
                             "Last successful price provider for " + currentSymbol));
                     chartLiveSession.recordLoaded();
                 });
-            } catch (Exception e) {
-                if (completionFlag != null) completionFlag.set(true);
-                log.warn("Chart load failed for {} {}: {}", currentSymbol, currentTimeframe,
-                        e.getMessage());
-                Platform.runLater(() -> {
-                    dataSourceLabel.setText("⚠ Data unavailable — retrying…");
-                    showErrorNotification("Chart data unavailable for " + currentSymbol
-                            + " [" + currentTimeframe + "]. " + e.getMessage());
-                });
+                return; // early return — FX update already scheduled above
             }
-        });
+
+            // ── Step 2 (non-AUTO path): run analysis on bars ──────────────────────
+            AnalysisResult result = bars.isEmpty()
+                    ? com.mst.matt.tradingplatformapp.service.analysis.AnalysisService
+                        .AnalysisResult.empty(currentSymbol, currentTimeframe)
+                    : analysisService.analyzeFromBars(bars, currentSymbol, currentTimeframe, activeProfile);
+
+            // ── Step 3: get quote (only from selected provider if non-AUTO) ────────
+            java.util.Optional<com.mst.matt.tradingplatformapp.service.price.PriceQuote> quoteOpt;
+            if (provider != null && provider != MarketDataProvider.AUTO) {
+                var svcOpt = providerRegistry.get(provider);
+                if (svcOpt.isPresent()) {
+                    String normalized = com.mst.matt.tradingplatformapp.service.price
+                            .SymbolNormalizer.normalize(currentSymbol);
+                    try {
+                        quoteOpt = svcOpt.get().getQuote(normalized);
+                    } catch (Exception ex) {
+                        log.debug("Quote from {} failed: {}", provider, ex.getMessage());
+                        quoteOpt = java.util.Optional.empty();
+                    }
+                } else {
+                    quoteOpt = java.util.Optional.empty();
+                }
+            } else {
+                quoteOpt = priceRouter.getQuote(currentSymbol, activeProfile);
+            }
+
+            if (!activeIndicators.isEmpty() && !bars.isEmpty()) {
+                BarSeries series = analysisService.buildBarSeries(bars, currentSymbol);
+                indicatorComputeService.computeAll(activeIndicators, series);
+            }
+
+            if (completionFlag != null) completionFlag.set(true);
+
+            final List<com.mst.matt.tradingplatformapp.model.OhlcvBar> finalBars2 = bars;
+            final AnalysisResult finalResult2 = result;
+            final String finalProvider2 = providerName;
+            final java.util.Optional<com.mst.matt.tradingplatformapp.service.price.PriceQuote> finalQuote = quoteOpt;
+
+            Platform.runLater(() -> {
+                hideChartLoadingOverlay();
+                double lastPrice = finalBars2.isEmpty() ? Double.NaN
+                        : finalBars2.get(finalBars2.size() - 1).getClose().doubleValue();
+                finalQuote.filter(q -> q.getPrice() != null)
+                        .ifPresent(q -> chart.setLastPrice(q.getPrice().doubleValue()));
+                if (Double.isNaN(chart.getLastPrice()) && !Double.isNaN(lastPrice))
+                    chart.setLastPrice(lastPrice);
+                chart.setData(finalBars2, activeIndicators, finalResult2.getSrResult());
+                loadDrawingsForChart();
+                if (viewMode == ViewMode.ANALYSIS && finalResult2.getSignal() != null)
+                    updateSignalBar(finalResult2.getSignal());
+                if (finalResult2.getIndicators() != null) {
+                    double px = finalQuote.map(q -> q.getPrice())
+                            .filter(p -> p != null)
+                            .map(java.math.BigDecimal::doubleValue)
+                            .orElse(lastPrice);
+                    indicatorMixerController.setIndicatorData(
+                            finalResult2.getIndicators(), finalResult2.getSrResult(), px);
+                }
+                finalQuote.filter(q -> q.getPrice() != null).ifPresent(q -> {
+                    if (viewMode == ViewMode.ANALYSIS && currentPriceChartLabel != null) {
+                        currentPriceChartLabel.setText(
+                                "$" + q.getPrice().toPlainString() + (q.isUp() ? " ▲" : " ▼"));
+                        currentPriceChartLabel.setStyle(
+                                "-fx-font-size:18px;-fx-font-weight:bold;-fx-text-fill:"
+                                        + (q.isUp() ? "#3fb950" : "#f85149") + ";");
+                    }
+                });
+                dataSourceLabel.setText("OHLCV via " + finalProvider2);
+                dataSourceLabel.setTooltip(new Tooltip(
+                        "Last successful price provider for " + currentSymbol));
+                chartLiveSession.recordLoaded();
+                // Warn if DB data is stale
+                if (ohlcvStorageService.isStale(finalBars2, currentTimeframe)) {
+                    showWarnNotification("⚠ Displayed data may be stale — provider returned no new candles");
+                }
+            });
+        } catch (Exception e) {
+            if (completionFlag != null) completionFlag.set(true);
+            log.warn("Chart load failed for {} {}: {}", currentSymbol, currentTimeframe,
+                    e.getMessage());
+
+            // Step 5: attempt to recover with DB cache before showing an error
+            final String sym          = currentSymbol;
+            final String tf           = currentTimeframe;
+            final String pName;
+            {
+                MarketDataProvider _p = activeProfile != null
+                        ? MarketDataProvider.fromString(activeProfile.getChartProvider())
+                        : MarketDataProvider.AUTO;
+                pName = (_p != null && _p != MarketDataProvider.AUTO) ? _p.name() : null;
+            }
+            final String finalProvLabel = resolveProviderLabel();
+
+            Thread.ofVirtual().start(() -> {
+                List<com.mst.matt.tradingplatformapp.model.OhlcvBar> cached;
+                try {
+                    cached = ohlcvStorageService.getBarsForProvider(sym, tf, currentBars, pName);
+                } catch (Exception dbEx) {
+                    log.debug("DB cache read also failed for {}/{}: {}", sym, tf, dbEx.getMessage());
+                    cached = java.util.Collections.emptyList();
+                }
+
+                final List<com.mst.matt.tradingplatformapp.model.OhlcvBar> finalCached = cached;
+                Platform.runLater(() -> {
+                    hideChartLoadingOverlay();
+                    if (finalCached != null && !finalCached.isEmpty()) {
+                        // Serve cached data with yellow warning
+                        chart.setData(finalCached, activeIndicators, null);
+                        dataSourceLabel.setText("OHLCV via " + finalProvLabel + " (cached)");
+                        com.mst.matt.tradingplatformapp.model.OhlcvBar lastBar =
+                                finalCached.get(finalCached.size() - 1);
+                        String lastUpdate = lastBar.getOpenTime() != null
+                                ? lastBar.getOpenTime().toString().replace("T", " ") : "unknown";
+                        showWarnNotification(
+                                "Using offline/cached data for " + sym
+                                + " (" + finalProvLabel + ", " + tf + ")."
+                                + " Last update: " + lastUpdate + ".");
+                    } else {
+                        // No data at all — red error with Retry hint
+                        dataSourceLabel.setText("\u26A0 Data unavailable");
+                        showErrorNotification(
+                                "\u26A0\uFE0F Failed to load chart data for " + sym
+                                + " (" + tf + ") from " + finalProvLabel
+                                + ". Click \"Retry\" to try again, or change the provider.");
+                    }
+                });
+            });
+        }
     }
 
     private void showErrorNotification(String message) {
@@ -1865,102 +2320,72 @@ public class ChartController implements Initializable {
 
     // ── Signal bar ────────────────────────────────────────────
 
+    private void setSignalBarVisible(boolean visible) {
+        if (signalBarScroll != null) signalBarScroll.setVisible(visible);
+    }
+
+    /** Install sentiment tooltips once — avoids flicker from re-installing on every update. */
+    private void setupSentimentBarTooltips() {
+        if (bullCircle != null) {
+            Tooltip buyTip = new Tooltip(
+                    "🟢 Buying Sentiment\nIndicator count showing bullish signals.");
+            buyTip.setShowDelay(Duration.millis(200));
+            bullCircle.setTooltip(buyTip);
+        }
+        if (neutralCircle != null) {
+            Tooltip neutTip = new Tooltip(
+                    "⚪ Neutral Sentiment\nIndicator count with no clear direction.");
+            neutTip.setShowDelay(Duration.millis(200));
+            neutralCircle.setTooltip(neutTip);
+        }
+        if (bearCircle != null) {
+            Tooltip sellTip = new Tooltip(
+                    "🔴 Selling Sentiment\nIndicator count showing bearish signals.");
+            sellTip.setShowDelay(Duration.millis(200));
+            bearCircle.setTooltip(sellTip);
+        }
+        if (sentimentBox != null) {
+            Tooltip legendTip = new Tooltip(
+                    "Sentiment Circles\n🟢 Buying  ⚪ Neutral  🔴 Selling\n"
+                    + "Numbers = weighted indicator counts.");
+            legendTip.setShowDelay(Duration.millis(300));
+            legendTip.setPrefWidth(240);
+            legendTip.setWrapText(true);
+            Tooltip.install(sentimentBox, legendTip);
+        }
+    }
+
     private void updateSignalBar(SignalResult signal) {
-        if (signalBar == null) return;
-        signalBar.setVisible(true);
+        if (signalBarScroll == null) return;
+        setSignalBarVisible(true);
         Recommendation rec = signal.getRecommendation();
         signalLabel.setText(rec.label);
-        signalLabel.setStyle("-fx-font-weight:bold;-fx-font-size:14px;-fx-text-fill:" + rec.textColor + ";");
+        signalLabel.setStyle("-fx-text-fill:" + rec.textColor + ";");
         confidenceLabel.setText(String.format("Confidence: %.1f%%", signal.getConfidence()));
         bestBuyLabel.setText("$" + fmtPrice(signal.getBestBuyPrice()));
         bestSellLabel.setText("$" + fmtPrice(signal.getBestSellPrice()));
 
-        // ── Color-coded sentiment circles ──────────────────────
         int bull = signal.getBullishCount();
         int neu  = signal.getNeutralCount();
         int bear = signal.getBearishCount();
 
-        // Legacy label (hidden, keep for reference)
         if (bullBearLabel != null)
             bullBearLabel.setText("🟢 " + bull + "  ⚪ " + neu + "  🔴 " + bear);
 
-        // Colored circles with dynamic styling
-        if (bullCircle != null) {
-            bullCircle.setText(String.valueOf(bull));
-            // Intensity: more bullish = more vivid green
-            String bgColor  = bull > 0 ? "#238636" : "#1a2b1a";
-            String brdColor = bull > 0 ? "#3fb950" : "#30363d";
-            bullCircle.setStyle(
-                    "-fx-background-color:" + bgColor + ";"
-                    + "-fx-text-fill:" + (bull > 0 ? "white" : "#8b949e") + ";"
-                    + "-fx-background-radius:50%;"
-                    + "-fx-min-width:36px;-fx-min-height:36px;"
-                    + "-fx-max-width:36px;-fx-max-height:36px;"
-                    + "-fx-alignment:center;-fx-font-weight:bold;-fx-font-size:13px;"
-                    + "-fx-border-radius:50%;-fx-border-color:" + brdColor + ";-fx-border-width:2;");
-            Tooltip buyTip = new Tooltip(
-                    "🟢 Buying Sentiment\n"
-                    + bull + " indicator(s) show bullish signals.\n"
-                    + "Higher count = stronger buying pressure.");
-            buyTip.setShowDelay(Duration.millis(200));
-            Tooltip.install(bullCircle, buyTip);
-        }
+        applySentimentCircle(bullCircle, bull, "sentiment-circle-buying", "sentiment-circle-buying-dim");
+        applySentimentCircle(neutralCircle, neu, "sentiment-circle-neutral", "sentiment-circle-neutral-dim");
+        applySentimentCircle(bearCircle, bear, "sentiment-circle-selling", "sentiment-circle-selling-dim");
+    }
 
-        if (neutralCircle != null) {
-            neutralCircle.setText(String.valueOf(neu));
-            String bgColor  = neu > 0 ? "#2d333b" : "#161b22";
-            String brdColor = neu > 0 ? "#8b949e" : "#30363d";
-            neutralCircle.setStyle(
-                    "-fx-background-color:" + bgColor + ";"
-                    + "-fx-text-fill:" + (neu > 0 ? "#e6edf3" : "#484f58") + ";"
-                    + "-fx-background-radius:50%;"
-                    + "-fx-min-width:36px;-fx-min-height:36px;"
-                    + "-fx-max-width:36px;-fx-max-height:36px;"
-                    + "-fx-alignment:center;-fx-font-weight:bold;-fx-font-size:13px;"
-                    + "-fx-border-radius:50%;-fx-border-color:" + brdColor + ";-fx-border-width:2;");
-            Tooltip neutTip = new Tooltip(
-                    "⚪ Neutral Sentiment\n"
-                    + neu + " indicator(s) show no clear direction.\n"
-                    + "Neutral means sideways or conflicting signals.");
-            neutTip.setShowDelay(Duration.millis(200));
-            Tooltip.install(neutralCircle, neutTip);
-        }
-
-        if (bearCircle != null) {
-            bearCircle.setText(String.valueOf(bear));
-            String bgColor  = bear > 0 ? "#da3633" : "#2b1a1a";
-            String brdColor = bear > 0 ? "#f85149" : "#30363d";
-            bearCircle.setStyle(
-                    "-fx-background-color:" + bgColor + ";"
-                    + "-fx-text-fill:" + (bear > 0 ? "white" : "#8b949e") + ";"
-                    + "-fx-background-radius:50%;"
-                    + "-fx-min-width:36px;-fx-min-height:36px;"
-                    + "-fx-max-width:36px;-fx-max-height:36px;"
-                    + "-fx-alignment:center;-fx-font-weight:bold;-fx-font-size:13px;"
-                    + "-fx-border-radius:50%;-fx-border-color:" + brdColor + ";-fx-border-width:2;");
-            Tooltip sellTip = new Tooltip(
-                    "🔴 Selling Sentiment\n"
-                    + bear + " indicator(s) show bearish signals.\n"
-                    + "Higher count = stronger selling pressure.");
-            sellTip.setShowDelay(Duration.millis(200));
-            Tooltip.install(bearCircle, sellTip);
-        }
-
-        // Legend tooltip on the entire sentiment box
-        if (sentimentBox != null) {
-            Tooltip legendTip = new Tooltip(
-                    "Sentiment Circles Legend\n"
-                    + "─────────────────────────\n"
-                    + "🟢 Green  = Buying  (bullish indicators)\n"
-                    + "⚪ Gray   = Neutral (no clear direction)\n"
-                    + "🔴 Red    = Selling (bearish indicators)\n\n"
-                    + "The number inside each circle shows how many\n"
-                    + "weighted indicators are giving that signal.");
-            legendTip.setShowDelay(Duration.millis(300));
-            legendTip.setPrefWidth(280);
-            legendTip.setWrapText(true);
-            Tooltip.install(sentimentBox, legendTip);
-        }
+    private static void applySentimentCircle(Label circle, int count,
+                                             String activeClass, String dimClass) {
+        if (circle == null) return;
+        circle.setText(String.valueOf(count));
+        circle.getStyleClass().removeAll(
+                "sentiment-circle-buying", "sentiment-circle-buying-dim",
+                "sentiment-circle-neutral", "sentiment-circle-neutral-dim",
+                "sentiment-circle-selling", "sentiment-circle-selling-dim");
+        circle.getStyleClass().add(count > 0 ? activeClass : dimClass);
     }
 
     // ── Utilities ─────────────────────────────────────────────
@@ -1975,25 +2400,27 @@ public class ChartController implements Initializable {
     }
 
     /**
-     * T-5: All toolbar buttons use at least 44px height to meet touch-friendly target sizes.
+     * Compact toolbar button styles — fit within the 40px symbol bar without clipping.
      */
     private String activeStyle() {
         return "-fx-background-color:#1f6feb;-fx-text-fill:white;"
-                + "-fx-background-radius:6;-fx-padding:4 10;"
-                + "-fx-min-height:44;-fx-cursor:hand;";
+                + "-fx-background-radius:4;-fx-padding:2 8;"
+                + "-fx-min-height:28;-fx-pref-height:28;-fx-max-height:28;"
+                + "-fx-font-size:11px;-fx-cursor:hand;";
     }
 
-    /** Style for favorited timeframes — gold tint; touch-friendly height. */
     private String favoriteStyle() {
         return "-fx-background-color:#b08800;-fx-text-fill:white;"
-                + "-fx-background-radius:6;-fx-padding:4 10;"
-                + "-fx-min-height:44;-fx-cursor:hand;";
+                + "-fx-background-radius:4;-fx-padding:2 8;"
+                + "-fx-min-height:28;-fx-pref-height:28;-fx-max-height:28;"
+                + "-fx-font-size:11px;-fx-cursor:hand;";
     }
 
     private String inactiveStyle() {
         return "-fx-background-color:#21262d;-fx-text-fill:#e6edf3;"
-                + "-fx-background-radius:6;-fx-padding:4 10;"
-                + "-fx-min-height:44;-fx-cursor:hand;";
+                + "-fx-background-radius:4;-fx-padding:2 8;"
+                + "-fx-min-height:28;-fx-pref-height:28;-fx-max-height:28;"
+                + "-fx-font-size:11px;-fx-cursor:hand;";
     }
 
     private String fmtPrice(double p) {

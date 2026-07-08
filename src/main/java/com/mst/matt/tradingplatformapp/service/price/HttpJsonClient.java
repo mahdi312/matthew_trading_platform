@@ -1,6 +1,7 @@
 package com.mst.matt.tradingplatformapp.service.price;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mst.matt.tradingplatformapp.service.price.api.ApiErrorDetector;
 import okhttp3.OkHttpClient;
@@ -74,17 +75,45 @@ public class HttpJsonClient {
     }
 
     public Optional<JsonObject> getJson(String url) {
-        return getJson(url, null, null);
+        return getJson(url, null, null, null);
     }
 
     public Optional<JsonObject> getJson(String url, String userAgent) {
-        return getJson(url, userAgent, null);
+        return getJson(url, userAgent, null, null);
     }
 
     /**
      * T-23 throttled overload + P3 circuit-breaker gate.
      */
     public Optional<JsonObject> getJson(String url, String userAgent, String throttleKey) {
+        return getJson(url, userAgent, throttleKey, null);
+    }
+
+    /**
+     * Full overload supporting custom HTTP headers (e.g. {@code X-CMC_PRO_API_KEY}).
+     *
+     * @param url          full request URL
+     * @param userAgent    optional User-Agent header value (null = skip)
+     * @param throttleKey  optional sliding-window throttle key (null = no throttle)
+     * @param extraHeaders optional extra headers map (null = none); e.g. for CMC API key
+     */
+    public Optional<JsonObject> getJson(String url, String userAgent, String throttleKey,
+                                        java.util.Map<String, String> extraHeaders) {
+        return getJsonElement(url, userAgent, throttleKey, extraHeaders)
+                .filter(JsonElement::isJsonObject)
+                .map(JsonElement::getAsJsonObject);
+    }
+
+    public Optional<JsonElement> getJsonElement(String url) {
+        return getJsonElement(url, null, null, null);
+    }
+
+    public Optional<JsonElement> getJsonElement(String url, String userAgent, String throttleKey) {
+        return getJsonElement(url, userAgent, throttleKey, null);
+    }
+
+    public Optional<JsonElement> getJsonElement(String url, String userAgent, String throttleKey,
+                                                java.util.Map<String, String> extraHeaders) {
         String host = hostOf(url);
 
         // P3 (LOG-FIX): short-circuit dead providers instead of waiting for timeouts.
@@ -103,6 +132,9 @@ public class HttpJsonClient {
         if (userAgent != null) {
             builder.addHeader("User-Agent", userAgent);
         }
+        if (extraHeaders != null) {
+            extraHeaders.forEach(builder::addHeader);
+        }
         try (Response response = http.newCall(builder.build()).execute()) {
             if (!response.isSuccessful() || response.body() == null) {
                 log.warn("HTTP {} for {}", response.code(), abbreviate(url));
@@ -117,10 +149,10 @@ public class HttpJsonClient {
                 log.warn("Non-JSON body for {}", abbreviate(url));
                 return Optional.empty();
             }
-            JsonObject root = gson.fromJson(body, JsonObject.class);
-            if (root == null) return Optional.empty();
-            if (ApiErrorDetector.isErrorPayload(root)) {
-                log.warn("API error payload for {}: {}", abbreviate(url), abbreviateError(root));
+            JsonElement root = gson.fromJson(body, JsonElement.class);
+            if (root == null || root.isJsonNull()) return Optional.empty();
+            if (root.isJsonObject() && ApiErrorDetector.isErrorPayload(root.getAsJsonObject())) {
+                log.warn("API error payload for {}: {}", abbreviate(url), abbreviateError(root.getAsJsonObject()));
                 return Optional.empty();
             }
             // P3 success path: reset the failure counter for this host.

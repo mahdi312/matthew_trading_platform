@@ -57,8 +57,8 @@ public class MainDashboardController implements Initializable {
     @FXML private Button alertBellBtn;
     @FXML private Button navDashboard, navChart, navTrades,
             navAnalysis, navAlerts, navMixer,
-            navPortfolio, navFundamentals, navExport, navSettings,
-            navAiNews;
+            navPortfolio, navFundamentals, navDefi, navNft, navOnchain,
+            navExport, navSettings, navAiNews;
 
     @Autowired private FxWeaver              fxWeaver;
     @Autowired private UserProfileRepository profileRepository;
@@ -71,7 +71,7 @@ public class MainDashboardController implements Initializable {
 
     private Parent dashboardView, chartView, tradeEntryView,
             alertsView, mixerView, exportView, fundamentalsView, settingsView, adminView,
-            aiNewsView;
+            aiNewsView, defiView, nftView, onchainView;
 
     /** Callback invoked on logout — provided by StageInitializer. */
     private Runnable onLogout;
@@ -94,6 +94,8 @@ public class MainDashboardController implements Initializable {
 
     /** Tracks which top-level view (Parent) is currently displayed in contentArea. */
     private Parent currentView;
+    /** Tracks which nav button is currently active (to restore focus after profile switch). */
+    private Button currentActiveNav;
 
     /** Called by StageInitializer after login; wire logout callback. */
     public void setOnLogout(Runnable r) { this.onLogout = r; }
@@ -116,6 +118,15 @@ public class MainDashboardController implements Initializable {
             if (activeProfile != null) dashboardCtrl.loadProfile(activeProfile);
             showView(dashboardView);
             setActiveNav(navDashboard);
+
+            // Issue #4: Initialize ticker bar with the active profile's watchlist
+            // rather than the hardcoded defaults from LiveTickerService.
+            if (activeProfile != null && liveTickerService != null) {
+                liveTickerService.applyProfileWatchlist(activeProfile);
+                if (scrollingTicker != null) {
+                    scrollingTicker.setSymbols(liveTickerService.allSymbols());
+                }
+            }
         });
     }
 
@@ -132,6 +143,9 @@ public class MainDashboardController implements Initializable {
         setNavVisible(navAlerts,       authService.canSeeTab("ALERTS"));
         setNavVisible(navExport,       authService.canSeeTab("EXPORT"));
         setNavVisible(navFundamentals, authService.canSeeTab("FUNDAMENTALS"));
+        setNavVisible(navDefi,     authService.canSeeTab("DEFI"));
+        setNavVisible(navNft,      authService.canSeeTab("NFT"));
+        setNavVisible(navOnchain,  authService.canSeeTab("ONCHAIN"));
         // AI News & Insights — always visible for all roles
         if (navAiNews != null) { navAiNews.setVisible(true); navAiNews.setManaged(true); }
         // Settings always visible; admin panel shown only to ADMIN
@@ -153,6 +167,9 @@ public class MainDashboardController implements Initializable {
         setNavTip(navMixer, "Indicator Mixer");
         setNavTip(navPortfolio, "Portfolio");
         setNavTip(navFundamentals, "Yearly Profit");
+        setNavTip(navDefi, "DeFi Dashboard");
+        setNavTip(navNft, "NFT Explorer");
+        setNavTip(navOnchain, "Onchain Pools");
         setNavTip(navAiNews, "AI News & Insights");
         setNavTip(navExport, "Export Excel");
         setNavTip(navSettings, "Settings");
@@ -221,7 +238,8 @@ public class MainDashboardController implements Initializable {
 
     private void expandNavLabels(boolean expanded, double btnWidth) {
         for (Button b : List.of(navDashboard, navChart, navTrades, navAnalysis,
-                navAlerts, navMixer, navPortfolio, navFundamentals, navAiNews, navExport, navSettings)) {
+                navAlerts, navMixer, navPortfolio, navFundamentals, navDefi, navNft, navOnchain,
+                navAiNews, navExport, navSettings)) {
             if (b == null) continue;
             String label = (String) b.getProperties().get("navLabel");
             if (label == null) label = (String) b.getUserData();
@@ -430,35 +448,62 @@ public class MainDashboardController implements Initializable {
         showInfoNotification("Switched to profile: " + profile.getName());
 
         // ── Refresh the currently visible view IN-PLACE ───────────────────────
-        // This ensures the displayed data updates immediately without forcing the
-        // user to navigate away and back.
-        Platform.runLater(() -> {
-            if (chartView != null && currentView == chartView) {
-                // Chart view: reload drawings / bars for the new profile
-                chartCtrl.prepareView();
+        // Stay on the same tab; only reload that tab's data for the new profile.
+        Platform.runLater(() -> refreshCurrentViewForProfile(profile));
+    }
 
-            } else if (fundamentalsView != null && currentView == fundamentalsView) {
-                yearlyProfitCtrl.prepareView();
+    /**
+     * Refreshes the data of whatever tab is currently open for the given profile,
+     * keeping the user on exactly the same view without navigation flicker.
+     */
+    private void refreshCurrentViewForProfile(UserProfile profile) {
+        if (currentView == null) {
+            // Nothing shown yet — default to dashboard
+            ensureDashboardLoaded();
+            dashboardCtrl.loadProfile(profile);
+            showView(dashboardView);
+            setActiveNav(navDashboard);
+            return;
+        }
 
-            } else if (alertsView != null && currentView == alertsView) {
-                alertsCtrl.setProfile(profile);  // re-push to force refresh
+        if (chartView != null && currentView == chartView) {
+            // Chart / Analysis view — reload chart bars for new profile symbol
+            chartCtrl.prepareView();
 
-            } else if (exportView != null && currentView == exportView) {
-                exportCtrl.setProfile(profile);
+        } else if (fundamentalsView != null && currentView == fundamentalsView) {
+            yearlyProfitCtrl.prepareView();
 
-            } else if (mixerView != null && currentView == mixerView) {
-                mixerCtrl.setProfile(profile);
+        } else if (alertsView != null && currentView == alertsView) {
+            alertsCtrl.setProfile(profile);
 
-            } else if (tradeEntryView != null && currentView == tradeEntryView) {
-                // Trade entry is open — profile already set above, nothing else needed
-            } else {
-                // Default (dashboard, journal, portfolio): force a full data reload
-                ensureDashboardLoaded();
-                dashboardCtrl.loadProfile(profile);
-                // Keep the user on whichever dashboard sub-view they were on
-                showView(dashboardView);
+        } else if (exportView != null && currentView == exportView) {
+            exportCtrl.setProfile(profile);
+
+        } else if (mixerView != null && currentView == mixerView) {
+            mixerCtrl.setProfile(profile);
+
+        } else if (settingsView != null && currentView == settingsView) {
+            profileSettingsCtrl.setProfile(profile);
+
+        } else if (aiNewsView != null && currentView == aiNewsView) {
+            // AI News: update context symbol from new profile
+            if (aiNewsCtrl != null && profile.getDefaultSymbol() != null) {
+                aiNewsCtrl.setCurrentSymbol(profile.getDefaultSymbol());
             }
-        });
+
+        } else if (tradeEntryView != null && currentView == tradeEntryView) {
+            // Trade entry form is open — profile already set; just clear for a fresh entry
+            // so the user doesn't accidentally submit a trade to the old profile
+            tradeEntryCtrl.setProfile(profile);
+
+        } else {
+            // Dashboard (Overview / Journal / Portfolio sub-views)
+            ensureDashboardLoaded();
+            dashboardCtrl.loadProfile(profile);
+            // Keep the same sub-view the user was on (DASHBOARD, JOURNAL, PORTFOLIO)
+            // DashboardController.setViewMode is already in sync; just show the view
+            showView(dashboardView);
+        }
     }
 
     private void refreshAlertBadge() {
@@ -706,6 +751,30 @@ public class MainDashboardController implements Initializable {
         chartCtrl.setOnCreateTradeFromDrawing(this::openTradeEntryFromDrawing);
         chartCtrl.setOnInstantSaveTradeFromDrawing(this::instantSaveTradeFromDrawing);
         chartCtrl.setOnViewAllAlerts(this::onNavAlerts);
+        // Issue #6: Wire symbol-change propagation from chart to other tabs
+        chartCtrl.setOnSymbolChanged(this::onChartSymbolChanged);
+    }
+
+    /**
+     * Issue #6: Called whenever the user changes the symbol in the Live Chart or Analysis tab.
+     * Propagates the new symbol to Indicator Mixer, Yearly Profit, and AI News tabs.
+     */
+    private void onChartSymbolChanged(String newSymbol) {
+        if (newSymbol == null || newSymbol.isBlank()) return;
+        // Update Indicator Mixer
+        if (mixerCtrl != null) {
+            try { mixerCtrl.setSymbol(newSymbol); }
+            catch (Exception e) { /* ignore if method not yet available */ }
+        }
+        // Update Yearly Profit
+        if (yearlyProfitCtrl != null) {
+            try { yearlyProfitCtrl.setSymbol(newSymbol); }
+            catch (Exception e) { /* ignore */ }
+        }
+        // Update AI News
+        if (aiNewsCtrl != null) {
+            aiNewsCtrl.setCurrentSymbol(newSymbol);
+        }
     }
 
     private void openTradeEntryFromDrawing(TradeDrawingDraft draft) {
@@ -832,6 +901,33 @@ public class MainDashboardController implements Initializable {
         if (activeProfile != null) yearlyProfitCtrl.setProfile(activeProfile);
         yearlyProfitCtrl.prepareView();
         showView(fundamentalsView);
+    }
+
+    @FXML public void onNavDefi() {
+        setActiveNav(navDefi);
+        if (defiView == null) {
+            var wc = fxWeaver.load(DeFiDashboardController.class);
+            defiView = asParent(wc.getView().orElseThrow());
+        }
+        showView(defiView);
+    }
+
+    @FXML public void onNavNft() {
+        setActiveNav(navNft);
+        if (nftView == null) {
+            var wc = fxWeaver.load(NftExplorerController.class);
+            nftView = asParent(wc.getView().orElseThrow());
+        }
+        showView(nftView);
+    }
+
+    @FXML public void onNavOnchain() {
+        setActiveNav(navOnchain);
+        if (onchainView == null) {
+            var wc = fxWeaver.load(OnchainPoolsController.class);
+            onchainView = asParent(wc.getView().orElseThrow());
+        }
+        showView(onchainView);
     }
 
     @FXML public void onNavAnalysis() {
@@ -1022,7 +1118,7 @@ public class MainDashboardController implements Initializable {
     private void setActiveNav(Button active) {
         List.of(navDashboard, navChart, navTrades, navAnalysis,
                         navAlerts, navMixer, navPortfolio, navFundamentals,
-                        navAiNews, navExport, navSettings)
+                        navDefi, navNft, navOnchain, navAiNews, navExport, navSettings)
                 .forEach(b -> {
                     if (b == null) return;
                     b.getStyleClass().remove("nav-item-active");
@@ -1031,6 +1127,7 @@ public class MainDashboardController implements Initializable {
                 });
         if (active != null && !active.getStyleClass().contains("nav-item-active"))
             active.getStyleClass().add("nav-item-active");
+        currentActiveNav = active;
     }
 
     private void updateStatusBar(String s) {

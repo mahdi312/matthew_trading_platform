@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<!--
+    DeFi Dashboard Tab
+    ══════════════════
+    Displays global DeFi market statistics, BTC dominance, and
+    exchange rates sourced from CoinGecko free-tier endpoints:
+      - GET /global
+      - GET /global/decentralized_finance_defi
+      - GET /exchange_rates
+-->
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.mst.matt.tradingplatformapp.controller.DeFiDashboardController"
+      spacing="0"
+      maxWidth="Infinity" maxHeight="Infinity"
+      style="-fx-background-color:#0d1117;">
+
+    <!-- ══ Header ═══════════════════════════════════════════════════════════ -->
+    <VBox spacing="0"
+          style="-fx-background-color:#161b22; -fx-border-color:#30363d; -fx-border-width:0 0 1 0;">
+        <padding><Insets top="16" right="20" bottom="16" left="20"/></padding>
+
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <Label text="⛓ DeFi Dashboard"
+                   style="-fx-font-size:18px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
+            <Label text="Powered by CoinGecko Free API"
+                   style="-fx-font-size:11px; -fx-text-fill:#8b949e;"/>
+            <Pane HBox.hgrow="ALWAYS"/>
+            <Button fx:id="refreshBtn" text="↺ Refresh" onAction="#onRefresh"
+                    style="-fx-background-color:#21262d; -fx-text-fill:#e6edf3;
+                           -fx-background-radius:6; -fx-padding:6 14;
+                           -fx-font-size:12px; -fx-cursor:hand;
+                           -fx-border-color:#30363d; -fx-border-radius:6; -fx-border-width:1;"/>
+            <ProgressIndicator fx:id="loadingSpinner" prefWidth="20" prefHeight="20"
+                               visible="false" managed="false"/>
+        </HBox>
+
+        <Label fx:id="lastUpdateLabel" text="Last updated: —"
+               style="-fx-text-fill:#484f58; -fx-font-size:10px; -fx-padding:4 0 0 0;"/>
+    </VBox>
+
+    <!-- ══ Main content ═══════════════════════════════════════════════════ -->
+    <ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED"
+                VBox.vgrow="ALWAYS"
+                style="-fx-background-color:#0d1117; -fx-background:#0d1117;">
+
+        <VBox spacing="16" style="-fx-background-color:#0d1117;">
+            <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+
+            <!-- ── Global Market KPI cards ────────────────────────────── -->
+            <Label text="🌐 Global Market Overview"
+                   style="-fx-font-size:14px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
+
+            <HBox spacing="12">
+                <!-- Total Market Cap -->
+                <VBox styleClass="stat-card" HBox.hgrow="ALWAYS" spacing="6"
+                      style="-fx-background-color:#161b22; -fx-background-radius:8;
+                             -fx-border-color:#30363d; -fx-border-radius:8; -fx-border-width:1;">
+                    <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+                    <Label text="TOTAL MARKET CAP" style="-fx-font-size:10px; -fx-text-fill:#8b949e;"/>
+                    <Label fx:id="totalMarketCapLabel" text="—"
+                           style="-fx-font-size:20px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
+                    <Label fx:id="marketCapChangeLabel" text="24h change: —"
+                           style="-fx-font-size:11px; -fx-text-fill:#8b949e;"/>
+                </VBox>
+
+                <!-- BTC Dominance -->
+                <VBox styleClass="stat-card" HBox.hgrow="ALWAYS" spacing="6"
+                      style="-fx-background-color:#161b22; -fx-background-radius:8;
+                             -fx-border-color:#30363d; -fx-border-radius:8; -fx-border-width:1;">
+                    <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+                    <Label text="BTC DOMINANCE" style="-fx-font-size:10px; -fx-text-fill:#8b949e;"/>
+                    <Label fx:id="btcDominanceLabel" text="—"
+                           style="-fx-font-size:20px; -fx-font-weight:bold; -fx-text-fill:#f7931a;"/>
+                    <Label text="Bitcoin market share" style="-fx-font-size:11px; -fx-text-fill:#8b949e;"/>
+                </VBox>
+
+                <!-- Active Cryptos -->
+                <VBox styleClass="stat-card" HBox.hgrow="ALWAYS" spacing="6"
+                      style="-fx-background-color:#161b22; -fx-background-radius:8;
+                             -fx-border-color:#30363d; -fx-border-radius:8; -fx-border-width:1;">
+                    <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+                    <Label text="ACTIVE CRYPTOCURRENCIES" style="-fx-font-size:10px; -fx-text-fill:#8b949e;"/>
+                    <Label fx:id="activeCryptosLabel" text="—"
+                           style="-fx-font-size:20px; -fx-font-weight:bold; -fx-text-fill:#3fb950;"/>
+                    <Label text="Listed coins" style="-fx-font-size:11px; -fx-text-fill:#8b949e;"/>
+                </VBox>
+
+                <!-- Total Volume 24h -->
+                <VBox styleClass="stat-card" HBox.hgrow="ALWAYS" spacing="6"
+                      style="-fx-background-color:#161b22; -fx-background-radius:8;
+                             -fx-border-color:#30363d; -fx-border-radius:8; -fx-border-width:1;">
+                    <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+                    <Label text="TOTAL VOLUME 24H" style="-fx-font-size:10px; -fx-text-fill:#8b949e;"/>
+                    <Label fx:id="totalVolumeLabel" text="—"
+                           style="-fx-font-size:20px; -fx-font-weight:bold; -fx-text-fill:#58a6ff;"/>
+                    <Label text="Across all exchanges" style="-fx-font-size:11px; -fx-text-fill:#8b949e;"/>
+                </VBox>
+            </HBox>
+
+            <!-- ── DeFi Market Stats ───────────────────────────────────── -->
+            <Label text="🏦 DeFi Market Statistics"
+                   style="-fx-font-size:14px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;
+                          -fx-padding:8 0 0 0;"/>
+
+            <HBox spacing="12">
+                <!-- DeFi Market Cap -->
+                <VBox HBox.hgrow="ALWAYS" spacing="6"
+                      style="-fx-background-color:#161b22; -fx-background-radius:8;
+                             -fx-border-color:#30363d; -fx-border-radius:8; -fx-border-width:1;">
+                    <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+                    <Label text="DEFI MARKET CAP" style="-fx-font-size:10px; -fx-text-fill:#8b949e;"/>
+                    <Label fx:id="defiMarketCapLabel" text="—"
+                           style="-fx-font-size:20px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;"/>
+                </VBox>
+
+                <!-- DeFi 24h Volume -->
+                <VBox HBox.hgrow="ALWAYS" spacing="6"
+                      style="-fx-background-color:#161b22; -fx-background-radius:8;
+                             -fx-border-color:#30363d; -fx-border-radius:8; -fx-border-width:1;">
+                    <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+                    <Label text="DEFI VOLUME 24H" style="-fx-font-size:10px; -fx-text-fill:#8b949e;"/>
+                    <Label fx:id="defiVolumeLabel" text="—"
+                           style="-fx-font-size:20px; -fx-font-weight:bold; -fx-text-fill:#58a6ff;"/>
+                </VBox>
+
+                <!-- DeFi Dominance -->
+                <VBox HBox.hgrow="ALWAYS" spacing="6"
+                      style="-fx-background-color:#161b22; -fx-background-radius:8;
+                             -fx-border-color:#30363d; -fx-border-radius:8; -fx-border-width:1;">
+                    <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+                    <Label text="DEFI DOMINANCE" style="-fx-font-size:10px; -fx-text-fill:#8b949e;"/>
+                    <Label fx:id="defiDominanceLabel" text="—"
+                           style="-fx-font-size:20px; -fx-font-weight:bold; -fx-text-fill:#3fb950;"/>
+                </VBox>
+
+                <!-- Top DeFi Coin -->
+                <VBox HBox.hgrow="ALWAYS" spacing="6"
+                      style="-fx-background-color:#161b22; -fx-background-radius:8;
+                             -fx-border-color:#30363d; -fx-border-radius:8; -fx-border-width:1;">
+                    <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+                    <Label text="TOP DEFI COIN" style="-fx-font-size:10px; -fx-text-fill:#8b949e;"/>
+                    <Label fx:id="topDefiCoinLabel" text="—"
+                           style="-fx-font-size:20px; -fx-font-weight:bold; -fx-text-fill:#d29922;"/>
+                    <Label fx:id="topDefiCoinDominanceLabel" text="—"
+                           style="-fx-font-size:11px; -fx-text-fill:#8b949e;"/>
+                </VBox>
+            </HBox>
+
+            <!-- ── Exchange Rates ──────────────────────────────────────── -->
+            <Label text="💱 Exchange Rates (vs BTC)"
+                   style="-fx-font-size:14px; -fx-font-weight:bold; -fx-text-fill:#e6edf3;
+                          -fx-padding:8 0 0 0;"/>
+
+            <VBox spacing="0"
+                  style="-fx-background-color:#161b22; -fx-background-radius:8;
+                         -fx-border-color:#30363d; -fx-border-radius:8; -fx-border-width:1;">
+
+                <!-- Table header -->
+                <HBox spacing="0"
+                      style="-fx-background-color:#21262d; -fx-background-radius:8 8 0 0;
+                             -fx-padding:8 16; -fx-border-color:#30363d; -fx-border-width:0 0 1 0;">
+                    <Label text="Currency" HBox.hgrow="ALWAYS"
+                           style="-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#8b949e;"/>
+                    <Label text="Name" prefWidth="180"
+                           style="-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#8b949e;"/>
+                    <Label text="Value (BTC)" prefWidth="120" alignment="CENTER_RIGHT"
+                           style="-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#8b949e;"/>
+                    <Label text="Type" prefWidth="80" alignment="CENTER_RIGHT"
+                           style="-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#8b949e;"/>
+                </HBox>
+
+                <ScrollPane fitToWidth="true" prefHeight="240"
+                            style="-fx-background-color:transparent; -fx-background:transparent;">
+                    <VBox fx:id="exchangeRatesContainer" spacing="0">
+                        <!-- Rows injected dynamically -->
+                    </VBox>
+                </ScrollPane>
+            </VBox>
+
+            <!-- ── Status label ───────────────────────────────────────── -->
+            <Label fx:id="statusLabel" text=""
+                   style="-fx-text-fill:#8b949e; -fx-font-size:11px;"/>
+
+        </VBox>
+    </ScrollPane>
+
+</VBox>

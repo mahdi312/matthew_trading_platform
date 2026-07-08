@@ -685,7 +685,13 @@ public final class DrawingRenderer {
                 : Math.max(lineH + 10, lines.size() * lineH + 10);
         double boxY  = y - boxH + 4;
 
-        gc.setFill(Color.web("#1c2128ee")); gc.fillRoundRect(x, boxY, boxW, boxH, 4, 4);
+        // ── Background fill: use custom colour if set, otherwise default ─────
+        String bgHex = (props.getBackgroundColor() != null && !props.getBackgroundColor().isBlank())
+                ? props.getBackgroundColor() : "#1c2128";
+        double bgAlpha = props.getBackgroundOpacity() > 0 ? props.getBackgroundOpacity() : 0.87;
+        Color bgColor = safeColor(bgHex, "#1c2128");
+        gc.setFill(Color.color(bgColor.getRed(), bgColor.getGreen(), bgColor.getBlue(), bgAlpha));
+        gc.fillRoundRect(x, boxY, boxW, boxH, 4, 4);
         gc.setStroke(color); gc.setLineWidth(1.2);
         gc.strokeRoundRect(x, boxY, boxW, boxH, 4, 4);
 
@@ -718,7 +724,13 @@ public final class DrawingRenderer {
         double noteW = props.getTextBoxWidth()  > 0 ? props.getTextBoxWidth()  : 120;
         double noteH = props.getTextBoxHeight() > 0 ? props.getTextBoxHeight() : 80;
 
-        gc.setFill(Color.web("#2d2a00ee")); gc.fillRoundRect(x, y, noteW, noteH, 4, 4);
+        // ── Background fill: use custom colour if set ─────────────────────────
+        String noteBgHex = (props.getBackgroundColor() != null && !props.getBackgroundColor().isBlank())
+                ? props.getBackgroundColor() : "#2d2a00";
+        double noteBgAlpha = props.getBackgroundOpacity() > 0 ? props.getBackgroundOpacity() : 0.87;
+        Color noteBg = safeColor(noteBgHex, "#2d2a00");
+        gc.setFill(Color.color(noteBg.getRed(), noteBg.getGreen(), noteBg.getBlue(), noteBgAlpha));
+        gc.fillRoundRect(x, y, noteW, noteH, 4, 4);
         gc.setStroke(color); gc.setLineWidth(1.2); gc.strokeRoundRect(x, y, noteW, noteH, 4, 4);
 
         // Folded corner decoration
@@ -801,7 +813,13 @@ public final class DrawingRenderer {
         gc.strokeLine(tipX, tipY, tipX - 8 * Math.cos(angle - Math.PI / 6), tipY - 8 * Math.sin(angle - Math.PI / 6));
         gc.strokeLine(tipX, tipY, tipX - 8 * Math.cos(angle + Math.PI / 6), tipY - 8 * Math.sin(angle + Math.PI / 6));
         gc.setFill(color); gc.fillOval(tipX - 3, tipY - 3, 6, 6);
-        gc.setFill(Color.web("#1c2128ee")); gc.fillRoundRect(boxX, boxY, boxW, boxH, 4, 4);
+        // ── Background fill: use custom colour if set ─────────────────────────
+        String calloutBgHex = (props.getBackgroundColor() != null && !props.getBackgroundColor().isBlank())
+                ? props.getBackgroundColor() : "#162032";
+        double calloutBgAlpha = props.getBackgroundOpacity() > 0 ? props.getBackgroundOpacity() : 0.87;
+        Color calloutBg = safeColor(calloutBgHex, "#1c2128");
+        gc.setFill(Color.color(calloutBg.getRed(), calloutBg.getGreen(), calloutBg.getBlue(), calloutBgAlpha));
+        gc.fillRoundRect(boxX, boxY, boxW, boxH, 4, 4);
         gc.setStroke(color); gc.setLineWidth(1.2); gc.strokeRoundRect(boxX, boxY, boxW, boxH, 4, 4);
 
         // Render wrapped lines
@@ -906,95 +924,371 @@ public final class DrawingRenderer {
     //  Chart Patterns
     // ─────────────────────────────────────────────────────────────────────────
 
-    /** XABCD harmonic pattern – draws X-A-B-C-D zigzag with labels. */
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Shared harmonic pattern colors
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** Purple accent for bullish harmonic legs */
+    private static final Color HARMONIC_BULL = Color.web("#a371f7");
+    /** Orange accent for bearish harmonic legs */
+    private static final Color HARMONIC_BEAR = Color.web("#f78166");
+    /** Amber label text */
+    private static final Color LABEL_AMBER   = Color.web("#d29922");
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Chart Patterns — fully differentiated implementations
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * XABCD Harmonic Pattern (Gartley/Bat/Crab/Butterfly).
+     *
+     * <p>Draws the characteristic 5-point zigzag X→A→B→C→D with alternating
+     * bullish (purple) / bearish (orange) legs, Fibonacci ratio labels, and a
+     * filled PRZ (Potential Reversal Zone) box between C and D.
+     */
     private static void drawXabcdPattern(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
                                          Color color, ChartDrawingProperties props) {
-        drawLabelledZigzag(gc, d, ctx, color, props, new String[]{"X","A","B","C","D"});
-    }
-
-    /** Cypher harmonic pattern (X-A-B-C-D structure with specific ratios). */
-    private static void drawCypherPattern(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
-                                          Color color, ChartDrawingProperties props) {
-        drawLabelledZigzag(gc, d, ctx, color, props, new String[]{"X","A","B","C","D"});
-    }
-
-    /** Head and Shoulders pattern – left shoulder, head, right shoulder. */
-    private static void drawHeadAndShoulders(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
-                                              Color color, ChartDrawingProperties props) {
-        String[] labels = {"LS","H","RS"};
-        drawLabelledZigzag(gc, d, ctx, color, props, labels);
-        // Draw neckline between first and last point
-        if (d.getPoints().size() >= 3) {
-            double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
-            double y1 = priceToY(d.getPoints().get(0).getPrice(), ctx);
-            double x3 = timeToX(d.getPoints().get(2).getTime(), ctx);
-            double y3 = priceToY(d.getPoints().get(2).getPrice(), ctx);
-            gc.setStroke(color.deriveColor(0, 1, 1, 0.6));
-            gc.setLineDashes(5, 4);
-            gc.strokeLine(x1, y1, x3, y3);
-            gc.setLineDashes();
-            // Extend neckline to the right
-            if (Math.abs(x3 - x1) > 1e-6) {
-                double slope = (y3 - y1) / (x3 - x1);
-                double xRight = ctx.right;
-                double yRight = y3 + slope * (xRight - x3);
-                gc.setLineDashes(3, 6);
-                gc.strokeLine(x3, y3, xRight, yRight);
-                gc.setLineDashes();
-            }
-        }
-    }
-
-    /** ABCD pattern – three-point harmonic structure. */
-    private static void drawAbcdPattern(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
-                                        Color color, ChartDrawingProperties props) {
-        drawLabelledZigzag(gc, d, ctx, color, props, new String[]{"A","B","C","D"});
-    }
-
-    /** Triangle pattern – ascending, descending, or symmetrical. */
-    private static void drawTrianglePattern(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
-                                            Color color, ChartDrawingProperties props) {
-        int n = Math.min(d.getPoints().size(), 3);
+        int n = d.getPoints().size();
         if (n < 2) return;
-        // Upper trendline (points 0-2) and lower trendline extended to a convergence
-        double x0 = timeToX(d.getPoints().get(0).getTime(), ctx);
-        double y0 = priceToY(d.getPoints().get(0).getPrice(), ctx);
-        double x1 = timeToX(d.getPoints().get(1).getTime(), ctx);
-        double y1 = priceToY(d.getPoints().get(1).getPrice(), ctx);
-        gc.setStroke(color);
-        gc.setLineWidth(props.getLineWidth());
-        gc.strokeLine(x0, y0, x1, y1);
-        if (n >= 3) {
-            double x2 = timeToX(d.getPoints().get(2).getTime(), ctx);
-            double y2 = priceToY(d.getPoints().get(2).getPrice(), ctx);
-            gc.strokeLine(x1, y1, x2, y2);
-            // Draw fill
-            gc.setFill(Color.color(color.getRed(), color.getGreen(), color.getBlue(),
-                    clamp(props.getFillOpacity())));
-            gc.fillPolygon(new double[]{x0, x1, x2}, new double[]{y0, y1, y2}, 3);
+        String[] labels = {"X","A","B","C","D"};
+        double[] xs = new double[n], ys = new double[n];
+        for (int i = 0; i < n; i++) {
+            xs[i] = timeToX(d.getPoints().get(i).getTime(), ctx);
+            ys[i] = priceToY(d.getPoints().get(i).getPrice(), ctx);
         }
-        // Labels
-        if (!d.getPoints().isEmpty()) {
-            gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.CENTER);
-            String[] labels = {"A","B","C"};
-            for (int i = 0; i < n; i++) {
-                double x = timeToX(d.getPoints().get(i).getTime(), ctx);
-                double y = priceToY(d.getPoints().get(i).getPrice(), ctx);
-                gc.fillText(labels[i], x, y - 8);
-                gc.fillOval(x - 3, y - 3, 6, 6);
+        // Alternating leg colors
+        Color[] legColors = {HARMONIC_BULL, HARMONIC_BEAR, HARMONIC_BULL, HARMONIC_BEAR};
+        gc.setLineWidth(props.getLineWidth());
+        for (int i = 0; i < n - 1; i++) {
+            Color lc = legColors[i % legColors.length];
+            gc.setStroke(lc);
+            gc.strokeLine(xs[i], ys[i], xs[i+1], ys[i+1]);
+            // Mid-leg Fibonacci ratio annotation
+            if (i > 0) {
+                double legLen = Math.abs(ys[i] - ys[i-1]);
+                double retracement = legLen > 0 ? Math.abs(ys[i+1] - ys[i]) / legLen : 0;
+                gc.setFill(LABEL_AMBER); gc.setFont(FONT_SMALL);
+                gc.setTextAlign(TextAlignment.CENTER);
+                gc.fillText(String.format("%.3f", retracement),
+                        (xs[i] + xs[i+1]) / 2, (ys[i] + ys[i+1]) / 2 - 6);
             }
+        }
+        // PRZ fill box between last two defined points
+        if (n >= 4) {
+            int last = n - 1;
+            double xL = Math.min(xs[last-1], xs[last]);
+            double xR = Math.max(xs[last-1], xs[last]);
+            double yT = Math.min(ys[last-1], ys[last]);
+            double yB = Math.max(ys[last-1], ys[last]);
+            gc.setFill(Color.color(HARMONIC_BULL.getRed(), HARMONIC_BULL.getGreen(),
+                    HARMONIC_BULL.getBlue(), 0.12));
+            gc.fillRect(xL, yT, xR - xL, yB - yT);
+            gc.setStroke(HARMONIC_BULL.deriveColor(0,1,1,0.4));
+            gc.setLineDashes(4, 3); gc.strokeRect(xL, yT, xR - xL, yB - yT);
+            gc.setLineDashes();
+            gc.setFill(LABEL_AMBER); gc.setFont(FONT_SMALL);
+            gc.setTextAlign(TextAlignment.CENTER);
+            gc.fillText("PRZ", (xL+xR)/2, yT - 4);
+        }
+        // Dots and labels
+        gc.setFont(FONT_MEDIUM); gc.setTextAlign(TextAlignment.CENTER);
+        for (int i = 0; i < n; i++) {
+            Color dot = (i % 2 == 0) ? HARMONIC_BULL : HARMONIC_BEAR;
+            gc.setFill(dot); gc.fillOval(xs[i]-5, ys[i]-5, 10, 10);
+            gc.setFill(Color.web("#e6edf3"));
+            gc.fillText(labels[i], xs[i], ys[i] - 12);
         }
         gc.setTextAlign(TextAlignment.LEFT);
     }
 
-    /** Three Drives pattern – harmonic with 3 equal legs. */
-    private static void drawThreeDrivesPattern(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
-                                               Color color, ChartDrawingProperties props) {
-        drawLabelledZigzag(gc, d, ctx, color, props, new String[]{"1","2","3","4","5"});
+    /**
+     * Cypher Harmonic Pattern.
+     *
+     * <p>Visually distinct from XABCD: the Cypher uses a gold/teal color scheme
+     * and highlights the characteristic C-D retracement into the X-A range with
+     * a dedicated shaded zone.
+     */
+    private static void drawCypherPattern(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                          Color color, ChartDrawingProperties props) {
+        int n = d.getPoints().size();
+        if (n < 2) return;
+        String[] labels = {"X","A","B","C","D"};
+        Color cypherGold = Color.web("#d29922");
+        Color cypherTeal = Color.web("#39d353");
+        double[] xs = new double[n], ys = new double[n];
+        for (int i = 0; i < n; i++) {
+            xs[i] = timeToX(d.getPoints().get(i).getTime(), ctx);
+            ys[i] = priceToY(d.getPoints().get(i).getPrice(), ctx);
+        }
+        // X-A-B shaded zone (background)
+        if (n >= 3) {
+            double polyX[] = {xs[0], xs[1], xs[2], xs[0]};
+            double polyY[] = {ys[0], ys[1], ys[2], ys[0]};
+            gc.setFill(Color.color(cypherGold.getRed(), cypherGold.getGreen(),
+                    cypherGold.getBlue(), 0.07));
+            gc.fillPolygon(polyX, polyY, 4);
+        }
+        // Legs — alternate gold / teal
+        Color[] legColors = {cypherGold, cypherTeal, cypherGold, cypherTeal};
+        gc.setLineWidth(props.getLineWidth());
+        for (int i = 0; i < n - 1; i++) {
+            gc.setStroke(legColors[i % legColors.length]);
+            gc.strokeLine(xs[i], ys[i], xs[i+1], ys[i+1]);
+        }
+        // C-D retracement box
+        if (n >= 5) {
+            double xL = Math.min(xs[3], xs[4]), xR = Math.max(xs[3], xs[4]);
+            double yT = Math.min(ys[3], ys[4]), yB = Math.max(ys[3], ys[4]);
+            gc.setFill(Color.color(cypherTeal.getRed(), cypherTeal.getGreen(),
+                    cypherTeal.getBlue(), 0.15));
+            gc.fillRect(xL, yT, xR-xL, yB-yT);
+            gc.setStroke(cypherTeal.deriveColor(0,1,1,0.5));
+            gc.setLineDashes(3, 4); gc.strokeRect(xL, yT, xR-xL, yB-yT); gc.setLineDashes();
+            gc.setFill(cypherGold); gc.setFont(FONT_SMALL);
+            gc.setTextAlign(TextAlignment.CENTER);
+            gc.fillText("Cypher PRZ", (xL+xR)/2, yT - 4);
+        }
+        // Dots and labels
+        gc.setFont(FONT_MEDIUM); gc.setTextAlign(TextAlignment.CENTER);
+        for (int i = 0; i < n; i++) {
+            Color dot = (i % 2 == 0) ? cypherGold : cypherTeal;
+            gc.setFill(dot); gc.fillOval(xs[i]-5, ys[i]-5, 10, 10);
+            gc.setFill(Color.web("#e6edf3"));
+            gc.fillText(labels[i], xs[i], ys[i] - 12);
+        }
+        gc.setTextAlign(TextAlignment.LEFT);
     }
 
     /**
-     * Generic labelled zigzag used by most chart patterns (XABCD, Elliott, etc.).
+     * Head and Shoulders pattern.
+     *
+     * <p>Three anchor points: Left Shoulder (LS), Head (H), Right Shoulder (RS).
+     * Neckline is drawn between LS and RS and extended to the right as a dashed
+     * breakout projection.  Head height is annotated.
+     */
+    private static void drawHeadAndShoulders(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                              Color color, ChartDrawingProperties props) {
+        int n = d.getPoints().size();
+        if (n < 2) return;
+        String[] labels = {"LS","H","RS"};
+        double[] xs = new double[n], ys = new double[n];
+        for (int i = 0; i < n; i++) {
+            xs[i] = timeToX(d.getPoints().get(i).getTime(), ctx);
+            ys[i] = priceToY(d.getPoints().get(i).getPrice(), ctx);
+        }
+        // LS → H → RS zigzag in orange
+        gc.setStroke(color); gc.setLineWidth(props.getLineWidth());
+        for (int i = 0; i < n - 1; i++) gc.strokeLine(xs[i], ys[i], xs[i+1], ys[i+1]);
+
+        // Neckline: connect LS and RS
+        if (n >= 3) {
+            double neckX1 = xs[0], neckY1 = ys[0];
+            double neckX2 = xs[2], neckY2 = ys[2];
+            gc.setStroke(Color.web("#3b82f6").deriveColor(0,1,1,0.8));
+            gc.setLineWidth(1.5); gc.setLineDashes(5, 4);
+            gc.strokeLine(neckX1, neckY1, neckX2, neckY2);
+            // Extended neckline projection
+            if (Math.abs(neckX2 - neckX1) > 1e-6) {
+                double slope = (neckY2 - neckY1) / (neckX2 - neckX1);
+                double xRight = ctx.right;
+                double yRight = neckY2 + slope * (xRight - neckX2);
+                gc.setLineDashes(2, 6);
+                gc.strokeLine(neckX2, neckY2, xRight, yRight);
+            }
+            gc.setLineDashes(); gc.setLineWidth(props.getLineWidth());
+            // "Neckline" label
+            gc.setFill(Color.web("#3b82f6")); gc.setFont(FONT_SMALL);
+            gc.setTextAlign(TextAlignment.LEFT);
+            gc.fillText("Neckline", neckX2 + 6, neckY2 - 3);
+            // Head height annotation
+            double headY = ys[Math.min(1, n-1)];
+            double midNeckY = (neckY1 + neckY2) / 2;
+            double midNeckX = (neckX1 + neckX2) / 2;
+            if (Math.abs(headY - midNeckY) > 4) {
+                gc.setStroke(color.deriveColor(0,1,1,0.5));
+                gc.setLineDashes(2, 3);
+                gc.strokeLine(midNeckX, headY, midNeckX, midNeckY);
+                gc.setLineDashes();
+                double headPrice = d.getPoints().get(1).getPrice();
+                double neckPrice = (d.getPoints().get(0).getPrice() + d.getPoints().get(2).getPrice()) / 2.0;
+                double heightPct = neckPrice != 0 ? Math.abs(headPrice - neckPrice) / neckPrice * 100 : 0;
+                gc.setFill(LABEL_AMBER); gc.setFont(FONT_SMALL);
+                gc.setTextAlign(TextAlignment.CENTER);
+                gc.fillText(String.format("%.1f%%", heightPct), midNeckX, (headY + midNeckY) / 2);
+            }
+        }
+        // Shoulder / head dots and labels
+        gc.setFont(FONT_MEDIUM); gc.setTextAlign(TextAlignment.CENTER);
+        Color[] dotColors = {Color.web("#58a6ff"), Color.web("#f85149"), Color.web("#58a6ff")};
+        for (int i = 0; i < n; i++) {
+            Color dc = dotColors[i < dotColors.length ? i : 0];
+            gc.setFill(dc); gc.fillOval(xs[i]-5, ys[i]-5, 10, 10);
+            gc.setFill(Color.web("#e6edf3"));
+            gc.fillText(labels[i < labels.length ? i : 0], xs[i], ys[i] - 12);
+        }
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    /**
+     * ABCD Harmonic Pattern.
+     *
+     * <p>Three-point zigzag A→B→C→D with Fibonacci retracement labels on each leg
+     * and a distinct green PRZ shading at point D.
+     */
+    private static void drawAbcdPattern(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                        Color color, ChartDrawingProperties props) {
+        int n = d.getPoints().size();
+        if (n < 2) return;
+        String[] labels = {"A","B","C","D"};
+        Color abColor = Color.web("#58a6ff");
+        Color cdColor = Color.web("#f78166");
+        double[] xs = new double[n], ys = new double[n];
+        for (int i = 0; i < n; i++) {
+            xs[i] = timeToX(d.getPoints().get(i).getTime(), ctx);
+            ys[i] = priceToY(d.getPoints().get(i).getPrice(), ctx);
+        }
+        gc.setLineWidth(props.getLineWidth());
+        // A→B (blue)
+        if (n >= 2) { gc.setStroke(abColor); gc.strokeLine(xs[0], ys[0], xs[1], ys[1]); }
+        // B→C (orange, dashed)
+        if (n >= 3) {
+            gc.setStroke(cdColor); gc.setLineDashes(4,3);
+            gc.strokeLine(xs[1], ys[1], xs[2], ys[2]); gc.setLineDashes();
+            // BC retracement of AB
+            double ab = Math.abs(ys[0] - ys[1]);
+            double bc = Math.abs(ys[1] - ys[2]);
+            double ratio = ab > 0 ? bc / ab : 0;
+            gc.setFill(LABEL_AMBER); gc.setFont(FONT_SMALL);
+            gc.setTextAlign(TextAlignment.CENTER);
+            gc.fillText(String.format("%.3f", ratio), (xs[1]+xs[2])/2, (ys[1]+ys[2])/2-6);
+        }
+        // C→D (green)
+        if (n >= 4) {
+            Color cdGreen = Color.web("#3fb950");
+            gc.setStroke(cdGreen); gc.strokeLine(xs[2], ys[2], xs[3], ys[3]);
+            // PRZ at D
+            double r = 6;
+            gc.setFill(Color.color(cdGreen.getRed(), cdGreen.getGreen(), cdGreen.getBlue(), 0.25));
+            gc.fillOval(xs[3]-r*2, ys[3]-r*2, r*4, r*4);
+            gc.setStroke(cdGreen.deriveColor(0,1,1,0.6));
+            gc.strokeOval(xs[3]-r*2, ys[3]-r*2, r*4, r*4);
+            gc.setFill(Color.web("#e6edf3")); gc.setFont(FONT_SMALL);
+            gc.setTextAlign(TextAlignment.CENTER);
+            gc.fillText("D (PRZ)", xs[3], ys[3]-14);
+        }
+        // Dots and labels
+        gc.setFont(FONT_MEDIUM); gc.setTextAlign(TextAlignment.CENTER);
+        for (int i = 0; i < n; i++) {
+            gc.setFill(i % 2 == 0 ? abColor : cdColor);
+            gc.fillOval(xs[i]-4, ys[i]-4, 8, 8);
+            gc.setFill(Color.web("#e6edf3"));
+            gc.fillText(labels[i < labels.length ? i : i % labels.length], xs[i], ys[i]-10);
+        }
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    /**
+     * Triangle Pattern – ascending, descending, or symmetrical.
+     *
+     * <p>Upper trendline connects points 0 and 2; lower trendline connects 1 and 2.
+     * Both lines are extended forward to highlight the convergence (apex) of the triangle.
+     */
+    private static void drawTrianglePattern(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                            Color color, ChartDrawingProperties props) {
+        int n = Math.min(d.getPoints().size(), 3);
+        if (n < 2) return;
+        double x0 = timeToX(d.getPoints().get(0).getTime(), ctx);
+        double y0 = priceToY(d.getPoints().get(0).getPrice(), ctx);
+        double x1 = timeToX(d.getPoints().get(1).getTime(), ctx);
+        double y1 = priceToY(d.getPoints().get(1).getPrice(), ctx);
+        gc.setStroke(color); gc.setLineWidth(props.getLineWidth());
+        // Upper trendline A→C
+        if (n >= 3) {
+            double x2 = timeToX(d.getPoints().get(2).getTime(), ctx);
+            double y2 = priceToY(d.getPoints().get(2).getPrice(), ctx);
+            // Fill triangle area
+            gc.setFill(Color.color(color.getRed(), color.getGreen(), color.getBlue(),
+                    clamp(props.getFillOpacity() > 0 ? props.getFillOpacity() : 0.10)));
+            gc.fillPolygon(new double[]{x0, x1, x2}, new double[]{y0, y1, y2}, 3);
+            // Upper line (0→2)
+            gc.setStroke(Color.web("#58a6ff")); gc.strokeLine(x0, y0, x2, y2);
+            // Lower line (1→2)
+            gc.setStroke(Color.web("#f78166")); gc.strokeLine(x1, y1, x2, y2);
+            // Extend upper and lower to apex
+            if (Math.abs(x2 - x0) > 1e-6 && Math.abs(x2 - x1) > 1e-6) {
+                double slopeU = (y2 - y0) / (x2 - x0);
+                double slopeL = (y2 - y1) / (x2 - x1);
+                double xExt = ctx.right;
+                gc.setStroke(Color.web("#58a6ff").deriveColor(0,1,1,0.4));
+                gc.setLineDashes(4,4); gc.strokeLine(x2, y2, xExt, y2 + slopeU*(xExt-x2)); gc.setLineDashes();
+                gc.setStroke(Color.web("#f78166").deriveColor(0,1,1,0.4));
+                gc.setLineDashes(4,4); gc.strokeLine(x2, y2, xExt, y2 + slopeL*(xExt-x2)); gc.setLineDashes();
+            }
+            // Apex label
+            gc.setFill(LABEL_AMBER); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.CENTER);
+            gc.fillText("Apex", x2, y2 - 8);
+        } else {
+            gc.setStroke(color); gc.strokeLine(x0, y0, x1, y1);
+        }
+        // Labels A, B, C
+        String[] labels = {"A","B","C"};
+        gc.setFont(FONT_MEDIUM); gc.setTextAlign(TextAlignment.CENTER);
+        Color[] dotColors = {Color.web("#58a6ff"), Color.web("#f78166"), color};
+        for (int i = 0; i < n; i++) {
+            double px = timeToX(d.getPoints().get(i).getTime(), ctx);
+            double py = priceToY(d.getPoints().get(i).getPrice(), ctx);
+            gc.setFill(dotColors[i]); gc.fillOval(px-4, py-4, 8, 8);
+            gc.setFill(Color.web("#e6edf3")); gc.fillText(labels[i], px, py-10);
+        }
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    /**
+     * Three Drives Pattern – three equal harmonic legs (1-2-3-4-5).
+     *
+     * <p>Rendered with alternating red/green segments to distinguish "drives"
+     * (1,3,5) from "corrections" (2,4).  Each drive pair is shaded.
+     */
+    private static void drawThreeDrivesPattern(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
+                                               Color color, ChartDrawingProperties props) {
+        int n = d.getPoints().size();
+        if (n < 2) return;
+        String[] labels = {"1","2","3","4","5"};
+        // Drive legs (0→1, 2→3, 4→5) in green; corrections (1→2, 3→4) in red
+        Color driveColor  = Color.web("#3fb950");
+        Color corrColor   = Color.web("#f85149");
+        double[] xs = new double[n], ys = new double[n];
+        for (int i = 0; i < n; i++) {
+            xs[i] = timeToX(d.getPoints().get(i).getTime(), ctx);
+            ys[i] = priceToY(d.getPoints().get(i).getPrice(), ctx);
+        }
+        gc.setLineWidth(props.getLineWidth() + 0.5);
+        for (int i = 0; i < n - 1; i++) {
+            // drives are even-indexed legs (0→1, 2→3, 4→5)
+            Color lc = (i % 2 == 0) ? driveColor : corrColor;
+            gc.setStroke(lc); gc.strokeLine(xs[i], ys[i], xs[i+1], ys[i+1]);
+            // Shade drive rectangles
+            if (i % 2 == 0 && i + 1 < n) {
+                double xL = Math.min(xs[i], xs[i+1]), xR = Math.max(xs[i], xs[i+1]);
+                double yT = Math.min(ys[i], ys[i+1]), yB = Math.max(ys[i], ys[i+1]);
+                gc.setFill(Color.color(driveColor.getRed(), driveColor.getGreen(),
+                        driveColor.getBlue(), 0.07));
+                gc.fillRect(xL, yT, xR-xL, yB-yT);
+            }
+        }
+        // Dots and labels
+        gc.setFont(FONT_MEDIUM); gc.setTextAlign(TextAlignment.CENTER);
+        for (int i = 0; i < n; i++) {
+            Color dc = (i % 2 == 0) ? driveColor : corrColor;
+            gc.setFill(dc); gc.fillOval(xs[i]-5, ys[i]-5, 10, 10);
+            gc.setFill(Color.web("#e6edf3"));
+            gc.fillText(labels[i < labels.length ? i : i % labels.length], xs[i], ys[i]-12);
+        }
+        gc.setTextAlign(TextAlignment.LEFT);
+    }
+
+    /**
+     * Generic labelled zigzag used by most chart patterns and Elliott waves.
      * Connects all points with lines and draws a label at each anchor.
      */
     private static void drawLabelledZigzag(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
@@ -1034,15 +1328,80 @@ public final class DrawingRenderer {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    //  Elliott Waves
+    //  Elliott Waves — color-coded by wave type
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * Generic Elliott wave renderer – draws labelled zigzag with wave labels.
+     * Elliott wave renderer with fully color-coded segments.
+     *
+     * <p>Impulse waves (1,3,5) are drawn in green; corrective waves (2,4) in red.
+     * Correction (A,B,C) and combination waves use distinct colors per leg.
+     * A small badge box is drawn at each anchor.
      */
     private static void drawElliottWave(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
                                         Color color, ChartDrawingProperties props, String[] waveLabels) {
-        drawLabelledZigzag(gc, d, ctx, color, props, waveLabels);
+        int n = d.getPoints().size();
+        if (n < 2) return;
+        double[] xs = new double[n], ys = new double[n];
+        for (int i = 0; i < n; i++) {
+            xs[i] = timeToX(d.getPoints().get(i).getTime(), ctx);
+            ys[i] = priceToY(d.getPoints().get(i).getPrice(), ctx);
+        }
+        // Color palette per leg: impulse alternates green/red; ABC = blue/red/blue; WXY = amber/gray/amber
+        boolean isImpulse    = waveLabels.length == 5 && waveLabels[0].equals("1");
+        boolean isCorrection = waveLabels.length == 3 && waveLabels[0].equals("A");
+        boolean isTriangle   = waveLabels.length == 5 && waveLabels[0].equals("A");
+        // isCombo = !isImpulse && !isCorrection && !isTriangle (else branch below)
+
+        Color[] impulseColors    = {Color.web("#3fb950"), Color.web("#f85149"),
+                                    Color.web("#3fb950"), Color.web("#f85149"), Color.web("#3fb950")};
+        Color[] correctionColors = {Color.web("#f85149"), Color.web("#3fb950"), Color.web("#f85149")};
+        Color[] triangleColors   = {Color.web("#58a6ff"), Color.web("#d29922"), Color.web("#58a6ff"),
+                                    Color.web("#d29922"), Color.web("#58a6ff")};
+        Color[] comboColors      = {Color.web("#d29922"), Color.web("#8b949e"), Color.web("#d29922"),
+                                    Color.web("#8b949e"), Color.web("#d29922")};
+
+        Color[] legColors = isImpulse    ? impulseColors
+                          : isCorrection ? correctionColors
+                          : isTriangle   ? triangleColors
+                          : comboColors;
+
+        gc.setLineWidth(props.getLineWidth());
+        for (int i = 0; i < n - 1; i++) {
+            Color lc = legColors[i % legColors.length];
+            gc.setStroke(lc);
+            // Impulse wave 3 (index 2→3) is typically the strongest — draw thicker
+            if (isImpulse && i == 2) gc.setLineWidth(props.getLineWidth() + 1);
+            else gc.setLineWidth(props.getLineWidth());
+            gc.strokeLine(xs[i], ys[i], xs[i+1], ys[i+1]);
+        }
+
+        // Shaded region under impulse waves (1,3,5)
+        if (isImpulse && n >= 6) {
+            gc.setFill(Color.color(0.24, 0.72, 0.31, 0.06));
+            gc.fillPolygon(xs, ys, n);
+        }
+
+        // Badge labels at each anchor
+        gc.setFont(Font.font("Segoe UI", 10));
+        gc.setTextAlign(TextAlignment.CENTER);
+        for (int i = 0; i < n; i++) {
+            Color lc = legColors[Math.min(i, legColors.length-1)];
+            // Badge background
+            double bw = 16, bh = 14;
+            gc.setFill(lc.deriveColor(0,1,0.4,0.85));
+            gc.fillRoundRect(xs[i]-bw/2, ys[i]-bh-6, bw, bh, 4, 4);
+            gc.setStroke(lc); gc.setLineWidth(1);
+            gc.strokeRoundRect(xs[i]-bw/2, ys[i]-bh-6, bw, bh, 4, 4);
+            // Label text
+            gc.setFill(Color.web("#e6edf3"));
+            String lbl = i < waveLabels.length ? waveLabels[i] : "?";
+            gc.fillText(lbl, xs[i], ys[i] - 9);
+            // Dot
+            gc.setFill(lc); gc.fillOval(xs[i]-4, ys[i]-4, 8, 8);
+        }
+        gc.setLineWidth(props.getLineWidth());
+        gc.setTextAlign(TextAlignment.LEFT);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1227,6 +1586,14 @@ public final class DrawingRenderer {
     //  Gann Tools
     // ─────────────────────────────────────────────────────────────────────────
 
+    /**
+     * Gann Box — rectangular grid of Gann angles radiating from the pivot corner.
+     *
+     * <p>All seven canonical Gann angles (8×1, 4×1, 2×1, 1×1, 1×2, 1×4, 1×8) are
+     * drawn inside the box in color-coded fashion: 1×1 (white/bold), steep angles
+     * (>1×1, blue), shallow angles (<1×1, amber).  Horizontal/vertical mid-lines
+     * divide the box into quadrants.
+     */
     private static void drawGannBox(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
                                     Color color, ChartDrawingProperties props) {
         if (d.getPoints().size() < 2) return;
@@ -1237,60 +1604,154 @@ public final class DrawingRenderer {
         double xL = Math.min(x1, x2), xR = Math.max(x1, x2);
         double yT = Math.min(y1, y2), yB = Math.max(y1, y2);
         double w = xR - xL, h = yB - yT;
-        // Box fill
-        gc.setFill(Color.color(color.getRed(), color.getGreen(), color.getBlue(), clamp(props.getFillOpacity())));
+        if (w < 2 || h < 2) return;
+
+        // Subtle fill
+        gc.setFill(Color.color(color.getRed(), color.getGreen(), color.getBlue(),
+                clamp(props.getFillOpacity() > 0 ? props.getFillOpacity() : 0.05)));
         gc.fillRect(xL, yT, w, h);
+        // Outer border
         gc.setStroke(color); gc.setLineWidth(props.getLineWidth());
         gc.strokeRect(xL, yT, w, h);
-        // Internal Gann angles (1×1, 1×2, 2×1, 1×4, 4×1)
-        double[][] angles = {{1,1},{1,2},{2,1},{1,4},{4,1}};
-        String[] aLabels = {"1×1","1×2","2×1","1×4","4×1"};
+
+        // Mid-lines (quadrant dividers)
+        gc.setStroke(color.deriveColor(0,1,1,0.3)); gc.setLineWidth(0.8);
+        gc.setLineDashes(3,4);
+        gc.strokeLine(xL, (yT+yB)/2, xR, (yT+yB)/2); // horizontal mid
+        gc.strokeLine((xL+xR)/2, yT, (xL+xR)/2, yB); // vertical mid
+        gc.setLineDashes();
+
+        // Pivot corner: bottom-left (standard Gann from low-left)
+        double px = xL, py = yB;
+
+        // Gann angles: {xRatio, yRatio, label, color-hint}
+        // xRatio: how far along width; yRatio: how far up height (both 0..1)
+        double[][] angles = {
+            {8.0/8, 1.0/8, 8,1},
+            {4.0/5, 1.0/5, 4,1},
+            {2.0/3, 1.0/3, 2,1},
+            {1.0/2, 1.0/2, 1,1},  // 1×1
+            {1.0/3, 2.0/3, 1,2},
+            {1.0/5, 4.0/5, 1,4},
+            {1.0/8, 7.0/8, 1,8}
+        };
+        String[] aLabels = {"8×1","4×1","2×1","1×1","1×2","1×4","1×8"};
+        // Colors: steep=blue, 1×1=white, shallow=amber
+        String[] aColors = {"#3b82f6","#58a6ff","#8b5cf6","#e6edf3","#f59e0b","#f97316","#ef4444"};
         for (int i = 0; i < angles.length; i++) {
-            double scaleX = angles[i][0], scaleY = angles[i][1];
-            double eX = xL + w * scaleX / Math.max(scaleX, scaleY);
-            double eY = yT + h * scaleY / Math.max(scaleX, scaleY);
-            eX = Math.min(eX, xR); eY = Math.min(eY, yB);
-            gc.setStroke(color.deriveColor(0, 1, 1, 0.6));
-            gc.setLineDashes(i == 0 ? null : new double[]{3, 4});
-            gc.strokeLine(xL, yB, eX, eY);
+            double eX = xL + w * angles[i][0];
+            double eY = yB - h * angles[i][1];
+            eX = Math.min(eX, xR); eY = Math.max(eY, yT);
+            Color lc = safeColor(aColors[i], "#e6edf3");
+            gc.setStroke(lc.deriveColor(0,1,1, i==3 ? 0.9 : 0.65));
+            gc.setLineWidth(i == 3 ? props.getLineWidth()+0.5 : 1.0);
+            gc.setLineDashes(i == 3 ? null : new double[]{3,4});
+            gc.strokeLine(px, py, eX, eY);
             gc.setLineDashes();
-            gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.LEFT);
-            gc.fillText(aLabels[i], eX + 2, eY - 2);
+            if (eX > xL + 8 && eY > yT + 4) {
+                gc.setFill(lc); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.LEFT);
+                gc.fillText(aLabels[i], eX + 2, eY - 2);
+            }
         }
+        gc.setLineWidth(props.getLineWidth());
         gc.setTextAlign(TextAlignment.LEFT);
     }
 
+    /**
+     * Gann Square Fixed — a perfect square overlay.
+     *
+     * <p>The "fixed" square ensures equal price-to-time units by constraining
+     * the bounding box to a square (minimum of width/height) and drawing
+     * an inner price-scale grid with 8 evenly-spaced horizontal levels.
+     * This is visually distinct from Gann Box (no angles, instead a price grid).
+     */
     private static void drawGannSquareFixed(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
                                             Color color, ChartDrawingProperties props) {
-        // Fixed Gann square: same width and height in price-time units
-        drawGannBox(gc, d, ctx, color, props);
         if (d.getPoints().size() < 2) return;
         double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
         double y1 = priceToY(d.getPoints().get(0).getPrice(), ctx);
         double x2 = timeToX(d.getPoints().get(1).getTime(), ctx);
         double y2 = priceToY(d.getPoints().get(1).getPrice(), ctx);
         double xL = Math.min(x1, x2), yT = Math.min(y1, y2);
-        double side = Math.min(Math.abs(x2 - x1), Math.abs(y2 - y1));
-        gc.setStroke(color.deriveColor(0, 1, 1, 0.9));
-        gc.setLineWidth(props.getLineWidth() + 0.5);
-        gc.setLineDashes(2, 4);
-        gc.strokeRect(xL, yT, side, side);  // overlay the square
-        gc.setLineDashes();
-        gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.CENTER);
-        gc.fillText("Fixed", xL + side / 2, yT + side / 2);
+        double side = Math.min(Math.abs(x2-x1), Math.abs(y2-y1));
+        if (side < 2) return;
+        Color fixedColor = Color.web("#d29922");  // gold — distinct from Gann Box
+
+        // Background fill
+        gc.setFill(Color.color(fixedColor.getRed(), fixedColor.getGreen(),
+                fixedColor.getBlue(), 0.06));
+        gc.fillRect(xL, yT, side, side);
+        // Outer square border (thicker, gold)
+        gc.setStroke(fixedColor); gc.setLineWidth(props.getLineWidth() + 0.5);
+        gc.strokeRect(xL, yT, side, side);
+        // Inner price-scale grid: 8 equal subdivisions
+        int divisions = 8;
+        gc.setStroke(fixedColor.deriveColor(0,1,1,0.3));
+        gc.setLineWidth(0.7); gc.setLineDashes(2,3);
+        for (int i = 1; i < divisions; i++) {
+            double gY = yT + side * i / divisions;
+            gc.strokeLine(xL, gY, xL + side, gY);
+            double gX = xL + side * i / divisions;
+            gc.strokeLine(gX, yT, gX, yT + side);
+        }
+        gc.setLineDashes(); gc.setLineWidth(props.getLineWidth());
+        // Diagonal (45° price-time) — the "square of nine" axis
+        gc.setStroke(fixedColor); gc.setLineWidth(1.5);
+        gc.strokeLine(xL, yT + side, xL + side, yT);  // bottom-left to top-right
+        gc.strokeLine(xL, yT, xL + side, yT + side);  // top-left to bottom-right
+        // Label
+        gc.setFill(fixedColor); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.CENTER);
+        gc.fillText("Sq. Fixed", xL + side/2, yT + side/2);
         gc.setTextAlign(TextAlignment.LEFT);
     }
 
+    /**
+     * Gann Square (dynamic) — similar to Gann Box but rotated 45° so the 1×1
+     * diagonal runs along the dominant trend, and concentric square rings are
+     * drawn outward at 1/4 increments.  Visually distinct from both Gann Box
+     * and Gann Square Fixed.
+     */
     private static void drawGannSquare(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
                                        Color color, ChartDrawingProperties props) {
-        drawGannBox(gc, d, ctx, color, props);
         if (d.getPoints().size() < 2) return;
         double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
         double y1 = priceToY(d.getPoints().get(0).getPrice(), ctx);
         double x2 = timeToX(d.getPoints().get(1).getTime(), ctx);
         double y2 = priceToY(d.getPoints().get(1).getPrice(), ctx);
-        gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.CENTER);
-        gc.fillText("Gann Square", (x1 + x2) / 2, (y1 + y2) / 2);
+        double xL = Math.min(x1, x2), xR = Math.max(x1, x2);
+        double yT = Math.min(y1, y2), yB = Math.max(y1, y2);
+        double w = xR - xL, h = yB - yT;
+        if (w < 2 || h < 2) return;
+        Color sqColor = Color.web("#a371f7");  // purple — distinct from Gann Box (blue) & Fixed (gold)
+
+        // Outer box
+        gc.setFill(Color.color(sqColor.getRed(), sqColor.getGreen(), sqColor.getBlue(), 0.06));
+        gc.fillRect(xL, yT, w, h);
+        gc.setStroke(sqColor); gc.setLineWidth(props.getLineWidth());
+        gc.strokeRect(xL, yT, w, h);
+        // Concentric inner squares at 1/4, 1/2, 3/4
+        for (int ring = 1; ring <= 3; ring++) {
+            double shrink = ring * 0.25;
+            double rx = xL + w * shrink / 2;
+            double ry = yT + h * shrink / 2;
+            double rw = w * (1 - shrink);
+            double rh = h * (1 - shrink);
+            if (rw < 2 || rh < 2) break;
+            gc.setStroke(sqColor.deriveColor(0,1,1,0.35));
+            gc.setLineWidth(0.8); gc.setLineDashes(3,3);
+            gc.strokeRect(rx, ry, rw, rh);
+            gc.setLineDashes();
+        }
+        // Cross-hair through center
+        double cx = (xL+xR)/2, cy = (yT+yB)/2;
+        gc.setStroke(sqColor.deriveColor(0,1,1,0.4)); gc.setLineWidth(0.8);
+        gc.strokeLine(xL, cy, xR, cy);
+        gc.strokeLine(cx, yT, cx, yB);
+        // Center dot and label
+        gc.setFill(sqColor); gc.fillOval(cx-4, cy-4, 8, 8);
+        gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.CENTER);
+        gc.fillText("Gann Sq", cx, yT + 14);
+        gc.setLineWidth(props.getLineWidth());
         gc.setTextAlign(TextAlignment.LEFT);
     }
 
@@ -1430,42 +1891,101 @@ public final class DrawingRenderer {
     //  Volume Tools
     // ─────────────────────────────────────────────────────────────────────────
 
+    /**
+     * Anchored VWAP — VWAP line anchored to a user-selected bar, plus ±1σ and ±2σ bands.
+     *
+     * <p>The main VWAP line is drawn in the tool's chosen color.
+     * Upper bands (+1σ, +2σ) are drawn in green; lower bands (−1σ, −2σ) in red.
+     * This makes the deviation envelope immediately readable for mean-reversion setups.
+     */
     private static void drawAnchoredVwap(GraphicsContext gc, ChartDrawing d, RenderContext ctx,
                                          Color color, ChartDrawingProperties props) {
         if (d.getPoints().isEmpty() || ctx.bars == null || ctx.bars.isEmpty()) return;
         int anchorIdx = DrawingCoordinateMapper.timeToBarIndex(ctx.bars, d.getPoints().getFirst().getTime());
         double barW = ctx.plotWidth() / Math.max(1, ctx.visibleBars);
-        // Compute running VWAP from anchor bar
-        double cumPV = 0, cumV = 0;
+        Color bandUp1 = Color.web("#3fb950cc");   // green +1σ
+        Color bandUp2 = Color.web("#3fb95066");   // green +2σ (lighter)
+        Color bandDn1 = Color.web("#f85149cc");   // red  −1σ
+        Color bandDn2 = Color.web("#f8514966");   // red  −2σ (lighter)
+
+        // Compute running VWAP, TP, and TP² from anchor bar
         List<OhlcvBar> bars = ctx.bars;
-        gc.setStroke(color); gc.setLineWidth(props.getLineWidth());
-        gc.beginPath();
-        boolean started = false;
-        for (int i = anchorIdx; i < bars.size(); i++) {
+        int barCount = bars.size();
+        double[] vwapY  = new double[barCount];
+        double[] up1Y   = new double[barCount];
+        double[] dn1Y   = new double[barCount];
+        double[] up2Y   = new double[barCount];
+        double[] dn2Y   = new double[barCount];
+        double[] barX   = new double[barCount];
+        boolean[] valid = new boolean[barCount];
+        double cumPV = 0, cumPV2 = 0, cumV = 0;
+
+        for (int i = anchorIdx; i < barCount; i++) {
             OhlcvBar bar = bars.get(i);
-            double typical = (bar.getHigh().doubleValue() + bar.getLow().doubleValue()
+            double tp  = (bar.getHigh().doubleValue() + bar.getLow().doubleValue()
                     + bar.getClose().doubleValue()) / 3.0;
             double vol = bar.getVolume().doubleValue();
-            cumPV += typical * vol;
-            cumV  += vol;
+            cumPV  += tp * vol;
+            cumPV2 += tp * tp * vol;
+            cumV   += vol;
             if (cumV == 0) continue;
-            double vwap = cumPV / cumV;
+            double vwap  = cumPV / cumV;
+            double vwap2 = cumPV2 / cumV;
+            double variance = Math.max(0, vwap2 - vwap * vwap);
+            double sigma = Math.sqrt(variance);
             int slot = i - ctx.startBarIndex;
             double x = ctx.left + (slot + 0.5) * barW;
-            double y = DrawingRenderer.priceToY(vwap, ctx);
-            if (x < ctx.left || x > ctx.right) { started = false; continue; }
-            if (!started) { gc.moveTo(x, y); started = true; }
-            else gc.lineTo(x, y);
+            if (x < ctx.left - barW || x > ctx.right + barW) continue;
+            barX[i]  = x;
+            vwapY[i] = DrawingRenderer.priceToY(vwap, ctx);
+            up1Y[i]  = DrawingRenderer.priceToY(vwap + sigma, ctx);
+            dn1Y[i]  = DrawingRenderer.priceToY(vwap - sigma, ctx);
+            up2Y[i]  = DrawingRenderer.priceToY(vwap + 2*sigma, ctx);
+            dn2Y[i]  = DrawingRenderer.priceToY(vwap - 2*sigma, ctx);
+            valid[i] = true;
         }
-        gc.stroke();
-        // Draw anchor point
-        double anchorX = ctx.left + (anchorIdx - ctx.startBarIndex + 0.5) * barW;
-        gc.setFill(color); gc.fillOval(anchorX - 4, ctx.priceTop + 4, 8, 8);
+        // Helper: draw a line series
+        java.util.function.BiConsumer<double[], Color> drawSeries = (yArr, lc) -> {
+            gc.setStroke(lc); gc.beginPath();
+            boolean started = false;
+            for (int i = anchorIdx; i < barCount; i++) {
+                if (!valid[i]) { started = false; continue; }
+                if (!started) { gc.moveTo(barX[i], yArr[i]); started = true; }
+                else gc.lineTo(barX[i], yArr[i]);
+            }
+            gc.stroke();
+        };
+        // ±2σ fill between bands
+        // (simplified: just draw band lines, no polygon fill for performance)
+        gc.setLineWidth(0.8);
+        drawSeries.accept(up2Y, bandUp2);
+        drawSeries.accept(dn2Y, bandDn2);
+        gc.setLineWidth(1.2);
+        drawSeries.accept(up1Y, bandUp1);
+        drawSeries.accept(dn1Y, bandDn1);
+        // Main VWAP line
+        gc.setLineWidth(props.getLineWidth());
+        drawSeries.accept(vwapY, color);
+
+        // Anchor dot and label
+        double anchorX = anchorIdx >= ctx.startBarIndex
+                ? ctx.left + (anchorIdx - ctx.startBarIndex + 0.5) * barW : ctx.left;
+        gc.setFill(color); gc.fillOval(anchorX - 5, ctx.priceTop + 4, 10, 10);
         gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.LEFT);
-        gc.fillText("VWAP", anchorX + 6, ctx.priceTop + 16);
+        gc.fillText("VWAP", anchorX + 7, ctx.priceTop + 14);
+        gc.setFill(bandUp1); gc.fillText("+1σ", anchorX + 7, ctx.priceTop + 26);
+        gc.setFill(bandDn1); gc.fillText("-1σ",  anchorX + 7, ctx.priceTop + 38);
         gc.setTextAlign(TextAlignment.LEFT);
     }
 
+    /**
+     * Fixed Range Volume Profile — color-coded histogram (green = bullish bars, red = bearish).
+     *
+     * <p>The profile is drawn on the RIGHT side of the selected range as a horizontal
+     * histogram.  Each price bucket is colored green if the average bar in that bucket
+     * was bullish (close > open) and red if bearish.  The POC (Point of Control — the
+     * highest volume bucket) is highlighted with a thicker yellow outline.
+     */
     private static void drawFixedRangeVolumeProfile(GraphicsContext gc, ChartDrawing d,
                                                      RenderContext ctx, Color color,
                                                      ChartDrawingProperties props) {
@@ -1476,13 +1996,14 @@ public final class DrawingRenderer {
         double x1 = timeToX(d.getPoints().get(0).getTime(), ctx);
         double x2 = timeToX(d.getPoints().get(1).getTime(), ctx);
         double xL = Math.min(x1, x2), xR = Math.max(x1, x2);
-        // Outline box
-        gc.setStroke(color.deriveColor(0, 1, 1, 0.5));
+
+        // Range border
+        gc.setStroke(color.deriveColor(0, 1, 1, 0.4));
         gc.setLineWidth(1.0); gc.setLineDashes(4, 4);
         gc.strokeRect(xL, ctx.priceTop, xR - xL, ctx.priceBottom - ctx.priceTop);
         gc.setLineDashes();
-        // Build volume profile (10 price buckets)
-        int numBuckets = 10;
+
+        int numBuckets = 24;
         double minP = Double.MAX_VALUE, maxP = -Double.MAX_VALUE;
         for (int i = startIdx; i <= endIdx && i < ctx.bars.size(); i++) {
             OhlcvBar b = ctx.bars.get(i);
@@ -1490,43 +2011,92 @@ public final class DrawingRenderer {
             maxP = Math.max(maxP, b.getHigh().doubleValue());
         }
         if (minP >= maxP) return;
-        double[] bucketVol = new double[numBuckets];
+
+        double[] bucketVol   = new double[numBuckets];
+        double[] bucketBullV = new double[numBuckets];  // bullish volume
         for (int i = startIdx; i <= endIdx && i < ctx.bars.size(); i++) {
             OhlcvBar b = ctx.bars.get(i);
-            double typical = (b.getHigh().doubleValue() + b.getLow().doubleValue()
-                    + b.getClose().doubleValue()) / 3.0;
-            int bucket = (int) Math.min(numBuckets - 1,
-                    (typical - minP) / (maxP - minP) * numBuckets);
-            bucketVol[bucket] += b.getVolume().doubleValue();
+            boolean bull = b.getClose().compareTo(b.getOpen()) >= 0;
+            // Distribute bar's volume into price buckets it spans
+            double lo = b.getLow().doubleValue(), hi = b.getHigh().doubleValue();
+            double barVol = b.getVolume().doubleValue();
+            int bucLo = (int) Math.max(0, Math.min(numBuckets-1,
+                    (lo - minP) / (maxP - minP) * numBuckets));
+            int bucHi = (int) Math.max(0, Math.min(numBuckets-1,
+                    (hi - minP) / (maxP - minP) * numBuckets));
+            int span  = Math.max(1, bucHi - bucLo + 1);
+            for (int b2 = bucLo; b2 <= bucHi; b2++) {
+                bucketVol[b2]   += barVol / span;
+                if (bull) bucketBullV[b2] += barVol / span;
+            }
         }
         double maxVol = 0;
-        for (double v : bucketVol) maxVol = Math.max(maxVol, v);
-        if (maxVol == 0) return;
-        double barHeight = (ctx.priceBottom - ctx.priceTop) / numBuckets;
-        double maxBarWidth = (xR - xL) * 0.5;
+        int pocBucket = 0;
         for (int i = 0; i < numBuckets; i++) {
+            if (bucketVol[i] > maxVol) { maxVol = bucketVol[i]; pocBucket = i; }
+        }
+        if (maxVol == 0) return;
+
+        // Profile bars drawn to the right of xR
+        double barHeight  = (ctx.priceBottom - ctx.priceTop) / numBuckets;
+        double maxBarWidth = Math.min(80, (xR - xL) * 0.6);  // cap profile width
+
+        for (int i = 0; i < numBuckets; i++) {
+            if (bucketVol[i] == 0) continue;
             double bWidth = bucketVol[i] / maxVol * maxBarWidth;
             double bY = ctx.priceBottom - (i + 1) * barHeight;
-            gc.setFill(color.deriveColor(0, 1, 1, 0.4));
-            gc.fillRect(xL, bY, bWidth, barHeight - 1);
+            double bullFraction = bucketVol[i] > 0 ? bucketBullV[i] / bucketVol[i] : 0.5;
+
+            // Green portion (bull)
+            double greenW = bWidth * bullFraction;
+            gc.setFill(Color.web("#3fb95066"));
+            gc.fillRect(xR, bY, greenW, barHeight - 1);
+            // Red portion (bear)
+            if (bWidth > greenW) {
+                gc.setFill(Color.web("#f8514966"));
+                gc.fillRect(xR + greenW, bY, bWidth - greenW, barHeight - 1);
+            }
+            // POC highlight
+            if (i == pocBucket) {
+                gc.setStroke(Color.web("#d29922")); gc.setLineWidth(1.5);
+                gc.strokeRect(xR, bY, bWidth, barHeight - 1);
+                gc.setFill(Color.web("#d29922")); gc.setFont(FONT_SMALL);
+                gc.setTextAlign(TextAlignment.LEFT);
+                gc.fillText("POC", xR + bWidth + 2, bY + barHeight/2 + 4);
+            }
         }
         gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.LEFT);
         gc.fillText("Vol Profile", xL + 2, ctx.priceTop + 12);
         gc.setTextAlign(TextAlignment.LEFT);
     }
 
+    /**
+     * Anchored Volume Profile — same as Fixed Range but anchored from a single pivot
+     * point to the right edge of the visible chart.
+     */
     private static void drawAnchoredVolumeProfile(GraphicsContext gc, ChartDrawing d,
                                                    RenderContext ctx, Color color,
                                                    ChartDrawingProperties props) {
-        // Similar to fixed-range but extends from anchor to current visible end
         if (d.getPoints().size() < 2 || ctx.bars == null) return;
+        // Build a synthetic 2-point drawing using the anchor and the last visible bar
         ChartDrawing synth = new ChartDrawing();
-        synth.setPoints(List.of(d.getPoints().get(0), d.getPoints().get(1)));
+        // second point: last bar in context
+        OhlcvBar lastBar = ctx.bars.isEmpty() ? null : ctx.bars.get(ctx.bars.size() - 1);
+        long endEpoch = lastBar != null && lastBar.getOpenTime() != null
+                ? lastBar.getOpenTime().toInstant(java.time.ZoneOffset.UTC).toEpochMilli()
+                : System.currentTimeMillis();
+        double endPrice = lastBar != null ? lastBar.getClose().doubleValue()
+                : d.getPoints().get(0).getPrice();
+        ChartPoint endPt = ChartPoint.ofEpoch(endEpoch, endPrice);
+        synth.setPoints(List.of(d.getPoints().get(0), endPt));
         synth.setToolType(ChartDrawingToolType.FIXED_RANGE_VOLUME_PROFILE);
         synth.setProperties(d.getProperties());
         drawFixedRangeVolumeProfile(gc, synth, ctx, color, props);
-        gc.setFill(color); gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.LEFT);
-        gc.fillText("⊕ AVWAP", timeToX(d.getPoints().get(0).getTime(), ctx) + 2, ctx.priceTop + 24);
+        // Anchor dot
+        double anchorX = timeToX(d.getPoints().get(0).getTime(), ctx);
+        gc.setFill(color); gc.fillOval(anchorX - 5, ctx.priceTop + 4, 10, 10);
+        gc.setFont(FONT_SMALL); gc.setTextAlign(TextAlignment.LEFT);
+        gc.fillText("⊕ AVP", anchorX + 7, ctx.priceTop + 14);
         gc.setTextAlign(TextAlignment.LEFT);
     }
 

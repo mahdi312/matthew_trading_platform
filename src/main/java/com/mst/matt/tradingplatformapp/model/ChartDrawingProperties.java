@@ -52,6 +52,20 @@ public class ChartDrawingProperties {
 
     // ── Annotations ────────────────────────────────────────────────────────────
 
+    /**
+     * Background/fill colour for NOTE and TEXT shapes.
+     * Stored as a hex string with optional alpha, e.g. {@code "#2d2a00"} or {@code "#2d2a00cc"}.
+     * {@code null} means "use the default background for this shape type".
+     */
+    private String backgroundColor;
+
+    /**
+     * Background opacity (0.0 = fully transparent, 1.0 = fully opaque) for NOTE/TEXT boxes.
+     * Defaults to 0.87 (≈ 0xdd alpha) if not set.
+     */
+    @Builder.Default
+    private double backgroundOpacity = 0.87;
+
     /** Text annotation content. */
     private String text;
 

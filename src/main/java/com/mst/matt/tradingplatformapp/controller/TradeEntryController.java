@@ -63,8 +63,14 @@ public class TradeEntryController implements Initializable {
     @FXML private TextField exitPriceField;
     @FXML private TextField quantityField;
     @FXML private TextField stopLossField;
+    @FXML private Label     slPctLabel;
     @FXML private TextField takeProfitField;
+    @FXML private Label     tpPctLabel;
     @FXML private TextField feeField;
+    @FXML private TextField leverageField;
+    @FXML private Label     leverageLabel;
+    @FXML private Label     leveragedPnlLabel;
+    @FXML private Label     leveragedPnlHint;
     @FXML private DatePicker entryDatePicker;
     @FXML private TextField entryTimeField;
     @FXML private DatePicker exitDatePicker;
@@ -250,6 +256,76 @@ public class TradeEntryController implements Initializable {
         stopLossField.textProperty()  .addListener((o,a,b) -> updatePnlPreview());
         takeProfitField.textProperty().addListener((o,a,b) -> updatePnlPreview());
         feeField.textProperty()       .addListener((o,a,b) -> updatePnlPreview());
+        if (leverageField != null) {
+            leverageField.textProperty().addListener((o, a, b) -> {
+                updateLeverageLabel();
+                updatePnlPreview();
+            });
+        }
+    }
+
+    private void updateLeverageLabel() {
+        if (leverageField == null || leverageLabel == null) return;
+        BigDecimal lev = parseLeverage();
+        leverageLabel.setText("×" + lev.setScale(0, RoundingMode.HALF_UP).toPlainString());
+    }
+
+    private BigDecimal parseLeverage() {
+        if (leverageField == null) return BigDecimal.ONE;
+        BigDecimal lev = parseBD(leverageField.getText());
+        return (lev.compareTo(BigDecimal.ONE) < 0) ? BigDecimal.ONE : lev;
+    }
+
+    /**
+     * Compute and display the percentage difference between the entry price and
+     * the SL / TP prices.  Updates live as the user types.
+     *
+     * For LONG:  SL % = (sl - entry) / entry * 100  → typically negative
+     *            TP % = (tp - entry) / entry * 100  → typically positive
+     * For SHORT: SL % = (entry - sl) / entry * 100  → typically negative (from the trade perspective)
+     *            TP % = (entry - tp) / entry * 100  → typically positive
+     */
+    private void updateSlTpPctLabels(BigDecimal entry, BigDecimal sl, BigDecimal tp) {
+        if (entry == null || entry.compareTo(BigDecimal.ZERO) <= 0) {
+            if (slPctLabel != null) slPctLabel.setText("");
+            if (tpPctLabel != null) tpPctLabel.setText("");
+            return;
+        }
+        // Stop Loss %
+        if (slPctLabel != null) {
+            if (sl != null && sl.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal slPct = isLong
+                        ? sl.subtract(entry).divide(entry, 6, RoundingMode.HALF_UP)
+                                .multiply(BigDecimal.valueOf(100))
+                        : entry.subtract(sl).divide(entry, 6, RoundingMode.HALF_UP)
+                                .multiply(BigDecimal.valueOf(100)).negate();
+                String sign = slPct.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "";
+                slPctLabel.setText("SL: " + sign + format(slPct) + "%");
+                // Red if risk is negative (correct direction), orange if SL is on wrong side
+                boolean wrongSide = slPct.compareTo(BigDecimal.ZERO) > 0;
+                slPctLabel.setStyle("-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:"
+                        + (wrongSide ? "#d29922;" : "#f85149;"));
+            } else {
+                slPctLabel.setText("");
+            }
+        }
+        // Take Profit %
+        if (tpPctLabel != null) {
+            if (tp != null && tp.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal tpPct = isLong
+                        ? tp.subtract(entry).divide(entry, 6, RoundingMode.HALF_UP)
+                                .multiply(BigDecimal.valueOf(100))
+                        : entry.subtract(tp).divide(entry, 6, RoundingMode.HALF_UP)
+                                .multiply(BigDecimal.valueOf(100));
+                String sign = tpPct.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "";
+                tpPctLabel.setText("TP: " + sign + format(tpPct) + "%");
+                boolean wrongSide = tpPct.compareTo(BigDecimal.ZERO) < 0;
+                tpPctLabel.setStyle("-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:"
+                        + (wrongSide ? "#d29922;" : "#3fb950;"));
+            } else {
+                tpPctLabel.setText("");
+            }
+        }
     }
 
     private void updatePnlPreview() {
@@ -260,6 +336,7 @@ public class TradeEntryController implements Initializable {
             BigDecimal fee      = parseBD(feeField.getText());
             BigDecimal sl       = parseBD(stopLossField.getText());
             BigDecimal tp       = parseBD(takeProfitField.getText());
+            BigDecimal lev      = parseLeverage();
 
             if (entry.compareTo(BigDecimal.ZERO) <= 0
                     || qty.compareTo(BigDecimal.ZERO) <= 0) return;
@@ -272,6 +349,7 @@ public class TradeEntryController implements Initializable {
                 BigDecimal diff  = isLong
                         ? exit.subtract(entry)
                         : entry.subtract(exit);
+                // Base P&L (no leverage)
                 BigDecimal pnl   = diff.multiply(qty).subtract(fee);
                 BigDecimal pct   = diff.divide(entry, 6, RoundingMode.HALF_UP)
                         .multiply(BigDecimal.valueOf(100));
@@ -286,7 +364,29 @@ public class TradeEntryController implements Initializable {
                         + "-fx-text-fill: " + color + ";");
                 pnlPercentLabel.setStyle("-fx-font-size:28px; -fx-font-weight:bold;"
                         + "-fx-text-fill: " + color + ";");
+
+                // Leveraged P&L display
+                if (leveragedPnlLabel != null) {
+                    BigDecimal levPnl = diff.multiply(qty).multiply(lev).subtract(fee);
+                    BigDecimal levPct = diff.divide(entry, 6, RoundingMode.HALF_UP)
+                            .multiply(lev).multiply(BigDecimal.valueOf(100));
+                    String levColor = levPnl.compareTo(BigDecimal.ZERO) >= 0 ? "#bc8cff" : "#f85149";
+                    leveragedPnlLabel.setText(
+                            (levPnl.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "")
+                            + "$" + format(levPnl)
+                            + " (" + (levPct.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "")
+                            + format(levPct) + "%)");
+                    leveragedPnlLabel.setStyle("-fx-font-size:16px; -fx-font-weight:bold;"
+                            + "-fx-text-fill: " + levColor + ";");
+                    if (leveragedPnlHint != null) {
+                        leveragedPnlHint.setText("×" + lev.setScale(0, RoundingMode.HALF_UP)
+                                .toPlainString() + " leverage");
+                    }
+                }
             }
+
+            // ── SL / TP percentage relative to entry price ───────────────
+            updateSlTpPctLabels(entry, sl, tp);
 
             // R:R ratio
             if (sl.compareTo(BigDecimal.ZERO) > 0
@@ -363,6 +463,13 @@ public class TradeEntryController implements Initializable {
                 trade.setFee(parseBD(feeField.getText()));
             else
                 trade.setFee(null);
+            // Leverage
+            if (leverageField != null && !leverageField.getText().isBlank()) {
+                BigDecimal lev = parseLeverage();
+                trade.setLeverage(lev.compareTo(BigDecimal.ONE) > 0 ? lev : null);
+            } else {
+                trade.setLeverage(null);
+            }
 
             LocalDate entryDate = entryDatePicker.getValue();
             if (entryDate == null) {
@@ -445,8 +552,11 @@ public class TradeEntryController implements Initializable {
         symbolField.clear(); entryPriceField.clear();
         exitPriceField.clear(); quantityField.clear();
         stopLossField.clear(); takeProfitField.clear();
+        if (slPctLabel  != null) slPctLabel.setText("");
+        if (tpPctLabel  != null) tpPctLabel.setText("");
         feeField.clear(); notesArea.clear();
         strategyField.clear(); exchangeField.clear();
+        if (leverageField != null) leverageField.clear();
         symbolValidation.setText("");
         symbolValidation.setStyle("-fx-font-size:11px;");
         currentPriceLabel.setText("Current: —");
@@ -462,6 +572,9 @@ public class TradeEntryController implements Initializable {
         pnlPercentLabel.setStyle("-fx-font-size:26px; -fx-font-weight:bold; -fx-text-fill:#8b949e;");
         rrLabel.setText("—");
         rrLabel.setStyle("-fx-font-size:26px; -fx-font-weight:bold; -fx-text-fill:#388bfd;");
+        if (leveragedPnlLabel != null) leveragedPnlLabel.setText("—");
+        if (leveragedPnlHint  != null) leveragedPnlHint.setText("×1 leverage");
+        if (leverageLabel     != null) leverageLabel.setText("×1");
         isLong = true;
         if (formTitleLabel != null) formTitleLabel.setText("📋 New Trade Entry");
         styleDirectionButtons();
@@ -850,6 +963,13 @@ public class TradeEntryController implements Initializable {
             takeProfitField.setText(t.getTakeProfit().toPlainString());
         if (t.getFee() != null)
             feeField.setText(t.getFee().toPlainString());
+        if (leverageField != null) {
+            if (t.getLeverage() != null && t.getLeverage().compareTo(BigDecimal.ONE) > 0)
+                leverageField.setText(t.getLeverage().toPlainString());
+            else
+                leverageField.clear();
+        }
+        updateLeverageLabel();
         entryDatePicker.setValue(t.getEntryTime().toLocalDate());
         entryTimeField.setText(t.getEntryTime()
                 .format(DateTimeFormatter.ofPattern("HH:mm")));

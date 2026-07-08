@@ -28,6 +28,7 @@
         <VBox spacing="20">
             <fx:define>
                 <ToggleGroup fx:id="themeGroup"/>
+                <ToggleGroup fx:id="dataFetchModeGroup"/>
             </fx:define>
             <padding>
                 <Insets top="20" right="20" bottom="24" left="20"/>
@@ -50,6 +51,45 @@
                 <Label text="Chart Data Provider" styleClass="label-subtitle"/>
                 <ComboBox fx:id="chartProviderCombo" maxWidth="320"/>
                 <Label fx:id="chartProvidersHint" styleClass="label-muted" style="-fx-wrap-text:true;"/>
+
+                <Separator/>
+
+                <!-- ── Data Fetch Mode (Online/Offline settings) ── -->
+                <Label text="Data Fetch Mode" styleClass="label-subtitle"/>
+                <Label text="Controls whether the application fetches live data from external APIs or uses the database cache."
+                       styleClass="label-muted" style="-fx-wrap-text:true;"/>
+
+                <VBox spacing="8">
+                    <!-- Option 1: Full Online -->
+                    <RadioButton fx:id="fetchModeFullOnlineRadio"
+                                 text="Full Online"
+                                 toggleGroup="$dataFetchModeGroup"
+                                 onAction="#onDataFetchModeChanged"/>
+                    <Label text="Always fetch from API. Never use cached data as fallback."
+                           styleClass="label-muted"
+                           style="-fx-wrap-text:true; -fx-padding:0 0 4 20;"/>
+
+                    <!-- Option 2: Offline when API unreachable (Default) -->
+                    <RadioButton fx:id="fetchModeOfflineOnFailRadio"
+                                 text="Offline when API unreachable (Recommended — Default)"
+                                 toggleGroup="$dataFetchModeGroup"
+                                 onAction="#onDataFetchModeChanged"
+                                 selected="true"/>
+                    <Label text="Use API if available; fall back to database only on timeout/failure. Balances freshness and reliability."
+                           styleClass="label-muted"
+                           style="-fx-wrap-text:true; -fx-padding:0 0 4 20;"/>
+
+                    <!-- Option 3: Offline Only -->
+                    <RadioButton fx:id="fetchModeOfflineOnlyRadio"
+                                 text="Offline Only"
+                                 toggleGroup="$dataFetchModeGroup"
+                                 onAction="#onDataFetchModeChanged"/>
+                    <Label text="Never call any API. Only use cached data from the database. If no data exists, shows a message."
+                           styleClass="label-muted"
+                           style="-fx-wrap-text:true; -fx-padding:0 0 4 20;"/>
+                </VBox>
+
+                <Separator/>
 
                 <Label text="Fundamentals Provider" styleClass="label-subtitle"/>
                 <ComboBox fx:id="fundamentalProviderCombo" maxWidth="320"/>
@@ -92,16 +132,28 @@
                 <Separator/>
 
                 <Label text="Theme" styleClass="label-subtitle"/>
-                <HBox spacing="12">
+                <Label text="Theme switches instantly — no restart required."
+                       styleClass="label-muted" style="-fx-wrap-text:true;"/>
+                <HBox spacing="12" alignment="CENTER_LEFT">
                     <ToggleButton fx:id="darkThemeBtn" text="🌙 Dark"
                                   toggleGroup="$themeGroup"
                                   styleClass="btn-secondary" onAction="#onThemeChanged"/>
                     <ToggleButton fx:id="lightThemeBtn" text="☀ Light"
                                   toggleGroup="$themeGroup"
                                   styleClass="btn-secondary" onAction="#onThemeChanged"/>
+                    <ToggleButton fx:id="amazonGreenThemeBtn" text="🌿 Amazon Green"
+                                  toggleGroup="$themeGroup"
+                                  styleClass="btn-secondary" onAction="#onThemeChanged"/>
+                    <ToggleButton fx:id="lightBlueThemeBtn" text="💙 Light Blue"
+                                  toggleGroup="$themeGroup"
+                                  styleClass="btn-secondary" onAction="#onThemeChanged"/>
                 </HBox>
-                <Label text="Theme change takes effect after restarting the application."
-                       styleClass="label-muted" style="-fx-wrap-text:true;"/>
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                    <Button text="🖥 Use System Theme" styleClass="btn-secondary"
+                            onAction="#onUseSystemTheme"
+                            style="-fx-font-size:11px; -fx-padding:4 12;"/>
+                    <Label fx:id="themeStatusLabel" text="" styleClass="label-muted"/>
+                </HBox>
             </VBox>
 
             <!-- ════ TOUCH &amp; INPUT SENSITIVITY SECTION ════ -->
@@ -150,9 +202,13 @@
                 <Separator/>
 
                 <Label text="Data Fetching" styleClass="label-subtitle"/>
-                <CheckBox fx:id="offlineModeCheck" text="Offline mode (use cached DB prices only, skip live API calls)"
-                          onAction="#onOfflineModeChanged"/>
-                <Label text="When enabled, charts and ticker read from stored tables / cache. Disable to fetch fresh data from APIs."
+                <!-- Legacy checkbox kept for backward-compatibility but hidden;
+                     the three-way radio buttons in the Provider card are the primary control. -->
+                <CheckBox fx:id="offlineModeCheck"
+                          text="Offline mode (legacy — use the Data Fetch Mode above instead)"
+                          onAction="#onOfflineModeChanged"
+                          managed="false" visible="false"/>
+                <Label text="Data Fetch Mode is configured above in the Chart Data Provider section."
                        styleClass="label-muted" style="-fx-wrap-text:true;"/>
             </VBox>
 
@@ -164,7 +220,50 @@
                 <Label text="Comma- or space-separated symbols shown in the top live ticker bar. Leave blank to keep platform defaults."
                        styleClass="label-muted" style="-fx-wrap-text:true;"/>
                 <TextArea fx:id="watchlistField" prefRowCount="3" wrapText="true"
-                          promptText="e.g. BTCUSDT, ETHUSDT, AAPL, MSFT, EURUSD"/>
+                          promptText="e.g. BTCUSDT, ETHUSDT, AAPL, MSFT, EURUSD"
+                          style="-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;
+                                 -fx-border-color:#30363d; -fx-border-radius:6;
+                                 -fx-background-radius:6; -fx-padding:8;"/>
+            </VBox>
+
+            <!-- ════ TICKER FETCH CONTROL SECTION ════ -->
+            <VBox styleClass="card" spacing="14">
+                <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+                <Label text="⏱ Ticker Fetch Control" styleClass="label-subtitle"/>
+                <Separator/>
+
+                <Label text="Poll Interval" styleClass="label-subtitle"/>
+                <Label text="How often stock and forex ticker symbols are refreshed via the API. Crypto uses WebSocket (real-time, no polling). The new interval takes effect immediately after saving — no restart needed."
+                       styleClass="label-muted" style="-fx-wrap-text:true;"/>
+                <HBox spacing="12" alignment="CENTER_LEFT">
+                    <Spinner fx:id="tickerIntervalSpinner"
+                             min="5" max="3600" initialValue="15"
+                             editable="true" prefWidth="110"/>
+                    <Label text="seconds  (min 5 s, max 3600 s = 1 hour)" styleClass="label-muted"/>
+                </HBox>
+                <!-- Quick-select presets -->
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                    <Label text="Presets:" styleClass="label-muted"/>
+                    <Button text="15 s"   styleClass="btn-secondary" style="-fx-font-size:10px; -fx-padding:3 8;"
+                            onAction="#onTickerPreset15s"/>
+                    <Button text="1 min"  styleClass="btn-secondary" style="-fx-font-size:10px; -fx-padding:3 8;"
+                            onAction="#onTickerPreset1m"/>
+                    <Button text="5 min"  styleClass="btn-secondary" style="-fx-font-size:10px; -fx-padding:3 8;"
+                            onAction="#onTickerPreset5m"/>
+                    <Button text="1 hour" styleClass="btn-secondary" style="-fx-font-size:10px; -fx-padding:3 8;"
+                            onAction="#onTickerPreset1h"/>
+                </HBox>
+
+                <Separator/>
+
+                <Label text="Watchlist Symbols" styleClass="label-subtitle"/>
+                <Label text="Toggle to enable/disable individual symbols. Click ✕ to remove. Type a symbol and press + Add (or Enter) to add a custom symbol to the ticker."
+                       styleClass="label-muted" style="-fx-wrap-text:true;"/>
+                <!-- Symbol toggle chips + add row built programmatically by controller -->
+                <FlowPane fx:id="tickerSymbolPane" hgap="8" vgap="8"/>
+                <Button text="↺ Refresh Symbol List" styleClass="btn-secondary"
+                        onAction="#onRefreshTickerSymbols"
+                        style="-fx-font-size:11px; -fx-padding:5 12;"/>
             </VBox>
 
             <!-- ════ AUTO NOTE ════ -->

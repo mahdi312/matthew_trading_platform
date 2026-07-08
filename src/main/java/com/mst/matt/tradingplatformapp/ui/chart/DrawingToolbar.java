@@ -147,6 +147,7 @@ public class DrawingToolbar extends VBox {
 
     private Consumer<ChartDrawingToolType> onToolSelected;
     private Runnable onDelete;
+    private Runnable onDeleteAll;
     private Runnable onUndo;
     private Runnable onRedo;
     private Runnable onSaveLayout;
@@ -156,6 +157,7 @@ public class DrawingToolbar extends VBox {
     private Runnable onScreenshot;
     private Runnable onToggleShowAll;
     private Runnable onToggleLockAll;
+    private Runnable onToggleSaveDrawings;
 
     // ─────────────────────────────────────────────────────────────────────────
     //  State
@@ -171,8 +173,10 @@ public class DrawingToolbar extends VBox {
     private Button redoBtn;
     private Button showAllBtn;
     private Button lockAllBtn;
+    private Button saveDrawingsBtn;
     private boolean showAllState = true;
     private boolean lockAllState = false;
+    private boolean saveDrawingsState = true;
 
     // ─────────────────────────────────────────────────────────────────────────
     //  Constructor
@@ -267,12 +271,34 @@ public class DrawingToolbar extends VBox {
         settingsBtn.setOnAction(e -> { if (onDrawingSettings != null) onDrawingSettings.run(); });
         getChildren().add(settingsBtn);
 
+        // ── Save Drawings toggle ───────────────────────────────────────────────
+        addSep();
+        saveDrawingsBtn = createBtn("💿", "Save Drawings to DB (ON)");
+        saveDrawingsBtn.setStyle(baseBtnStyle() + "-fx-background-color:#1a3a1a;");
+        saveDrawingsBtn.setOnAction(e -> {
+            saveDrawingsState = !saveDrawingsState;
+            saveDrawingsBtn.setStyle(saveDrawingsState
+                    ? baseBtnStyle() + "-fx-background-color:#1a3a1a;"
+                    : baseBtnStyle() + "-fx-background-color:#3d2a00;");
+            saveDrawingsBtn.setTooltip(new Tooltip(saveDrawingsState
+                    ? "Save Drawings to DB (ON) — drawings are persisted"
+                    : "Save Drawings to DB (OFF) — session only, not persisted"));
+            if (onToggleSaveDrawings != null) onToggleSaveDrawings.run();
+        });
+        getChildren().add(saveDrawingsBtn);
+
         // ── Delete selected ────────────────────────────────────────────────────
         addSep();
         Button deleteBtn = createBtn("🗑", "Delete selected  (Del)");
         deleteBtn.setStyle(baseBtnStyle() + "-fx-background-color:#3d1f1f;");
         deleteBtn.setOnAction(e -> { if (onDelete != null) onDelete.run(); });
         getChildren().add(deleteBtn);
+
+        // ── Delete All Drawings ────────────────────────────────────────────────
+        Button deleteAllBtn = createBtn("🗑✕", "Delete ALL drawings on this chart");
+        deleteAllBtn.setStyle(baseBtnStyle() + "-fx-background-color:#5a1a1a;");
+        deleteAllBtn.setOnAction(e -> { if (onDeleteAll != null) onDeleteAll.run(); });
+        getChildren().add(deleteAllBtn);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -280,16 +306,36 @@ public class DrawingToolbar extends VBox {
     // ─────────────────────────────────────────────────────────────────────────
 
     public void setOnToolSelected(Consumer<ChartDrawingToolType> cb) { onToolSelected = cb; }
-    public void setOnDelete(Runnable r)          { onDelete = r; }
-    public void setOnUndo(Runnable r)            { onUndo = r; }
-    public void setOnRedo(Runnable r)            { onRedo = r; }
-    public void setOnSaveLayout(Runnable r)      { onSaveLayout = r; }
-    public void setOnLoadLayout(Runnable r)      { onLoadLayout = r; }
-    public void setOnDeleteLayout(Runnable r)    { onDeleteLayout = r; }
-    public void setOnDrawingSettings(Runnable r) { onDrawingSettings = r; }
-    public void setOnScreenshot(Runnable r)      { onScreenshot = r; }
-    public void setOnToggleShowAll(Runnable r)   { onToggleShowAll = r; }
-    public void setOnToggleLockAll(Runnable r)   { onToggleLockAll = r; }
+    public void setOnDelete(Runnable r)               { onDelete = r; }
+    public void setOnDeleteAll(Runnable r)             { onDeleteAll = r; }
+    public void setOnUndo(Runnable r)                 { onUndo = r; }
+    public void setOnRedo(Runnable r)                 { onRedo = r; }
+    public void setOnSaveLayout(Runnable r)           { onSaveLayout = r; }
+    public void setOnLoadLayout(Runnable r)           { onLoadLayout = r; }
+    public void setOnDeleteLayout(Runnable r)         { onDeleteLayout = r; }
+    public void setOnDrawingSettings(Runnable r)      { onDrawingSettings = r; }
+    public void setOnScreenshot(Runnable r)           { onScreenshot = r; }
+    public void setOnToggleShowAll(Runnable r)        { onToggleShowAll = r; }
+    public void setOnToggleLockAll(Runnable r)        { onToggleLockAll = r; }
+    public void setOnToggleSaveDrawings(Runnable r)   { onToggleSaveDrawings = r; }
+
+    /** Returns whether "Save Drawings" is currently enabled. */
+    public boolean isSaveDrawingsEnabled() { return saveDrawingsState; }
+
+    /**
+     * Programmatically set the save-drawings toggle state (e.g. on startup to restore last setting).
+     */
+    public void setSaveDrawingsState(boolean enabled) {
+        saveDrawingsState = enabled;
+        if (saveDrawingsBtn != null) {
+            saveDrawingsBtn.setStyle(saveDrawingsState
+                    ? baseBtnStyle() + "-fx-background-color:#1a3a1a;"
+                    : baseBtnStyle() + "-fx-background-color:#3d2a00;");
+            saveDrawingsBtn.setTooltip(new Tooltip(saveDrawingsState
+                    ? "Save Drawings to DB (ON) — drawings are persisted"
+                    : "Save Drawings to DB (OFF) — session only, not persisted"));
+        }
+    }
 
     /** Update undo/redo button enabled state based on history availability. */
     public void updateUndoRedoState(boolean canUndo, boolean canRedo) {
@@ -316,9 +362,15 @@ public class DrawingToolbar extends VBox {
 
     private void showGroupMenu(ToolGroup group, Button anchor) {
         ContextMenu menu = new ContextMenu();
-        menu.setStyle("-fx-background-color:#1c2128; -fx-border-color:#30363d;");
+        // Issue #9: Ensure text is clearly visible (white on dark background) at all times
+        menu.setStyle(
+                "-fx-background-color:#1c2128;"
+                + "-fx-border-color:#30363d;"
+                + "-fx-text-fill:#e6edf3;");
         for (ChartDrawingToolType tool : group.tools) {
             MenuItem item = new MenuItem(tool.icon() + "  " + tool.displayName());
+            // Issue #9: Force white text via inline style so items are readable without hover
+            item.setStyle("-fx-text-fill:#e6edf3; -fx-font-size:13px;");
             item.setOnAction(e -> selectTool(tool, group));
             menu.getItems().add(item);
         }

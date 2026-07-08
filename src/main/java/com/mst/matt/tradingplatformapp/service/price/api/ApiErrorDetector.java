@@ -25,9 +25,10 @@ public final class ApiErrorDetector {
         if (root.has("error") && root.get("error").isJsonPrimitive()) {
             return true;
         }
-        if (root.has("status")) {
-            String status = root.get("status").getAsString();
-            if ("ERROR".equalsIgnoreCase(status) || "error".equalsIgnoreCase(status)) {
+        JsonElement statusElement = root.get("status");
+        if (statusElement != null && statusElement.isJsonPrimitive()) {
+            String status = statusElement.getAsString();
+            if ("ERROR".equalsIgnoreCase(status)) {
                 return true;
             }
         }
@@ -47,9 +48,8 @@ public final class ApiErrorDetector {
         if (root.has("Response") && "Error".equalsIgnoreCase(root.get("Response").getAsString())) {
             return true;
         }
-        JsonElement errStatus = root.get("status");
-        if (errStatus != null && errStatus.isJsonObject()) {
-            JsonObject st = errStatus.getAsJsonObject();
+        if (statusElement != null && statusElement.isJsonObject()) {
+            JsonObject st = statusElement.getAsJsonObject();
             if (st.has("error_code") && st.get("error_code").getAsInt() != 0) {
                 return true;
             }

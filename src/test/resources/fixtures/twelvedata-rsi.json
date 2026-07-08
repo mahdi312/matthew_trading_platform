@@ -1,0 +1,22 @@
+{
+  "meta": {
+    "symbol": "AAPL",
+    "interval": "1day",
+    "indicator": {
+      "name": "RSI",
+      "series_type": "close",
+      "time_period": 14
+    }
+  },
+  "values": [
+    {
+      "datetime": "2026-06-30 00:00:00",
+      "rsi": "58.32104"
+    },
+    {
+      "datetime": "2026-06-27 00:00:00",
+      "rsi": "54.12890"
+    }
+  ],
+  "status": "ok"
+}

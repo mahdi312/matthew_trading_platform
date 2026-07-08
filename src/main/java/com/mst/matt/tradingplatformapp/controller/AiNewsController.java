@@ -3,6 +3,7 @@ package com.mst.matt.tradingplatformapp.controller;
 import com.mst.matt.tradingplatformapp.service.AiNewsService;
 import com.mst.matt.tradingplatformapp.service.AiNewsService.AiInsight;
 import com.mst.matt.tradingplatformapp.service.AiNewsService.NewsItem;
+import com.mst.matt.tradingplatformapp.service.ai.AiLlmModel;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
@@ -40,6 +41,7 @@ public class AiNewsController implements Initializable {
 
     // ── FXML injections ───────────────────────────────────────────────────────
     @FXML private TextField    searchField;
+    @FXML private ComboBox<AiLlmModel> modelSelector;
     @FXML private Button       getInsightsBtn;
     @FXML private ProgressIndicator loadingSpinner;
     @FXML private Label        statusLabel;
@@ -64,6 +66,7 @@ public class AiNewsController implements Initializable {
 
     @Override
     public void initialize(URL url, ResourceBundle rb) {
+        setupModelSelector();
         setupAutocomplete();
         // Hide result panel until first search
         if (resultPanel != null) {
@@ -120,20 +123,88 @@ public class AiNewsController implements Initializable {
 
     private void fetchAndDisplay(String query) {
         setLoading(true);
+        clearResults();
+        String modelId = selectedModelId();
         Thread.ofVirtual().start(() -> {
             try {
-                AiInsight insight = aiNewsService.getInsight(query);
+                AiInsight insight = aiNewsService.getInsight(query, modelId);
                 Platform.runLater(() -> {
                     displayInsight(insight);
                     setLoading(false);
                 });
             } catch (Exception e) {
                 Platform.runLater(() -> {
-                    setStatusError("Failed to fetch insights: " + e.getMessage());
+                    clearResults();
+                    setStatusError(e.getMessage() != null ? e.getMessage() : "Failed to fetch insights.");
                     setLoading(false);
                 });
             }
         });
+    }
+
+    private String selectedModelId() {
+        if (modelSelector == null || modelSelector.getValue() == null) return null;
+        return modelSelector.getValue().id();
+    }
+
+    private void setupModelSelector() {
+        if (modelSelector == null) return;
+
+        List<AiLlmModel> models = aiNewsService.availableModels();
+        modelSelector.setItems(FXCollections.observableArrayList(models));
+        modelSelector.setCellFactory(lv -> modelCell());
+        modelSelector.setButtonCell(modelCell());
+
+        aiNewsService.defaultModel().ifPresentOrElse(
+                modelSelector::setValue,
+                () -> {
+                    if (!models.isEmpty()) modelSelector.getSelectionModel().selectFirst();
+                });
+
+        modelSelector.valueProperty().addListener((obs, old, selected) -> {
+            if (selected == null || statusLabel == null) return;
+            if (!aiNewsService.configuredModels().contains(selected)) {
+                statusLabel.setText("⚠ API key not set for " + selected.providerName()
+                        + " — add app.api." + selected.apiKeyProperty() + ".key in application-local.properties");
+                statusLabel.setStyle("-fx-text-fill:#d29922; -fx-font-size:11px;");
+            } else if (loadingSpinner == null || !loadingSpinner.isVisible()) {
+                statusLabel.setText("");
+                statusLabel.setStyle("-fx-text-fill:#8b949e; -fx-font-size:11px;");
+            }
+        });
+    }
+
+    private ListCell<AiLlmModel> modelCell() {
+        return new ListCell<>() {
+            @Override protected void updateItem(AiLlmModel model, boolean empty) {
+                super.updateItem(model, empty);
+                if (empty || model == null) {
+                    setText(null);
+                    setStyle(null);
+                    setDisable(false);
+                    return;
+                }
+                setText(model.label());
+                boolean configured = aiNewsService.configuredModels().contains(model);
+                setDisable(false);
+                setStyle(configured
+                        ? "-fx-text-fill:#e6edf3; -fx-font-size:12px;"
+                        : "-fx-text-fill:#6e7681; -fx-font-size:12px;");
+            }
+        };
+    }
+
+    /** Hides stale AI content when a fetch fails or a new fetch starts. */
+    private void clearResults() {
+        if (resultPanel != null) {
+            resultPanel.setVisible(false);
+            resultPanel.setManaged(false);
+        }
+        if (newsContainer != null) newsContainer.getChildren().clear();
+        if (recommendationText != null) recommendationText.setText("");
+        if (riskText != null) riskText.setText("");
+        if (sentimentBadge != null) sentimentBadge.setText("");
+        if (generatedAtLabel != null) generatedAtLabel.setText("");
     }
 
     private void displayInsight(AiInsight insight) {
@@ -181,8 +252,22 @@ public class AiNewsController implements Initializable {
 
         // ── Timestamp ─────────────────────────────────────────────────────────
         if (generatedAtLabel != null && insight.generatedAt() != null) {
+            String modelInfo = insight.modelLabel() != null && !insight.modelLabel().isBlank()
+                    ? " · " + insight.modelLabel() : "";
             generatedAtLabel.setText("Generated: "
-                    + insight.generatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+                    + insight.generatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+                    + modelInfo);
+        }
+
+        if (insight.llmNotice() != null && !insight.llmNotice().isBlank()) {
+            setStatusError("AI unavailable — " + insight.llmNotice()
+                    + ". Try OpenAI · GPT-4o Mini or another model from the picker.");
+        } else if (statusLabel != null && !insight.aiGenerated()) {
+            statusLabel.setText("Using rule-based analysis (no AI key for selected model).");
+            statusLabel.setStyle("-fx-text-fill:#d29922; -fx-font-size:11px;");
+        } else if (statusLabel != null) {
+            statusLabel.setText("");
+            statusLabel.setStyle("-fx-text-fill:#8b949e; -fx-font-size:11px;");
         }
 
         // Show result panel
@@ -190,7 +275,6 @@ public class AiNewsController implements Initializable {
             resultPanel.setVisible(true);
             resultPanel.setManaged(true);
         }
-        if (statusLabel != null) statusLabel.setText("");
     }
 
     /** Builds a styled card for a single news item. */

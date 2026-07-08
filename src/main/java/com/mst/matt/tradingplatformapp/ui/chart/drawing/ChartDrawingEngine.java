@@ -143,6 +143,18 @@ public class ChartDrawingEngine {
         if (selected != null && !drawings.contains(selected)) selected = null;
     }
 
+    /**
+     * Issue #2: Removes all drawings from the in-memory engine without touching the DB.
+     * The caller (ChartController) is responsible for the DB-side deletion.
+     */
+    public void clearAllDrawings() {
+        drawings.clear();
+        selected = null;
+        inProgress = null;
+        history.clear();
+        host.requestRender();
+    }
+
     public void setActiveTool(ChartDrawingToolType tool) {
         this.activeTool = tool != null ? tool : ChartDrawingToolType.SELECT;
         inProgress = null;

@@ -5,14 +5,15 @@ import com.mst.matt.tradingplatformapp.model.AppUser.Role;
 import com.mst.matt.tradingplatformapp.model.RolePermission;
 import com.mst.matt.tradingplatformapp.repository.AppUserRepository;
 import com.mst.matt.tradingplatformapp.repository.RolePermissionRepository;
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import com.mst.matt.tradingplatformapp.service.price.LiveTickerService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 /**
@@ -23,6 +24,7 @@ class AuthServiceTest {
 
     private AppUserRepository       userRepo;
     private RolePermissionRepository permRepo;
+    private LiveTickerService liveTickerService;
     private AuthService             svc;
 
     // ── Fixtures ───────────────────────────────────────────────
@@ -64,7 +66,7 @@ class AuthServiceTest {
         when(permRepo.findBySubjectUserIdAndTabName(any(), any())).thenReturn(Optional.empty());
         when(permRepo.findBySubjectRoleAndTabName(any(), any())).thenReturn(Optional.empty());
 
-        svc = new AuthService(userRepo, permRepo);
+        svc = new AuthService(userRepo, permRepo, liveTickerService);
     }
 
     // ── bootstrap ─────────────────────────────────────────────
@@ -77,7 +79,7 @@ class AuthServiceTest {
         when(permRepo.findBySubjectUserIdAndTabName(any(), any())).thenReturn(Optional.empty());
         when(permRepo.findBySubjectRoleAndTabName(any(), any())).thenReturn(Optional.empty());
 
-        new AuthService(emptyRepo, permRepo);
+        new AuthService(emptyRepo, permRepo, liveTickerService);
 
         verify(emptyRepo, atLeastOnce()).save(argThat(u ->
                 "admin".equals(u.getUsername()) && u.getRole() == Role.ADMIN));

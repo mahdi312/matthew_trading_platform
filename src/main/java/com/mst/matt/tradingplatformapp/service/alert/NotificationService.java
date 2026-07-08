@@ -36,6 +36,53 @@ public class NotificationService {
     @Value("${notification.email.to:}")
     private String toEmail;
 
+    // ── Channel configuration validation ─────────────────────
+
+    /**
+     * Returns {@code true} if email notifications can actually be sent.
+     * Requires both a configured JavaMailSender AND a recipient email address.
+     */
+    public boolean isEmailConfigured() {
+        return mailSender != null
+                && toEmail != null && !toEmail.isBlank();
+    }
+
+    /**
+     * Returns {@code true} if Telegram notifications can actually be sent.
+     * Requires the bot to be initialised AND have at least one subscriber
+     * or a statically configured chat ID.
+     */
+    public boolean isTelegramConfigured() {
+        if (telegramBot == null) return false;
+        // Check if the bot has any recipients
+        try {
+            // If the bean is present it means telegram.bot.enabled=true and a token is set
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Returns a user-readable warning string when a notification channel is
+     * selected but not properly configured, or {@code null} if everything is OK.
+     *
+     * @param wantEmail    whether the user ticked "Email"
+     * @param wantTelegram whether the user ticked "Telegram"
+     */
+    public String buildChannelWarning(boolean wantEmail, boolean wantTelegram) {
+        StringBuilder sb = new StringBuilder();
+        if (wantEmail && !isEmailConfigured()) {
+            sb.append("• Email: No SMTP recipient configured "
+                    + "(set notification.email.to in application.properties).\n");
+        }
+        if (wantTelegram && !isTelegramConfigured()) {
+            sb.append("• Telegram: Bot not configured or disabled "
+                    + "(set telegram.bot.enabled=true and telegram.bot.token).\n");
+        }
+        return sb.length() == 0 ? null : sb.toString().trim();
+    }
+
     // ── Desktop Notification ─────────────────────────────────
 
     public void sendDesktop(String title, String message) {

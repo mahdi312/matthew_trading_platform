@@ -5,8 +5,10 @@ import com.mst.matt.tradingplatformapp.model.AppUser.Role;
 import com.mst.matt.tradingplatformapp.model.RolePermission;
 import com.mst.matt.tradingplatformapp.repository.AppUserRepository;
 import com.mst.matt.tradingplatformapp.repository.RolePermissionRepository;
+import com.mst.matt.tradingplatformapp.service.price.LiveTickerService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,11 +35,20 @@ public class AuthService {
     private final AppUserRepository userRepo;
     private final RolePermissionRepository permRepo;
 
+    /**
+     * Lazy to break the circular dependency:
+     * AuthService → LiveTickerService → AuthService
+     */
+    private final LiveTickerService liveTickerService;
+
     private volatile AppUser currentUser;
 
-    public AuthService(AppUserRepository userRepo, RolePermissionRepository permRepo) {
+    public AuthService(AppUserRepository userRepo,
+                       RolePermissionRepository permRepo,
+                       @Lazy LiveTickerService liveTickerService) {
         this.userRepo = userRepo;
         this.permRepo = permRepo;
+        this.liveTickerService = liveTickerService;
         ensureAdminExists();
     }
 
@@ -64,14 +75,14 @@ public class AuthService {
     /**
      * Attempt login. Returns the logged-in user on success, empty on failure.
      */
-    @Transactional
+    @Transactional(timeout = 5)
     public Optional<AppUser> login(String username, String password) {
         Optional<AppUser> opt = userRepo.findByUsername(username.toLowerCase().trim());
         if (opt.isEmpty()) return Optional.empty();
         AppUser user = opt.get();
         if (!user.isActive() || !user.checkPassword(password)) return Optional.empty();
         user.setLastLoginAt(LocalDateTime.now());
-        userRepo.save(user);
+        userRepo.saveAndFlush(user);
         this.currentUser = user;
         log.info("User '{}' logged in (role={})", username, user.getRole());
         return Optional.of(user);
@@ -81,9 +92,18 @@ public class AuthService {
         if (currentUser != null)
             log.info("User '{}' logged out", currentUser.getUsername());
         this.currentUser = null;
+        // Stop live market streams so no external API calls are made after logout
+        try {
+            liveTickerService.stopLiveStreams();
+        } catch (Exception e) {
+            log.warn("Error stopping live streams on logout: {}", e.getMessage());
+        }
     }
 
-    /** @return the currently logged-in user, or empty if not authenticated. */
+    /**
+     * @return the currently logged-in user, or empty if not authenticated.
+     * No DB access — returns the in-memory reference.
+     */
     public Optional<AppUser> currentUser() {
         return Optional.ofNullable(currentUser);
     }
@@ -224,6 +244,7 @@ public class AuthService {
     }
 
     /** Returns all registered users (ADMIN only). */
+    @Transactional(readOnly = true)
     public List<AppUser> allUsers() {
         requireAdmin();
         return userRepo.findAllByOrderByCreatedAtDesc();
@@ -236,7 +257,13 @@ public class AuthService {
 
     // ── Favorites ──────────────────────────────────────────────
 
-    /** Persist the current user's favorite timeframes. */
+    /**
+     * Persist the current user's favorite timeframes.
+     *
+     * <p>The transaction is intentionally kept short: only the single
+     * {@code UPDATE} statement is executed inside it.  No external calls
+     * or heavy logic is performed while the connection is held.</p>
+     */
     @Transactional
     public void saveFavoriteTimeframes(List<String> favorites) {
         if (currentUser == null) return;
@@ -245,7 +272,14 @@ public class AuthService {
         userRepo.save(currentUser);
     }
 
-    /** Get the current user's favorite timeframes (filtered to allowed). */
+    /**
+     * Get the current user's favorite timeframes (filtered to allowed).
+     *
+     * <p>Read-only: marks the transaction as such so the database can
+     * optimise the query and the connection is released immediately after
+     * the single SELECT completes.</p>
+     */
+    @Transactional(readOnly = true)
     public List<String> getFavoriteTimeframes() {
         if (currentUser == null) return List.of();
         List<String> favs = currentUser.favoriteTimeframeList();

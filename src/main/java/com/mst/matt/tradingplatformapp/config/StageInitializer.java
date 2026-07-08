@@ -3,8 +3,9 @@ package com.mst.matt.tradingplatformapp.config;
 import com.mst.matt.tradingplatformapp.controller.LoginController;
 import com.mst.matt.tradingplatformapp.controller.MainDashboardController;
 import com.mst.matt.tradingplatformapp.controller.RegisterController;
+import com.mst.matt.tradingplatformapp.service.AppSettingsService;
+import com.mst.matt.tradingplatformapp.service.AppSettingsService.AppTheme;
 import javafx.application.Platform;
-import javafx.fxml.FXMLLoader;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
@@ -30,6 +31,7 @@ import java.util.Objects;
 public class StageInitializer implements ApplicationListener<StageReadyEvent> {
 
     private final FxWeaver fxWeaver;
+    private final AppSettingsService appSettings;
 
     // Stable references to login/register — loaded once, reused across sessions
     private Parent loginView;
@@ -37,9 +39,40 @@ public class StageInitializer implements ApplicationListener<StageReadyEvent> {
     private LoginController    loginCtrl;
     private RegisterController registerCtrl;
 
+    /** The live scene — kept as a field so the theme can be swapped at runtime. */
+    private Scene mainScene;
+
     @Autowired
-    public StageInitializer(FxWeaver fxWeaver) {
-        this.fxWeaver = fxWeaver;
+    public StageInitializer(FxWeaver fxWeaver, AppSettingsService appSettings) {
+        this.fxWeaver    = fxWeaver;
+        this.appSettings = appSettings;
+    }
+
+    /**
+     * Hot-swap the current theme stylesheet on the live scene.
+     * Called by ProfileSettingsController after the user changes the theme.
+     * Safe to call from any thread (dispatches to FX thread internally).
+     *
+     * @param themeId one of "dark", "light", "amazon_green", "light_blue"
+     */
+    public void applyTheme(String themeId) {
+        AppTheme theme = AppTheme.fromId(themeId);
+        String url;
+        try {
+            url = Objects.requireNonNull(
+                    getClass().getResource(theme.cssPath)).toExternalForm();
+        } catch (Exception e) {
+            // Fallback to dark if resource is missing
+            url = Objects.requireNonNull(
+                    getClass().getResource(AppTheme.DARK.cssPath)).toExternalForm();
+        }
+        final String cssUrl = url;
+        Platform.runLater(() -> {
+            if (mainScene == null) return;
+            mainScene.getStylesheets().clear();
+            mainScene.getStylesheets().add(cssUrl);
+        });
+        appSettings.setTheme(themeId);
     }
 
     @Override
@@ -65,12 +98,25 @@ public class StageInitializer implements ApplicationListener<StageReadyEvent> {
             // Container to swap between login / register / dashboard
             StackPane root = new StackPane(loginView);
 
+            // ── System-theme detection on first startup ────────────────
+            // If no saved theme preference exists, default to OS dark/light
+            String savedTheme = appSettings.getTheme();
+            if (savedTheme == null || savedTheme.isBlank() || savedTheme.equals("dark")) {
+                // Only auto-detect if user hasn't yet overridden; "dark" is the factory default
+                boolean osDark = AppSettingsService.isOsDarkMode();
+                if (!osDark && (savedTheme == null || savedTheme.isBlank())) {
+                    // OS says light and user hasn't explicitly chosen — use light
+                    appSettings.setTheme("light");
+                    savedTheme = "light";
+                }
+            }
+            AppTheme resolvedTheme = AppTheme.fromId(savedTheme);
+            String themeUrl = Objects.requireNonNull(
+                    getClass().getResource(resolvedTheme.cssPath)).toExternalForm();
+
             Scene scene = new Scene(root, width, height);
-            scene.getStylesheets().add(
-                    Objects.requireNonNull(
-                            getClass().getResource("/css/dark-theme.css")
-                    ).toExternalForm()
-            );
+            scene.getStylesheets().add(themeUrl);
+            mainScene = scene;
 
             stage.setTitle("📈 Trading Intelligence Platform — Sign In");
             stage.setScene(scene);

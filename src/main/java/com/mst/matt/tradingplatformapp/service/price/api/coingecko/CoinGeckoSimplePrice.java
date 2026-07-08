@@ -1,4 +1,4 @@
-package com.mst.matt.tradingplatformapp.service.price.api;
+package com.mst.matt.tradingplatformapp.service.price.api.coingecko;
 
 import com.google.gson.JsonObject;
 import com.mst.matt.tradingplatformapp.model.Trade.AssetType;
