@@ -9,6 +9,7 @@ import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
+import javafx.scene.text.Text;
 import javafx.scene.text.TextAlignment;
 
 import java.time.LocalDateTime;
@@ -642,10 +643,17 @@ public final class DrawingRenderer {
         }
         if (selected) {
             gc.setFill(Color.web("#e6edf3cc"));
-            gc.fillRoundRect(right + 4, yEntry - 10, 52, 20, 4, 4);
+            gc.fillRoundRect(right + 4, yEntry - 10, 72, 20, 4, 4);
             gc.setFill(Color.web("#0d1117"));
             gc.setFont(FONT_SMALL);
-            gc.fillText("+ Trade", right + 8, yEntry + 4);
+
+            String text = "+ Trade";
+            // Measure text width using Text node
+            Text tempText = new Text(text);
+            tempText.setFont(FONT_SMALL);
+            double textWidth = tempText.getLayoutBounds().getWidth();
+            double textX = right + 5 + (72 - textWidth) / 2; // Center horizontally
+            gc.fillText(text, textX, yEntry + 5);
         }
     }
 
