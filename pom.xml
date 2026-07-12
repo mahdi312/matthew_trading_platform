@@ -2,34 +2,36 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.1</version>
-        <relativePath/> <!-- lookup parent from repository -->
+        <version>3.3.0</version>
+        <relativePath/>
     </parent>
+
     <groupId>com.matthew</groupId>
     <artifactId>trading-platform-parent</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>Matthew Trading Platform Parent</name>
-    <description>Parent POM for Matthew Trading Platform Microservices</description>
+    <name>Trading Platform Parent</name>
+    <description>Microservices-based trading platform</description>
 
     <properties>
         <java.version>21</java.version>
-        <spring-cloud.version>2023.0.2</spring-cloud.version>
-        <lombok.version>1.18.32</lombok.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <spring-cloud.version>2023.0.0</spring-cloud.version>
     </properties>
 
     <modules>
-        <module>common-lib</module>
         <module>infra/discovery-service</module>
         <module>infra/gateway-service</module>
         <module>services/identity-service</module>
         <module>services/market-service</module>
         <module>services/trading-service</module>
         <module>services/notification-service</module>
-        <module>desktop</module>
     </modules>
 
     <dependencyManagement>
@@ -43,6 +45,69 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <dependencies>
+        <!-- Spring Boot Starters -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <!-- Spring Cloud -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-gateway</artifactId>
+        </dependency>
+
+        <!-- Database -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Kafka -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+        <!-- Caching -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
+        </dependency>
+
+        <!-- Utilities -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Testing -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
     <build>
         <plugins>
@@ -58,6 +123,38 @@
                     </excludes>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>21</source>
+                    <target>21</target>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
+
+    <!-- UPGRADE PATH TO JAVA 25 & SPRING BOOT 4.1 -->
+    <!-- 
+    To upgrade to Java 25 and Spring Boot 4.1:
+    
+    1. Update Java version:
+       - Change <java.version>21</java.version> to <java.version>25</java.version>
+       - Update maven.compiler.source and maven.compiler.target to 25
+    
+    2. Update Spring Boot version:
+       - Change parent version from 3.3.0 to 4.1.0 (or latest 4.1.x)
+       - Update spring-cloud.version to compatible version (typically 2024.x.x)
+    
+    3. Review breaking changes:
+       - Check Spring Boot 4.1 migration guide
+       - Update deprecated APIs
+       - Test all services thoroughly
+    
+    4. Build and test:
+       - mvn clean install
+       - Run integration tests
+       - Deploy to staging environment
+    -->
+
 </project>
