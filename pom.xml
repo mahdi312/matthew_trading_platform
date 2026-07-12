@@ -51,6 +51,8 @@
         <module>services/market-service</module>
         <module>services/trading-service</module>
         <module>services/notification-service</module>
+        <module>services/reference-data-service</module>
+        <module>services/ai-service</module>
     </modules>
 
     <dependencyManagement>
