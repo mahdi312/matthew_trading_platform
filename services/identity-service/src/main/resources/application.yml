@@ -5,6 +5,56 @@ spring:
   application:
     name: identity-service
 
+  # ── Datasource (H2 in-memory for dev; override for PostgreSQL in prod) ──────
+  datasource:
+    url: jdbc:h2:mem:identitydb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+    database-platform: org.hibernate.dialect.H2Dialect
+
+  # H2 console for local development (disable in production)
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  # ── OAuth2 Client (Google) ───────────────────────────────────────────────────
+  # Override client-id and client-secret via environment variables or Config Server.
+  # Never commit real credentials to source control.
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:your-google-client-id-here}
+            client-secret: ${GOOGLE_CLIENT_SECRET:your-google-client-secret-here}
+            scope:
+              - openid
+              - profile
+              - email
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          google:
+            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+            token-uri: https://oauth2.googleapis.com/token
+            user-info-uri: https://openidconnect.googleapis.com/v1/userinfo
+            user-name-attribute: sub
+
+# ── JWT configuration ──────────────────────────────────────────────────────────
+# Override jwt.secret via environment variable or Config Server.
+# Must be at least 32 characters. Never commit real secrets to source control.
+jwt:
+  secret: ${JWT_SECRET:change-me-in-production-at-least-32-chars}
+  expiration-seconds: ${JWT_EXPIRATION_SECONDS:86400}   # 24 hours default
+
+# ── Eureka client ───────────────────────────────────────────────────────────────
 eureka:
   client:
     service-url:
@@ -12,6 +62,7 @@ eureka:
   instance:
     prefer-ip-address: true
 
+# ── Actuator ────────────────────────────────────────────────────────────────────
 management:
   endpoints:
     web:
