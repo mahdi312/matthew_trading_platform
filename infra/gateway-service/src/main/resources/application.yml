@@ -1,0 +1,50 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+  cloud:
+    gateway:
+      server:
+        webflux:
+          # Route stubs — one per downstream service. Populated with real
+          # predicates/filters (incl. JWT auth, per Step 4) as each service
+          # is implemented. Do NOT add business/auth logic here yet.
+          routes: []
+          # ------------------------------------------------------------------
+          # Planned routes (uncomment / flesh out per service as it lands):
+          #
+          # - id: identity-service
+          #   uri: lb://identity-service
+          #   predicates:
+          #     - Path=/api/identity/**
+          #
+          # - id: market-service
+          #   uri: lb://market-service
+          #   predicates:
+          #     - Path=/api/market/**
+          #
+          # - id: trading-service
+          #   uri: lb://trading-service
+          #   predicates:
+          #     - Path=/api/trading/**
+          #
+          # - id: notification-service
+          #   uri: lb://notification-service
+          #   predicates:
+          #     - Path=/api/notifications/**
+          # ------------------------------------------------------------------
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway

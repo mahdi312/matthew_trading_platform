@@ -1,0 +1,27 @@
+You are an expert Java/Spring Cloud/Angular/JavaFX developer.
+
+General rules:
+- Java 25 + Spring Boot 4.1 from the start (verify these are GA at project start; do not scaffold on older versions with a plan to upgrade later).
+- Angular 17+, standalone components only, Angular Material, ECharts, RxJS.
+- JavaFX for desktop client — thin client only, no local business logic duplication.
+- Lombok for boilerplate; JPA/Hibernate + PostgreSQL per-service.
+- Write clean, minimally-commented code. Follow REST conventions. Add OpenAPI/Swagger annotations to controllers.
+
+Microservices rules:
+- Eureka for discovery, Spring Cloud Gateway as the single entry point, Spring Cloud Config for shared config.
+- No service calls another service directly — only via Gateway or async via Kafka.
+- All broker integrations (market data + trading) MUST implement the shared MarketDataProvider / TradingProvider interfaces in /shared/contracts. No direct broker SDK calls outside those implementations.
+
+Security:
+- OAuth2 (Google) + JWT (stateless), validated once at the Gateway.
+- Broker connections (BitUnix, TradingView-partner, etc.) are separate "broker link" flows, not login providers.
+
+Reliability rules:
+- @Transactional boundaries must be narrow; never call an external broker inside a transaction.
+- Order execution paths must be thread-safe per user/account (explicit locking or serialized queue).
+- Caffeine Cache on all read-heavy, low-volatility endpoints; explicit eviction on relevant writes.
+- Structured JSON logging with correlation IDs propagated from the Gateway.
+
+DevOps:
+- Kafka for all cross-service events (trade executed, alert triggered) feeding notification-service.
+- Docker Compose for local full-stack runs; Kubernetes manifests for deployment.

@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.mst.matt</groupId>
+    <artifactId>trading-platform-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>trading-platform-parent</name>
+    <description>
+        Root aggregator/parent POM for the Trading Platform microservices workspace.
+        This module performs dependency + version management ONLY. It contains
+        no business logic and is not itself a runnable/buildable artifact.
+    </description>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.0</version>
+        <relativePath/>
+    </parent>
+
+    <properties>
+        <java.version>25</java.version>
+        <maven.compiler.release>25</maven.compiler.release>
+        <spring-cloud.version>2025.1.2</spring-cloud.version>
+        <lombok.version>1.18.46</lombok.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <!--
+        Modules are added incrementally as each service is scaffolded/implemented.
+        Per project rules this root pom does not compile any service logic itself;
+        it only aggregates modules and manages shared dependency versions below.
+
+        NOTE: /desktop is intentionally NOT a module here — it is the preserved,
+        unmodified JavaFX monolith with its own standalone pom.xml/build.
+        /frontend is an Angular workspace (npm-based, not part of the Maven reactor).
+    -->
+    <modules>
+        <module>infra/discovery-service</module>
+        <module>infra/gateway-service</module>
+        <module>infra/config-service</module>
+        <module>shared/contracts</module>
+        <module>services/identity-service</module>
+        <module>services/market-service</module>
+        <module>services/trading-service</module>
+        <module>services/notification-service</module>
+    </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <!-- Fail fast when JAVA_HOME is below 25 -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-enforcer-plugin</artifactId>
+                    <version>3.5.0</version>
+                    <executions>
+                        <execution>
+                            <id>enforce-java-25</id>
+                            <goals>
+                                <goal>enforce</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <requireJavaVersion>
+                                        <version>[25,)</version>
+                                        <message>
+                                            This project requires JDK 25 or newer.
+                                            Install JDK 25+, set JAVA_HOME to it, then run mvn again.
+                                        </message>
+                                    </requireJavaVersion>
+                                </rules>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <configuration>
+                        <release>${maven.compiler.release}</release>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                                <version>${lombok.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+</project>

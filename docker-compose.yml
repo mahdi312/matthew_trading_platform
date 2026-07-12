@@ -1,0 +1,3 @@
+# Placeholder — full multi-service stack (discovery, gateway, config,
+# services, Kafka, Postgres, frontend) is wired up in a later migration
+# step (Step 15). Intentionally left empty for now.
