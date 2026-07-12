@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discovery-service
+  namespace: trading-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: discovery-service
+  template:
+    metadata:
+      labels:
+        app: discovery-service
+    spec:
+      containers:
+      - name: discovery-service
+        image: trading-platform/discovery-service:1.0.0
+        ports:
+        - containerPort: 8761
+        livenessProbe:
+          httpGet:
+            path: /eureka/apps
+            port: 8761
+          initialDelaySeconds: 30
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: discovery-service
+  namespace: trading-platform
+spec:
+  selector:
+    app: discovery-service
+  ports:
+  - protocol: TCP
+    port: 8761
+    targetPort: 8761
+  type: LoadBalancer
