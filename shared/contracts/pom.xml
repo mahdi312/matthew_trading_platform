@@ -17,14 +17,41 @@
     <packaging>jar</packaging>
     <name>shared-contracts</name>
     <description>
-        Shared, framework-light DTOs and provider interfaces (e.g. MarketDataProvider,
-        TradingProvider) consumed by multiple services. NO JPA entities, NO business
-        logic, NO service implementations belong in this module.
+        Shared, framework-light DTOs, enums, and broker-abstraction interfaces
+        consumed by every microservice.
+
+        Rules enforced by code review:
+          - NO JPA @Entity classes
+          - NO Spring @Component / @Service / @Repository beans
+          - NO business logic (calculations, persistence, HTTP calls)
+          - YES to: DTOs (Lombok @Data/@Builder), plain interfaces, pure enums
+
+        Every service that needs cross-service types imports ONLY this module.
     </description>
 
     <dependencies>
-        <!-- Intentionally minimal. Add only pure API contract dependencies here
-             (e.g. jakarta.validation-api) as interfaces/DTOs are introduced. -->
+
+        <!--
+            Lombok is used for boilerplate reduction on DTO classes (@Data, @Builder, etc.).
+            'optional = true' means it is NOT transitively exported to consumers —
+            each consuming module declares Lombok for its own annotation processing.
+        -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!--
+            Jakarta Bean Validation API (annotations only — no runtime engine here).
+            Allows DTOs to carry @NotNull / @Size / @Valid annotations that consuming
+            services can enforce via their own validation runtime.
+        -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
+
     </dependencies>
 
 </project>
