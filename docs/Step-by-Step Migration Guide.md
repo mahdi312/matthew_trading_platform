@@ -1,397 +1,125 @@
-# Step-by-Step Guide
+# Matthew Trading Platform: Microservices Migration Guide
 
-----------------------------
+This document outlines the phased migration of the `matthew_trading_platform` from a monolithic JavaFX/Spring application to a modern, scalable microservices architecture.
 
---------------
+---
 
-### Step 0: Project Restructuring & Preservation (Preparation Step)
+## 🏗️ Architecture Overview
 
-#### Goal: Preserve the existing JavaFX client, set up clear separation, and prepare for minimal-disruption migration.
+- **Backend**: Spring Boot 3.x Microservices
+- **Frontend**: Angular 17 (Responsive Web)
+- **Desktop**: JavaFX Client (Win/Mac/Linux)
+- **Infrastructure**: Spring Cloud (Gateway, Eureka), Kafka, Docker, Kubernetes
+- **Security**: Spring Security OAuth2 (Google, TradingView, Brokers)
+- **Performance**: Caffeine Cache, Multi-threading, Transactional Integrity
 
-##### Before splitting, preserve my existing JavaFX monolithic app as a desktop client.
+---
 
-Please:
+## 🛠️ Step-by-Step Migration Plan
 
-1. Create this top-level structure in the project root:
+### Step 0: Project Restructuring & Infrastructure
+**Goal**: Set up the multi-module project structure and core infrastructure.
 
-   /backend/          (new Spring Boot REST API)   /frontend/         (new Angular 17 web UI)   /desktop/          (
-   refactored JavaFX client for Win/Mac/Linux)     src/main/java/... (copy existing JavaFX code here)
-   pom.xml           (JavaFX + HTTP client dependencies)
+1.  **Restructure Root**: Create directories for `/services`, `/frontend`, `/desktop`, and `/infra`.
+2.  **Service Discovery**: Implement `discovery-service` using Spring Cloud Netflix Eureka.
+3.  **API Gateway**: Implement `gateway-service` using Spring Cloud Gateway to handle routing and rate limiting.
+4.  **Shared Library**: Create a `common-lib` for shared DTOs, exceptions, and utility classes to reduce code duplication.
 
-2. Copy the entire existing JavaFX source code into /desktop/ without modifications yet. 3. Update the desktop pom.xml
-   to use Java 21 initially (we'll upgrade later), add Spring WebFlux WebClient or RestTemplate + WebSocket support for
-   future API consumption. 4. Do NOT change any business logic yet.
+> **Agent Prompt**: "Initialize a Spring Cloud microservices project structure. Create a Eureka Discovery Server and a Spring Cloud Gateway. Set up a root `pom.xml` managing dependencies for all services."
 
-Expected output: New folder structure with JavaFX code preserved in /desktop/.
+### Step 1: Centralized Security (OAuth2 + JWT)
+**Goal**: Implement a unified security service handling multiple login providers.
 
-\---
+1.  **Auth Service**: Create an `identity-service` handling JWT generation and validation.
+2.  **OAuth2 Integration**: Configure Spring Security to support Google, TradingView, and Broker OAuth2 logins.
+3.  **Simple Security**: Maintain standard username/password login as a fallback.
+4.  **Global Filter**: Implement a security filter in the Gateway to validate JWTs before routing.
 
-### Step 1: Set Up the Workspace Structure (First Prompt) Goal: Create the folder structure for both projects. (Backend + Frontend + preserved Desktop)
+> **Agent Prompt**: "Implement a Spring Boot Identity Service with OAuth2 support. Integrate Google and TradingView login. Use JWT for stateless authentication and provide a public key endpoint for other services to validate tokens."
 
-##### I want to split my monolithic JavaFX/Spring app into:
+### Step 2: Market Data Abstraction Layer
+**Goal**: Create a unified interface for multiple market data providers.
 
-1. Backend: Spring Boot REST API (multi-threaded, transactional) 2. Frontend: Angular 17+ (modern UI, responsive,
-   themable) 3. Desktop: JavaFX client (existing code preserved as platform client for Win/Mac/Linux)
+1.  **Abstraction Layer**: Define `MarketDataService` interface with methods for `getOHLCV`, `getLivePrice`, and `getTickerInfo`.
+2.  **Provider Implementations**: Implement services for specific brokers/providers (e.g., BitUnix, TwelveData) following the abstraction.
+3.  **Live Charting Service**: Implement a WebSocket-based service in `market-service` to stream OHLCV data to clients.
 
-Please create the following folder structure (building on the existing /desktop/):
+> **Agent Prompt**: "Create a Market Data Microservice. Define a generic `OHLCVProvider` interface. Implement a concrete version for BitUnix using their REST/WebSocket API. Ensure the service can handle multiple providers concurrently."
 
-/backend/ src/main/java/... src/main/resources/... pom.xml (Spring Boot 3.x)
+### Step 3: Trading Microservice & Broker Integration
+**Goal**: Handle order execution, portfolio management, and broker-specific logic.
 
-/frontend/ src/app/... src/assets/... angular.json package.json
+1.  **Unified Trade API**: Create an abstraction for Spot and Futures trading across different brokers.
+2.  **Thread Safety**: Ensure order execution logic is thread-safe using concurrent collections and proper synchronization.
+3.  **Transactional Integrity**: Use `@Transactional` for all trade-related database operations to prevent data inconsistency.
+4.  **Live Trading Tab**: Design endpoints specifically for the "Live Trading" UI component.
 
-/desktop/ (already populated with JavaFX code)
+> **Agent Prompt**: "Build a Trading Microservice. Implement a thread-safe order execution engine. Add support for Spot and Futures trading. Use `@Transactional` to ensure atomicity for trade records and balance updates."
 
-Then generate the initial pom.xml for the backend (Spring Boot 3.x with Spring Web, JPA, PostgreSQL, Security,
-WebSocket) and package.json for the frontend (Angular 17, Angular Material, RxJS, ECharts). Expected output: Folder
-structure confirmation + pom.xml + package.json.
+### Step 4: Messaging & Notifications (Kafka)
+**Goal**: Implement an asynchronous notification system.
 
-### Step 2: Extract Data Models (Second Prompt)
+1.  **Kafka Setup**: Configure Kafka clusters for inter-service communication.
+2.  **Notification Service**: Create a `notification-service` that consumes events from Kafka.
+3.  **Multi-Channel**: Implement handlers for Push Notifications, Emails (SMTP), and Telegram Bot messages.
 
-#### Goal: Move JPA entities from the old app to the new backend.
+> **Agent Prompt**: "Implement a Kafka-based Notification Service. Create producers in the Trading and Market services. The Notification service should send Emails and Telegram messages based on received events."
 
-##### From my existing JavaFX app, I have these JPA entities:
+### Step 5: Cross-Cutting Concerns (Logging & Caching)
+**Goal**: Ensure high performance and observability.
 
-- UserProfile
-- Trade
-- PriceAlert
-- IndicatorConfig
-- ChartDrawing
-- OhlcvBar
-- etc...
+1.  **Centralized Logging**: Implement Logback/ELK stack configuration for unified log collection.
+2.  **Caffeine Cache**: Integrate Caffeine for high-performance local caching of market data and user settings.
+3.  **Monitoring**: Add Spring Boot Actuator to all services for health checks and metrics.
 
-Please copy these entity classes to the new Spring Boot backend (backend/src/main/java/.../model/). Keep all JPA
-annotations (@Entity, @Id, @ManyToOne, etc.) and Lombok annotations.
+> **Agent Prompt**: "Configure Caffeine Cache for the Market Service to store recent OHLCV data. Set up a global exception handler and structured JSON logging for all microservices."
 
-Do NOT add any new logic yet – just copy the entity classes as-is.
-Expected output: Entity classes copied over.
+### Step 6: Frontend - Angular 17 Migration
+**Goal**: Build a modern, responsive web dashboard.
 
-### Step 3: Create Repository Interfaces (Third Prompt)
+1.  **Module Architecture**: Create standalone components for Dashboard, Trading, and Portfolio.
+2.  **Chart Integration**: Use ECharts or a similar library to implement the Live Charting tab.
+3.  **State Management**: Use RxJS for managing real-time data streams from WebSockets.
 
-#### Goal: Generate Spring Data JPA repositories for each entity.
+> **Agent Prompt**: "Initialize an Angular 17 project with standalone components. Create a 'Trading View' component that connects to the Market Service WebSocket and displays a real-time candlestick chart."
 
-text
+### Step 7: Desktop Client - JavaFX Refactoring
+**Goal**: Transform the monolithic JavaFX app into a microservices client.
 
-##### For each entity in backend/src/main/java/.../model/, copy corresponding repository interface in backend/src/main/java/.../repository/ (and create if not exist and also is needed):
+1.  **API Client**: Replace local service calls with HTTP/REST calls to the API Gateway.
+2.  **WebSocket Client**: Implement a STOMP/WebSocket client for real-time updates.
+3.  **Packaging**: Use JPackage to create native installers for Win/Mac/Linux.
 
-1. UserProfileRepository
-2. TradeRepository
-3. PriceAlertRepository
-4. IndicatorConfigRepository
-5. ChartDrawingRepository
-6. OhlcvBarRepository
-7. etc...
+> **Agent Prompt**: "Refactor the existing JavaFX application to remove direct database access. Implement a REST client to fetch data from the API Gateway and a WebSocket client for live price updates."
 
-Each repository should extend JpaRepository and include any custom query methods I might need (e.g., find by profile,
-find by symbol).
+### Step 8: DevOps - Docker & Kubernetes
+**Goal**: Containerize and deploy the application.
 
-Expected output: Repository interfaces.
+1.  **Dockerization**: Write optimized Dockerfiles for each microservice and the frontend.
+2.  **Kubernetes Manifests**: Create Deployments, Services, and Ingress resources for K8s.
+3.  **CI/CD**: Set up GitHub Actions for automated building and deployment.
 
-### Step 4: Design the REST API (Fourth Prompt)
+> **Agent Prompt**: "Create a `docker-compose.yml` to run the entire stack (Eureka, Gateway, Identity, Market, Trading, Kafka, Postgres). Then, generate Kubernetes deployment YAMLs for each service."
 
-#### Goal: Define all REST endpoints with DTOs.
+---
 
-Prompt to Cursor:
+## 📈 General Rules for Token Efficiency
 
-text
+| Rule | Description |
+| :--- | :--- |
+| **Atomic Tasks** | One task per prompt to prevent redundant code generation. |
+| **Reference Context** | Always say "Use the pattern in `X.java`" to avoid re-explaining logic. |
+| **No Explanations** | Use "Provide code only" to save output tokens. |
+| **Strict Constraints** | Use "DO NOT change logic" to prevent unwanted refactoring. |
+| **Shared Models** | Use the `common-lib` to avoid redefining DTOs in every prompt. |
 
-##### I need to design REST APIs for my trading platform. Please create:
+---
 
-1. A list of all REST endpoints I need (based on my existing services: TradeService, PriceRouter, AlertService,
-   AnalysisService, etc.)
+## 📋 Suggested Execution Order
 
-2. Request/response DTO classes for each endpoint (e.g., TradeRequest, TradeResponse, AlertRequest, etc.)
-
-3. Controller skeletons for each category:
-    - AuthController
-    - ProfileController
-    - TradeController
-    - ChartController (OHLCV, indicators)
-    - AlertController
-    - DrawingController
-    - SearchController
-    - AIController
-    - FundamentalsController
-    - ExportController
-    - SettingsController
-    - etc...
-
-Put all controllers in backend/src/main/java/.../controller/ and DTOs in backend/src/main/java/.../dto/.
-
-DO NOT implement the business logic yet – just the endpoints and DTOs.
-Expected output: Controller skeletons + DTO classes.
-
-### Step 5: Migrate ONE Service at a Time (Repeat for Each Service)
-
-Prompt : (Example – TradeService):
-
-text
-
-##### I want to migrate my existing TradeService from the JavaFX app to the new Spring Boot backend.
-
-Please:
-
-1. Copy the business logic from the old TradeService (CRUD, close trade, portfolio stats) into a new TradeService in
-   backend/src/main/java/.../service/.
-
-2. Inject the TradeRepository and UserProfileRepository via constructor.
-
-3. Add @Service and @Transactional annotations.
-
-4. Connect it to the TradeController endpoints (POST /trades, PUT /trades/{id}, DELETE /trades/{id}, POST
-   /trades/{id}/close, GET /portfolio/stats etc...).
-
-5. Do NOT add any external API calls or price-fetching logic yet (I'll do that in the next step).
-
-Repeat this for each service:
-
-PriceRouter / ChartDataService
-
-AlertService
-
-AnalysisService
-
-IndicatorMixerService
-
-DrawingService
-
-SearchService
-
-AINewsService
-
-FundamentalsService
-
-ExportService
-
-SettingsService
-
-### Step 6: Add Authentication (Separate Prompt)
-
-text
-
-##### I need to add JWT authentication to my Spring Boot backend.
-
-Please implement:
-
-1. SecurityConfig – configure Spring Security to use JWT (stateless)
-2. JwtUtil – generate/validate JWT tokens
-3. JwtAuthFilter – intercept requests and validate tokens
-4. AuthController – POST /auth/login and POST /auth/register
-5. AuthService – handle login/registration logic
-6. CustomUserDetailsService – load user by username
-
-Use the existing AppUser and RolePermission entities.
-
-Show me all the code and any necessary dependency additions.
-Expected output: Complete authentication code.
-
-### Step 7: Implement Angular Frontend – ONE Module at a Time
-
-Same strategy – one module per prompt.
-
-(Example – Dashboard Module):
-
-#### I'm building an Angular 17 frontend. Create a reusable, professional **standalone ChartLibraryModule
-** (that can be published/used in other applications) with:
-
-1. High-quality, production-grade candlestick chart component with:   - Professional styling (dark/light theme support,
-   responsive)   - Technical indicators overlay (SMA, EMA, RSI, MACD, Bollinger Bands, etc.)   - Drawing tools support (
-   trend lines, Fibonacci, rectangles, etc.)   - Zoom, pan, crosshair, time-range selector - Real-time price updates via
-   WebSocket
-2. Use ECharts (or lightweight wrapper) for performance. Make the module tree-shakable and exportable.
-3. Include:   - chart-library.module.ts - candlestick-chart.component.ts/html/scss - indicator.service.ts -
-   drawing-tools.service.ts - Shared models/DTOs
-
-Use Angular Material where appropriate and SCSS with CSS variables for theming.
-
-Continue with other modules (Dashboard, Journal, etc.) as the below:
-
-1. A DashboardModule (standalone component)
-2. DashboardComponent with:
-    - KPI cards (total P&L, win rate, trade counts)
-    - Equity curve chart (using ECharts or D3)
-    - Asset breakdown (CRYPTO/STOCK/FOREX progress bars)
-    - Recent trades table (last 20 trades)
-
-3. A DashboardService that calls GET /api/portfolio/stats and GET /api/trades/recent
-
-Use Angular Material for UI components and ECharts for charts.
-
-Show me:
-
-- dashboard.component.ts
-- dashboard.component.html
-- dashboard.service.ts
-- Any necessary models/DTOs
-  Repeat for each module:
-
-ChartModule (candlestick chart with indicators, drawing tools)
-
-JournalModule (trade list with CRUD)
-
-AlertsModule
-
-IndicatorMixerModule
-
-ProfileSettingsModule
-
-etc.
-
-### Step 8: Implement WebSocket for Real-Time Data (Separate Prompt)
-
-#### I need to stream real-time price data from the backend to the Angular frontend via WebSocket.
-
-In the backend:
-
-- Implement a WebSocketConfig with STOMP endpoints
-- Create a PriceWebSocketController that broadcasts price updates
-- Connect to Binance WebSocket and forward updates to connected clients
-
-In the frontend:
-
-- Create a PriceWebSocketService that connects to the STOMP endpoint
-- Subscribe to price updates and update the ticker bar and charts in real time
-
-Expected output: WebSocket configuration + service code.
-
-### Step 9: Refactor JavaFX Desktop Client to Consume Backend API Goal: Turn the preserved JavaFX app into a thin client that talks to the new Spring Boot backend.
-
-#### Now that the backend is ready, refactor the JavaFX desktop client in /desktop/ to act as a remote client:
-
-1. Replace direct service calls with HTTP (WebClient/RestTemplate) calls to backend REST endpoints. 2. Add
-   WebSocket/STOMP client for real-time price updates. 3. Keep the existing JavaFX UI and business logic structure
-   mostly intact. 4. Inject configuration for backend URL (use properties file). 5. Update any local database access to
-   use backend APIs instead.
-
-Do this one screen/service at a time if needed. Start with authentication and portfolio/trades.
-
-Show updated classes and any new client utilities.
-
-\---
-
-### Step 10: Final Version Upgrades Goal: Upgrade to latest stable versions (after everything works).
-
-##### Upgrade the entire project to latest stable versions:
-
-Backend: - Java 21 → Java 25 (or latest LTS/stable) - Spring Boot 3.x → Spring Boot 4.1 (latest stable)
-
-Desktop (JavaFX): - Update to Java 25 + latest JavaFX version - Update dependencies accordingly
-
-Frontend: - Ensure Angular 17+ is up-to-date with latest compatible packages
-
-Provide: 1. Updated pom.xml (backend & desktop) 2. Any required code changes for compatibility 3. Build instructions for
-all three parts
-
-Test that everything still works after upgrade.
-
-\---
-
-General Rules for Token Efficiency [Keep original section unchanged]
-
-Update the .cursorrules example:
-
-Add to General rules: - Use latest stable Java (target Java 25+) and Spring Boot 4.1 at the end of migration - Desktop
-client: JavaFX for cross-platform (Win/Mac/Linux) - Angular: Include a reusable professional ChartLibraryModule
-
-\---
-
-Suggested Prompt Order (Priority-Based – Updated)
-
-1. Step 0: Project restructuring & preserve JavaFX (P0)
-2. Step 1: Backend + Frontend structure (P0)
-3. Step 2-4: Entities, Repos, API design (P0)
-4. Step 6: Authentication (P0)
-5. Step 5: Migrate services one by one (P1)
-6. Step 7: Angular modules, with emphasis on reusable ChartLibrary (P1)
-7. Step 8: WebSocket (P1)
-8. Step 9: Refactor JavaFX Desktop client (P1)
-9. Step 10: Final Java/Spring upgrades (P2)
-
-Summary [Updated accordingly]
-
-1. Create .cursorrules file (with new rules)
-1. Preserve & restructure (Step 0-1)
-1. Backend core (Steps 2-6)
-1. Angular (Step 7, focused on reusable chart)
-1. Desktop client integration (Step 9)
-1. WebSocket & polish
-1. Final upgrades (Step 10)
-
-#### General Rules for Token Efficiency
-
-Rule Why
-One task per prompt Prevents Cursor from generating redundant code
-Ask for specific files Avoids "show me the whole project" prompts
-Use "DO NOT" constraints Prevents Cursor from adding unwanted features
-Ask for code only Skip explanations unless needed
-Reference existing code Say "use the same pattern as X" to save tokens
-Set up .cursorrules file Persistent instructions that apply to every prompt
-
-#### Example .cursorrules File
-
-Create a .cursorrules file in your project root with:
-
-text:
-
-##### You are an expert Java/Spring Boot/Angular developer.
-
-General rules:
-
-- Use Java 21, Spring Boot 3.x, Angular 17
-- Use Lombok for boilerplate code
-- Use JPA/Hibernate for database
-- Use JWT for authentication
-- Use SCSS with CSS variables for theming
-- Write clean, well-commented code
-- Follow standard REST conventions
-- Add OpenAPI/Swagger annotations to all controllers
-
-Backend rules:
-
-- Use @Service, @Repository, @Controller annotations
-- Use @Transactional for all write operations
-- Validate all incoming DTOs with @Valid
-- Use proper HTTP status codes (200, 201, 400, 404, 500)
-- Implement global exception handling with @ControllerAdvice
-
-Frontend rules:
-
-- Use Angular 17 standalone components
-- Use Angular Material for UI
-- Use ECharts for charts
-- Use RxJS for state management
-- Use lazy loading for routes
-  This file tells Cursor your preferences every time – you don't need to repeat them.
-
-Suggested Prompt Order (Priority-Based)
-Order Task Priority
-1 Set up folder structure P0
-2 Copy entities + repositories P0
-3 Design REST API + DTOs P0
-4 Implement Auth (JWT)    P0
-5 TradeService + TradeController P1
-6 Portfolio stats + endpoints P1
-7 Chart data + OHLCV endpoints P1
-8 AlertService + AlertController P1
-9 PriceRouter + provider integrations P1
-10 DrawingService + DrawingController P2
-11 IndicatorMixerService P2
-12 AINewsService P2
-13 Angular Dashboard P1
-14 Angular Chart + drawing tools P1
-15 Angular Journal P1
-16 Angular Alerts P1
-17 WebSocket streaming P2
-18 Theme system P2
-19 Export functionality P2
-20 NFT Explorer P3
-Summary
-Step Action
-1 Create .cursorrules file
-2 Start with folder structure (Prompt 1)
-3 Entities → Repositories → DTOs → Controllers (Prompts 2–4)
-4 Migrate one service at a time (Prompt 5, repeat)
-5 Add authentication (Prompt 6)
-6 Build Angular one module at a time (Prompt 7, repeat)
-7 Add WebSocket (Prompt 8)
-8 Test and iterate
-Following this pattern, you'll save 70-80% of tokens compared to asking Cursor to do everything in one giant prompt.
+1.  **Infrastructure (P0)**: Eureka, Gateway, Common-Lib.
+2.  **Security (P0)**: Identity Service + OAuth2.
+3.  **Domain Core (P1)**: Market Data Service + Trading Service.
+4.  **Messaging (P1)**: Kafka + Notification Service.
+5.  **Frontend/Client (P1)**: Angular Dashboard + JavaFX Refactoring.
+6.  **DevOps (P2)**: Docker & K8s deployment.
