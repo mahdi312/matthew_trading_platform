@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.*?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.mst.matt.tradingplatformapp.controller.AdminUserManagementController"
+      style="-fx-background-color:#0d1117;"
+      spacing="0" prefWidth="900" prefHeight="650">
+
+    <!-- Header -->
+    <HBox alignment="CENTER_LEFT" spacing="16"
+          style="-fx-background-color:#161b22; -fx-border-color:#30363d;
+                 -fx-border-width:0 0 1 0; -fx-padding:16 20 16 20;">
+        <Label text="👥 User Management" style="-fx-font-size:20px; -fx-font-weight:bold;
+               -fx-text-fill:#e6edf3;"/>
+        <Pane HBox.hgrow="ALWAYS"/>
+        <Button text="+ Add User" onAction="#onAddUser"
+                style="-fx-background-color:#238636; -fx-text-fill:white;
+                       -fx-background-radius:6; -fx-padding:6 14; -fx-cursor:hand;"/>
+        <Button text="✕ Close" onAction="#onClose"
+                style="-fx-background-color:#30363d; -fx-text-fill:#e6edf3;
+                       -fx-background-radius:6; -fx-padding:6 14; -fx-cursor:hand;"/>
+    </HBox>
+
+    <!-- Status -->
+    <Label fx:id="statusLabel" text="" managed="false" visible="false"
+           style="-fx-padding:8 20; -fx-font-size:12px;"/>
+
+    <!-- Main split: users table left, permissions right -->
+    <SplitPane VBox.vgrow="ALWAYS" dividerPositions="0.55"
+               style="-fx-background-color:#0d1117;">
+
+        <!-- ── Left: users table ── -->
+        <VBox spacing="8" style="-fx-background-color:#0d1117; -fx-padding:16;">
+            <Label text="Users" style="-fx-font-size:14px; -fx-font-weight:bold;
+                   -fx-text-fill:#e6edf3;"/>
+
+            <TableView fx:id="usersTable" VBox.vgrow="ALWAYS"
+                       style="-fx-background-color:#161b22; -fx-border-color:#30363d;">
+                <columns>
+                    <TableColumn fx:id="colUsername"  text="Username"    prefWidth="130"/>
+                    <TableColumn fx:id="colDisplay"   text="Display Name" prefWidth="140"/>
+                    <TableColumn fx:id="colRole"      text="Role"        prefWidth="100"/>
+                    <TableColumn fx:id="colActive"    text="Active"      prefWidth="60"/>
+                    <TableColumn fx:id="colLastLogin" text="Last Login"  prefWidth="120"/>
+                </columns>
+                <placeholder>
+                    <Label text="No users found" style="-fx-text-fill:#8b949e;"/>
+                </placeholder>
+            </TableView>
+
+            <!-- Actions row -->
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <Button text="Change Role" onAction="#onChangeRole"
+                        style="-fx-background-color:#1f6feb; -fx-text-fill:white;
+                               -fx-background-radius:6; -fx-padding:5 12; -fx-cursor:hand;"/>
+                <Button text="Toggle Active" onAction="#onToggleActive"
+                        style="-fx-background-color:#388bfd; -fx-text-fill:white;
+                               -fx-background-radius:6; -fx-padding:5 12; -fx-cursor:hand;"/>
+                <Button text="🗑 Delete" onAction="#onDeleteUser"
+                        style="-fx-background-color:#da3633; -fx-text-fill:white;
+                               -fx-background-radius:6; -fx-padding:5 12; -fx-cursor:hand;"/>
+            </HBox>
+        </VBox>
+
+        <!-- ── Right: permissions panel ── -->
+        <VBox spacing="10" style="-fx-background-color:#0d1117; -fx-padding:16;">
+            <Label text="Tab Permissions" style="-fx-font-size:14px; -fx-font-weight:bold;
+                   -fx-text-fill:#e6edf3;"/>
+
+            <!-- Scope selector -->
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="Edit for:" style="-fx-text-fill:#8b949e; -fx-font-size:12px;"/>
+                <ComboBox fx:id="permScopeCombo" prefWidth="200" onAction="#onPermScopeChanged"/>
+            </HBox>
+
+            <Separator style="-fx-background-color:#30363d;"/>
+
+            <!-- Tab visibility toggles -->
+            <Label text="Tab Visibility:" style="-fx-text-fill:#8b949e; -fx-font-size:12px;"/>
+
+            <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS"
+                        style="-fx-background-color:transparent; -fx-background:#0d1117;">
+                <VBox fx:id="tabPermissionsBox" spacing="8" style="-fx-padding:4;">
+                    <!-- Populated programmatically -->
+                </VBox>
+            </ScrollPane>
+
+            <Separator style="-fx-background-color:#30363d;"/>
+
+            <Button text="💾 Save Permissions" onAction="#onSavePermissions" maxWidth="Infinity"
+                    style="-fx-background-color:#238636; -fx-text-fill:white;
+                           -fx-background-radius:6; -fx-padding:7 0; -fx-cursor:hand;"/>
+        </VBox>
+
+    </SplitPane>
+</VBox>

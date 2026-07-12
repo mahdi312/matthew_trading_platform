@@ -1,0 +1,15 @@
+{
+  "symbol": "AAPL",
+  "name": "Apple Inc",
+  "exchange": "NASDAQ",
+  "currency": "USD",
+  "datetime": "2025-08-15",
+  "open": "172.00",
+  "high": "175.50",
+  "low": "171.20",
+  "close": "174.25",
+  "previous_close": "172.50",
+  "change": "1.75",
+  "percent_change": "1.0145",
+  "volume": "58213400"
+}
