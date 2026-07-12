@@ -26,12 +26,14 @@
     </properties>
 
     <modules>
+        <module>common-lib</module>
         <module>infra/discovery-service</module>
         <module>infra/gateway-service</module>
         <module>services/identity-service</module>
         <module>services/market-service</module>
         <module>services/trading-service</module>
         <module>services/notification-service</module>
+        <module>desktop-client</module>
     </modules>
 
     <dependencyManagement>

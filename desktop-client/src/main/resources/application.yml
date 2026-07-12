@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: trading-platform-desktop-client
+
+# API Gateway and Microservices URLs
+api:
+  gateway:
+    url: http://localhost:8080
+  identity:
+    url: http://localhost:9898
+  market:
+    url: http://localhost:9001
+  trading:
+    url: http://localhost:9002
+  notification:
+    url: http://localhost:9003
+
+# Logging configuration
+logging:
+  level:
+    root: INFO
+    com.matthew.desktop: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
