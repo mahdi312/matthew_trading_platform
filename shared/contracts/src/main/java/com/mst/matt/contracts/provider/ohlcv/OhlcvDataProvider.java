@@ -2,6 +2,7 @@ package com.mst.matt.contracts.provider.ohlcv;
 
 import com.mst.matt.contracts.enums.AssetClass;
 import com.mst.matt.contracts.provider.dto.NormalizedOhlcvBar;
+import com.mst.matt.contracts.provider.registry.DataProvider;
 
 import java.time.Instant;
 import java.util.List;
@@ -41,7 +42,7 @@ import java.util.stream.Stream;
  * {@link com.mst.matt.contracts.provider.registry.ProviderRegistry} circuit
  * breaker can intercept and trigger the fallback chain.</p>
  */
-public interface OhlcvDataProvider {
+public interface OhlcvDataProvider extends DataProvider {
 
     /**
      * Returns the logical provider name used to register this implementation

@@ -6,6 +6,7 @@ import com.mst.matt.contracts.provider.dto.AiSignalDto;
 import com.mst.matt.contracts.provider.dto.AiTradeJournalCritiqueDto;
 import com.mst.matt.contracts.provider.dto.NewsArticleDto;
 import com.mst.matt.contracts.provider.dto.NormalizedOhlcvBar;
+import com.mst.matt.contracts.provider.registry.DataProvider;
 
 import java.util.List;
 
@@ -39,7 +40,7 @@ import java.util.List;
  * circuit-breaker logic — if the primary AI provider fails, a fallback
  * (cheaper/simpler) provider can be tried.</p>
  */
-public interface AiAnalysisProvider {
+public interface AiAnalysisProvider extends DataProvider {
 
     /**
      * Returns the logical provider name (e.g., "OPENAI_GPT4O",

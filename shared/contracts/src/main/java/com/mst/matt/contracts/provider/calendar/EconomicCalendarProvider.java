@@ -2,6 +2,7 @@ package com.mst.matt.contracts.provider.calendar;
 
 import com.mst.matt.contracts.enums.AssetClass;
 import com.mst.matt.contracts.provider.dto.EconomicEventDto;
+import com.mst.matt.contracts.provider.registry.DataProvider;
 
 import java.time.Instant;
 import java.util.List;
@@ -34,7 +35,7 @@ import java.util.List;
  * All asset classes map to the same calendar, but filtering by
  * {@link AssetClass} is supported via the query methods.</p>
  */
-public interface EconomicCalendarProvider {
+public interface EconomicCalendarProvider extends DataProvider {
 
     /**
      * Returns the logical provider name (e.g., "FINNHUB", "TWELVE_DATA",

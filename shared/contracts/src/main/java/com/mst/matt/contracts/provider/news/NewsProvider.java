@@ -2,6 +2,7 @@ package com.mst.matt.contracts.provider.news;
 
 import com.mst.matt.contracts.enums.AssetClass;
 import com.mst.matt.contracts.provider.dto.NewsArticleDto;
+import com.mst.matt.contracts.provider.registry.DataProvider;
 
 import java.time.Instant;
 import java.util.List;
@@ -30,7 +31,7 @@ import java.util.List;
  * {@link com.mst.matt.contracts.provider.registry.ProviderRegistry} keyed by
  * {@code (AssetClass, providerName)}.</p>
  */
-public interface NewsProvider {
+public interface NewsProvider extends DataProvider {
 
     /**
      * Returns the logical provider name (e.g., "FINNHUB", "BENZINGA",

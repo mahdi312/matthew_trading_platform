@@ -2,6 +2,7 @@ package com.mst.matt.contracts.provider.sentiment;
 
 import com.mst.matt.contracts.enums.AssetClass;
 import com.mst.matt.contracts.provider.dto.SentimentSnapshotDto;
+import com.mst.matt.contracts.provider.registry.DataProvider;
 
 import java.util.List;
 import java.util.Optional;
@@ -31,7 +32,7 @@ import java.util.Optional;
  * {@link com.mst.matt.contracts.provider.registry.ProviderRegistry} keyed by
  * {@code (AssetClass, providerName)}.</p>
  */
-public interface SentimentProvider {
+public interface SentimentProvider extends DataProvider {
 
     /**
      * Returns the logical provider name (e.g., "ALTERNATIVE_ME",

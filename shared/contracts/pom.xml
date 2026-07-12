@@ -52,6 +52,21 @@
             <artifactId>jakarta.validation-api</artifactId>
         </dependency>
 
+        <!--
+            Resilience4j core — used by ProviderRegistry<T> for per-provider
+            circuit breakers.  Only the plain Java core is needed here (no
+            Spring Boot auto-config); each consuming service adds the Spring
+            Boot starter for actuator metrics and config binding.
+        -->
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-circuitbreaker</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-retry</artifactId>
+        </dependency>
+
     </dependencies>
 
 </project>

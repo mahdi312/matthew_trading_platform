@@ -3,6 +3,7 @@ package com.mst.matt.contracts.provider.nft;
 import com.mst.matt.contracts.provider.dto.NftAssetDto;
 import com.mst.matt.contracts.provider.dto.NftCollectionDto;
 import com.mst.matt.contracts.provider.dto.NftEventDto;
+import com.mst.matt.contracts.provider.registry.DataProvider;
 
 import java.util.List;
 import java.util.Optional;
@@ -31,7 +32,7 @@ import java.util.Optional;
  * {@link com.mst.matt.contracts.provider.registry.ProviderRegistry} keyed by
  * {@code (AssetClass.NFT, providerName)}.</p>
  */
-public interface NftDataProvider {
+public interface NftDataProvider extends DataProvider {
 
     /**
      * Returns the logical provider name (e.g., "OPENSEA", "RESERVOIR").

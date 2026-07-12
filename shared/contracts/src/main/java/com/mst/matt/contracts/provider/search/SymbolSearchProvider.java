@@ -1,6 +1,7 @@
 package com.mst.matt.contracts.provider.search;
 
 import com.mst.matt.contracts.enums.AssetClass;
+import com.mst.matt.contracts.provider.registry.DataProvider;
 import com.mst.matt.contracts.provider.dto.SymbolSearchResultDto;
 
 import java.util.List;
@@ -34,7 +35,7 @@ import java.util.Optional;
  * {@link com.mst.matt.contracts.provider.registry.ProviderRegistry} keyed by
  * {@code (AssetClass, providerName)}.</p>
  */
-public interface SymbolSearchProvider {
+public interface SymbolSearchProvider extends DataProvider {
 
     /**
      * Returns the logical provider name (e.g., "FINNHUB", "COINGECKO",

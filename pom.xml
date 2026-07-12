@@ -29,6 +29,7 @@
         <maven.compiler.release>25</maven.compiler.release>
         <spring-cloud.version>2025.1.2</spring-cloud.version>
         <lombok.version>1.18.46</lombok.version>
+        <resilience4j.version>2.3.0</resilience4j.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -58,6 +59,15 @@
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
                 <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- Resilience4j BOM — version-managed here; individual modules
+                 opt-in to the specific artifacts they need. -->
+            <dependency>
+                <groupId>io.github.resilience4j</groupId>
+                <artifactId>resilience4j-bom</artifactId>
+                <version>${resilience4j.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

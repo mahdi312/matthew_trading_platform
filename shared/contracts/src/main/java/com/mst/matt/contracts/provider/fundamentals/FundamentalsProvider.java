@@ -4,6 +4,7 @@ import com.mst.matt.contracts.enums.AssetClass;
 import com.mst.matt.contracts.provider.dto.CompanyFundamentalsDto;
 import com.mst.matt.contracts.provider.dto.CryptoTokenomicsDto;
 import com.mst.matt.contracts.provider.dto.ForexMacroIndicatorsDto;
+import com.mst.matt.contracts.provider.registry.DataProvider;
 
 import java.util.List;
 import java.util.Optional;
@@ -31,7 +32,7 @@ import java.util.Optional;
  * {@code (AssetClass, providerName)}. The registry handles fallback and
  * circuit-breaker logic transparently.</p>
  */
-public interface FundamentalsProvider {
+public interface FundamentalsProvider extends DataProvider {
 
     /**
      * Returns the logical provider name used for registry key construction
