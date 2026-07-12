@@ -1,5 +1,6 @@
 package com.mst.matt.tradingplatformapp.config;
 
+import com.mst.matt.tradingplatformapp.service.price.api.finnhub.FinnhubWebSocketService;
 import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -16,7 +17,7 @@ import java.util.concurrent.TimeUnit;
  * for flaky or slow networks (common cause of empty ticker/chart data).
  *
  * <p>Also provides a dedicated WebSocket client ({@code wsHttpClient}) used by
- * {@link com.mst.matt.tradingplatformapp.service.price.FinnhubWebSocketService}.
+ * {@link FinnhubWebSocketService}.
  */
 @Configuration
 public class PriceHttpConfig {

@@ -1,9 +1,7 @@
 package com.mst.matt.tradingplatformapp.service.price;
 
 import com.mst.matt.tradingplatformapp.config.PriceHttpConfig;
-import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoDefiData;
-import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoExchangeRates;
-import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoGlobalData;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.*;
 import okhttp3.OkHttpClient;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -15,7 +13,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 /**

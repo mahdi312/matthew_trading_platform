@@ -1,7 +1,9 @@
 package com.mst.matt.tradingplatformapp.service.price;
 
-import com.mst.matt.tradingplatformapp.model.OhlcvBar;
 import com.mst.matt.tradingplatformapp.config.PriceHttpConfig;
+import com.mst.matt.tradingplatformapp.model.OhlcvBar;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoRateLimiter;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoService;
 import okhttp3.OkHttpClient;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;

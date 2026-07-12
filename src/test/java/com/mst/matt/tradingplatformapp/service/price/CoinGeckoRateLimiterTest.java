@@ -1,5 +1,6 @@
 package com.mst.matt.tradingplatformapp.service.price;
 
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoRateLimiter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;

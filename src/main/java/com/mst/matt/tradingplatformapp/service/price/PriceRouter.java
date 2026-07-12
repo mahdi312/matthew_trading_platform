@@ -3,15 +3,16 @@ package com.mst.matt.tradingplatformapp.service.price;
 import com.mst.matt.tradingplatformapp.model.DataFetchMode;
 import com.mst.matt.tradingplatformapp.model.OhlcvBar;
 import com.mst.matt.tradingplatformapp.model.UserProfile;
+import com.mst.matt.tradingplatformapp.service.price.api.binance.BinanceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * Routes price requests through {@link PriceProviderRegistry} with profile-aware

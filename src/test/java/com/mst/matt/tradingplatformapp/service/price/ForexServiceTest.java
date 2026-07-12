@@ -1,6 +1,7 @@
 package com.mst.matt.tradingplatformapp.service.price;
 
 import com.mst.matt.tradingplatformapp.config.PriceHttpConfig;
+import com.mst.matt.tradingplatformapp.service.price.api.frakfurter.ForexService;
 import okhttp3.OkHttpClient;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;

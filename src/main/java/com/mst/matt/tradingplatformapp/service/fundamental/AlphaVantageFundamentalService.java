@@ -1,12 +1,10 @@
 package com.mst.matt.tradingplatformapp.service.fundamental;
 
 import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mst.matt.tradingplatformapp.config.MarketApiProperties;
 import com.mst.matt.tradingplatformapp.model.fundamental.FundamentalsReport;
 import com.mst.matt.tradingplatformapp.model.fundamental.YearlyFinancialRow;
-import com.mst.matt.tradingplatformapp.service.price.AlphaVantageMarketService;
 import com.mst.matt.tradingplatformapp.service.price.HttpJsonClient;
 import com.mst.matt.tradingplatformapp.service.price.JsonParseUtil;
 import com.mst.matt.tradingplatformapp.service.price.SymbolNormalizer;
@@ -33,7 +31,7 @@ import java.util.Optional;
  * </ul>
  *
  * <p>All calls are routed through the shared {@code "alphavantage"} throttle bucket
- * registered by {@link com.mst.matt.tradingplatformapp.service.price.AlphaVantagePriceService}
+ * registered by {@link AlphaVantagePriceService}
  * (5 requests/minute free tier).
  */
 @Service

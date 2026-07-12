@@ -1,7 +1,7 @@
 package com.mst.matt.tradingplatformapp.controller;
 
-import com.mst.matt.tradingplatformapp.service.price.CoinGeckoNftService;
 import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoNftCollection;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoNftService;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;

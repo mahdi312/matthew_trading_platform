@@ -2,6 +2,9 @@ package com.mst.matt.tradingplatformapp.service.price;
 
 import com.mst.matt.tradingplatformapp.config.PriceHttpConfig;
 import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoNftCollection;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoNftService;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoRateLimiter;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoService;
 import okhttp3.OkHttpClient;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -15,7 +18,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 /**
@@ -31,7 +35,7 @@ import static org.mockito.Mockito.*;
 class CoinGeckoNftServiceTest {
 
     private MockWebServer      server;
-    private CoinGeckoService   coinGeckoService;
+    private CoinGeckoService coinGeckoService;
     private CoinGeckoNftService nftService;
     private JdbcTemplate       mockJdbc;
 

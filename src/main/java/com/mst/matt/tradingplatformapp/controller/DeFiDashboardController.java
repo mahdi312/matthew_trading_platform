@@ -1,11 +1,6 @@
 package com.mst.matt.tradingplatformapp.controller;
 
-import com.mst.matt.tradingplatformapp.service.price.CoinGeckoDefiService;
-import com.mst.matt.tradingplatformapp.service.price.CoinGeckoMarketService;
-import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoDefiData;
-import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoExchangeRates;
-import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoGlobalData;
-import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoRate;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.*;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -14,8 +9,6 @@ import javafx.scene.control.ProgressIndicator;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import net.rgielen.fxweaver.core.FxmlView;
-
-import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,9 +21,9 @@ import java.text.NumberFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.ResourceBundle;
+import java.util.Set;
 
 /**
  * Controller for the DeFi Dashboard tab.

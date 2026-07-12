@@ -4,7 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mst.matt.tradingplatformapp.model.OhlcvBar;
-import com.mst.matt.tradingplatformapp.service.price.CoinGeckoDexService;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoDexService;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;

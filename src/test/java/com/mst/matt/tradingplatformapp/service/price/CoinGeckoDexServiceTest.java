@@ -1,9 +1,12 @@
 package com.mst.matt.tradingplatformapp.service.price;
 
 import com.google.gson.JsonObject;
+import com.mst.matt.tradingplatformapp.config.PriceHttpConfig;
 import com.mst.matt.tradingplatformapp.model.OhlcvBar;
 import com.mst.matt.tradingplatformapp.service.marketdata.DynamicOhlcvTableService;
-import com.mst.matt.tradingplatformapp.config.PriceHttpConfig;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoDexService;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoRateLimiter;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoService;
 import okhttp3.OkHttpClient;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -35,7 +38,7 @@ import static org.mockito.Mockito.*;
 class CoinGeckoDexServiceTest {
 
     private MockWebServer          server;
-    private CoinGeckoService       coinGeckoService;
+    private CoinGeckoService coinGeckoService;
     private CoinGeckoDexService    dexService;
     private DynamicOhlcvTableService mockDynamic;
 

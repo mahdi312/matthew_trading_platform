@@ -2,6 +2,7 @@ package com.mst.matt.tradingplatformapp.service.price;
 
 import com.mst.matt.tradingplatformapp.config.MarketApiProperties;
 import com.mst.matt.tradingplatformapp.config.PriceHttpConfig;
+import com.mst.matt.tradingplatformapp.service.price.api.polygon.PolygonPriceService;
 import okhttp3.OkHttpClient;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -9,7 +10,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * T-08: MockWebServer-based test for {@link PolygonPriceService}.

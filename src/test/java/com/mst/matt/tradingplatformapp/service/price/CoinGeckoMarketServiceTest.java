@@ -1,8 +1,7 @@
 package com.mst.matt.tradingplatformapp.service.price;
 
 import com.mst.matt.tradingplatformapp.config.PriceHttpConfig;
-import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoFullCoin;
-import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoMarketCoin;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.*;
 import okhttp3.OkHttpClient;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -36,7 +35,7 @@ import static org.mockito.Mockito.*;
 class CoinGeckoMarketServiceTest {
 
     private MockWebServer       server;
-    private CoinGeckoService    coinGeckoService;
+    private CoinGeckoService coinGeckoService;
     private CoinGeckoMarketService marketService;
     private JdbcTemplate        mockJdbc;
 

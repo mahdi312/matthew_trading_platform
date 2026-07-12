@@ -3404,6 +3404,10 @@ public class ForexService implements PriceService {
 package com.mst.matt.tradingplatformapp.service.price;
 
 import com.mst.matt.tradingplatformapp.model.OhlcvBar;
+import com.mst.matt.tradingplatformapp.service.price.api.binance.BinanceService;
+import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoService;
+import com.mst.matt.tradingplatformapp.service.price.api.frakfurter.ForexService;
+import com.mst.matt.tradingplatformapp.service.price.api.yahoofinance.YahooFinanceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -3425,10 +3429,14 @@ public class PriceRouter {
 
     private static final Logger log = LoggerFactory.getLogger(PriceRouter.class);
 
-    @Autowired private BinanceService    binanceService;
-    @Autowired private YahooFinanceService yahooService;
-    @Autowired private CoinGeckoService  coinGeckoService;
-    @Autowired private ForexService      forexService;
+    @Autowired
+    private BinanceService binanceService;
+    @Autowired
+    private YahooFinanceService yahooService;
+    @Autowired
+    private CoinGeckoService coinGeckoService;
+    @Autowired
+    private ForexService forexService;
 
     /**
      * Get the latest quote for any symbol.
@@ -3446,7 +3454,7 @@ public class PriceRouter {
                 }
             } catch (Exception e) {
                 log.warn("{} failed for {}: {}", provider.getProviderName(),
-                         symbol, e.getMessage());
+                        symbol, e.getMessage());
             }
         }
 
@@ -3465,12 +3473,12 @@ public class PriceRouter {
                 List<OhlcvBar> bars = provider.getOhlcv(symbol, timeframe, limit);
                 if (!bars.isEmpty()) {
                     log.debug("OHLCV for {} ({}) from {}", symbol, timeframe,
-                              provider.getProviderName());
+                            provider.getProviderName());
                     return bars;
                 }
             } catch (Exception e) {
                 log.warn("{} OHLCV failed for {}: {}", provider.getProviderName(),
-                         symbol, e.getMessage());
+                        symbol, e.getMessage());
             }
         }
 
@@ -3525,6 +3533,7 @@ public class PriceRouter {
 ```java
 package com.mst.matt.tradingplatformapp.service.price;
 
+import com.mst.matt.tradingplatformapp.service.price.api.binance.BinanceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -3547,21 +3556,23 @@ public class LiveTickerService {
 
     private static final Logger log = LoggerFactory.getLogger(LiveTickerService.class);
 
-    @Autowired private PriceRouter priceRouter;
-    @Autowired private BinanceService binanceService;
+    @Autowired
+    private PriceRouter priceRouter;
+    @Autowired
+    private BinanceService binanceService;
 
     // Default watchlist (user can customize in Settings — Phase 11)
     private final List<String> cryptoWatchlist = new ArrayList<>(List.of(
-        "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT",
-        "XRPUSDT", "DOGEUSDT", "AVAXUSDT", "MATICUSDT", "LINKUSDT"
+            "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT",
+            "XRPUSDT", "DOGEUSDT", "AVAXUSDT", "MATICUSDT", "LINKUSDT"
     ));
 
     private final List<String> stockWatchlist = new ArrayList<>(List.of(
-        "AAPL", "MSFT", "NVDA", "TSLA", "GOOGL", "AMZN", "META"
+            "AAPL", "MSFT", "NVDA", "TSLA", "GOOGL", "AMZN", "META"
     ));
 
     private final List<String> forexWatchlist = new ArrayList<>(List.of(
-        "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD"
+            "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD"
     ));
 
     // UI callbacks registered by controllers
@@ -3576,7 +3587,7 @@ public class LiveTickerService {
         binanceService.subscribeToMultiTicker(cryptoWatchlist);
         binanceService.addLiveListener(quote -> notifyListeners(quote));
         log.info("Live WebSocket streams started for {} crypto pairs",
-                 cryptoWatchlist.size());
+                cryptoWatchlist.size());
     }
 
     /**
@@ -3595,8 +3606,9 @@ public class LiveTickerService {
 
     private void notifyListeners(PriceQuote quote) {
         tickerListeners.forEach(l -> {
-            try { l.accept(quote); }
-            catch (Exception e) {
+            try {
+                l.accept(quote);
+            } catch (Exception e) {
                 log.warn("Ticker listener error: {}", e.getMessage());
             }
         });
@@ -3624,9 +3636,17 @@ public class LiveTickerService {
         }
     }
 
-    public List<String> getCryptoWatchlist() { return Collections.unmodifiableList(cryptoWatchlist); }
-    public List<String> getStockWatchlist()  { return Collections.unmodifiableList(stockWatchlist); }
-    public List<String> getForexWatchlist()  { return Collections.unmodifiableList(forexWatchlist); }
+    public List<String> getCryptoWatchlist() {
+        return Collections.unmodifiableList(cryptoWatchlist);
+    }
+
+    public List<String> getStockWatchlist() {
+        return Collections.unmodifiableList(stockWatchlist);
+    }
+
+    public List<String> getForexWatchlist() {
+        return Collections.unmodifiableList(forexWatchlist);
+    }
 }
 ```
 

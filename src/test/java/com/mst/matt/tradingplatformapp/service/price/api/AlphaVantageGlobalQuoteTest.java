@@ -3,13 +3,15 @@ package com.mst.matt.tradingplatformapp.service.price.api;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.mst.matt.tradingplatformapp.model.Trade.AssetType;
+import com.mst.matt.tradingplatformapp.service.price.api.alphavantage.AlphaVantageGlobalQuote;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AlphaVantageGlobalQuoteTest {
 

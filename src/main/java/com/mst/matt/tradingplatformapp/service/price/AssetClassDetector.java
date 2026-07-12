@@ -1,6 +1,7 @@
 package com.mst.matt.tradingplatformapp.service.price;
 
 import com.mst.matt.tradingplatformapp.model.UserProfile.ProfileAssetFocus;
+import com.mst.matt.tradingplatformapp.service.price.api.yahoofinance.YahooFinanceService;
 
 import java.util.Set;
 

@@ -1,6 +1,8 @@
 package com.mst.matt.tradingplatformapp.service.price;
 
 import com.google.gson.JsonObject;
+import com.mst.matt.tradingplatformapp.service.price.api.currencylayer.CurrencyLayerForexService;
+import com.mst.matt.tradingplatformapp.service.price.api.openexchangerates.OpenExchangeRatesForexService;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;

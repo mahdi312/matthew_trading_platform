@@ -1,15 +1,16 @@
 package com.mst.matt.tradingplatformapp.service.price;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import com.mst.matt.tradingplatformapp.model.UserProfile;
 import com.mst.matt.tradingplatformapp.service.AppSettingsService;
 import com.mst.matt.tradingplatformapp.service.WatchlistDefaults;
+import com.mst.matt.tradingplatformapp.service.price.api.binance.BinanceService;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;

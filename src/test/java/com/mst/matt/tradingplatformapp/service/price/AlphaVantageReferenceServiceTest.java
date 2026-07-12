@@ -4,15 +4,16 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.mst.matt.tradingplatformapp.config.MarketApiProperties;
 import com.mst.matt.tradingplatformapp.config.PriceHttpConfig;
+import com.mst.matt.tradingplatformapp.service.price.api.alphavantage.AlphaVantageReferenceService;
 import com.mst.matt.tradingplatformapp.service.price.api.alphavantage.AlphaVantageSearchResult;
 import okhttp3.OkHttpClient;
-import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;

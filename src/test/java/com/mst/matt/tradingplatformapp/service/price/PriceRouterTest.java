@@ -3,6 +3,7 @@ package com.mst.matt.tradingplatformapp.service.price;
 import com.mst.matt.tradingplatformapp.model.DataFetchMode;
 import com.mst.matt.tradingplatformapp.model.OhlcvBar;
 import com.mst.matt.tradingplatformapp.service.AppSettingsService;
+import com.mst.matt.tradingplatformapp.service.price.api.binance.BinanceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
