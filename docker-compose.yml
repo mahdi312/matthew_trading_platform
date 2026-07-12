@@ -1,57 +1,147 @@
+version: '3.8'
+
 services:
+  # PostgreSQL Database
   postgres:
-    image: postgres:16-alpine
-    container_name: trading-platform-db
-    restart: unless-stopped
+    image: postgres:15-alpine
+    container_name: trading-postgres
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-trading_platform}
-      POSTGRES_USER: ${POSTGRES_USER:-trading}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-trading}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: trading_platform
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "5432:5432"
     volumes:
-      - trading_pgdata:/var/lib/postgresql/data
-      - ./docker/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trading} -d ${POSTGRES_DB:-trading_platform}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+      - postgres_data:/var/lib/postgresql/data
     networks:
-      - app-network
+      - trading-network
 
-  pgadmin:
-    image: dpage/pgadmin4
-    ports:
-      - "5050:80"
+  # Kafka Message Broker
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: trading-kafka
     environment:
-      PGADMIN_DEFAULT_EMAIL: mahdi.mostafavi312@gmail.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-    networks:
-      - app-network
-
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: trading-platform-app
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      SPRING_PROFILES_ACTIVE: docker
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: ${POSTGRES_DB:-trading_platform}
-      POSTGRES_USER: ${POSTGRES_USER:-trading}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-trading}
-    volumes:
-      - ./src/main/resources/application-local.properties:/app/config/application-local.properties:ro
-    # JavaFX desktop UI requires a display. For day-to-day use, run the app on the host
-    # and keep only Postgres in Docker (see docs/DOCKER.md).
+      - zookeeper
+    ports:
+      - "9092:9092"
+    networks:
+      - trading-network
 
-networks:
-  app-network:
+  # Zookeeper for Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: trading-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    ports:
+      - "2181:2181"
+    networks:
+      - trading-network
+
+  # Eureka Discovery Service
+  discovery-service:
+    build:
+      context: ./infra/discovery-service
+      dockerfile: Dockerfile
+    container_name: trading-discovery
+    ports:
+      - "8761:8761"
+    networks:
+      - trading-network
+
+  # API Gateway
+  gateway-service:
+    build:
+      context: ./infra/gateway-service
+      dockerfile: Dockerfile
+    container_name: trading-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+    depends_on:
+      - discovery-service
+    networks:
+      - trading-network
+
+  # Identity Service
+  identity-service:
+    build:
+      context: ./services/identity-service
+      dockerfile: Dockerfile
+    container_name: trading-identity
+    ports:
+      - "9898:9898"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/identity_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: password
+    depends_on:
+      - postgres
+      - discovery-service
+    networks:
+      - trading-network
+
+  # Market Service
+  market-service:
+    build:
+      context: ./services/market-service
+      dockerfile: Dockerfile
+    container_name: trading-market
+    ports:
+      - "9001:9001"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+    depends_on:
+      - discovery-service
+    networks:
+      - trading-network
+
+  # Trading Service
+  trading-service:
+    build:
+      context: ./services/trading-service
+      dockerfile: Dockerfile
+    container_name: trading-service
+    ports:
+      - "9002:9002"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/trading_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: password
+    depends_on:
+      - postgres
+      - discovery-service
+    networks:
+      - trading-network
+
+  # Notification Service
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: trading-notification
+    ports:
+      - "9003:9003"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      - kafka
+      - discovery-service
+    networks:
+      - trading-network
 
 volumes:
-  trading_pgdata:
+  postgres_data:
+
+networks:
+  trading-network:
+    driver: bridge
