@@ -18,6 +18,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -32,15 +33,22 @@ import java.util.stream.Stream;
 /**
  * First concrete {@link MarketDataProvider} implementation — talks to
  * BitUnix's public futures market-data REST endpoints (Step 5.2). Live
- * WebSocket streaming ({@link #streamLivePrice}) and the Caffeine cache
- * layer in front of {@link #getOhlcv}/{@link #getTickerSnapshot} land in
- * Steps 5.4 and 5.3 respectively.
+ * WebSocket streaming ({@link #streamLivePrice}) lands in Step 5.4.
  *
  * <p>Per {@code MarketDataProvider}'s documented design rules, no other
  * class in this codebase may call BitUnix's REST/WebSocket APIs directly
  * — only this provider does, and every caller goes through the
  * {@link com.mst.matt.contracts.broker.registry.BrokerRegistry} (Step 5.5)
  * rather than injecting this class by concrete type.</p>
+ *
+ * <h3>Caching (Step 5.3)</h3>
+ * <p>{@link #getOhlcv} and {@link #getTickerSnapshot} are fronted by a
+ * Caffeine cache (see {@code spring.cache.*} in application.yml — separate
+ * {@code ohlcv} and {@code tickerSnapshot} regions, each with a short
+ * {@code expireAfterWrite} TTL and {@code recordStats} enabled for
+ * Actuator's {@code /actuator/caches} + {@code /actuator/metrics}
+ * hit/miss exposure). Cache keys include every method parameter so
+ * distinct symbol/interval/limit combinations are cached independently.</p>
  */
 @Slf4j
 @Component
@@ -73,6 +81,7 @@ public class BitUnixMarketDataProvider implements MarketDataProvider {
     // ── Historical OHLCV (Step 5.2 A) ───────────────────────────────────────────
 
     @Override
+    @Cacheable(cacheNames = "ohlcv", key = "#symbol + ':' + #interval + ':' + #limit")
     public List<OhlcvBarDto> getOhlcv(String symbol, String interval, int limit) {
         BitUnixIntervalSupport.validate(interval);
 
@@ -117,6 +126,7 @@ public class BitUnixMarketDataProvider implements MarketDataProvider {
     // ── Ticker snapshot (Step 5.2 B) ────────────────────────────────────────────
 
     @Override
+    @Cacheable(cacheNames = "tickerSnapshot", key = "#symbol")
     public TickerSnapshotDto getTickerSnapshot(String symbol) {
         HttpUrl url = HttpUrl.parse(properties.getRestBaseUrl() + TICKERS_PATH)
                 .newBuilder()
@@ -167,12 +177,12 @@ public class BitUnixMarketDataProvider implements MarketDataProvider {
     /**
      * Opens a blocking {@link Stream} of live price ticks for {@code symbol}.
      *
-     * <p><strong>Step 5.2 status:</strong> this method is intentionally not
-     * yet wired to BitUnix's WebSocket feed — that is Step 5.4's scope (the
-     * shared BitUnix WebSocket client + subscription management does not
-     * exist yet). It will delegate to that client once Step 5.4 lands; until
-     * then it fails fast rather than silently returning an empty/broken
-     * stream.</p>
+     * <p><strong>Step 5.2/5.3 status:</strong> this method is intentionally
+     * not yet wired to BitUnix's WebSocket feed — that is Step 5.4's scope
+     * (the shared BitUnix WebSocket client + subscription management does
+     * not exist yet). It will delegate to that client once Step 5.4 lands;
+     * until then it fails fast rather than silently returning an
+     * empty/broken stream.</p>
      *
      * @throws UnsupportedOperationException always, until Step 5.4 wires the
      *         BitUnix WebSocket client in

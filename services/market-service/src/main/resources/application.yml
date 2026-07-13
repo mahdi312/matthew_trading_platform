@@ -6,15 +6,18 @@ spring:
     name: market-service
 
   # ── Caffeine cache (Step 5.3) ───────────────────────────────────────────────
-  # Two named cache regions, each with its own Caffeine spec: tickers refresh
-  # often (short TTL, live-ish snapshot) while OHLCV history changes only when
-  # a new candle closes (longer TTL). `recordStats` is required on both so
-  # Actuator's /actuator/caches + /actuator/metrics expose hit/miss counters.
+  # Two named cache regions with distinct TTLs, wired via CacheConfig
+  # (spring.cache.type/cache-names/caffeine.spec are NOT used here because
+  # they only support one shared spec for every named cache — CacheConfig's
+  # CacheManager bean below assigns per-region specs instead):
+  #   - tickerSnapshot: short TTL (a live-ish 24h snapshot that should not go
+  #     stale for more than a few seconds).
+  #   - ohlcv: longer TTL (historical bars only change when a new candle
+  #     closes — no need to re-fetch on every request).
+  # `recordStats` is enabled on both so Actuator's /actuator/caches and
+  # /actuator/metrics expose hit/miss counters.
   cache:
     type: caffeine
-    cache-names: ohlcv, tickerSnapshot
-    caffeine:
-      spec: maximumSize=2000,expireAfterWrite=30s,recordStats
 
 # ── BitUnix API configuration (Step 5.1) ────────────────────────────────────
 # apiKey/secretKey are only needed for BitUnix's private endpoints (order
