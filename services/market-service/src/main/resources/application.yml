@@ -5,6 +5,33 @@ spring:
   application:
     name: market-service
 
+  # ── Caffeine cache (Step 5.3) ───────────────────────────────────────────────
+  # Two named cache regions, each with its own Caffeine spec: tickers refresh
+  # often (short TTL, live-ish snapshot) while OHLCV history changes only when
+  # a new candle closes (longer TTL). `recordStats` is required on both so
+  # Actuator's /actuator/caches + /actuator/metrics expose hit/miss counters.
+  cache:
+    type: caffeine
+    cache-names: ohlcv, tickerSnapshot
+    caffeine:
+      spec: maximumSize=2000,expireAfterWrite=30s,recordStats
+
+# ── BitUnix API configuration (Step 5.1) ────────────────────────────────────
+# apiKey/secretKey are only needed for BitUnix's private endpoints (order
+# placement, balances — trading-service, Step 6+). Kline/Tickers (Step 5.2)
+# and the public WebSocket feed (Step 5.4) are unauthenticated.
+bitunix:
+  rest-base-url: ${BITUNIX_REST_BASE_URL:https://fapi.bitunix.com}
+  ws-public-url: ${BITUNIX_WS_PUBLIC_URL:wss://fapi.bitunix.com/public/}
+  ws-private-url: ${BITUNIX_WS_PRIVATE_URL:wss://fapi.bitunix.com/private/}
+  api-key: ${BITUNIX_API_KEY:}
+  secret-key: ${BITUNIX_SECRET_KEY:}
+  rest-rate-limit-per-second: 10
+  ws-rate-limit-per-second: 5
+  ws-max-subscriptions: 300
+  ws-ping-interval-seconds: 25
+
+# ── Eureka client ────────────────────────────────────────────────────────────
 eureka:
   client:
     service-url:
@@ -12,8 +39,12 @@ eureka:
   instance:
     prefer-ip-address: true
 
+# ── Actuator (health + cache stats, Step 5.3) ───────────────────────────────
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,caches,metrics
+  endpoint:
+    caches:
+      enabled: true
