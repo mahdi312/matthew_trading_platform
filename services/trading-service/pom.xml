@@ -17,36 +17,95 @@
     <packaging>jar</packaging>
     <name>trading-service</name>
     <description>
-        Empty scaffold module. Spot/futures trade execution service — no
-        controllers, entities, or business logic yet (see later migration step).
+        Spot/futures trade execution service — BitUnix REST + WebSocket integration (Step 6).
+        Implements TradingProvider (BitUnixTradingProvider), manages per-user order placement
+        with double-SHA256 signing, and pushes order/position/balance events via WebSocket channels.
     </description>
 
+    <properties>
+        <okhttp.version>4.12.0</okhttp.version>
+        <gson.version>2.10.1</gson.version>
+    </properties>
+
     <dependencies>
+
+        <!-- ── Spring Boot Web (REST controllers) ───────────────────────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+
+        <!-- ── Spring Cloud Eureka client ──────────────────────────────── -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
         </dependency>
 
+        <!-- ── Shared contracts (DTOs, enums, broker interfaces) ────────── -->
         <dependency>
             <groupId>com.mst.matt</groupId>
             <artifactId>contracts</artifactId>
             <version>${project.version}</version>
         </dependency>
 
+        <!-- ── OkHttp — REST + WebSocket client (Step 6.0) ─────────────── -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>${okhttp.version}</version>
+        </dependency>
+
+        <!-- ── Gson — JSON serialisation / deserialisation (Step 6.0) ─── -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>${gson.version}</version>
+        </dependency>
+
+        <!-- ── Spring Data JPA + H2 (order persistence, future steps) ─── -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- ── Spring WebSocket (WS server-side support, Step 6 WS) ────── -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+
+        <!-- ── Actuator (health + metrics endpoint exposure) ────────────── -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- ── Configuration-processor (TradingProperties metadata) ─────── -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- ── Lombok ───────────────────────────────────────────────────── -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
+
+        <!-- ── Test ─────────────────────────────────────────────────────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
     </dependencies>
 
     <build>

@@ -49,7 +49,7 @@ public class BitUnixHttpClient {
 
     public BitUnixHttpClient(
             @Qualifier("tradingBitUnixHttpClient") OkHttpClient httpClient,
-            Gson gson,
+            @Qualifier("tradingGson") Gson gson,
             BitUnixSignatureService signer) {
         this.httpClient = httpClient;
         this.gson = gson;

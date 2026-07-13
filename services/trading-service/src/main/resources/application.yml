@@ -5,6 +5,23 @@ spring:
   application:
     name: trading-service
 
+  # ── H2 in-memory database (order persistence scaffold) ─────────────────────
+  datasource:
+    url: jdbc:h2:mem:tradingdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    database-platform: org.hibernate.dialect.H2Dialect
+
+  h2:
+    console:
+      enabled: false   # disable web console in production; enable locally if needed
+
 eureka:
   client:
     service-url:
@@ -16,4 +33,32 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics
+
+# ── BitUnix API configuration (TradingProperties, Step 6.6) ──────────────────
+#
+# Two distinct REST base URLs and one private WebSocket URL:
+#   futures-base-url  → https://fapi.bitunix.com      (perpetual futures)
+#   spot-base-url     → https://openapi.bitunix.com   (spot market)
+#   ws-private-url    → wss://openapi.bitunix.com:443/ws-api/v1  (futures WS)
+#
+# Credentials: set via environment variables in production.
+# The api-key / secret-key here are single-user ("global") defaults used by
+# BitUnixTradingProvider.resolveCredential() until per-user identity-service
+# integration is added (Step 8+).
+#
+# Override any of these values with environment variables using Spring's
+# relaxed binding, e.g.:
+#   BITUNIX_BITUNIX_API_KEY=...
+#   BITUNIX_BITUNIX_SECRET_KEY=...
+bitunix:
+  futures-base-url: https://fapi.bitunix.com
+  spot-base-url: https://openapi.bitunix.com
+  ws-private-url: wss://openapi.bitunix.com:443/ws-api/v1
+  bitunix-api-key: ${BITUNIX_API_KEY:}
+  bitunix-secret-key: ${BITUNIX_SECRET_KEY:}
+  rest-rate-limit-per-second: 10
+  ws-rate-limit-per-second: 5
+  ws-max-subscriptions: 300
+  ws-ping-interval-seconds: 25
+  max-leverage: 125
