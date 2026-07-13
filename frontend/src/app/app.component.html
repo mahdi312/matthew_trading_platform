@@ -177,6 +177,16 @@
   }
 </style>
 
+<!--
+  Global notification bell (Step 4.75, item 3): mounted once here so it is
+  present on every route/page, independent of whichever feature module
+  (Step 13) is active. It manages its own WebSocket connection to
+  alert-service's InAppNotificationChannel via NotificationService.
+-->
+<header class="app-header">
+  <app-notification-bell />
+</header>
+
 <main class="main">
   <div class="content">
     <div class="left-side">
