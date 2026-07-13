@@ -225,6 +225,213 @@
 > 3. Implement a WebSocket/STOMP controller that streams live OHLCV/price updates to subscribed clients, sourced from BitUnix's WebSocket feed.
 > 4. Register `BitUnixMarketDataProvider` in the `BrokerRegistry` from Step 4.
 >
+Now let me get tickers, auth/sign, and websocket kline/ticker channel details.Now the auth/sign doc and headers.Now the WebSocket kline channel and MarketPrice/Ticker channel docs.I now have everything needed. Here's Step 5 broken into smaller, sequenced sub-steps, with the exact BitUnix API contracts filled in.
+
+---
+
+## Step 5 — Broken into sub-steps
+
+### 5.1 — Add BitUnix API config & signing utility
+### 5.2 — Implement REST calls (Kline + Tickers) in `BitUnixMarketDataProvider`
+### 5.3 — Add Caffeine caching layer + Actuator stats
+### 5.4 — Implement WebSocket client (BitUnix feed) + STOMP relay to your frontend
+### 5.5 — Register provider in `BrokerRegistry`
+
+Below is 5.1–5.2 and 5.4 filled in with the **exact, final BitUnix contracts** (verified against BitUnix's official futures OpenAPI docs, current as of today).
+
+---
+
+## 5.1 — Config & Signing
+
+**Base URLs**
+- REST: `https://fapi.bitunix.com`
+- WebSocket public: `wss://fapi.bitunix.com/public/`
+- WebSocket private: `wss://fapi.bitunix.com/private/`
+
+**REST Auth Headers** (required on every request, public endpoints included per BitUnix's signing spec — market data endpoints are callable without keys but the signed pattern below is BitUnix's standard for private/future-proofing; for pure public market data you can omit these headers entirely):
+
+| Header | Type | Required | Description |
+|---|---|---|---|
+| `api-key` | string | Y (private only) | Your API key |
+| `nonce` | string | Y (private only) | Random 32-char string |
+| `timestamp` | string | Y (private only) | Current unix ms |
+| `sign` | string | Y (private only) | See signature algorithm below |
+| `Content-Type` | string | Y | `application/json` |
+
+**Signature algorithm (REST):**
+```
+queryParams = sorted ascending by key, concatenated as "key1val1key2val2..." (no separators)
+body = compact JSON string, no spaces
+digest = SHA256(nonce + timestamp + api-key + queryParams + body)
+sign   = SHA256(digest + secretKey)
+```
+
+Since kline/ticker are **public, unauthenticated** endpoints, your `BitUnixMarketDataProvider` doesn't need to sign these two calls — only wire the signer now so `trading-service` (Step 6+) can reuse it for private endpoints.
+
+```java
+@Component
+public class BitUnixSigner {
+    public String sign(String nonce, String timestamp, String apiKey, String queryParams, String body, String secretKey) {
+        String digest = sha256Hex(nonce + timestamp + apiKey + queryParams + body);
+        return sha256Hex(digest + secretKey);
+    }
+    private String sha256Hex(String input) { /* MessageDigest SHA-256 -> hex */ }
+}
+```
+
+---
+
+## 5.2 — REST Endpoints (exact, final)
+
+### A) Get Kline (OHLCV)
+
+- **Method/Path:** `GET /api/v1/futures/market/kline`
+- **Auth:** none (public)
+- **Rate limit:** 10 req/sec/ip
+
+**Query params**
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| symbol | string | true | e.g. `BTCUSDT` |
+| startTime | int64 | false | unix ms |
+| endTime | int64 | false | unix ms |
+| interval | string | true | `1m,5m,15m,30m,1h,2h,4h,6h,8h,12h,1d,3d,1w,1M` |
+| limit | int | false | default 100, max 200 |
+| type | string | false | `LAST_PRICE` (default) or `MARK_PRICE` |
+
+**Request example**
+```
+GET https://fapi.bitunix.com/api/v1/futures/market/kline?symbol=BTCUSDT&interval=15m&limit=200
+```
+
+**Response body**
+```json
+{
+  "code": 0,
+  "data": [
+    {
+      "open": 60000,
+      "high": 60001,
+      "low": 59989.2,
+      "close": 60000,
+      "time": 111111,
+      "quoteVol": "1",
+      "baseVol": "60000",
+      "type": "LAST_PRICE"
+    }
+  ],
+  "msg": "Success"
+}
+```
+Map `time` → candle timestamp (ms), `open/high/low/close` → OHLC, `baseVol` → volume for your `OhlcvBar` DTO.
+
+### B) Get Tickers (snapshot price/24h stats)
+
+- **Method/Path:** `GET /api/v1/futures/market/tickers`
+- **Auth:** none (public)
+- **Rate limit:** 10 req/sec/ip
+
+**Query params**
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| symbols | string | false | comma-separated, e.g. `BTCUSDT,ETHUSDT` — omit for all |
+
+**Request example**
+```
+GET https://fapi.bitunix.com/api/v1/futures/market/tickers?symbols=BTCUSDT,ETHUSDT
+```
+
+**Response body**
+```json
+{
+  "code": 0,
+  "data": [
+    {
+      "symbol": "BTCUSDT",
+      "markPrice": "57892.1",
+      "lastPrice": "57891.2",
+      "open": "6.31",
+      "last": "6.31",
+      "quoteVol": "0",
+      "baseVol": "0",
+      "high": "6.31",
+      "low": "6.31"
+    }
+  ],
+  "msg": "Success"
+}
+```
+Use `lastPrice` for `getTickerSnapshot()`, `high`/`low`/`baseVol` for 24h stats fields.
+
+---
+
+## 5.4 — WebSocket (Live Streaming)
+
+**Connect:** `wss://fapi.bitunix.com/public/` (no auth needed for public channels)
+**Limits:** max 5 messages/sec on the connection; max 300 channel subscriptions per connection.
+
+**Keepalive (ping/pong)** — send every ~20-30s:
+```json
+{"op":"ping","ping":1732519687}
+```
+Response:
+```json
+{"op":"ping","pong":1732519687,"ping":1732519690}
+```
+
+### Subscribe — Kline channel (OHLCV stream, pushed every 500ms)
+
+```json
+{
+  "op": "subscribe",
+  "args": [ { "symbol": "BTCUSDT", "ch": "market_kline_1min" } ]
+}
+```
+`ch` pattern: `{market|mark}_kline_{1min|3min|5min|15min|30min|60min|2h|4h|6h|8h|12h|1day|3day|1week|1month}`
+
+**Push message:**
+```json
+{
+  "ch": "market_kline_1min",
+  "symbol": "BTCUSDT",
+  "ts": 1775541412718,
+  "data": { "o": "68581.4", "h": "68590", "l": "68579.5", "c": "68583.4", "b": "5.2395", "q": "359348.14078" }
+}
+```
+> To switch intervals: unsubscribe old `ch` first, then subscribe new one — don't just re-subscribe.
+
+### Subscribe — Ticker channel (live price / 24h rolling stats)
+
+```json
+{
+  "op": "subscribe",
+  "args": [ { "symbol": "BTCUSDT", "ch": "ticker" } ]
+}
+```
+**Push message:**
+```json
+{
+  "ch": "ticker",
+  "symbol": "BTCUSDT",
+  "ts": 1732178884994,
+  "data": { "s": "BTCUSDT", "la": "68650.9", "o": "69141.6", "h": "70319.9", "l": "68241.9", "b": "26295.3977", "q": "1823374525.0193", "r": "-0.7097029863" }
+}
+```
+`la` = last price (use this as your live tick), `r` = 24h % change.
+
+### Unsubscribe
+```json
+{ "op": "unsubscribe", "args": [ { "symbol": "BTCUSDT", "ch": "market_kline_1min" } ] }
+```
+
+---
+
+Implementation notes for your Java client: use one shared `OkHttp`/`Java-WebSocket` connection per process (not per symbol), fan out incoming `ch`+`symbol` pushes to your internal event bus, then relay over STOMP topics like `/topic/ohlcv/{symbol}/{interval}` and `/topic/price/{symbol}`. Reconnect with backoff on close, and re-subscribe all active channels on reconnect since BitUnix doesn't persist subscriptions across connections.
+
+Want me to now also fill in 5.3 (Caffeine cache config + Actuator) and 5.5 (registry wiring) with concrete code, or do you want to run 5.1–5.2–5.4 as a coding task first and check back in?
+> 
 > DO NOT implement trading/order logic here — that's `trading-service`.
 
 **Expected output:** Live BitUnix OHLCV + price streaming, cached, discoverable via the shared registry.
