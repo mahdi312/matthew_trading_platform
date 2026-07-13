@@ -2,7 +2,7 @@ package com.mst.matt.contracts.dto;
 
 import com.mst.matt.contracts.enums.BrokerType;
 import lombok.AllArgsConstructor;
-<parameter name="content">import lombok.Builder;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 

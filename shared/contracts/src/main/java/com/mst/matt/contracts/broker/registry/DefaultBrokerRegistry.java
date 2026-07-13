@@ -126,8 +126,7 @@ public class DefaultBrokerRegistry implements BrokerRegistry {
     @Override
     public Collection<BrokerType> getRegisteredBrokers() {
         // Union of all registered market + trading providers
-        java.util.Set<BrokerType> all = new java.util.EnumSet<>(
-                java.util.EnumSet.noneOf(BrokerType.class));
+        java.util.Set<BrokerType> all = java.util.EnumSet.noneOf(BrokerType.class);
         all.addAll(marketProviders.keySet());
         all.addAll(tradingProviders.keySet());
         return Collections.unmodifiableSet(all);

@@ -91,7 +91,7 @@ public class BitUnixTradingProvider implements TradingProvider {
                     request.getUserId(), result.getData().getOrderId(),
                     request.getSymbol(), request.getSide(), request.getQuantity());
 
-            return buildTradeEvent(request, result.getData().getOrderId(), "PENDING");
+            return buildTradeEvent(request, InstrumentType.CRYPTO_SPOT, result.getData().getOrderId(), "PENDING");
 
         } finally {
             lock.unlock();
@@ -127,7 +127,7 @@ public class BitUnixTradingProvider implements TradingProvider {
                     request.getUserId(), result.getData().getOrderId(),
                     request.getSymbol(), request.getSide(), request.getQuantity());
 
-            return buildTradeEvent(request, result.getData().getOrderId(), "PENDING");
+            return buildTradeEvent(request, InstrumentType.CRYPTO_FUTURES, result.getData().getOrderId(), "PENDING");
 
         } finally {
             lock.unlock();
@@ -279,13 +279,14 @@ public class BitUnixTradingProvider implements TradingProvider {
         }
     }
 
-    private TradeEventDto buildTradeEvent(PlaceOrderRequestDto req, String orderId, String status) {
+    private TradeEventDto buildTradeEvent(
+            PlaceOrderRequestDto req, InstrumentType instrumentType, String orderId, String status) {
         return TradeEventDto.builder()
                 .eventId(orderId)
                 .userId(req.getUserId())
                 .brokerType(BrokerType.BITUNIX)
                 .symbol(req.getSymbol())
-                .instrumentType(req.getInstrumentType())
+                .instrumentType(instrumentType)
                 .side(req.getSide())
                 .orderType(req.getOrderType())
                 .quantity(req.getQuantity())

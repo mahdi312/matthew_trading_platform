@@ -109,11 +109,11 @@ public class SentimentSnapshotDto {
      * 7-day historical sentiment trend — one entry per day, oldest first.
      * Each entry contains the {@link #sentimentScore} for that day.
      */
-    @Singular
+    @Singular("sentimentTrend7dPoint")
     private List<Double> sentimentTrend7d;
 
     /** Sentiment scores over the last 24 hours (hourly); oldest first. */
-    @Singular
+    @Singular("sentimentTrend24hPoint")
     private List<Double> sentimentTrend24h;
 
     // ── Additional indices ────────────────────────────────────────────────────
