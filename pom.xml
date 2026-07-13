@@ -53,6 +53,7 @@
         <module>services/notification-service</module>
         <module>services/reference-data-service</module>
         <module>services/ai-service</module>
+        <module>services/alert-service</module>
     </modules>
 
     <dependencyManagement>

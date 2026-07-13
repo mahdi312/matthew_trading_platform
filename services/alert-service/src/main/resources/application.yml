@@ -1,0 +1,66 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: alert-service
+
+  # ── Datasource (H2 in-memory for dev; override for PostgreSQL in prod) ──────
+  datasource:
+    url: jdbc:h2:mem:alertdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+    database-platform: org.hibernate.dialect.H2Dialect
+
+  # H2 console for local development (disable in production)
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  # ── Kafka producer (AlertTriggeredEventDto → alerts.triggered) ─────────────
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+# ── Alert evaluation loop ────────────────────────────────────────────────────
+app:
+  alert:
+    poll-interval-ms: ${ALERT_POLL_INTERVAL_MS:10000}
+
+# ── Eureka client ─────────────────────────────────────────────────────────────
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+# ── Actuator ──────────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,circuitbreakers
+  health:
+    circuitbreakers:
+      enabled: true
+
+# Resilience4j circuit breaker defaults for the OhlcvDataProvider registry
+# used by AlertEvaluationService (Steps 4/4.5 pattern).
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        sliding-window-size: 10
+        slow-call-duration-threshold: 10s
+        slow-call-rate-threshold: 80
