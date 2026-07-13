@@ -33,6 +33,17 @@ spring:
               predicates:
                 - Path=/api/notifications/**
 
+            # alert-service's REST controller is mapped at /alerts (no /api prefix,
+            # matching identity-service's precedent) and its STOMP/SockJS endpoint
+            # is registered at /ws. Both are routed here — /ws carries the WebSocket
+            # upgrade handshake plus SockJS HTTP fallback requests (info/xhr/etc.),
+            # which Spring Cloud Gateway forwards transparently like any other route;
+            # no special WS predicate is required.
+            - id: alert-service
+              uri: lb://alert-service
+              predicates:
+                - Path=/alerts/**,/ws/**
+
 # ── JWT — must match identity-service's jwt.secret ──────────────────────────
 # Override via environment variable or Config Server. Never commit real secrets.
 jwt:
