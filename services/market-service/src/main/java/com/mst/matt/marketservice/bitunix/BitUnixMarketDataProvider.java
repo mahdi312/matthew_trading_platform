@@ -11,6 +11,7 @@ import com.mst.matt.marketservice.bitunix.dto.BitUnixKlineResponse;
 import com.mst.matt.marketservice.bitunix.dto.BitUnixTickerItem;
 import com.mst.matt.marketservice.bitunix.dto.BitUnixTickerResponse;
 import com.mst.matt.marketservice.bitunix.support.BitUnixIntervalSupport;
+import com.mst.matt.marketservice.bitunix.ws.BitUnixWebSocketClient;
 import com.mst.matt.marketservice.exception.MarketDataException;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.HttpUrl;
@@ -63,14 +64,17 @@ public class BitUnixMarketDataProvider implements MarketDataProvider {
     private final BitUnixProperties properties;
     private final OkHttpClient httpClient;
     private final Gson gson;
+    private final BitUnixWebSocketClient webSocketClient;
 
     public BitUnixMarketDataProvider(
             BitUnixProperties properties,
             @Qualifier("bitUnixRestHttpClient") OkHttpClient httpClient,
-            Gson bitUnixGson) {
+            Gson bitUnixGson,
+            BitUnixWebSocketClient webSocketClient) {
         this.properties = properties;
         this.httpClient = httpClient;
         this.gson = bitUnixGson;
+        this.webSocketClient = webSocketClient;
     }
 
     @Override
@@ -175,23 +179,16 @@ public class BitUnixMarketDataProvider implements MarketDataProvider {
     // ── Live price streaming (Step 5.4) ─────────────────────────────────────────
 
     /**
-     * Opens a blocking {@link Stream} of live price ticks for {@code symbol}.
-     *
-     * <p><strong>Step 5.2/5.3 status:</strong> this method is intentionally
-     * not yet wired to BitUnix's WebSocket feed — that is Step 5.4's scope
-     * (the shared BitUnix WebSocket client + subscription management does
-     * not exist yet). It will delegate to that client once Step 5.4 lands;
-     * until then it fails fast rather than silently returning an
-     * empty/broken stream.</p>
-     *
-     * @throws UnsupportedOperationException always, until Step 5.4 wires the
-     *         BitUnix WebSocket client in
+     * Opens a blocking {@link Stream} of live price ticks for {@code symbol},
+     * backed by the shared {@link BitUnixWebSocketClient} connection
+     * (Step 5.4). Subscribing/unsubscribing BitUnix's {@code ticker}
+     * channel and de-duplicating concurrent callers for the same symbol is
+     * delegated entirely to that client — this method just opens (and, via
+     * the stream's {@code close()}, releases) one more consumer of it.
      */
     @Override
     public Stream<PriceTickDto> streamLivePrice(String symbol) {
-        throw new UnsupportedOperationException(
-                "BitUnixMarketDataProvider#streamLivePrice pending Step 5.4's "
-                + "WebSocket client — REST/caching (Steps 5.2/5.3) only so far.");
+        return webSocketClient.streamTicker(symbol);
     }
 
     // ── Internal HTTP helper ────────────────────────────────────────────────────

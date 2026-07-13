@@ -18,10 +18,20 @@ spring:
               predicates:
                 - Path=/auth/**,/oauth2/**
 
+            # market-service's REST controller (getOhlcv/getTickerSnapshot,
+            # once exposed via a controller in a later step) lives under
+            # /api/market/**. Its STOMP/SockJS endpoint (Step 5.4) is
+            # registered at /ws-market — deliberately NOT the bare /ws path
+            # alert-service already claims, since Spring Cloud Gateway routes
+            # are matched by literal path pattern only (first match wins);
+            # reusing /ws here would make alert-service's route permanently
+            # shadow market-service's (or vice versa, depending on route
+            # order), so each WebSocket-serving service gets its own
+            # sub-path instead of sharing /ws.
             - id: market-service
               uri: lb://market-service
               predicates:
-                - Path=/api/market/**
+                - Path=/api/market/**,/ws-market/**
 
             - id: trading-service
               uri: lb://trading-service
