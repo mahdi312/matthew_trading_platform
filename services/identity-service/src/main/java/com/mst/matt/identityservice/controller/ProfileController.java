@@ -1,0 +1,237 @@
+package com.mst.matt.identityservice.controller;
+
+import com.mst.matt.identityservice.dto.AppSettingsRequest;
+import com.mst.matt.identityservice.dto.UserProfileRequest;
+import com.mst.matt.identityservice.dto.UserProfileResponse;
+import com.mst.matt.identityservice.model.AppUser;
+import com.mst.matt.identityservice.model.UserProfile;
+import com.mst.matt.identityservice.repository.AppUserRepository;
+import com.mst.matt.identityservice.repository.UserProfileRepository;
+import com.mst.matt.identityservice.service.AppSettingsService;
+import com.mst.matt.identityservice.service.ProfilePersistenceService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+/**
+ * REST controller for user profile and app-settings management.
+ *
+ * <h3>Endpoints</h3>
+ * <ul>
+ *   <li>{@code GET    /api/profile}         — list all profiles for the authenticated user</li>
+ *   <li>{@code POST   /api/profile}         — create a new profile for the authenticated user</li>
+ *   <li>{@code GET    /api/profile/{id}}    — get a specific profile (must belong to caller)</li>
+ *   <li>{@code PUT    /api/profile/{id}}    — update a specific profile (must belong to caller)</li>
+ *   <li>{@code DELETE /api/profile/{id}}    — delete a profile (must belong to caller)</li>
+ *   <li>{@code GET    /api/profile/settings}         — get all app settings for caller</li>
+ *   <li>{@code PUT    /api/profile/settings}         — update (upsert) app settings for caller</li>
+ * </ul>
+ *
+ * <p>Business logic ported from the desktop's {@code ProfileSettingsController} service calls,
+ * not the JavaFX FXML binding code.</p>
+ */
+@Slf4j
+@RestController
+@RequestMapping("/api/profile")
+@RequiredArgsConstructor
+public class ProfileController {
+
+    private final AppUserRepository userRepository;
+    private final UserProfileRepository profileRepository;
+    private final ProfilePersistenceService profilePersistence;
+    private final AppSettingsService settingsService;
+
+    // ── Helper: resolve caller's AppUser ────────────────────────────────────
+
+    private AppUser resolveCallerOrThrow(UserDetails principal) {
+        return userRepository.findByUsername(principal.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED, "User not found"));
+    }
+
+    // ── Profile CRUD ─────────────────────────────────────────────────────────
+
+    /**
+     * GET /api/profile
+     * Returns all profiles owned by the authenticated user, most recently used first.
+     */
+    @GetMapping
+    public List<UserProfileResponse> listProfiles(
+            @AuthenticationPrincipal UserDetails principal) {
+
+        AppUser caller = resolveCallerOrThrow(principal);
+        return profileRepository
+                .findByAppUserIdOrderByLastAccessedAtDesc(caller.getId())
+                .stream()
+                .map(UserProfileResponse::from)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * POST /api/profile
+     * Create a new profile for the authenticated user.
+     */
+    @PostMapping
+    public ResponseEntity<UserProfileResponse> createProfile(
+            @AuthenticationPrincipal UserDetails principal,
+            @Valid @RequestBody UserProfileRequest req) {
+
+        AppUser caller = resolveCallerOrThrow(principal);
+
+        // Enforce uniqueness within this user's profiles
+        if (profileRepository.findByAppUserIdAndName(caller.getId(), req.getName()).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Profile name already exists: " + req.getName());
+        }
+
+        UserProfile profile = UserProfile.builder()
+                .appUserId(caller.getId())
+                .name(req.getName())
+                .avatarColor(req.getAvatarColor())
+                .description(req.getDescription())
+                .active(req.isActive())
+                .assetFocus(req.getAssetFocus() != null
+                        ? req.getAssetFocus() : UserProfile.ProfileAssetFocus.MULTI)
+                .defaultSymbol(req.getDefaultSymbol())
+                .chartProvider(req.getChartProvider() != null ? req.getChartProvider() : "AUTO")
+                .fundamentalProvider(req.getFundamentalProvider() != null
+                        ? req.getFundamentalProvider() : "AUTO")
+                .watchlist(req.getWatchlist())
+                .drawingSettingsJson(req.getDrawingSettingsJson())
+                .createdAt(LocalDateTime.now())
+                .lastAccessedAt(LocalDateTime.now())
+                .build();
+
+        UserProfile saved = profileRepository.save(profile);
+        log.info("Profile created: id={} name={} userId={}", saved.getId(), saved.getName(), caller.getId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(UserProfileResponse.from(saved));
+    }
+
+    /**
+     * GET /api/profile/{id}
+     * Get a specific profile; must be owned by the caller.
+     */
+    @GetMapping("/{id}")
+    public UserProfileResponse getProfile(
+            @AuthenticationPrincipal UserDetails principal,
+            @PathVariable Long id) {
+
+        AppUser caller = resolveCallerOrThrow(principal);
+        UserProfile profile = findOwnedProfileOrThrow(caller, id);
+        return UserProfileResponse.from(profile);
+    }
+
+    /**
+     * PUT /api/profile/{id}
+     * Update a specific profile; must be owned by the caller.
+     * Also touches {@code lastAccessedAt} to reflect this activity.
+     */
+    @PutMapping("/{id}")
+    public UserProfileResponse updateProfile(
+            @AuthenticationPrincipal UserDetails principal,
+            @PathVariable Long id,
+            @Valid @RequestBody UserProfileRequest req) {
+
+        AppUser caller = resolveCallerOrThrow(principal);
+        UserProfile profile = findOwnedProfileOrThrow(caller, id);
+
+        // Check name conflict if renaming
+        if (!profile.getName().equals(req.getName())) {
+            profileRepository.findByAppUserIdAndName(caller.getId(), req.getName())
+                    .ifPresent(existing -> { throw new ResponseStatusException(HttpStatus.CONFLICT,
+                            "Profile name already exists: " + req.getName()); });
+        }
+
+        // Apply updates from request
+        profile.setName(req.getName());
+        profile.setAvatarColor(req.getAvatarColor());
+        profile.setDescription(req.getDescription());
+        profile.setActive(req.isActive());
+        if (req.getAssetFocus() != null)         profile.setAssetFocus(req.getAssetFocus());
+        if (req.getDefaultSymbol() != null)       profile.setDefaultSymbol(req.getDefaultSymbol());
+        if (req.getChartProvider() != null)       profile.setChartProvider(req.getChartProvider());
+        if (req.getFundamentalProvider() != null) profile.setFundamentalProvider(req.getFundamentalProvider());
+        if (req.getWatchlist() != null)           profile.setWatchlist(req.getWatchlist());
+        if (req.getDrawingSettingsJson() != null) profile.setDrawingSettingsJson(req.getDrawingSettingsJson());
+        profile.setLastAccessedAt(LocalDateTime.now());
+
+        // Async save — fire-and-forget; read the saved result synchronously for the response
+        profileRepository.save(profile);
+        profilePersistence.saveAsync(profile);  // also triggers async side effects if needed
+        log.info("Profile updated: id={} name={} userId={}", profile.getId(), profile.getName(), caller.getId());
+        return UserProfileResponse.from(profile);
+    }
+
+    /**
+     * DELETE /api/profile/{id}
+     * Delete a profile owned by the caller.
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteProfile(
+            @AuthenticationPrincipal UserDetails principal,
+            @PathVariable Long id) {
+
+        AppUser caller = resolveCallerOrThrow(principal);
+        UserProfile profile = findOwnedProfileOrThrow(caller, id);
+        profileRepository.delete(profile);
+        log.info("Profile deleted: id={} userId={}", id, caller.getId());
+        return ResponseEntity.noContent().build();
+    }
+
+    // ── App Settings ─────────────────────────────────────────────────────────
+
+    /**
+     * GET /api/profile/settings
+     * Returns all app settings for the authenticated user as a key→value map.
+     */
+    @GetMapping("/settings")
+    public Map<String, String> getSettings(
+            @AuthenticationPrincipal UserDetails principal) {
+
+        AppUser caller = resolveCallerOrThrow(principal);
+        return settingsService.getAll(caller.getId());
+    }
+
+    /**
+     * PUT /api/profile/settings
+     * Upsert one or more settings for the authenticated user.
+     * The request body is {@code { "settings": { "ui.theme": "dark", ... } }}.
+     */
+    @PutMapping("/settings")
+    public Map<String, String> updateSettings(
+            @AuthenticationPrincipal UserDetails principal,
+            @RequestBody AppSettingsRequest req) {
+
+        AppUser caller = resolveCallerOrThrow(principal);
+        if (req.getSettings() != null) {
+            req.getSettings().forEach((key, value) ->
+                    settingsService.set(caller.getId(), key, value));
+        }
+        return settingsService.getAll(caller.getId());
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    private UserProfile findOwnedProfileOrThrow(AppUser caller, Long profileId) {
+        UserProfile profile = profileRepository.findById(profileId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Profile not found: " + profileId));
+        if (!caller.getId().equals(profile.getAppUserId())
+                && caller.getRole() != AppUser.Role.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Access denied to profile " + profileId);
+        }
+        return profile;
+    }
+}

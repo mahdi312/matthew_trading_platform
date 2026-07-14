@@ -81,6 +81,10 @@ public class SecurityConfig {
                 // Authorization rules
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        // Admin endpoints — further restricted by @PreAuthorize("hasRole('ADMIN')")
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        // Profile & settings — any authenticated user
+                        .requestMatchers("/api/profile/**").authenticated()
                         .anyRequest().authenticated()
                 )
 
