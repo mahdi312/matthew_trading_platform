@@ -1,6 +1,17 @@
 server:
   port: 8085
 
+# ── External API keys ──────────────────────────────────────────────────────────
+# All keys default to empty string so the application starts without them.
+# Set the corresponding environment variables to activate each provider.
+# Providers with empty keys are skipped at runtime (has*Key() guard returns false).
+api:
+  alphavantage-key: ${ALPHAVANTAGE_API_KEY:}
+  finnhub-key: ${FINNHUB_API_KEY:}
+  twelvedata-key: ${TWELVEDATA_API_KEY:}
+  coinmarketcap-key: ${CMC_API_KEY:}
+  coingecko-key: ${COINGECKO_API_KEY:}
+
 spring:
   application:
     name: reference-data-service
