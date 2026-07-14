@@ -82,11 +82,11 @@ public class MarketProviderConfig {
      * {@code ProviderUnavailableException} from an empty chain.
      *
      * @param binance            Binance REST klines (CRYPTO)
-     * @param coinGecko          CoinGecko /coins/*/ohlc (CRYPTO)
+     * @param coinGecko          CoinGecko /coins/{id}/ohlc (CRYPTO)
      * @param coinMarketCap      CoinMarketCap v2 OHLCV (CRYPTO)
      * @param alphaVantage       Alpha Vantage time-series (CRYPTO, STOCK, FOREX)
      * @param twelveData         TwelveData /time_series (STOCK, CRYPTO, FOREX)
-     * @param finnhub            Finnhub /*/candle (STOCK, CRYPTO, FOREX)
+     * @param finnhub            Finnhub /{asset}/candle (STOCK, CRYPTO, FOREX)
      * @param polygon            Polygon /v2/aggs (STOCK)
      * @param marketstack        Marketstack /v1/eod (STOCK)
      * @param yahoo              Yahoo Finance v8 chart (STOCK)

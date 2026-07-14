@@ -64,8 +64,9 @@ public class CoinMarketCapOhlcvProvider implements OhlcvDataProvider {
                                                        String interval,
                                                        int limit) {
         if (!keys.hasCoinmarketcapKey()) return List.of();
-        String sym = SymbolNormalizer.normalize(symbol);
-        if (sym.endsWith("USDT")) sym = sym.substring(0, sym.length() - 4);
+        String symRaw = SymbolNormalizer.normalize(symbol);
+        if (symRaw.endsWith("USDT")) symRaw = symRaw.substring(0, symRaw.length() - 4);
+        final String sym = symRaw;
         String cmcInterval = mapInterval(interval);
         Instant to   = Instant.now();
         Instant from = to.minus(Duration.ofDays(estimateDays(interval, limit)));
