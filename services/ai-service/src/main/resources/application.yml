@@ -31,3 +31,27 @@ resilience4j:
         sliding-window-size: 5
         slow-call-duration-threshold: 30s
         slow-call-rate-threshold: 80
+
+# LLM provider API keys (leave blank to use rule-based fallback)
+app:
+  api:
+    openai:
+      key: ${OPENAI_API_KEY:}
+      model: gpt-4o-mini
+    groq:
+      key: ${GROQ_API_KEY:}
+      model: ""
+    cerebras:
+      key: ${CEREBRAS_API_KEY:}
+      model: ""
+    deepseek:
+      key: ${DEEPSEEK_API_KEY:}
+      model: ""
+    anthropic:
+      key: ${ANTHROPIC_API_KEY:}
+      model: ""
+
+# Internal service URLs (resolved via Eureka by default; override for local dev)
+services:
+  reference-data:
+    url: http://reference-data-service
