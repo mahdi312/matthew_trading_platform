@@ -13,6 +13,7 @@ import com.mst.matt.referencedataservice.provider.fundamentals.AlphaVantageFunda
 import com.mst.matt.referencedataservice.provider.fundamentals.FinnhubFundamentalsProvider;
 import com.mst.matt.referencedataservice.provider.news.AlphaVantageNewsProvider;
 import com.mst.matt.referencedataservice.provider.news.FinnhubNewsProvider;
+import com.mst.matt.referencedataservice.provider.nft.CoinGeckoNftDataProvider;
 import com.mst.matt.referencedataservice.provider.search.AlphaVantageSearchProvider;
 import com.mst.matt.referencedataservice.provider.search.CoinGeckoSearchProvider;
 import com.mst.matt.referencedataservice.provider.search.FinnhubSearchProvider;
@@ -35,7 +36,7 @@ import java.util.List;
  *   <li><b>Sentiment</b>:   CMC → CoinGecko → NoOp</li>
  *   <li><b>Calendar</b>:    AlphaVantage → Finnhub → NoOp</li>
  *   <li><b>Search</b>:      AlphaVantage → Finnhub → TwelveData → CoinGecko → NoOp</li>
- *   <li><b>NFT</b>:         NoOp only (not yet implemented)</li>
+ *   <li><b>NFT</b>:         CoinGecko → NoOp</li>
  * </ul>
  *
  * <p>Registration order = priority order inside each chain.
@@ -134,13 +135,15 @@ public class ReferenceDataProviderConfig {
     }
 
     // ── NftDataProvider registry ──────────────────────────────────────────────
-    // NFT providers not yet implemented — NoOp only.
+    // Priority: CoinGecko → NoOp
 
     @Bean
     public ProviderRegistry<NftDataProvider> nftRegistry(
+            CoinGeckoNftDataProvider coinGecko,
             NftDataProvider noOpNftDataProvider) {
 
         return ProviderRegistry.<NftDataProvider>builder()
+                .register(coinGecko)
                 .register(noOpNftDataProvider)
                 .build();
     }

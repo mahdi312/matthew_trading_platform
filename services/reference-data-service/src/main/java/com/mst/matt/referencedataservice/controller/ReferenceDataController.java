@@ -5,9 +5,12 @@ import com.mst.matt.contracts.provider.calendar.EconomicCalendarProvider;
 import com.mst.matt.contracts.provider.dto.*;
 import com.mst.matt.contracts.provider.fundamentals.FundamentalsProvider;
 import com.mst.matt.contracts.provider.news.NewsProvider;
+import com.mst.matt.contracts.provider.nft.NftDataProvider;
 import com.mst.matt.contracts.provider.registry.ProviderRegistry;
 import com.mst.matt.contracts.provider.search.SymbolSearchProvider;
 import com.mst.matt.contracts.provider.sentiment.SentimentProvider;
+import com.mst.matt.referencedataservice.provider.defi.CoinGeckoDeFiProvider;
+import com.mst.matt.referencedataservice.provider.nft.CoinGeckoNftDataProvider;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -42,19 +45,28 @@ public class ReferenceDataController {
     private final ProviderRegistry<SentimentProvider>        sentimentRegistry;
     private final ProviderRegistry<EconomicCalendarProvider> calendarRegistry;
     private final ProviderRegistry<SymbolSearchProvider>     searchRegistry;
+    private final ProviderRegistry<NftDataProvider>          nftRegistry;
+    private final CoinGeckoNftDataProvider                   nftDataProvider;
+    private final CoinGeckoDeFiProvider                      deFiProvider;
 
     public ReferenceDataController(
             ProviderRegistry<FundamentalsProvider>     fundamentalsRegistry,
             ProviderRegistry<NewsProvider>             newsRegistry,
             ProviderRegistry<SentimentProvider>        sentimentRegistry,
             ProviderRegistry<EconomicCalendarProvider> calendarRegistry,
-            ProviderRegistry<SymbolSearchProvider>     searchRegistry) {
+            ProviderRegistry<SymbolSearchProvider>     searchRegistry,
+            ProviderRegistry<NftDataProvider>          nftRegistry,
+            CoinGeckoNftDataProvider                   nftDataProvider,
+            CoinGeckoDeFiProvider                      deFiProvider) {
 
         this.fundamentalsRegistry = fundamentalsRegistry;
         this.newsRegistry         = newsRegistry;
         this.sentimentRegistry    = sentimentRegistry;
         this.calendarRegistry     = calendarRegistry;
         this.searchRegistry       = searchRegistry;
+        this.nftRegistry          = nftRegistry;
+        this.nftDataProvider      = nftDataProvider;
+        this.deFiProvider         = deFiProvider;
     }
 
     // ── 1. Fundamentals ───────────────────────────────────────────────────────
@@ -275,5 +287,81 @@ public class ReferenceDataController {
         }
 
         return ResponseEntity.ok(results);
+    }
+
+    // ── 6. NFT Collections ────────────────────────────────────────────────────
+
+    /**
+     * Fetch NFT collections from CoinGecko.
+     *
+     * <p>Supports three modes:</p>
+     * <ul>
+     *   <li>{@code ?trending=true}       — trending collections</li>
+     *   <li>{@code ?query=...}           — search by name</li>
+     *   <li>default                      — paginated list ordered by market cap</li>
+     * </ul>
+     *
+     * @param limit    max results, default 20
+     * @param page     page number (1-based), default 1; used in list mode only
+     * @param trending if {@code true}, return trending collections
+     * @param query    optional text search query
+     */
+    @GetMapping("/nft/collections")
+    public ResponseEntity<List<NftCollectionDto>> getNftCollections(
+            @RequestParam(defaultValue = "20")  int     limit,
+            @RequestParam(defaultValue = "1")   int     page,
+            @RequestParam(defaultValue = "false") boolean trending,
+            @RequestParam(required = false)     String  query) {
+
+        List<NftCollectionDto> result;
+        if (trending) {
+            result = nftRegistry.executeWithFallback(
+                    AssetClass.NFT,
+                    p -> p.getTrendingCollections(limit));
+        } else if (query != null && !query.isBlank()) {
+            final String q = query;
+            result = nftRegistry.executeWithFallback(
+                    AssetClass.NFT,
+                    p -> p.searchCollections(q, limit));
+        } else {
+            // List mode — delegate directly to the CoinGecko provider
+            result = nftDataProvider.listCollections(limit, page);
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    // ── 7. DeFi Pools ────────────────────────────────────────────────────────
+
+    /**
+     * Fetch DeFi pool data from GeckoTerminal (on-chain).
+     *
+     * <p>Supports three modes:</p>
+     * <ul>
+     *   <li>{@code ?trending=true}       — global trending pools</li>
+     *   <li>{@code ?query=...}           — pool search by token/pair name</li>
+     *   <li>{@code ?network=eth}         — pools for a specific network</li>
+     * </ul>
+     *
+     * @param network  optional network id (e.g., "eth", "bsc")
+     * @param query    optional text search query
+     * @param trending if {@code true}, return global trending pools
+     */
+    @GetMapping("/defi/pools")
+    public ResponseEntity<List<DeFiPoolDto>> getDefiPools(
+            @RequestParam(required = false)       String  network,
+            @RequestParam(required = false)       String  query,
+            @RequestParam(defaultValue = "false") boolean trending) {
+
+        List<DeFiPoolDto> result;
+        if (trending) {
+            result = deFiProvider.getTrendingPools();
+        } else if (query != null && !query.isBlank()) {
+            result = deFiProvider.searchPools(query);
+        } else if (network != null && !network.isBlank()) {
+            result = deFiProvider.getPoolsByNetwork(network);
+        } else {
+            result = deFiProvider.getTrendingPools();   // default: trending
+        }
+        return ResponseEntity.ok(result);
     }
 }
