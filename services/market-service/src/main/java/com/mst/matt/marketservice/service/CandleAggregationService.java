@@ -98,4 +98,75 @@ public class CandleAggregationService {
         long aligned = (epochSeconds / durSeconds) * durSeconds;
         return LocalDateTime.ofEpochSecond(aligned, 0, java.time.ZoneOffset.UTC);
     }
+
+    // ── Query helpers (used by AggregatedCandleQueryService) ─────────────────
+
+    /**
+     * Reads pre-aggregated bars from the single {@code ohlcv_bars} JPA table,
+     * keyed by symbol + targetTf. The provider segment is embedded in the
+     * {@code provider} column of each bar.
+     *
+     * @param symbol          trading symbol
+     * @param providerSegment provider name, or empty for any provider
+     * @param targetTf        target timeframe label
+     * @param assetType       asset class filter
+     * @param limit           max bars to return
+     * @return chronologically ordered bars; empty if none available
+     */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public List<OhlcvBar> readAggregated(String symbol, String providerSegment,
+                                         String targetTf, AssetType assetType, int limit) {
+        List<OhlcvBar> bars;
+        if (providerSegment != null && !providerSegment.isBlank()) {
+            bars = barRepository.findTopBySymbolAndTimeframe(
+                    symbol.toUpperCase(), targetTf,
+                    org.springframework.data.domain.PageRequest.of(0, limit));
+            bars = bars.stream()
+                    .filter(b -> providerSegment.equalsIgnoreCase(b.getProvider()))
+                    .toList();
+        } else {
+            bars = barRepository.findTopBySymbolAndTimeframe(
+                    symbol.toUpperCase(), targetTf,
+                    org.springframework.data.domain.PageRequest.of(0, limit));
+        }
+        List<OhlcvBar> ordered = new ArrayList<>(bars);
+        ordered.sort(Comparator.comparing(OhlcvBar::getOpenTime));
+        return ordered;
+    }
+
+    /**
+     * Returns the list of higher timeframes derivable from {@code sourceTf}.
+     * The set is every TF in {@link #ALL_TIMEFRAMES} whose duration is strictly
+     * greater than sourceTf's duration AND evenly divisible.
+     */
+    public List<String> derivableTimeframes(String sourceTf) {
+        Duration srcDur = TF_DURATION.get(sourceTf == null ? "" : sourceTf.toLowerCase());
+        if (srcDur == null) return List.of();
+        return ALL_TIMEFRAMES.stream()
+                .filter(tf -> tf.duration().compareTo(srcDur) > 0
+                        && tf.duration().toSeconds() % srcDur.toSeconds() == 0)
+                .map(TfSpec::label)
+                .toList();
+    }
+
+    /**
+     * Builds the aggregated-table name following the convention:
+     * {@code SYMBOL_PROVIDER_TF} (e.g. {@code BTCUSDT_BINANCE_4h}) or
+     * {@code BTCUSDT_agg_4h} when the provider segment is empty.
+     */
+    public static String buildAggTableName(String symbol, String providerSegment, String targetTf) {
+        String seg = (providerSegment == null || providerSegment.isBlank()) ? "agg" : providerSegment.toUpperCase();
+        return symbol.toUpperCase() + "_" + seg + "_" + targetTf.toLowerCase();
+    }
+
+    /**
+     * Triggers aggregation and returns a bar already in the registry for the
+     * given chart session. Delegates to
+     * {@link #aggregateAndStore(String, String, String, AssetType, List)}.
+     */
+    public Map<String, Integer> triggerForBars(String symbol, String sourceTf,
+                                               String providerName, AssetType assetType,
+                                               List<OhlcvBar> sourceBars) {
+        return aggregateAndStore(symbol, sourceTf, providerName, assetType, sourceBars);
+    }
 }

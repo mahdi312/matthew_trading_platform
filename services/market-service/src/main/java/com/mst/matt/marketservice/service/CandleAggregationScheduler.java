@@ -36,12 +36,34 @@ public class CandleAggregationScheduler {
                 if (!sourceBars.isEmpty()) {
                     aggregationService.aggregateAndStore(
                             entry.getSymbol(), entry.getTimeframe(),
-                            entry.getProvider().name(), entry.getAssetType(),
+                            entry.getProvider() != null ? entry.getProvider().name() : "",
+                            entry.getAssetType(),
                             OhlcvStorageService.chronological(sourceBars));
                 }
             } catch (Exception e) {
                 log.warn("Aggregation failed for {}/{}: {}", entry.getSymbol(), entry.getTimeframe(), e.getMessage());
             }
+        }
+    }
+
+    /**
+     * On-demand aggregation trigger — called by {@link MarketDataSyncService}
+     * immediately after a fresh batch of source bars is persisted.
+     *
+     * @param symbol     trading symbol
+     * @param sourceTf   timeframe of the source bars
+     * @param assetType  asset class for metadata
+     * @param sourceBars freshly persisted source bars (chronological)
+     */
+    public void triggerAggregationForBars(String symbol, String sourceTf,
+                                          com.mst.matt.marketservice.model.AssetType assetType,
+                                          List<com.mst.matt.marketservice.model.OhlcvBar> sourceBars) {
+        try {
+            aggregationService.aggregateAndStore(
+                    symbol, sourceTf, "", assetType,
+                    OhlcvStorageService.chronological(sourceBars));
+        } catch (Exception e) {
+            log.warn("On-demand aggregation failed for {}/{}: {}", symbol, sourceTf, e.getMessage());
         }
     }
 }
