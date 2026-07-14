@@ -1,8 +1,11 @@
 package com.mst.matt.marketservice.service;
 
+import com.mst.matt.contracts.enums.AssetClass;
+import com.mst.matt.contracts.provider.dto.NormalizedOhlcvBar;
 import com.mst.matt.marketservice.model.AssetType;
 import com.mst.matt.marketservice.model.MarketDataTableRegistry;
 import com.mst.matt.marketservice.model.OhlcvBar;
+import com.mst.matt.marketservice.registry.MarketOhlcvProviderRegistry;
 import com.mst.matt.marketservice.repository.MarketDataTableRegistryRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,7 +15,9 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,9 +31,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>{@code UserProfile} dependency removed — userId is not managed by
  *       market-service; the registry entry carries provider info instead.</li>
  *   <li>{@code PriceRouter}/{@code PriceProviderRegistry} replaced by the
- *       injected {@link OhlcvStorageService} + future
- *       {@code MarketOhlcvProviderRegistry} (Phase 3). Until Phase 3 beans
- *       are wired, sync falls back to serving from the DB only.</li>
+ *       {@link MarketOhlcvProviderRegistry} (Gap 1): sync now calls through
+ *       the full fallback chain (Binance → CoinGecko → … for crypto, etc.)
+ *       before falling back to serving from DB only when all providers fail.</li>
  *   <li>Dynamic-table writes route through {@link DynamicOhlcvTableService};
  *       JPA reads go through {@link OhlcvStorageService}.</li>
  * </ul>
@@ -40,8 +45,9 @@ public class MarketDataSyncService {
     private static final ConcurrentHashMap<String, Object> REGISTER_LOCKS = new ConcurrentHashMap<>();
 
     private final MarketDataTableRegistryRepository registryRepository;
-    private final OhlcvStorageService storageService;
-    private final MarketReferenceDataService referenceDataService;
+    private final OhlcvStorageService               storageService;
+    private final MarketReferenceDataService         referenceDataService;
+    private final MarketOhlcvProviderRegistry        providerRegistry;
 
     /**
      * Lazy injection to avoid a circular-dependency issue:
@@ -51,10 +57,12 @@ public class MarketDataSyncService {
 
     public MarketDataSyncService(MarketDataTableRegistryRepository registryRepository,
                                  OhlcvStorageService storageService,
-                                 MarketReferenceDataService referenceDataService) {
+                                 MarketReferenceDataService referenceDataService,
+                                 MarketOhlcvProviderRegistry providerRegistry) {
         this.registryRepository = registryRepository;
-        this.storageService = storageService;
+        this.storageService      = storageService;
         this.referenceDataService = referenceDataService;
+        this.providerRegistry    = providerRegistry;
     }
 
     @Autowired
@@ -123,31 +131,72 @@ public class MarketDataSyncService {
     // ── Sync ──────────────────────────────────────────────────────────────────
 
     /**
-     * Synchronises a registry entry.
+     * Synchronises a registry entry by calling the external provider chain
+     * when the DB is empty or the entry is due for a refresh.
      *
-     * <p>In Phase 3 this will call through to the
-     * {@code MarketOhlcvProviderRegistry} for a fresh fetch. Until then, it
-     * returns what is already in the DB and logs a debug message. On success
-     * it also triggers higher-TF aggregation via the scheduler.</p>
+     * <p>Read path:</p>
+     * <ol>
+     *   <li>Read existing bars from storage.</li>
+     *   <li>If storage is empty <em>or</em> the entry is due for sync,
+     *       call {@link MarketOhlcvProviderRegistry} with the entry's asset class
+     *       and interval — this triggers the full fallback chain
+     *       (Binance → CoinGecko → … for crypto, etc.).</li>
+     *   <li>On successful fetch, persist via
+     *       {@link #persistAndUpdateRegistry(MarketDataTableRegistry, List)}.
+     *       On failure, return whatever is already in DB.</li>
+     *   <li>Trigger higher-TF aggregation via the scheduler.</li>
+     * </ol>
      *
      * @param entry   registry entry to sync
      * @param limit   maximum bars to fetch/return
-     * @return current bars for the entry (from DB if no live fetch succeeds)
+     * @return up-to-date bars for the entry
      */
     @Transactional
     public List<OhlcvBar> syncRegistryEntry(MarketDataTableRegistry entry, int limit) {
         List<OhlcvBar> current = readFromRegistry(entry, limit);
-        if (!current.isEmpty()) {
-            // Trigger aggregation for any new bars in the registry
-            if (aggregationScheduler != null) {
-                aggregationScheduler.triggerAggregationForBars(
-                        entry.getSymbol(), entry.getTimeframe(),
-                        entry.getAssetType(), current);
+
+        // Attempt live fetch when storage empty or sync is overdue
+        if (current.isEmpty() || isDue(entry)) {
+            List<OhlcvBar> fresh = fetchFromProvider(entry, limit);
+            if (!fresh.isEmpty()) {
+                persistAndUpdateRegistry(entry, fresh);
+                current = fresh;
+            } else {
+                log.debug("syncRegistryEntry: provider returned empty for {}/{} — serving from DB",
+                        entry.getSymbol(), entry.getTimeframe());
             }
         }
-        log.debug("syncRegistryEntry: {} {}/{} → {} bars (Phase 3 provider not yet wired)",
-                entry.getSymbol(), entry.getTimeframe(), entry.getTableName(), current.size());
+
+        if (!current.isEmpty() && aggregationScheduler != null) {
+            aggregationScheduler.triggerAggregationForBars(
+                    entry.getSymbol(), entry.getTimeframe(),
+                    entry.getAssetType(), current);
+        }
+
+        log.debug("syncRegistryEntry: {}/{} → {} bars",
+                entry.getSymbol(), entry.getTimeframe(), current.size());
         return current;
+    }
+
+    /**
+     * Fetches fresh bars from the {@link MarketOhlcvProviderRegistry} for the
+     * given registry entry. Maps {@link NormalizedOhlcvBar} → {@link OhlcvBar}.
+     * Returns empty list on provider failure (never throws).
+     */
+    private List<OhlcvBar> fetchFromProvider(MarketDataTableRegistry entry, int limit) {
+        try {
+            AssetClass assetClass = toContractsAssetClass(entry.getAssetType());
+            List<NormalizedOhlcvBar> normalized = providerRegistry.getHistoricalBars(
+                    entry.getSymbol(), assetClass, entry.getTimeframe(), limit);
+            if (normalized == null || normalized.isEmpty()) return List.of();
+            return normalized.stream()
+                    .map(n -> toOhlcvBar(n, entry.getSymbol(), entry.getTimeframe(), entry.getAssetType()))
+                    .toList();
+        } catch (Exception e) {
+            log.warn("Provider fetch failed for {}/{}: {}",
+                    entry.getSymbol(), entry.getTimeframe(), e.getMessage());
+            return List.of();
+        }
     }
 
     /** Async variant of {@link #syncRegistryEntry(MarketDataTableRegistry, int)}. */
@@ -197,11 +246,46 @@ public class MarketDataSyncService {
     private static AssetType resolveAssetType(String symbol) {
         AssetClassDetector.AssetClass ac = AssetClassDetector.detect(symbol);
         return switch (ac) {
-            case CRYPTO -> AssetType.CRYPTO;
-            case FOREX  -> AssetType.FOREX;
-            case STOCK  -> AssetType.STOCK;
+            case CRYPTO    -> AssetType.CRYPTO;
+            case FOREX     -> AssetType.FOREX;
+            case STOCK     -> AssetType.STOCK;
             case COMMODITY -> AssetType.COMMODITY;
-            case INDEX  -> AssetType.INDEX;
+            case INDEX     -> AssetType.INDEX;
         };
+    }
+
+    /** Maps the local {@link AssetType} to the contracts {@link AssetClass} for provider routing. */
+    private static AssetClass toContractsAssetClass(AssetType at) {
+        return switch (at) {
+            case CRYPTO    -> AssetClass.CRYPTO;
+            case FOREX     -> AssetClass.FOREX;
+            case STOCK,
+                 COMMODITY,
+                 INDEX      -> AssetClass.STOCK;
+        };
+    }
+
+    /** Maps a {@link NormalizedOhlcvBar} to an {@link OhlcvBar} JPA entity. */
+    private static OhlcvBar toOhlcvBar(NormalizedOhlcvBar n,
+                                        String symbol, String timeframe, AssetType assetType) {
+        java.time.LocalDateTime openTime = n.getOpenTime() != null
+                ? java.time.LocalDateTime.ofInstant(n.getOpenTime(), ZoneOffset.UTC)
+                : java.time.LocalDateTime.now(ZoneOffset.UTC);
+        return OhlcvBar.builder()
+                .symbol(symbol)
+                .timeframe(timeframe)
+                .openTime(openTime)
+                .open(nvl(n.getOpen()))
+                .high(nvl(n.getHigh()))
+                .low(nvl(n.getLow()))
+                .close(nvl(n.getClose()))
+                .volume(nvl(n.getVolume()))
+                .assetType(assetType)
+                .provider(n.getProviderName())
+                .build();
+    }
+
+    private static BigDecimal nvl(BigDecimal v) {
+        return v != null ? v : BigDecimal.ZERO;
     }
 }
