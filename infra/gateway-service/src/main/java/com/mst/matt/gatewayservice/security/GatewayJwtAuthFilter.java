@@ -29,8 +29,8 @@ import java.util.List;
  * <h3>Responsibility</h3>
  * <p>JWT is validated <em>once</em> here at the edge.  Downstream services
  * ({@code identity-service}, {@code market-service}, {@code trading-service},
- * {@code notification-service}) trust these headers without re-validating the
- * token themselves:</p>
+ * {@code notification-service}, {@code alert-service}, {@code reference-data-service},
+ * {@code ai-service}) trust these headers without re-validating the token themselves:</p>
  * <ul>
  *   <li>{@code X-User-Id}       — numeric AppUser.id</li>
  *   <li>{@code X-User-Name}     — username (JWT {@code sub} claim)</li>
@@ -41,12 +41,16 @@ import java.util.List;
  * <h3>Public paths</h3>
  * <p>The following paths bypass JWT validation entirely:</p>
  * <ul>
- *   <li>{@code /auth/login}</li>
- *   <li>{@code /auth/register}</li>
- *   <li>{@code /auth/oauth2/**}</li>
- *   <li>{@code /oauth2/**}</li>
- *   <li>{@code /actuator/**}</li>
+ *   <li>{@code /api/auth/login}     — login endpoint (identity-service)</li>
+ *   <li>{@code /api/auth/register}  — self-registration (identity-service)</li>
+ *   <li>{@code /api/auth/oauth2/**} — OAuth2 callback flows (identity-service)</li>
+ *   <li>{@code /oauth2/**}          — OAuth2 authorization redirect</li>
+ *   <li>{@code /actuator/**}        — health / metrics endpoints</li>
  * </ul>
+ *
+ * <p>All other paths (including the rest of {@code /api/auth/**} such as
+ * {@code /api/auth/me} and {@code /api/auth/logout}) <em>require</em> a valid JWT
+ * so that downstream services always receive authenticated identity headers.</p>
  *
  * <h3>Algorithm</h3>
  * <p>HS256 with the same {@code jwt.secret} shared with {@code identity-service}.
@@ -57,11 +61,17 @@ import java.util.List;
 @Component
 public class GatewayJwtAuthFilter implements GlobalFilter, Ordered {
 
-    /** Paths that are allowed through without a valid JWT. */
+    /**
+     * Exact-prefix paths that are allowed through without a valid JWT.
+     *
+     * <p>Only the specific unauthenticated actions are listed here.
+     * {@code /api/auth/me}, {@code /api/auth/logout}, etc. still require a
+     * JWT so that downstream identity-service always gets the identity headers.</p>
+     */
     private static final List<String> PUBLIC_PATH_PREFIXES = List.of(
-            "/auth/login",
-            "/auth/register",
-            "/auth/oauth2",
+            "/api/auth/login",
+            "/api/auth/register",
+            "/api/auth/oauth2",
             "/oauth2",
             "/actuator"
     );

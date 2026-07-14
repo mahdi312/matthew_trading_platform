@@ -3,13 +3,14 @@ package com.mst.matt.tradingplatformapp.controller;
 import com.mst.matt.tradingplatformapp.model.TradeDrawingDraft;
 import com.mst.matt.tradingplatformapp.model.UserProfile;
 import com.mst.matt.tradingplatformapp.model.UserProfile.ProfileAssetFocus;
-import com.mst.matt.tradingplatformapp.model.AppUser;
 import com.mst.matt.tradingplatformapp.model.IndicatorConfig;
 import com.mst.matt.tradingplatformapp.repository.IndicatorConfigRepository;
 import com.mst.matt.tradingplatformapp.repository.UserProfileRepository;
 import com.mst.matt.tradingplatformapp.service.analysis.AnalysisService;
 import com.mst.matt.tradingplatformapp.service.alert.AlertService;
 import com.mst.matt.tradingplatformapp.service.auth.AuthService;
+import com.mst.matt.tradingplatformapp.service.auth.AuthService.SessionUser;
+import com.mst.matt.tradingplatformapp.client.TradeApiClient;
 import com.mst.matt.tradingplatformapp.service.WatchlistDefaults;
 import com.mst.matt.tradingplatformapp.service.price.LiveTickerService;
 import com.mst.matt.tradingplatformapp.service.price.PriceQuote;
@@ -299,23 +300,23 @@ public class MainDashboardController implements Initializable {
     }
 
     private void loadOrCreateDefaultProfiles() {
-        // Load profiles scoped to the current logged-in user
-        java.util.Optional<AppUser> currentUser =
-                authService.currentUser();
+        // Load profiles scoped to the current logged-in user.
+        // authService.currentUser() now returns Optional<SessionUser> (no AppUser entity).
+        java.util.Optional<SessionUser> currentUser = authService.currentUser();
+        Long userId = currentUser.map(SessionUser::userId).orElse(null);
 
         List<UserProfile> profiles;
-        if (currentUser.isPresent()) {
-            profiles = profileRepository.findByAppUserOrderByLastAccessedAtDesc(currentUser.get());
+        if (userId != null) {
+            profiles = profileRepository.findByAppUserIdOrderByLastAccessedAtDesc(userId);
             if (profiles.isEmpty()) {
-                // Also check legacy profiles (no appUser) for first-run migration
+                // Also check legacy profiles (no appUser) for first-run migration.
+                // We cannot re-link them to AppUser entity without a DB fetch here;
+                // legacy adoption is deferred until profile-service migration.
                 List<UserProfile> legacy = profileRepository.findByAppUserIsNullOrderByLastAccessedAtDesc();
                 if (!legacy.isEmpty()) {
-                    // Adopt legacy profiles for this user
-                    for (UserProfile p : legacy) {
-                        p.setAppUser(currentUser.get());
-                        profileRepository.save(p);
-                    }
-                    profiles = profileRepository.findByAppUserOrderByLastAccessedAtDesc(currentUser.get());
+                    // Leave legacy profiles un-owned for now; they are visible to all users
+                    // until identity migration is complete.
+                    profiles = legacy;
                 }
             }
             if (profiles.isEmpty()) {
@@ -346,17 +347,18 @@ public class MainDashboardController implements Initializable {
 
     private UserProfile createProfile(String name, String color, ProfileAssetFocus focus) {
         // ── findOrCreate: avoid duplicate key on re-login ──────────────────────────
-        // Check if a profile with this name already exists for the current user
-        java.util.Optional<AppUser> curUser =
-                authService.currentUser();
-        if (curUser.isPresent()) {
+        // authService.currentUser() returns SessionUser (id + username, no JPA entity).
+        java.util.Optional<SessionUser> curSession = authService.currentUser();
+        Long curUserId = curSession.map(SessionUser::userId).orElse(null);
+        String curUsername = curSession.map(SessionUser::username).orElse(null);
+
+        if (curUserId != null) {
             java.util.Optional<UserProfile> existing =
-                    profileRepository.findByAppUserAndName(curUser.get(), name);
+                    profileRepository.findByAppUserIdAndName(curUserId, name);
             if (existing.isPresent()) {
-                return existing.get(); // already exists — return it, do NOT insert again
+                return existing.get();
             }
         } else {
-            // No logged-in user (unlikely); check by name globally
             java.util.Optional<UserProfile> existing = profileRepository.findByName(name);
             if (existing.isPresent()) {
                 return existing.get();
@@ -366,12 +368,11 @@ public class MainDashboardController implements Initializable {
         // If name exists globally but belongs to another user, disambiguate
         String safeName;
         if (profileRepository.existsByName(name)) {
-            String userTag = curUser.map(u -> "_" + u.getUsername()).orElse("_u");
+            String userTag = curUsername != null ? "_" + curUsername : "_u";
             safeName = name + userTag;
-            // Re-check the disambiguated name for the current user
-            if (curUser.isPresent()) {
+            if (curUserId != null) {
                 java.util.Optional<UserProfile> existing2 =
-                        profileRepository.findByAppUserAndName(curUser.get(), safeName);
+                        profileRepository.findByAppUserIdAndName(curUserId, safeName);
                 if (existing2.isPresent()) return existing2.get();
             }
         } else {
@@ -387,15 +388,15 @@ public class MainDashboardController implements Initializable {
                 .fundamentalProvider("AUTO")
                 .createdAt(LocalDateTime.now())
                 .lastAccessedAt(LocalDateTime.now());
-        // Link to the currently logged-in user
-        curUser.ifPresent(builder::appUser);
+        // Note: appUser JPA link is not set here because we no longer have the AppUser
+        // entity in the thin-client auth flow.  Profiles will be orphaned (appUser=null)
+        // until the profile-service migration step replaces this JPA code with an API call.
         UserProfile p;
         try {
             p = profileRepository.save(builder.build());
         } catch (org.springframework.dao.DataIntegrityViolationException dup) {
-            // Race condition — another thread/session created this profile; load it
-            if (curUser.isPresent()) {
-                p = profileRepository.findByAppUserAndName(curUser.get(), safeName)
+            if (curUserId != null) {
+                p = profileRepository.findByAppUserIdAndName(curUserId, safeName)
                         .or(() -> profileRepository.findByName(safeName))
                         .orElseThrow(() -> dup);
             } else {
@@ -714,7 +715,7 @@ public class MainDashboardController implements Initializable {
                 var wc2 = fxWeaver.load(TradeEntryController.class);
                 tradeEntryView = asParent(wc2.getView().orElseThrow());
                 tradeEntryCtrl = wc2.getController();
-                tradeEntryCtrl.setOnSaveCallback(saved -> {
+                tradeEntryCtrl.setOnSaveCallback((TradeApiClient.TradeResponse saved) -> {
                     if (dashboardCtrl != null && activeProfile != null)
                         dashboardCtrl.loadProfile(activeProfile);
                     onNavTrades(); // refresh journal after edit
@@ -783,7 +784,7 @@ public class MainDashboardController implements Initializable {
             var wc = fxWeaver.load(TradeEntryController.class);
             tradeEntryView = asParent(wc.getView().orElseThrow());
             tradeEntryCtrl = wc.getController();
-            tradeEntryCtrl.setOnSaveCallback(saved -> {
+            tradeEntryCtrl.setOnSaveCallback((TradeApiClient.TradeResponse saved) -> {
                 if (dashboardCtrl != null && activeProfile != null)
                     dashboardCtrl.loadProfile(activeProfile);
                 onNavTrades();
@@ -799,7 +800,7 @@ public class MainDashboardController implements Initializable {
         if (tradeEntryCtrl == null) {
             var wc = fxWeaver.load(TradeEntryController.class);
             tradeEntryCtrl = wc.getController();
-            tradeEntryCtrl.setOnSaveCallback(saved -> {
+            tradeEntryCtrl.setOnSaveCallback((TradeApiClient.TradeResponse saved) -> {
                 if (dashboardCtrl != null && activeProfile != null)
                     dashboardCtrl.loadProfile(activeProfile);
             });
@@ -823,7 +824,7 @@ public class MainDashboardController implements Initializable {
             var wc = fxWeaver.load(TradeEntryController.class);
             tradeEntryView = asParent(wc.getView().orElseThrow());
             tradeEntryCtrl = wc.getController();
-            tradeEntryCtrl.setOnSaveCallback(saved -> {
+            tradeEntryCtrl.setOnSaveCallback((TradeApiClient.TradeResponse saved) -> {
                 // After save: refresh journal view so new/edited trade appears
                 if (dashboardCtrl != null && activeProfile != null)
                     dashboardCtrl.loadProfile(activeProfile);

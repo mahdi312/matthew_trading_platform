@@ -1,6 +1,5 @@
 package com.mst.matt.tradingplatformapp.controller;
 
-import com.mst.matt.tradingplatformapp.model.AppUser.Role;
 import com.mst.matt.tradingplatformapp.service.auth.AuthService;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
@@ -17,7 +16,11 @@ import java.util.ResourceBundle;
 
 /**
  * Registration screen controller.
- * New self-registered users always get REGULAR_USER role.
+ *
+ * <h3>Phase 2, Step 12 — identity domain</h3>
+ * <p>Registration is now delegated to {@code identity-service} through the
+ * Gateway via {@link AuthService#register}.  New self-registered users always
+ * receive the {@code REGULAR_USER} role (enforced server-side as well).</p>
  */
 @Component
 @FxmlView("/fxml/RegisterView.fxml")
@@ -52,16 +55,19 @@ public class RegisterController implements Initializable {
         String password    = passwordField.getText() == null ? "" : passwordField.getText();
         String confirm     = confirmPasswordField.getText() == null ? "" : confirmPasswordField.getText();
 
-        if (username.isEmpty()) { showError("Username is required."); return; }
-        if (username.length() < 3) { showError("Username must be at least 3 characters."); return; }
-        if (password.length() < 6) { showError("Password must be at least 6 characters."); return; }
-        if (!password.equals(confirm)) { showError("Passwords do not match."); return; }
+        if (username.isEmpty())           { showError("Username is required.");                    return; }
+        if (username.length() < 3)        { showError("Username must be at least 3 characters."); return; }
+        if (password.length() < 6)        { showError("Password must be at least 6 characters."); return; }
+        if (!password.equals(confirm))    { showError("Passwords do not match.");                 return; }
 
         Thread.ofVirtual().start(() -> {
             try {
-                authService.register(username, password,
+                // Role is always REGULAR_USER for self-registration.
+                // identity-service also enforces this server-side.
+                authService.register(
+                        username, password,
                         displayName.isEmpty() ? username : displayName,
-                        Role.REGULAR_USER);
+                        "REGULAR_USER");
                 Platform.runLater(() -> {
                     hideError();
                     if (onRegistered != null) onRegistered.run();
@@ -93,9 +99,9 @@ public class RegisterController implements Initializable {
 
     /** Reset form state. */
     public void reset() {
-        if (usernameField      != null) usernameField.clear();
-        if (displayNameField   != null) displayNameField.clear();
-        if (passwordField      != null) passwordField.clear();
+        if (usernameField        != null) usernameField.clear();
+        if (displayNameField     != null) displayNameField.clear();
+        if (passwordField        != null) passwordField.clear();
         if (confirmPasswordField != null) confirmPasswordField.clear();
         hideError();
     }

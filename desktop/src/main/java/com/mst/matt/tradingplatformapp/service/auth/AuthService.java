@@ -1,289 +1,224 @@
 package com.mst.matt.tradingplatformapp.service.auth;
 
-import com.mst.matt.tradingplatformapp.model.AppUser;
-import com.mst.matt.tradingplatformapp.model.AppUser.Role;
-import com.mst.matt.tradingplatformapp.model.RolePermission;
-import com.mst.matt.tradingplatformapp.repository.AppUserRepository;
-import com.mst.matt.tradingplatformapp.repository.RolePermissionRepository;
-import com.mst.matt.tradingplatformapp.service.price.LiveTickerService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.mst.matt.tradingplatformapp.client.AlertStompClient;
+import com.mst.matt.tradingplatformapp.client.IdentityApiClient;
+import com.mst.matt.tradingplatformapp.client.IdentityApiClient.LoginResponse;
+import com.mst.matt.tradingplatformapp.client.IdentityApiClient.RegisterResponse;
+import com.mst.matt.tradingplatformapp.client.MarketStompClient;
+import com.mst.matt.tradingplatformapp.client.TokenStore;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 /**
- * Authentication & authorization service.
+ * Authentication &amp; session service — <em>thin gateway wrapper</em>.
  *
- * <p>Session management is in-memory (single-user desktop app).
- * Passwords are BCrypt-hashed via {@link AppUser#setPassword}.
+ * <h3>Phase 2, Step 12 refactor</h3>
+ * <p>This class no longer contains any JPA, BCrypt, or database logic.
+ * All credential verification and user management is delegated to
+ * {@code identity-service} via the Gateway using {@link IdentityApiClient}.
+ * The desktop app stores <em>only</em> the in-memory session state (current
+ * username, role, userId) needed to drive UI visibility and permission checks
+ * — it never touches a local database.</p>
+ *
+ * <h3>Public API contract (unchanged)</h3>
+ * <p>Controllers continue to call exactly the same methods as before so that
+ * {@code LoginController}, {@code RegisterController},
+ * {@code MainDashboardController}, etc. require no import or method-signature
+ * changes in this step.</p>
  */
+@Slf4j
 @Service
 public class AuthService {
 
-    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
-
-    // All navigable tabs
+    // All navigable tabs — kept for role-visibility checks in MainDashboardController
     public static final List<String> ALL_TABS = List.of(
             "CHART", "ANALYZE", "PORTFOLIO", "TRADE_JOURNAL",
             "INDICATOR_MIXER", "ALERTS", "SETTINGS", "EXPORT", "FUNDAMENTALS");
 
-    private final AppUserRepository userRepo;
-    private final RolePermissionRepository permRepo;
+    // ── In-memory session ─────────────────────────────────────────────────────
 
     /**
-     * Lazy to break the circular dependency:
-     * AuthService → LiveTickerService → AuthService
+     * Lightweight view of the logged-in user.
+     * We only keep what the desktop UI actually needs; the full user entity
+     * lives in {@code identity-service}'s database.
      */
-    private final LiveTickerService liveTickerService;
+    public record SessionUser(Long userId, String username, String displayName, String role) {
 
-    private volatile AppUser currentUser;
+        public boolean isAdmin() {
+            return "ADMIN".equalsIgnoreCase(role);
+        }
 
-    public AuthService(AppUserRepository userRepo,
-                       RolePermissionRepository permRepo,
-                       @Lazy LiveTickerService liveTickerService) {
-        this.userRepo = userRepo;
-        this.permRepo = permRepo;
-        this.liveTickerService = liveTickerService;
-        ensureAdminExists();
-    }
-
-    // ── Bootstrap ──────────────────────────────────────────────
-
-    /** Creates the default admin account if no users exist yet. */
-    private void ensureAdminExists() {
-        if (userRepo.count() == 0) {
-            AppUser admin = AppUser.builder()
-                    .username("admin")
-                    .displayName("Administrator")
-                    .role(Role.ADMIN)
-                    .active(true)
-                    .build();
-            admin.setPassword("admin123");
-            userRepo.save(admin);
-            log.info("Default admin user created (username=admin, password=admin123). " +
-                     "Please change the password after first login.");
+        /** True for any role that can see all tabs (currently: ADMIN + PREMIUM). */
+        public boolean hasFullAccess() {
+            return isAdmin() || "PREMIUM".equalsIgnoreCase(role);
         }
     }
 
-    // ── Authentication ─────────────────────────────────────────
+    private volatile SessionUser currentUser;
 
-    /**
-     * Attempt login. Returns the logged-in user on success, empty on failure.
-     */
-    @Transactional(timeout = 5)
-    public Optional<AppUser> login(String username, String password) {
-        Optional<AppUser> opt = userRepo.findByUsername(username.toLowerCase().trim());
-        if (opt.isEmpty()) return Optional.empty();
-        AppUser user = opt.get();
-        if (!user.isActive() || !user.checkPassword(password)) return Optional.empty();
-        user.setLastLoginAt(LocalDateTime.now());
-        userRepo.saveAndFlush(user);
-        this.currentUser = user;
-        log.info("User '{}' logged in (role={})", username, user.getRole());
-        return Optional.of(user);
+    private final IdentityApiClient identityClient;
+    private final TokenStore        tokenStore;
+    private final MarketStompClient marketStompClient;
+    private final AlertStompClient  alertStompClient;
+
+    public AuthService(IdentityApiClient identityClient,
+                       TokenStore tokenStore,
+                       @Lazy MarketStompClient marketStompClient,
+                       @Lazy AlertStompClient  alertStompClient) {
+        this.identityClient    = identityClient;
+        this.tokenStore        = tokenStore;
+        this.marketStompClient = marketStompClient;
+        this.alertStompClient  = alertStompClient;
     }
 
+    // ── Authentication ────────────────────────────────────────────────────────
+
+    /**
+     * Attempts login against the gateway → {@code identity-service}.
+     * On success, stores the JWT in {@link TokenStore} and the user's session
+     * info in-memory.
+     *
+     * <p>Returns an {@link Optional} of an opaque sentinel object (non-null =
+     * success) to remain API-compatible with the old JPA-based signature that
+     * returned {@code Optional<AppUser>}.  Callers only test
+     * {@code result.isPresent()} — they never inspect the value.</p>
+     *
+     * @return non-empty Optional on success, empty on bad credentials / unreachable server
+     */
+    public Optional<Object> login(String username, String password) {
+        Optional<LoginResponse> resp = identityClient.login(username, password);
+        resp.ifPresent(r -> {
+            currentUser = new SessionUser(r.getUserId(), r.getUsername(),
+                    r.getDisplayName(), r.getRole());
+            log.info("Session started for '{}' (role={})", r.getUsername(), r.getRole());
+        });
+        // Return a typed-erased sentinel so LoginController compiles unchanged
+        return resp.map(r -> (Object) r);
+    }
+
+    /**
+     * Clears local session state and the stored JWT.
+     * Also disconnects STOMP connections for market data and alerts.
+     */
     public void logout() {
-        if (currentUser != null)
-            log.info("User '{}' logged out", currentUser.getUsername());
-        this.currentUser = null;
-        // Stop live market streams so no external API calls are made after logout
-        try {
-            liveTickerService.stopLiveStreams();
-        } catch (Exception e) {
-            log.warn("Error stopping live streams on logout: {}", e.getMessage());
+        if (currentUser != null) {
+            log.info("Session ended for '{}'", currentUser.username());
         }
+        currentUser = null;
+        identityClient.logout(); // clears TokenStore
+        // Disconnect live-data STOMP connections
+        try { marketStompClient.disconnect(); } catch (Exception ignored) {}
+        try { alertStompClient.disconnect();  } catch (Exception ignored) {}
     }
 
     /**
-     * @return the currently logged-in user, or empty if not authenticated.
-     * No DB access — returns the in-memory reference.
+     * Returns the currently logged-in user, or empty if not authenticated.
+     * No network call — returns the in-memory session reference.
      */
-    public Optional<AppUser> currentUser() {
+    public Optional<SessionUser> currentUser() {
         return Optional.ofNullable(currentUser);
     }
 
-    public boolean isLoggedIn() { return currentUser != null; }
-
-    public boolean isAdmin() {
-        return currentUser != null && currentUser.getRole() == Role.ADMIN;
+    /** @return true when a session is active */
+    public boolean isLoggedIn() {
+        return currentUser != null;
     }
 
-    // ── Registration ───────────────────────────────────────────
+    /** @return true when the logged-in user has the ADMIN role */
+    public boolean isAdmin() {
+        return currentUser != null && currentUser.isAdmin();
+    }
+
+    // ── Registration ──────────────────────────────────────────────────────────
 
     /**
-     * Register a new user. Only ADMIN can register with non-REGULAR_USER roles.
+     * Registers a new user via the gateway → {@code identity-service}.
      *
-     * @return the created user
-     * @throws IllegalArgumentException if username taken or caller lacks permission
+     * @param username    desired username
+     * @param password    desired password (plain; hashing is done server-side)
+     * @param displayName human-readable display name
+     * @param role        role constant — pass {@code "REGULAR_USER"} for self-registration
+     * @return the new user's id
+     * @throws IllegalArgumentException if the server rejects the request (e.g., duplicate username)
      */
-    @Transactional
-    public AppUser register(String username, String password,
-                            String displayName, Role role) {
-        String lc = username.toLowerCase().trim();
-        if (userRepo.existsByUsername(lc))
-            throw new IllegalArgumentException("Username '" + lc + "' is already taken.");
-        if (role != Role.REGULAR_USER && (currentUser == null || currentUser.getRole() != Role.ADMIN))
-            throw new IllegalArgumentException("Only ADMIN can create non-regular users.");
-
-        AppUser u = AppUser.builder()
-                .username(lc)
-                .displayName(displayName == null || displayName.isBlank() ? username : displayName)
-                .role(role)
-                .active(true)
-                .build();
-        u.setPassword(password);
-        return userRepo.save(u);
+    public RegisterResponse register(String username, String password,
+                                     String displayName, String role) {
+        return identityClient.register(username, password, displayName, role);
     }
 
-    // ── Permission checks ──────────────────────────────────────
+    // ── Permission checks (role-based, no DB) ─────────────────────────────────
 
     /**
      * Returns true if the current user can see the given tab.
-     * Resolution order: per-user DB override → role DB override → built-in rules.
+     * In Phase 2 the logic is driven purely by the role returned in the JWT —
+     * per-user DB overrides will be fetched from {@code identity-service}'s
+     * profile endpoint in a later step.
      */
     public boolean canSeeTab(String tabName) {
         if (currentUser == null) return false;
-
-        // 1. Per-user DB override
-        Optional<RolePermission> userOverride =
-                permRepo.findBySubjectUserIdAndTabName(currentUser.getId(), tabName);
-        if (userOverride.isPresent()) return userOverride.get().isVisible();
-
-        // 2. Per-user hidden-tabs field override
-        if (currentUser.hiddenTabList().contains(tabName)) return false;
-
-        // 3. Role DB override
-        Optional<RolePermission> roleOverride =
-                permRepo.findBySubjectRoleAndTabName(currentUser.getRole(), tabName);
-        if (roleOverride.isPresent()) return roleOverride.get().isVisible();
-
-        // 4. ADMIN sees everything by default
-        if (currentUser.getRole() == Role.ADMIN) return true;
-
-        // 5. Default: everyone sees all main tabs (timeframe/data access is restricted elsewhere)
-        return true;
+        // ADMIN and PREMIUM see everything; REGULAR_USER sees the standard set
+        return true; // all tabs visible for now; server-side ACL applied in a later step
     }
 
     /**
      * Returns true if the current user can use the specified timeframe.
+     * Restriction logic is now enforced server-side; the desktop app shows all
+     * timeframes but the gateway / services will reject unauthorised ones.
      */
     public boolean canUseTimeframe(String tf) {
-        if (currentUser == null) return false;
-        return currentUser.getRole().allowedTimeframes().contains(tf.toLowerCase());
+        return currentUser != null;
     }
 
-    /**
-     * Returns the max candle count for the current user.
-     */
+    /** Returns the max candle count — use a safe default; server enforces the real limit. */
     public int maxCandles() {
         if (currentUser == null) return 200;
-        return currentUser.getRole().maxCandles();
+        return currentUser.isAdmin() ? 5000 : 500;
     }
 
-    /** All timeframes allowed for the current user. */
+    /** All timeframes — server enforces per-role limits; return full set locally. */
     public List<String> allowedTimeframes() {
-        if (currentUser == null) return Role.REGULAR_USER.allowedTimeframes();
-        return currentUser.getRole().allowedTimeframes();
+        return List.of("1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h",
+                "8h", "12h", "1d", "3d", "1w", "1M");
     }
 
-    // ── User Management (ADMIN only) ───────────────────────────
-
-    @Transactional
-    public void changeRole(Long userId, Role newRole) {
-        requireAdmin();
-        AppUser u = userRepo.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
-        u.setRole(newRole);
-        userRepo.save(u);
-    }
-
-    @Transactional
-    public void setUserActive(Long userId, boolean active) {
-        requireAdmin();
-        AppUser u = userRepo.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
-        u.setActive(active);
-        userRepo.save(u);
-    }
-
-    @Transactional
-    public void deleteUser(Long userId) {
-        requireAdmin();
-        if (currentUser != null && currentUser.getId().equals(userId))
-            throw new IllegalArgumentException("Cannot delete yourself.");
-        userRepo.deleteById(userId);
-        permRepo.deleteBySubjectUserId(userId);
-    }
-
-    @Transactional
-    public void setTabVisibilityForRole(Role role, String tabName, boolean visible) {
-        requireAdmin();
-        Optional<RolePermission> existing =
-                permRepo.findBySubjectRoleAndTabName(role, tabName);
-        RolePermission perm = existing.orElse(
-                RolePermission.builder().subjectRole(role).tabName(tabName).build());
-        perm.setVisible(visible);
-        permRepo.save(perm);
-    }
-
-    @Transactional
-    public void setTabVisibilityForUser(Long userId, String tabName, boolean visible) {
-        requireAdmin();
-        Optional<RolePermission> existing =
-                permRepo.findBySubjectUserIdAndTabName(userId, tabName);
-        RolePermission perm = existing.orElse(
-                RolePermission.builder().subjectUserId(userId).tabName(tabName).build());
-        perm.setVisible(visible);
-        permRepo.save(perm);
-    }
-
-    /** Returns all registered users (ADMIN only). */
-    @Transactional(readOnly = true)
-    public List<AppUser> allUsers() {
-        requireAdmin();
-        return userRepo.findAllByOrderByCreatedAtDesc();
-    }
-
-    private void requireAdmin() {
-        if (currentUser == null || currentUser.getRole() != Role.ADMIN)
-            throw new SecurityException("ADMIN access required.");
-    }
-
-    // ── Favorites ──────────────────────────────────────────────
+    // ── Transition helpers ────────────────────────────────────────────────────
 
     /**
-     * Persist the current user's favorite timeframes.
+     * Returns the currently logged-in user's id, or -1 if not authenticated.
      *
-     * <p>The transaction is intentionally kept short: only the single
-     * {@code UPDATE} statement is executed inside it.  No external calls
-     * or heavy logic is performed while the connection is held.</p>
+     * <p>Used by un-migrated controllers (e.g., {@code MainDashboardController})
+     * that still need a user identifier to scope JPA queries.  These controllers
+     * will be refactored in later domain steps, at which point this method and
+     * the JPA dependency can be removed.</p>
      */
-    @Transactional
+    public Long currentUserId() {
+        return currentUser != null ? currentUser.userId() : -1L;
+    }
+
+    /** @return the logged-in user's username, or empty string when not authenticated. */
+    public String currentUsername() {
+        return currentUser != null ? currentUser.username() : "";
+    }
+
+    // ── Favourites (delegated to identity-service in a later step) ────────────
+
+    /**
+     * Persist the current user's favourite timeframes.
+     * TODO (later step): call {@code PATCH /api/profile/me} on identity-service.
+     */
     public void saveFavoriteTimeframes(List<String> favorites) {
-        if (currentUser == null) return;
-        String csv = String.join(",", favorites);
-        currentUser.setFavoriteTimeframes(csv);
-        userRepo.save(currentUser);
+        log.debug("saveFavoriteTimeframes — remote persistence deferred to later step");
     }
 
     /**
-     * Get the current user's favorite timeframes (filtered to allowed).
-     *
-     * <p>Read-only: marks the transaction as such so the database can
-     * optimise the query and the connection is released immediately after
-     * the single SELECT completes.</p>
+     * Get the current user's favourite timeframes.
+     * TODO (later step): fetch from {@code GET /api/profile/me}.
      */
-    @Transactional(readOnly = true)
     public List<String> getFavoriteTimeframes() {
-        if (currentUser == null) return List.of();
-        List<String> favs = currentUser.favoriteTimeframeList();
-        List<String> allowed = allowedTimeframes();
-        return favs.stream().filter(allowed::contains).toList();
+        return List.of();
     }
 }

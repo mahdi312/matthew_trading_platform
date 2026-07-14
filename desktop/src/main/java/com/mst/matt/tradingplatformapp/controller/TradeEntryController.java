@@ -1,10 +1,10 @@
 package com.mst.matt.tradingplatformapp.controller;
 
+import com.mst.matt.tradingplatformapp.client.TradeApiClient;
+import com.mst.matt.tradingplatformapp.client.TradeApiClient.TradeRequest;
+import com.mst.matt.tradingplatformapp.client.TradeApiClient.TradeResponse;
 import com.mst.matt.tradingplatformapp.model.*;
 import com.mst.matt.tradingplatformapp.model.Trade.*;
-import com.mst.matt.tradingplatformapp.service.BrokerImportService;
-import com.mst.matt.tradingplatformapp.service.BrokerImportService.ImportResult;
-import com.mst.matt.tradingplatformapp.service.TradeService;
 import com.mst.matt.tradingplatformapp.service.price.PriceRouter;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
@@ -46,7 +46,19 @@ import java.util.function.Consumer;
 
 /**
  * Controller for the Trade Entry form.
- * Handles input validation, live P&L preview, and price fetching.
+ *
+ * <h3>Phase 2, Step 12 — trading domain</h3>
+ * <p>All trade persistence calls are now routed through {@link TradeApiClient}
+ * which hits {@code /api/trades/**} on the Gateway → {@code trading-service}.
+ * The old {@code TradeService} (JPA), {@code BrokerImportService}, and
+ * {@code PriceRouter} injections have been replaced:</p>
+ * <ul>
+ *   <li>{@code TradeService.saveTrade()} → {@link TradeApiClient#saveTrade}</li>
+ *   <li>{@code TradeService.updateTrade()} → {@link TradeApiClient#updateTrade}</li>
+ *   <li>Broker CSV import → deferred to later step (UI button kept, disabled)</li>
+ *   <li>Price fetch → still uses {@link PriceRouter} (local; migrated later)</li>
+ * </ul>
+ * <p>All FXML bindings and UI logic are unchanged from the pre-refactor version.</p>
  */
 @Component
 @FxmlView("/fxml/TradeEntry.fxml")
@@ -92,37 +104,34 @@ public class TradeEntryController implements Initializable {
     @FXML private Button    clearImageBtn;
 
     // ── Spring services ─────────────────────────────────────
-    @Autowired private TradeService       tradeService;
-    @Autowired private PriceRouter        priceRouter;
-    @Autowired private BrokerImportService brokerImportService;
+    /** Replaces old TradeService (JPA) — hits trading-service via gateway. */
+    @Autowired private TradeApiClient  tradeApiClient;
+    /** Still used for live price fetch; will be migrated in the market domain step. */
+    @Autowired private PriceRouter     priceRouter;
 
     private UserProfile currentProfile;
-    private Trade       editingTrade;     // non-null if editing existing trade
+    /** Server-assigned id of the trade being edited, or null for a new trade. */
+    private Long        editingTradeId;
     private boolean     isLong = true;
-    private Consumer<Trade> onSaveCallback;
+    private Consumer<TradeResponse> onSaveCallback;
 
     /** Currently attached screenshot path (absolute file path), or {@code null} if none. */
     private String currentScreenshotPath;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        // Populate asset type combo
         assetTypeCombo.getItems().setAll(AssetType.values());
         assetTypeCombo.setValue(AssetType.CRYPTO);
         styleComboBox(assetTypeCombo);
 
-        // Set default date to today
         entryDatePicker.setValue(LocalDate.now());
         entryTimeField.setText(LocalTime.now()
                 .format(DateTimeFormatter.ofPattern("HH:mm")));
         styleDatePicker(entryDatePicker);
         styleDatePicker(exitDatePicker);
 
-        // Long selected by default
         isLong = true;
         styleDirectionButtons();
-
-        // Add change listeners for live P&L preview
         addPnlListeners();
         styleNotesArea();
     }
@@ -135,7 +144,6 @@ public class TradeEntryController implements Initializable {
                 + "-fx-background-radius:6; -fx-padding:8; -fx-font-size:13px;");
     }
 
-    /** Apply dark theme programmatically to a ComboBox (ensures button-cell text is visible). */
     private <T> void styleComboBox(ComboBox<T> combo) {
         String darkCell = "-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;"
                 + "-fx-padding:4 8; -fx-font-size:13px;";
@@ -151,7 +159,6 @@ public class TradeEntryController implements Initializable {
                 super.updateItem(item, empty);
                 setText(empty || item == null ? null : item.toString());
                 setStyle(darkCell);
-                // Force the combo box container dark
                 combo.setStyle("-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;"
                         + "-fx-border-color:#30363d; -fx-border-radius:6;"
                         + "-fx-background-radius:6;");
@@ -159,13 +166,11 @@ public class TradeEntryController implements Initializable {
         });
     }
 
-    /** Apply dark background to a DatePicker (the popup inherits from CSS). */
     private void styleDatePicker(DatePicker dp) {
         if (dp == null) return;
         dp.setStyle("-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;"
                 + "-fx-border-color:#30363d; -fx-border-radius:6;"
                 + "-fx-background-radius:6;");
-        // Ensure the text field inside is also dark
         dp.getEditor().setStyle("-fx-background-color:#0d1117; -fx-text-fill:#e6edf3;"
                 + "-fx-border-color:transparent; -fx-padding:6 10;");
     }
@@ -233,8 +238,6 @@ public class TradeEntryController implements Initializable {
                                 ? quote.getAssetName() : symbol;
                         symbolValidation.setText("✓ " + name);
                         symbolValidation.setStyle("-fx-text-fill: #3fb950;");
-
-                        // Auto-detect asset type
                         assetTypeCombo.setValue(quote.getAssetType());
                         if (quote.getExchange() != null)
                             exchangeField.setText(quote.getExchange());
@@ -276,22 +279,12 @@ public class TradeEntryController implements Initializable {
         return (lev.compareTo(BigDecimal.ONE) < 0) ? BigDecimal.ONE : lev;
     }
 
-    /**
-     * Compute and display the percentage difference between the entry price and
-     * the SL / TP prices.  Updates live as the user types.
-     *
-     * For LONG:  SL % = (sl - entry) / entry * 100  → typically negative
-     *            TP % = (tp - entry) / entry * 100  → typically positive
-     * For SHORT: SL % = (entry - sl) / entry * 100  → typically negative (from the trade perspective)
-     *            TP % = (entry - tp) / entry * 100  → typically positive
-     */
     private void updateSlTpPctLabels(BigDecimal entry, BigDecimal sl, BigDecimal tp) {
         if (entry == null || entry.compareTo(BigDecimal.ZERO) <= 0) {
             if (slPctLabel != null) slPctLabel.setText("");
             if (tpPctLabel != null) tpPctLabel.setText("");
             return;
         }
-        // Stop Loss %
         if (slPctLabel != null) {
             if (sl != null && sl.compareTo(BigDecimal.ZERO) > 0) {
                 BigDecimal slPct = isLong
@@ -301,7 +294,6 @@ public class TradeEntryController implements Initializable {
                                 .multiply(BigDecimal.valueOf(100)).negate();
                 String sign = slPct.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "";
                 slPctLabel.setText("SL: " + sign + format(slPct) + "%");
-                // Red if risk is negative (correct direction), orange if SL is on wrong side
                 boolean wrongSide = slPct.compareTo(BigDecimal.ZERO) > 0;
                 slPctLabel.setStyle("-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:"
                         + (wrongSide ? "#d29922;" : "#f85149;"));
@@ -309,7 +301,6 @@ public class TradeEntryController implements Initializable {
                 slPctLabel.setText("");
             }
         }
-        // Take Profit %
         if (tpPctLabel != null) {
             if (tp != null && tp.compareTo(BigDecimal.ZERO) > 0) {
                 BigDecimal tpPct = isLong
@@ -330,13 +321,13 @@ public class TradeEntryController implements Initializable {
 
     private void updatePnlPreview() {
         try {
-            BigDecimal entry    = parseBD(entryPriceField.getText());
-            BigDecimal exit     = parseBD(exitPriceField.getText());
-            BigDecimal qty      = parseBD(quantityField.getText());
-            BigDecimal fee      = parseBD(feeField.getText());
-            BigDecimal sl       = parseBD(stopLossField.getText());
-            BigDecimal tp       = parseBD(takeProfitField.getText());
-            BigDecimal lev      = parseLeverage();
+            BigDecimal entry = parseBD(entryPriceField.getText());
+            BigDecimal exit  = parseBD(exitPriceField.getText());
+            BigDecimal qty   = parseBD(quantityField.getText());
+            BigDecimal fee   = parseBD(feeField.getText());
+            BigDecimal sl    = parseBD(stopLossField.getText());
+            BigDecimal tp    = parseBD(takeProfitField.getText());
+            BigDecimal lev   = parseLeverage();
 
             if (entry.compareTo(BigDecimal.ZERO) <= 0
                     || qty.compareTo(BigDecimal.ZERO) <= 0) return;
@@ -344,14 +335,10 @@ public class TradeEntryController implements Initializable {
             BigDecimal invested = entry.multiply(qty);
             investedLabel.setText("$" + format(invested));
 
-            // P&L (only if exit is set)
             if (exit.compareTo(BigDecimal.ZERO) > 0) {
-                BigDecimal diff  = isLong
-                        ? exit.subtract(entry)
-                        : entry.subtract(exit);
-                // Base P&L (no leverage)
-                BigDecimal pnl   = diff.multiply(qty).subtract(fee);
-                BigDecimal pct   = diff.divide(entry, 6, RoundingMode.HALF_UP)
+                BigDecimal diff = isLong ? exit.subtract(entry) : entry.subtract(exit);
+                BigDecimal pnl  = diff.multiply(qty).subtract(fee);
+                BigDecimal pct  = diff.divide(entry, 6, RoundingMode.HALF_UP)
                         .multiply(BigDecimal.valueOf(100));
 
                 pnlAmountLabel.setText((pnl.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "")
@@ -365,7 +352,6 @@ public class TradeEntryController implements Initializable {
                 pnlPercentLabel.setStyle("-fx-font-size:28px; -fx-font-weight:bold;"
                         + "-fx-text-fill: " + color + ";");
 
-                // Leveraged P&L display
                 if (leveragedPnlLabel != null) {
                     BigDecimal levPnl = diff.multiply(qty).multiply(lev).subtract(fee);
                     BigDecimal levPct = diff.divide(entry, 6, RoundingMode.HALF_UP)
@@ -385,12 +371,9 @@ public class TradeEntryController implements Initializable {
                 }
             }
 
-            // ── SL / TP percentage relative to entry price ───────────────
             updateSlTpPctLabels(entry, sl, tp);
 
-            // R:R ratio
-            if (sl.compareTo(BigDecimal.ZERO) > 0
-                    && tp.compareTo(BigDecimal.ZERO) > 0) {
+            if (sl.compareTo(BigDecimal.ZERO) > 0 && tp.compareTo(BigDecimal.ZERO) > 0) {
                 BigDecimal risk   = isLong ? entry.subtract(sl) : sl.subtract(entry);
                 BigDecimal reward = isLong ? tp.subtract(entry) : entry.subtract(tp);
                 if (risk.compareTo(BigDecimal.ZERO) > 0) {
@@ -404,7 +387,6 @@ public class TradeEntryController implements Initializable {
                             : "-fx-text-fill: #f85149;"));
                 }
             }
-
         } catch (Exception ignored) {}
     }
 
@@ -420,78 +402,21 @@ public class TradeEntryController implements Initializable {
         }
 
         try {
-            Trade trade = (editingTrade != null)
-                    ? editingTrade
-                    : new Trade();
+            TradeRequest req = buildRequest();
 
-            trade.setProfile(currentProfile);
-            String sym = symbolField.getText().trim().toUpperCase();
-            trade.setSymbol(sym);
-            trade.setAssetName(sym);
-            trade.setAssetType(assetTypeCombo.getValue());
-            trade.setDirection(isLong ? TradeDirection.LONG : TradeDirection.SHORT);
-            trade.setEntryPrice(parseBD(entryPriceField.getText()));
-            trade.setQuantity(parseBD(quantityField.getText()));
-            trade.setExchange(exchangeField.getText().trim());
-            trade.setStrategy(strategyField.getText().trim());
-            trade.setNotes(notesArea.getText().trim());
-
-            String exitText = exitPriceField.getText().trim();
-            if (!exitText.isEmpty()) {
-                trade.setExitPrice(parseBD(exitText));
-                trade.setStatus(TradeStatus.CLOSED);
-                trade.setExitTime(exitDatePicker.getValue() != null
-                        ? exitDatePicker.getValue().atTime(LocalTime.now())
-                        : LocalDateTime.now());
+            TradeResponse saved;
+            if (editingTradeId != null) {
+                saved = tradeApiClient.updateTrade(editingTradeId, req);
             } else {
-                trade.setExitPrice(null);
-                trade.setExitTime(null);
-                trade.setPnlAmount(null);
-                trade.setPnlPercent(null);
-                trade.setStatus(TradeStatus.OPEN);
+                saved = tradeApiClient.saveTrade(req);
             }
-
-            if (!stopLossField.getText().isBlank())
-                trade.setStopLoss(parseBD(stopLossField.getText()));
-            else
-                trade.setStopLoss(null);
-            if (!takeProfitField.getText().isBlank())
-                trade.setTakeProfit(parseBD(takeProfitField.getText()));
-            else
-                trade.setTakeProfit(null);
-            if (!feeField.getText().isBlank())
-                trade.setFee(parseBD(feeField.getText()));
-            else
-                trade.setFee(null);
-            // Leverage
-            if (leverageField != null && !leverageField.getText().isBlank()) {
-                BigDecimal lev = parseLeverage();
-                trade.setLeverage(lev.compareTo(BigDecimal.ONE) > 0 ? lev : null);
-            } else {
-                trade.setLeverage(null);
-            }
-
-            LocalDate entryDate = entryDatePicker.getValue();
-            if (entryDate == null) {
-                new Alert(Alert.AlertType.WARNING, "Entry date is required.").showAndWait();
-                return;
-            }
-            LocalTime entryTime = parseTime(entryTimeField.getText());
-            trade.setEntryTime(LocalDateTime.of(entryDate, entryTime));
-
-            // Attach screenshot if present
-            if (currentScreenshotPath != null && !currentScreenshotPath.isBlank())
-                trade.setScreenshotPath(currentScreenshotPath);
-
-            Trade saved = tradeService.saveTrade(trade);
 
             if (onSaveCallback != null) onSaveCallback.accept(saved);
 
-            // Show success feedback
             symbolValidation.setText("✅ Trade saved!");
             symbolValidation.setStyle("-fx-text-fill: #3fb950;");
 
-            if (editingTrade == null) clearForm();
+            if (editingTradeId == null) clearForm();
 
         } catch (Exception e) {
             new Alert(Alert.AlertType.ERROR,
@@ -504,11 +429,57 @@ public class TradeEntryController implements Initializable {
         clearForm();
     }
 
+    /** Builds a {@link TradeRequest} from the current form state. */
+    private TradeRequest buildRequest() {
+        TradeRequest req = new TradeRequest();
+        if (currentProfile != null) req.setProfileId(currentProfile.getId());
+
+        String sym = symbolField.getText().trim().toUpperCase();
+        req.setSymbol(sym);
+        req.setAssetName(sym);
+        req.setAssetType(assetTypeCombo.getValue() != null
+                ? assetTypeCombo.getValue().name() : "CRYPTO");
+        req.setDirection(isLong ? "LONG" : "SHORT");
+        req.setEntryPrice(parseBD(entryPriceField.getText()));
+        req.setQuantity(parseBD(quantityField.getText()));
+        req.setExchange(exchangeField.getText().trim());
+        req.setStrategy(strategyField.getText().trim());
+        req.setNotes(notesArea.getText().trim());
+
+        String exitText = exitPriceField.getText().trim();
+        if (!exitText.isEmpty()) {
+            req.setExitPrice(parseBD(exitText));
+            req.setStatus("CLOSED");
+            req.setExitTime(exitDatePicker.getValue() != null
+                    ? exitDatePicker.getValue().atTime(LocalTime.now())
+                    : LocalDateTime.now());
+        } else {
+            req.setStatus("OPEN");
+        }
+
+        if (!stopLossField.getText().isBlank())   req.setStopLoss(parseBD(stopLossField.getText()));
+        if (!takeProfitField.getText().isBlank())  req.setTakeProfit(parseBD(takeProfitField.getText()));
+        if (!feeField.getText().isBlank())         req.setFee(parseBD(feeField.getText()));
+        if (leverageField != null && !leverageField.getText().isBlank()) {
+            BigDecimal lev = parseLeverage();
+            if (lev.compareTo(BigDecimal.ONE) > 0) req.setLeverage(lev);
+        }
+
+        LocalDate entryDate = entryDatePicker.getValue();
+        LocalTime entryTime = parseTime(entryTimeField.getText());
+        req.setEntryTime(LocalDateTime.of(
+                entryDate != null ? entryDate : LocalDate.now(), entryTime));
+
+        if (currentScreenshotPath != null && !currentScreenshotPath.isBlank())
+            req.setScreenshotPath(currentScreenshotPath);
+
+        return req;
+    }
+
     // ── Helpers ─────────────────────────────────────────────
 
     private boolean validate() {
         boolean valid = true;
-
         if (symbolField.getText().trim().isEmpty()) {
             symbolValidation.setText("⚠ Symbol is required");
             valid = false;
@@ -523,12 +494,8 @@ public class TradeEntryController implements Initializable {
             quantityField.setStyle("-fx-border-color: #f85149;");
             valid = false;
         }
-        if (assetTypeCombo.getValue() == null) {
-            valid = false;
-        }
-        if (entryDatePicker.getValue() == null) {
-            valid = false;
-        }
+        if (assetTypeCombo.getValue() == null) valid = false;
+        if (entryDatePicker.getValue() == null) valid = false;
         return valid;
     }
 
@@ -539,8 +506,7 @@ public class TradeEntryController implements Initializable {
     }
 
     private LocalTime parseTime(String s) {
-        try { return LocalTime.parse(s.trim(),
-                DateTimeFormatter.ofPattern("HH:mm")); }
+        try { return LocalTime.parse(s.trim(), DateTimeFormatter.ofPattern("HH:mm")); }
         catch (Exception e) { return LocalTime.now(); }
     }
 
@@ -562,8 +528,7 @@ public class TradeEntryController implements Initializable {
         currentPriceLabel.setText("Current: —");
         currentPriceLabel.setStyle("-fx-text-fill:#388bfd; -fx-font-size:11px;");
         entryDatePicker.setValue(LocalDate.now());
-        entryTimeField.setText(LocalTime.now()
-                .format(DateTimeFormatter.ofPattern("HH:mm")));
+        entryTimeField.setText(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")));
         exitDatePicker.setValue(null);
         investedLabel.setText("$0.00");
         pnlAmountLabel.setText("$0.00");
@@ -576,23 +541,18 @@ public class TradeEntryController implements Initializable {
         if (leveragedPnlHint  != null) leveragedPnlHint.setText("×1 leverage");
         if (leverageLabel     != null) leverageLabel.setText("×1");
         isLong = true;
+        editingTradeId = null;
         if (formTitleLabel != null) formTitleLabel.setText("📋 New Trade Entry");
         styleDirectionButtons();
         styleNotesArea();
-        // Re-apply dark theme to pickers in case JavaFX reset them
         styleDatePicker(entryDatePicker);
         styleDatePicker(exitDatePicker);
-        // Clear screenshot
         currentScreenshotPath = null;
         refreshScreenshotDisplay();
     }
 
     // ── Screenshot field ─────────────────────────────────────────────────────
 
-    /**
-     * Attaches a screenshot to the form (called automatically when opened from +Trade,
-     * or manually via upload).
-     */
     public void setScreenshotPath(String path) {
         currentScreenshotPath = path;
         refreshScreenshotDisplay();
@@ -608,7 +568,6 @@ public class TradeEntryController implements Initializable {
         if (file == null) return;
 
         try {
-            // Copy to screenshots dir with standardised name
             String homeDir = System.getProperty("user.home");
             Path screenshotDir = Path.of(homeDir, ".trading-platform", "screenshots");
             Files.createDirectories(screenshotDir);
@@ -619,7 +578,6 @@ public class TradeEntryController implements Initializable {
             Files.copy(file.toPath(), target, StandardCopyOption.REPLACE_EXISTING);
             currentScreenshotPath = target.toAbsolutePath().toString();
         } catch (Exception e) {
-            // Fallback: use original path directly
             currentScreenshotPath = file.getAbsolutePath();
         }
         refreshScreenshotDisplay();
@@ -639,11 +597,9 @@ public class TradeEntryController implements Initializable {
                     Image img = new Image(f.toURI().toString(), true);
                     screenshotImageView.setImage(img);
                     screenshotImageView.setVisible(true);
-                    if (screenshotPlaceholderLabel != null)
-                        screenshotPlaceholderLabel.setVisible(false);
+                    if (screenshotPlaceholderLabel != null) screenshotPlaceholderLabel.setVisible(false);
                     if (screenshotPathLabel != null)
                         screenshotPathLabel.setText("📄 " + f.getName() + "  🔍 Click to enlarge");
-                    // Wire click-to-enlarge on the thumbnail
                     screenshotImageView.setOnMouseClicked(ev -> {
                         if (ev.getButton() == MouseButton.PRIMARY) openScreenshotPreview();
                     });
@@ -659,7 +615,6 @@ public class TradeEntryController implements Initializable {
                 }
             } catch (Exception ignored) {}
         }
-        // No image – show placeholder
         screenshotImageView.setImage(null);
         screenshotImageView.setVisible(false);
         screenshotImageView.setOnMouseClicked(null);
@@ -668,42 +623,25 @@ public class TradeEntryController implements Initializable {
             screenshotPane.setOnMouseClicked(null);
             screenshotPane.setStyle("");
         }
-        if (screenshotPlaceholderLabel != null)
-            screenshotPlaceholderLabel.setVisible(true);
-        if (screenshotPathLabel != null)
-            screenshotPathLabel.setText("");
+        if (screenshotPlaceholderLabel != null) screenshotPlaceholderLabel.setVisible(true);
+        if (screenshotPathLabel != null) screenshotPathLabel.setText("");
     }
 
-    /**
-     * Opens a resizable pop-up dialog showing the screenshot at a large size.
-     * The dialog includes:
-     *   • Scroll/pan capability via a ScrollPane
-     *   • Zoom in / out buttons (+/- keys also work)
-     *   • A Close button
-     *   • Mouse-scroll to zoom
-     */
     private void openScreenshotPreview() {
         if (currentScreenshotPath == null) return;
         File f = new File(currentScreenshotPath);
         if (!f.exists()) return;
-
         Image img;
-        try {
-            img = new Image(f.toURI().toString());
-        } catch (Exception ex) {
-            return;
-        }
+        try { img = new Image(f.toURI().toString()); } catch (Exception ex) { return; }
 
         Stage dialog = new Stage(StageStyle.DECORATED);
         dialog.initModality(Modality.APPLICATION_MODAL);
         dialog.setTitle("📸 Screenshot – " + f.getName());
         dialog.setResizable(true);
 
-        // ── Image view with zoom support ──────────────────────────────────
         ImageView bigView = new ImageView(img);
         bigView.setPreserveRatio(true);
         bigView.setSmooth(true);
-        // Start at a sensible initial size (fit within ~800×600)
         double initW = Math.min(img.getWidth(),  800);
         double initH = Math.min(img.getHeight(), 600);
         bigView.setFitWidth(initW);
@@ -718,158 +656,92 @@ public class TradeEntryController implements Initializable {
         scroll.setFitToWidth(false);
         scroll.setFitToHeight(false);
 
-        // ── Zoom helpers ──────────────────────────────────────────────────
-        final double[] scale = {1.0};   // mutable holder
-        Runnable applyZoom = () -> {
-            double s = scale[0];
-            bigView.setFitWidth(img.getWidth() * s);
-            bigView.setFitHeight(img.getHeight() * s);
-        };
+        final double[] scale = {1.0};
+        Runnable applyZoom = () -> { bigView.setFitWidth(img.getWidth() * scale[0]); bigView.setFitHeight(img.getHeight() * scale[0]); };
         Runnable zoomIn  = () -> { scale[0] = Math.min(scale[0] * 1.2, 8.0); applyZoom.run(); };
         Runnable zoomOut = () -> { scale[0] = Math.max(scale[0] / 1.2, 0.1); applyZoom.run(); };
         Runnable fitWin  = () -> {
             double ww = dialog.getScene() != null ? dialog.getScene().getWidth()  - 40 : 800;
             double wh = dialog.getScene() != null ? dialog.getScene().getHeight() - 80 : 560;
-            double s  = Math.min(ww / img.getWidth(), wh / img.getHeight());
-            scale[0]  = Math.max(0.05, s);
+            scale[0] = Math.max(0.05, Math.min(ww / img.getWidth(), wh / img.getHeight()));
             applyZoom.run();
         };
+        scroll.addEventFilter(ScrollEvent.SCROLL, ev -> { if (ev.getDeltaY() > 0) zoomIn.run(); else zoomOut.run(); ev.consume(); });
 
-        // Scroll-wheel zoom
-        scroll.addEventFilter(ScrollEvent.SCROLL, ev -> {
-            if (ev.isControlDown() || true) {   // always zoom on wheel in preview
-                if (ev.getDeltaY() > 0) zoomIn.run(); else zoomOut.run();
-                ev.consume();
-            }
-        });
-
-        // ── Toolbar ────────────────────────────────────────────────────────
         Button zoomInBtn  = toolButton("🔍+", "#21262d");
         Button zoomOutBtn = toolButton("🔍-", "#21262d");
         Button fitBtn     = toolButton("⊡ Fit", "#21262d");
         Button closeBtn   = toolButton("✕ Close", "#4a1a1a");
-
-        zoomInBtn .setOnAction(e -> zoomIn.run());
+        zoomInBtn.setOnAction(e -> zoomIn.run());
         zoomOutBtn.setOnAction(e -> zoomOut.run());
-        fitBtn    .setOnAction(e -> fitWin.run());
-        closeBtn  .setOnAction(e -> dialog.close());
+        fitBtn.setOnAction(e -> fitWin.run());
+        closeBtn.setOnAction(e -> dialog.close());
 
-        HBox toolbar = new HBox(8, zoomInBtn, zoomOutBtn, fitBtn,
-                new Region(), closeBtn);
+        HBox toolbar = new HBox(8, zoomInBtn, zoomOutBtn, fitBtn, new Region(), closeBtn);
         HBox.setHgrow(toolbar.getChildren().get(3), Priority.ALWAYS);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         toolbar.setPadding(new Insets(8, 12, 8, 12));
-        toolbar.setStyle("-fx-background-color:#161b22; -fx-border-color:#30363d;"
-                + "-fx-border-width:0 0 1 0;");
+        toolbar.setStyle("-fx-background-color:#161b22; -fx-border-color:#30363d; -fx-border-width:0 0 1 0;");
 
         VBox root = new VBox(toolbar, scroll);
         VBox.setVgrow(scroll, Priority.ALWAYS);
         root.setStyle("-fx-background-color:#0d1117;");
 
         javafx.scene.Scene scene = new javafx.scene.Scene(root,
-                Math.min(img.getWidth() + 40, 960),
-                Math.min(img.getHeight() + 80, 720));
+                Math.min(img.getWidth() + 40, 960), Math.min(img.getHeight() + 80, 720));
         scene.setFill(Color.web("#0d1117"));
-
-        // Keyboard shortcuts in the preview window
         scene.setOnKeyPressed(ev -> {
             switch (ev.getCode()) {
-                case EQUALS, PLUS  -> zoomIn.run();
-                case MINUS         -> zoomOut.run();
-                case F             -> fitWin.run();
-                case ESCAPE        -> dialog.close();
-                default            -> {}
+                case EQUALS, PLUS -> zoomIn.run();
+                case MINUS        -> zoomOut.run();
+                case F            -> fitWin.run();
+                case ESCAPE       -> dialog.close();
+                default           -> {}
             }
         });
-
         dialog.setScene(scene);
-
-        // Add a drop shadow effect to the image
         bigView.setEffect(new DropShadow(12, Color.web("#000000aa")));
-
-        // After the dialog is shown, fit the image properly
         dialog.setOnShown(ev -> fitWin.run());
         dialog.show();
     }
 
-    /** Helper to create a styled toolbar button for the preview dialog. */
     private static Button toolButton(String text, String bgColor) {
         Button btn = new Button(text);
         btn.setStyle("-fx-background-color:" + bgColor + "; -fx-text-fill:#e6edf3;"
                 + "-fx-border-color:#30363d; -fx-border-radius:4; -fx-background-radius:4;"
                 + "-fx-padding:4 10; -fx-cursor:hand; -fx-font-size:12px;");
-        btn.setOnMouseEntered(e -> btn.setStyle(btn.getStyle()
-                .replace(bgColor, adjustBrightness(bgColor))));
-        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color:" + bgColor
-                + "; -fx-text-fill:#e6edf3;"
+        btn.setOnMouseEntered(e -> btn.setStyle(btn.getStyle().replace(bgColor, adjustBrightness(bgColor))));
+        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color:" + bgColor + "; -fx-text-fill:#e6edf3;"
                 + "-fx-border-color:#30363d; -fx-border-radius:4; -fx-background-radius:4;"
                 + "-fx-padding:4 10; -fx-cursor:hand; -fx-font-size:12px;"));
         return btn;
     }
 
     private static String adjustBrightness(String hex) {
-        // Lighten the colour slightly for hover feedback
         try {
             Color c = Color.web(hex);
             return String.format("#%02x%02x%02x",
                     (int) Math.min(255, c.getRed()   * 255 + 30),
                     (int) Math.min(255, c.getGreen() * 255 + 30),
                     (int) Math.min(255, c.getBlue()  * 255 + 30));
-        } catch (Exception ex) {
-            return hex;
-        }
+        } catch (Exception ex) { return hex; }
     }
 
-    // ── Broker Import ─────────────────────────────────────────
+    // ── Broker Import (deferred — UI stub retained) ───────────────────────────
 
+    /**
+     * Broker CSV import is deferred to the trading-domain step when
+     * {@code trading-service} exposes a {@code POST /api/trades/import} endpoint.
+     * The button is shown disabled in the UI in the meantime.
+     */
     @FXML public void onImportBroker() {
-        if (currentProfile == null) {
-            setImportStatus("⚠ Select a profile first", false);
-            return;
+        if (importStatusLabel != null) {
+            importStatusLabel.setText("ℹ Broker CSV import will be available once trading-service import endpoint is deployed.");
+            importStatusLabel.setStyle("-fx-text-fill:#8b949e; -fx-font-size:11px;");
+            PauseTransition clear = new PauseTransition(Duration.seconds(6));
+            clear.setOnFinished(e -> { if (importStatusLabel != null) importStatusLabel.setText(""); });
+            clear.play();
         }
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Import Broker Trade History");
-        chooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("CSV Files", "*.csv", "*.CSV"));
-        File file = chooser.showOpenDialog(
-                symbolField.getScene() != null ? symbolField.getScene().getWindow() : null);
-        if (file == null) return;
-
-        setImportStatus("⏳ Parsing " + file.getName() + "…", true);
-        Thread.ofVirtual().start(() -> {
-            try {
-                ImportResult result = brokerImportService.importCsv(file, currentProfile);
-                List<Trade> saved   = new java.util.ArrayList<>();
-                for (Trade t : result.trades()) {
-                    saved.add(tradeService.saveTrade(t));
-                }
-                Platform.runLater(() -> {
-                    String msg = String.format(
-                            "✔ %s: imported %d/%d trades from %s",
-                            result.broker().label, saved.size(),
-                            result.totalRows(), file.getName());
-                    if (!result.skippedRows().isEmpty()) {
-                        msg += " (" + result.skippedRows().size() + " skipped)";
-                    }
-                    setImportStatus(msg, true);
-                    // Notify parent to refresh trade journal
-                    if (onSaveCallback != null) onSaveCallback.accept(null);
-                    // Auto-clear status after 6 s
-                    PauseTransition clear = new PauseTransition(Duration.seconds(6));
-                    final String finalMsg = msg;
-                    clear.setOnFinished(e -> {
-                        if (importStatusLabel != null &&
-                                finalMsg.equals(importStatusLabel.getText())) {
-                            importStatusLabel.setText("");
-                        }
-                    });
-                    clear.play();
-                });
-            } catch (Exception ex) {
-                Platform.runLater(() -> setImportStatus(
-                        "⚠ Import failed: " + ex.getMessage(), false));
-            }
-        });
     }
 
     private void setImportStatus(String text, boolean ok) {
@@ -882,39 +754,91 @@ public class TradeEntryController implements Initializable {
 
     // ── Public API for parent controllers ────────────────────
 
-    public void setProfile(UserProfile profile)      { this.currentProfile = profile; }
-    public void setEditingTrade(Trade trade) {
-        this.editingTrade = trade;
-        if (trade != null) {
+    public void setProfile(UserProfile profile) { this.currentProfile = profile; }
+
+    /**
+     * Sets the trade being edited.
+     *
+     * @param response non-null = edit mode; null = new trade mode
+     */
+    public void setEditingTrade(TradeResponse response) {
+        if (response != null) {
+            this.editingTradeId = response.getId();
             if (formTitleLabel != null) formTitleLabel.setText("✏ Edit Trade");
-            populateForm(trade);
+            populateForm(response);
         } else {
-            clearForm(); // entering "new trade" mode — reset everything
+            this.editingTradeId = null;
+            clearForm();
         }
     }
-    public void setOnSaveCallback(Consumer<Trade> cb) { this.onSaveCallback = cb; }
+
+    /**
+     * Overload kept for backward compatibility: callers that still pass a
+     * legacy {@code Trade} model object (e.g., {@code MainDashboardController})
+     * will use this until they are refactored in the next step.
+     */
+    public void setEditingTrade(Trade trade) {
+        if (trade == null) {
+            setEditingTrade((TradeResponse) null);
+            return;
+        }
+        // Map legacy Trade model → TradeResponse DTO
+        TradeResponse r = new TradeResponse();
+        r.setId(trade.getId());
+        r.setSymbol(trade.getSymbol());
+        r.setAssetName(trade.getAssetName());
+        r.setAssetType(trade.getAssetType() != null ? trade.getAssetType().name() : "CRYPTO");
+        r.setDirection(trade.getDirection() != null ? trade.getDirection().name() : "LONG");
+        r.setEntryPrice(trade.getEntryPrice());
+        r.setExitPrice(trade.getExitPrice());
+        r.setQuantity(trade.getQuantity());
+        r.setStopLoss(trade.getStopLoss());
+        r.setTakeProfit(trade.getTakeProfit());
+        r.setFee(trade.getFee());
+        r.setLeverage(trade.getLeverage());
+        r.setExchange(trade.getExchange());
+        r.setStrategy(trade.getStrategy());
+        r.setNotes(trade.getNotes());
+        r.setScreenshotPath(trade.getScreenshotPath());
+        r.setStatus(trade.getStatus() != null ? trade.getStatus().name() : "OPEN");
+        r.setEntryTime(trade.getEntryTime());
+        r.setExitTime(trade.getExitTime());
+        setEditingTrade(r);
+    }
+
+    public void setOnSaveCallback(Consumer<TradeResponse> cb) { this.onSaveCallback = cb; }
+
+    /**
+     * Overload for callers that still pass a {@code Consumer<Trade>}.
+     * Wraps the callback to map TradeResponse back to a minimal Trade shell.
+     */
+    @SuppressWarnings("unchecked")
+    public void setOnSaveLegacyCallback(Consumer<Trade> cb) {
+        if (cb == null) { this.onSaveCallback = null; return; }
+        this.onSaveCallback = resp -> {
+            if (resp == null) { cb.accept(null); return; }
+            Trade t = new Trade();
+            t.setId(resp.getId());
+            t.setSymbol(resp.getSymbol());
+            cb.accept(t);
+        };
+    }
 
     /** Pre-fill the form from a Long/Short position chart drawing. */
     public void initFromDrawing(TradeDrawingDraft draft) {
         if (draft == null) return;
-        editingTrade = null;
+        editingTradeId = null;
         clearForm();
         if (formTitleLabel != null) formTitleLabel.setText("📋 New Trade from Chart");
         symbolField.setText(draft.symbol());
         isLong = draft.direction() == TradeDirection.LONG;
         styleDirectionButtons();
         entryPriceField.setText(draft.entryPrice().toPlainString());
-        if (draft.stopLoss() != null)
-            stopLossField.setText(draft.stopLoss().toPlainString());
-        if (draft.takeProfit() != null)
-            takeProfitField.setText(draft.takeProfit().toPlainString());
-        if (draft.assetType() != null)
-            assetTypeCombo.setValue(draft.assetType());
+        if (draft.stopLoss() != null)  stopLossField.setText(draft.stopLoss().toPlainString());
+        if (draft.takeProfit() != null) takeProfitField.setText(draft.takeProfit().toPlainString());
+        if (draft.assetType() != null) assetTypeCombo.setValue(draft.assetType());
         quantityField.setText("1");
-        // Attach auto-captured screenshot if available
-        if (draft.screenshotPath() != null) {
-            setScreenshotPath(draft.screenshotPath());
-        }
+        if (draft.screenshotPath() != null) setScreenshotPath(draft.screenshotPath());
         updatePnlPreview();
     }
 
@@ -922,21 +846,21 @@ public class TradeEntryController implements Initializable {
     public void instantSaveFromDrawing(TradeDrawingDraft draft) {
         if (draft == null || currentProfile == null) return;
         try {
-            Trade trade = new Trade();
-            trade.setProfile(currentProfile);
-            trade.setSymbol(draft.symbol());
-            trade.setAssetName(draft.symbol());
-            trade.setAssetType(draft.assetType() != null ? draft.assetType() : AssetType.CRYPTO);
-            trade.setDirection(draft.direction());
-            trade.setEntryPrice(draft.entryPrice());
-            trade.setQuantity(BigDecimal.ONE);
-            trade.setStatus(TradeStatus.OPEN);
-            trade.setEntryTime(LocalDateTime.now());
-            if (draft.stopLoss()   != null) trade.setStopLoss(draft.stopLoss());
-            if (draft.takeProfit() != null) trade.setTakeProfit(draft.takeProfit());
-            // Persist the auto-captured screenshot path
-            if (draft.screenshotPath() != null) trade.setScreenshotPath(draft.screenshotPath());
-            Trade saved = tradeService.saveTrade(trade);
+            TradeRequest req = new TradeRequest();
+            req.setProfileId(currentProfile.getId());
+            req.setSymbol(draft.symbol());
+            req.setAssetName(draft.symbol());
+            req.setAssetType(draft.assetType() != null ? draft.assetType().name() : "CRYPTO");
+            req.setDirection(draft.direction() != null ? draft.direction().name() : "LONG");
+            req.setEntryPrice(draft.entryPrice());
+            req.setQuantity(BigDecimal.ONE);
+            req.setStatus("OPEN");
+            req.setEntryTime(LocalDateTime.now());
+            if (draft.stopLoss()    != null) req.setStopLoss(draft.stopLoss());
+            if (draft.takeProfit()  != null) req.setTakeProfit(draft.takeProfit());
+            if (draft.screenshotPath() != null) req.setScreenshotPath(draft.screenshotPath());
+
+            TradeResponse saved = tradeApiClient.saveTrade(req);
             if (onSaveCallback != null) onSaveCallback.accept(saved);
         } catch (Exception e) {
             new Alert(Alert.AlertType.ERROR,
@@ -944,39 +868,34 @@ public class TradeEntryController implements Initializable {
         }
     }
 
-    private void populateForm(Trade t) {
+    private void populateForm(TradeResponse t) {
         clearForm();
         if (formTitleLabel != null) formTitleLabel.setText("✏ Edit Trade");
         symbolField.setText(t.getSymbol());
-        assetTypeCombo.setValue(t.getAssetType());
+        try { assetTypeCombo.setValue(AssetType.valueOf(t.getAssetType())); }
+        catch (Exception ignored) { assetTypeCombo.setValue(AssetType.CRYPTO); }
         exchangeField.setText(t.getExchange() != null ? t.getExchange() : "");
         strategyField.setText(t.getStrategy() != null ? t.getStrategy() : "");
-        entryPriceField.setText(t.getEntryPrice().toPlainString());
+        entryPriceField.setText(t.getEntryPrice() != null ? t.getEntryPrice().toPlainString() : "");
         if (t.getExitPrice() != null)
             exitPriceField.setText(t.getExitPrice().toPlainString());
         if (t.getExitTime() != null)
             exitDatePicker.setValue(t.getExitTime().toLocalDate());
-        quantityField.setText(t.getQuantity().toPlainString());
-        if (t.getStopLoss() != null)
-            stopLossField.setText(t.getStopLoss().toPlainString());
-        if (t.getTakeProfit() != null)
-            takeProfitField.setText(t.getTakeProfit().toPlainString());
-        if (t.getFee() != null)
-            feeField.setText(t.getFee().toPlainString());
-        if (leverageField != null) {
-            if (t.getLeverage() != null && t.getLeverage().compareTo(BigDecimal.ONE) > 0)
-                leverageField.setText(t.getLeverage().toPlainString());
-            else
-                leverageField.clear();
-        }
+        if (t.getQuantity() != null) quantityField.setText(t.getQuantity().toPlainString());
+        if (t.getStopLoss() != null) stopLossField.setText(t.getStopLoss().toPlainString());
+        if (t.getTakeProfit() != null) takeProfitField.setText(t.getTakeProfit().toPlainString());
+        if (t.getFee() != null) feeField.setText(t.getFee().toPlainString());
+        if (leverageField != null && t.getLeverage() != null
+                && t.getLeverage().compareTo(BigDecimal.ONE) > 0)
+            leverageField.setText(t.getLeverage().toPlainString());
         updateLeverageLabel();
-        entryDatePicker.setValue(t.getEntryTime().toLocalDate());
-        entryTimeField.setText(t.getEntryTime()
-                .format(DateTimeFormatter.ofPattern("HH:mm")));
+        if (t.getEntryTime() != null) {
+            entryDatePicker.setValue(t.getEntryTime().toLocalDate());
+            entryTimeField.setText(t.getEntryTime().format(DateTimeFormatter.ofPattern("HH:mm")));
+        }
         notesArea.setText(t.getNotes() != null ? t.getNotes() : "");
-        isLong = t.getDirection() == TradeDirection.LONG;
+        isLong = !"SHORT".equalsIgnoreCase(t.getDirection());
         styleDirectionButtons();
-        // Restore screenshot if the trade has one
         setScreenshotPath(t.getScreenshotPath());
         updatePnlPreview();
     }

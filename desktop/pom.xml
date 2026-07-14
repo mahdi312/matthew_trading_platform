@@ -10,7 +10,7 @@
     <artifactId>TradingPlatformApp</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>TradingPlatformApp</name>
-    <description>TradingPlatformApp</description>
+    <description>TradingPlatformApp — thin JavaFX client for the trading platform microservices</description>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
@@ -22,13 +22,19 @@
     <properties>
         <java.version>21</java.version>
         <javafx.version>21.0.2</javafx.version>
-        <ta4j.version>0.22.1</ta4j.version>
-        <poi.version>5.3.0</poi.version>
+        <!--
+            REMOVED in Phase 2, Step 12 (thin-client refactor):
+              ta4j-core          — indicator maths moved to market-service / ai-service
+              poi-ooxml          — Excel export moved to trading-service (ReportingController)
+              sqlite-jdbc        — desktop no longer has a local database
+              hibernate-community-dialects — no Hibernate in thin client
+              telegrambots / telegrambots-spring-boot-starter — notifications via alert-service WS
+              spring-boot-starter-data-jpa — all JPA removed
+              spring-boot-starter-mail     — notifications via notification-service
+              postgresql                   — no direct DB access
+        -->
         <okhttp.version>4.12.0</okhttp.version>
         <gson.version>2.10.1</gson.version>
-        <sqlite.version>3.46.0.0</sqlite.version>
-        <hibernate.sqlite.dialect.version>1.0</hibernate.sqlite.dialect.version>
-        <telegram.version>6.9.7.1</telegram.version>
         <lombok.version>1.18.34</lombok.version>
         <fxweaver.version>2.0.1</fxweaver.version>
         <!-- T-20: console window suppressed by default for release.
@@ -41,24 +47,148 @@
         <!-- ═══════════════════════════════════════════ -->
         <!--           SPRING BOOT CORE                 -->
         <!-- ═══════════════════════════════════════════ -->
+        <!--
+            spring-boot-starter provides Spring DI, @Configuration, @Value, etc.
+        -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
         </dependency>
+
+        <!--
+            TRANSITIONAL (Step 12 in-progress):
+            spring-boot-starter-data-jpa, sqlite-jdbc, hibernate-community-dialects,
+            and postgresql are retained here while the domain-by-domain migration of
+            controllers to the Gateway API clients is in progress.  Each dependency
+            below is tagged with the step that will remove it:
+
+              • spring-boot-starter-data-jpa    — remove when ALL controllers are migrated
+              • sqlite-jdbc + hibernate dialects — remove with JPA
+              • postgresql                       — remove with JPA
+              • spring-boot-starter-mail         — remove when notification-service handles email
+              • telegrambots + spring-starter     — remove when alert-service WS client is wired
+              • poi-ooxml                         — remove when Excel export uses trading-service
+              • ta4j-core                         — remove when indicator compute moves to market/ai-service
+
+            DO NOT remove these until the corresponding controller / service file
+            no longer imports any JPA / Spring Data annotation.
+        -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
+            <!-- TODO Step 12 (remaining domains): remove once all repositories are deleted -->
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
+            <!-- TODO: remove once notification-service handles all email -->
         </dependency>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!--   DATABASE: SQLite + Hibernate (TRANSITIONAL) -->
+        <!-- ═══════════════════════════════════════════ -->
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.46.0.0</version>
+            <!-- TODO: remove with spring-boot-starter-data-jpa -->
+        </dependency>
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-community-dialects</artifactId>
+            <version>6.5.3.Final</version>
+            <!-- TODO: remove with spring-boot-starter-data-jpa -->
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+            <!-- TODO: remove with spring-boot-starter-data-jpa -->
+        </dependency>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!--   TELEGRAM BOT (TRANSITIONAL)              -->
+        <!-- ═══════════════════════════════════════════ -->
+        <dependency>
+            <groupId>org.telegram</groupId>
+            <artifactId>telegrambots</artifactId>
+            <version>6.9.7.1</version>
+            <!-- TODO: remove when alert-service STOMP push replaces TelegramBot -->
+        </dependency>
+        <dependency>
+            <groupId>org.telegram</groupId>
+            <artifactId>telegrambots-spring-boot-starter</artifactId>
+            <version>6.9.7.1</version>
+            <!-- TODO: remove when alert-service STOMP push replaces TelegramBot -->
+        </dependency>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!--   EXCEL EXPORT (TRANSITIONAL)              -->
+        <!-- ═══════════════════════════════════════════ -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.3.0</version>
+            <!-- TODO: remove when Excel export moves to trading-service/ReportingController -->
+        </dependency>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!--   TECHNICAL ANALYSIS (TRANSITIONAL)        -->
+        <!-- ═══════════════════════════════════════════ -->
+        <dependency>
+            <groupId>org.ta4j</groupId>
+            <artifactId>ta4j-core</artifactId>
+            <version>0.22.1</version>
+            <!-- TODO: remove when indicator compute moves to market-service / ai-service -->
+        </dependency>
+
+        <!-- BCrypt password hashing — retained for any local auth fallback during transition -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+            <!-- TODO: remove once AuthService delegates fully to identity-service -->
+        </dependency>
+
+        <!--
+            WebFlux gives us WebClient for reactive, non-blocking HTTP calls to
+            the Gateway.  We use it in blocking mode (WebClient#block()) from
+            virtual threads so the JavaFX event loop is never stalled.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+
+        <!--
+            Jackson ObjectMapper is required by WebClient for JSON serialisation /
+            deserialisation of gateway request/response bodies.  It is pulled in
+            transitively by spring-boot-starter-webflux; listed here explicitly
+            so the version is clear.
+        -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
             <optional>true</optional>
         </dependency>
 
+        <!-- ═══════════════════════════════════════════ -->
+        <!--       STOMP / WebSocket client             -->
+        <!-- ═══════════════════════════════════════════ -->
+        <!--
+            Used by the STOMP subscription layer that connects to:
+              • market-service  STOMP endpoint (/ws-market) for live price ticks
+              • alert-service   STOMP endpoint (/ws)         for in-app alert notifications
+            Replaces the old direct Binance WebSocket + TelegramBot + NotificationService.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
 
         <!-- ===================== JAXB (Fix for Java 21) ===================== -->
         <dependency>
@@ -114,45 +244,14 @@
         </dependency>
 
         <!-- ═══════════════════════════════════════════ -->
-        <!--           DATABASE: SQLite + Hibernate     -->
+        <!--           HTTP CLIENT (legacy OkHttp)      -->
         <!-- ═══════════════════════════════════════════ -->
-        <dependency>
-            <groupId>org.xerial</groupId>
-            <artifactId>sqlite-jdbc</artifactId>
-            <version>${sqlite.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.hibernate.orm</groupId>
-            <artifactId>hibernate-community-dialects</artifactId>
-            <version>6.5.3.Final</version>   <!-- Match your Hibernate version -->
-        </dependency>
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-
-        <!-- ═══════════════════════════════════════════ -->
-        <!--           TECHNICAL ANALYSIS               -->
-        <!-- ═══════════════════════════════════════════ -->
-        <dependency>
-            <groupId>org.ta4j</groupId>
-            <artifactId>ta4j-core</artifactId>
-            <version>${ta4j.version}</version>
-        </dependency>
-
-        <!-- ═══════════════════════════════════════════ -->
-        <!--           EXCEL EXPORT                     -->
-        <!-- ═══════════════════════════════════════════ -->
-        <dependency>
-            <groupId>org.apache.poi</groupId>
-            <artifactId>poi-ooxml</artifactId>
-            <version>${poi.version}</version>
-        </dependency>
-
-        <!-- ═══════════════════════════════════════════ -->
-        <!--           HTTP + WEBSOCKET CLIENT          -->
-        <!-- ═══════════════════════════════════════════ -->
+        <!--
+            OkHttp + Gson are retained for the existing market-data provider
+            classes (AlphaVantage, Finnhub, CoinGecko, etc.) that have NOT yet
+            been migrated to use the Gateway.  They will be removed one provider
+            at a time as each domain is migrated to the corresponding service.
+        -->
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp</artifactId>
@@ -165,20 +264,6 @@
         </dependency>
 
         <!-- ═══════════════════════════════════════════ -->
-        <!--           TELEGRAM BOT                     -->
-        <!-- ═══════════════════════════════════════════ -->
-        <dependency>
-            <groupId>org.telegram</groupId>
-            <artifactId>telegrambots</artifactId>
-            <version>${telegram.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.telegram</groupId>
-            <artifactId>telegrambots-spring-boot-starter</artifactId>
-            <version>${telegram.version}</version>
-        </dependency>
-
-        <!-- ═══════════════════════════════════════════ -->
         <!--           UTILITIES                        -->
         <!-- ═══════════════════════════════════════════ -->
         <dependency>
@@ -187,11 +272,9 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- BCrypt password hashing (no full Spring Security web stack) -->
-        <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-crypto</artifactId>
-        </dependency>
+        <!-- ═══════════════════════════════════════════ -->
+        <!--           TEST                             -->
+        <!-- ═══════════════════════════════════════════ -->
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>mockwebserver</artifactId>
@@ -282,7 +365,7 @@
                 </configuration>
             </plugin>
 
-            <!-- Run tests with the same JDK that compiles (avoids class file 61 vs JVM 55 errors) -->
+            <!-- Run tests with the same JDK that compiles -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
@@ -317,14 +400,11 @@
                     <!-- Platform-specific settings -->
                     <type>EXE</type>
 
-                    <!-- ✅ Correct javaoptions as a list of <javaoption> -->
-
                     <javaoptions>--add-opens=javafx.graphics/com.sun.javafx.application=ALL-UNNAMED
                         --add-opens=javafx.base/com.sun.javafx.runtime=ALL-UNNAMED
                         -Xmx1024m</javaoptions>
 
                     <!-- Windows-specific -->
-
                     <!-- T-20: hidden console for release builds.
                          Override with -Dwinconsole=true for debugging on Windows. -->
                     <winconsole>${winconsole}</winconsole>

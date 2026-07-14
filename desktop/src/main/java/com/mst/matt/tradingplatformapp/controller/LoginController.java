@@ -1,8 +1,9 @@
 package com.mst.matt.tradingplatformapp.controller;
 
-import com.mst.matt.tradingplatformapp.model.AppUser;
+import com.mst.matt.tradingplatformapp.client.AlertStompClient;
+import com.mst.matt.tradingplatformapp.client.MarketStompClient;
+import com.mst.matt.tradingplatformapp.client.TokenStore;
 import com.mst.matt.tradingplatformapp.service.auth.AuthService;
-import com.mst.matt.tradingplatformapp.service.price.LiveTickerService;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -20,7 +21,16 @@ import java.util.ResourceBundle;
 
 /**
  * Login screen controller.
- * After successful login, hides the login scene and shows the main dashboard.
+ *
+ * <h3>Phase 2, Step 12 — identity domain</h3>
+ * <p>Authentication is now delegated to {@code identity-service} through the
+ * Gateway via {@link AuthService} (which internally calls
+ * {@code IdentityApiClient}).  No direct database or JPA dependency remains in
+ * this controller.</p>
+ *
+ * <p>After successful login the JWT is stored in {@code TokenStore} by
+ * {@code IdentityApiClient}; subsequent API calls from other client beans
+ * automatically include it.</p>
  */
 @Component
 @FxmlView("/fxml/LoginView.fxml")
@@ -30,9 +40,11 @@ public class LoginController implements Initializable {
     @FXML private PasswordField passwordField;
     @FXML private Label         errorLabel;
 
-    @Autowired private AuthService     authService;
-    @Autowired private FxWeaver        fxWeaver;
-    @Autowired private LiveTickerService liveTickerService;
+    @Autowired private AuthService      authService;
+    @Autowired private FxWeaver         fxWeaver;
+    @Autowired private TokenStore       tokenStore;
+    @Autowired private MarketStompClient marketStompClient;
+    @Autowired private AlertStompClient  alertStompClient;
 
     /** Called by StageInitializer / parent when login succeeds. */
     private Runnable onLoginSuccess;
@@ -61,17 +73,27 @@ public class LoginController implements Initializable {
             return;
         }
 
-        // Run auth on a background thread to avoid blocking FX thread
+        // Run auth on a background thread to avoid blocking FX thread.
+        // AuthService.login() now calls the gateway via IdentityApiClient (blocking).
         Thread.ofVirtual().start(() -> {
-            Optional<AppUser> result = authService.login(username, password);
+            Optional<Object> result = authService.login(username, password);
             Platform.runLater(() -> {
                 if (result.isPresent()) {
                     hideError();
-                    // ── Start live market streams NOW (after successful login) ──────────
-                    // This ensures no external API calls (Binance WS, Yahoo, CoinGecko)
-                    // are made before the user is authenticated.
-                    Thread.ofVirtual().name("live-streams-init").start(
-                            liveTickerService::startLiveStreams);
+                    // Connect STOMP clients for live market data and alert notifications.
+                    // Both connections are non-blocking; failures are logged but do not
+                    // prevent the UI from loading.
+                    String jwt = tokenStore.getToken();
+                    if (jwt != null) {
+                        Thread.ofVirtual().name("stomp-connect").start(() -> {
+                            try { marketStompClient.connect(jwt); } catch (Exception ex) {
+                                // Log but don't block login
+                            }
+                            try { alertStompClient.connect(jwt); } catch (Exception ex) {
+                                // Log but don't block login
+                            }
+                        });
+                    }
                     if (onLoginSuccess != null) onLoginSuccess.run();
                 } else {
                     showError("Invalid username or password.");
