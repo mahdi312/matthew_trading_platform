@@ -19,6 +19,52 @@ spring:
   cache:
     type: caffeine
 
+# ── External market-data provider API keys (Phase 3) ────────────────────────
+# All keys default to "" (empty). Providers with blank keys are auto-disabled.
+# Set env vars (e.g. ALPHAVANTAGE_KEY=xxx) to enable the corresponding provider.
+api:
+  # Crypto
+  alphavantage-key: ${ALPHAVANTAGE_KEY:}
+  coingecko-key: ${COINGECKO_KEY:}
+  coinmarketcap-key: ${COINMARKETCAP_KEY:}
+  # Stock
+  polygon-key: ${POLYGON_KEY:}
+  marketstack-key: ${MARKETSTACK_KEY:}
+  finnhub-key: ${FINNHUB_KEY:}
+  twelvedata-key: ${TWELVEDATA_KEY:}
+  # Forex
+  fixerio-key: ${FIXERIO_KEY:}
+  freecurrencyapi-key: ${FREECURRENCYAPI_KEY:}
+  currencylayer-key: ${CURRENCYLAYER_KEY:}
+  exchangerateapi-key: ${EXCHANGERATEAPI_KEY:}
+  openexchangerates-key: ${OPENEXCHANGERATES_KEY:}
+  # Provider base URLs (defaults; override per-env if needed)
+  binance:
+    base-url: ${BINANCE_BASE_URL:https://api.binance.com}
+    fallback-url: ${BINANCE_FALLBACK_URL:https://data-api.binance.vision}
+  coingecko:
+    base-url: ${COINGECKO_BASE_URL:https://api.coingecko.com/api/v3}
+  yahoo:
+    base-url: ${YAHOO_BASE_URL:https://query1.finance.yahoo.com}
+  frankfurter:
+    base-url: ${FRANKFURTER_BASE_URL:https://api.frankfurter.app}
+
+# ── OHLCV provider HTTP client settings (Phase 3) ───────────────────────────
+market:
+  provider:
+    http:
+      connect-timeout-secs: ${MARKET_HTTP_CONNECT_TIMEOUT:5}
+      read-timeout-secs: ${MARKET_HTTP_READ_TIMEOUT:15}
+      call-timeout-secs: ${MARKET_HTTP_CALL_TIMEOUT:30}
+
+# ── Market data sync scheduler (Phase 3) ─────────────────────────────────────
+# Set to true to enable the live-chart sync background job once Phase 3
+# provider beans are fully wired and API keys are configured.
+app:
+  market-data:
+    sync:
+      enabled: ${MARKET_SYNC_ENABLED:false}
+
 # ── BitUnix API configuration (Step 5.1) ────────────────────────────────────
 # apiKey/secretKey are only needed for BitUnix's private endpoints (order
 # placement, balances — trading-service, Step 6+). Kline/Tickers (Step 5.2)
