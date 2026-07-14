@@ -7,15 +7,25 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * <b>STUB</b> — no Telegram Bot API call is made yet.
+ * Telegram notification channel stub in {@code alert-service}.
  *
- * <p>Registered now so the alert pipeline compiles and runs end-to-end with
- * all three {@link NotificationChannel} beans present, per Step 4.75. Real
- * Bot API wiring (see the JavaFX monolith's {@code TradingTelegramBot} for
- * the reference implementation to port — rubenlagus TelegramBots library)
- * is added in {@code notification-service} in Step 7, consuming the same
- * {@code alerts.triggered} Kafka topic that {@code AlertEvaluationService}
- * publishes to.</p>
+ * <p><b>Step 8 — option (a): production Telegram delivery has permanently moved to
+ * {@code notification-service}.</b></p>
+ *
+ * <p>{@code alert-service} publishes {@code AlertTriggeredEventDto} to the
+ * {@code alerts.triggered} Kafka topic via {@code AlertEventPublisher}.
+ * {@code notification-service} consumes that topic and performs the real Bot API
+ * send via its own {@code TelegramNotificationChannel} + {@code TradingTelegramBot}.</p>
+ *
+ * <p>This bean is kept as a <em>no-op logging stub</em> so the alert pipeline
+ * continues to compile and run with all three {@link NotificationChannel} beans
+ * present. It does NOT send any Telegram message.</p>
+ *
+ * <p>Choice rationale (per migration guide Step 8):
+ * Option (a) chosen — alert-service publishes Kafka events only; all
+ * email/Telegram fan-out is the exclusive responsibility of notification-service.
+ * This eliminates the duplicate, half-implemented sending logic and matches the
+ * production architecture.</p>
  */
 @Slf4j
 @Component
@@ -25,16 +35,12 @@ public class TelegramNotificationChannel implements NotificationChannel {
 
     @Override
     public void send(AlertTriggeredEventDto event, UserPreferencesDto prefs) {
-        if (prefs == null || !prefs.isTelegramEnabled() || prefs.getTelegramChatId() == null
-                || prefs.getTelegramChatId().isBlank()) {
-            log.debug("Telegram channel not configured/enabled for userId={}, skipping alertId={}",
-                    event.getUserId(), event.getAlertId());
-            return;
-        }
-        // NOT IMPLEMENTED — real Bot API send lands in notification-service (Step 7).
-        log.info("[STUB] Would send TELEGRAM for alertId={} symbol={} to chatId={} "
-                        + "(Bot API wiring not yet implemented — see Step 7)",
-                event.getAlertId(), event.getSymbol(), prefs.getTelegramChatId());
+        // NO-OP: Telegram delivery has moved to notification-service (Step 8, option a).
+        // alert-service only publishes to alerts.triggered Kafka topic; notification-service
+        // consumes that topic and sends the actual Telegram message via TradingTelegramBot.
+        log.debug("[TelegramChannel-stub] alert-service no longer sends Telegram directly " +
+                "(alertId={} userId={}) — notification-service handles delivery via Kafka",
+                event.getAlertId(), event.getUserId());
     }
 
     @Override

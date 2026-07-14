@@ -1,10 +1,12 @@
 package com.mst.matt.tradingservice.service;
 
+import com.mst.matt.tradingservice.kafka.TradeEventPublisher;
 import com.mst.matt.tradingservice.model.Trade;
 import com.mst.matt.tradingservice.model.Trade.*;
 import com.mst.matt.tradingservice.repository.TradeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +40,14 @@ public class TradeService {
 
     private final TradeRepository tradeRepository;
 
+    /**
+     * Optional — Kafka producer for {@code trades.executed} / {@code trades.closed}.
+     * {@code @Autowired(required = false)} so the service starts cleanly when
+     * Kafka is not available in local dev without a broker.
+     */
+    @Autowired(required = false)
+    private TradeEventPublisher tradeEventPublisher;
+
     // ── CRUD ─────────────────────────────────────────────────────────────────
 
     /**
@@ -50,6 +60,10 @@ public class TradeService {
         Trade saved = tradeRepository.save(trade);
         log.debug("Trade saved: id={} userId={} symbol={} status={}",
                 saved.getId(), saved.getUserId(), saved.getSymbol(), saved.getStatus());
+        // Publish trades.executed so notification-service fans out trade notifications (Step 8)
+        if (tradeEventPublisher != null && saved.getStatus() == TradeStatus.OPEN) {
+            tradeEventPublisher.publishExecuted(saved);
+        }
         return saved;
     }
 
@@ -96,6 +110,10 @@ public class TradeService {
         Trade closed = tradeRepository.save(trade);
         log.info("Trade closed: id={} userId={} symbol={} pnl={}",
                 closed.getId(), closed.getUserId(), closed.getSymbol(), closed.getPnlAmount());
+        // Publish trades.closed so notification-service fans out trade notifications (Step 8)
+        if (tradeEventPublisher != null) {
+            tradeEventPublisher.publishClosed(closed);
+        }
         return closed;
     }
 

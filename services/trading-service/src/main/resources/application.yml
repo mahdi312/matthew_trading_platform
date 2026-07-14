@@ -22,6 +22,17 @@ spring:
     console:
       enabled: false   # disable web console in production; enable locally if needed
 
+  # ── Kafka producer (trades.executed / trades.closed — Step 8) ─────────────
+  # TradeEventPublisher publishes TradeEventDto events so notification-service
+  # can fan out email/Telegram notifications on trade lifecycle changes.
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: true
+
 eureka:
   client:
     service-url:

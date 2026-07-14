@@ -99,12 +99,18 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- ── Kafka producer (trades.executed / trades.closed events) ────
+             Added in Step 8 of the migration guide: TradeEventPublisher
+             broadcasts trade lifecycle events so notification-service can
+             fan out email/Telegram notifications without polling. ──────── -->\n        <dependency>\n            <groupId>org.springframework.kafka</groupId>\n            <artifactId>spring-kafka</artifactId>\n        </dependency>
+
         <!-- ── Test ─────────────────────────────────────────────────────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>\n            <groupId>org.springframework.kafka</groupId>\n            <artifactId>spring-kafka-test</artifactId>\n            <scope>test</scope>\n        </dependency>
 
     </dependencies>
 

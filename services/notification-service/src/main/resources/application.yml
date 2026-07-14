@@ -5,6 +5,50 @@ spring:
   application:
     name: notification-service
 
+  # ── Kafka consumer (alerts.triggered + trades.executed/trades.closed) ────────
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: "com.mst.matt.contracts.dto,com.mst.matt.contracts.enums"
+
+  # ── SMTP (spring-boot-starter-mail) ──────────────────────────────────────────
+  # Conditional — EmailDispatchService only activates when spring.mail.host is set.
+  # For Gmail: set SMTP_HOST=smtp.gmail.com SMTP_PORT=587 SMTP_USERNAME=<addr> SMTP_PASSWORD=<app-pw>
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+# ── Notification delivery config ─────────────────────────────────────────────
+# Email recipient (SMTP sender = spring.mail.username above)
+notification:
+  email:
+    to: ${NOTIFICATION_EMAIL_TO:}
+
+# ── Telegram bot (rubenlagus TelegramBots) ───────────────────────────────────
+# Set telegram.bot.enabled=true + token to activate TradingTelegramBot bean.
+# chat-ids: comma-separated list of chat IDs to receive all alerts.
+# Users can also subscribe dynamically via /start command.
+telegram:
+  bot:
+    enabled: ${TELEGRAM_BOT_ENABLED:false}
+    token: ${TELEGRAM_BOT_TOKEN:}
+    username: ${TELEGRAM_BOT_USERNAME:TradingBot}
+    chat-ids: ${TELEGRAM_BOT_CHAT_IDS:}
+
+# ── Eureka client ─────────────────────────────────────────────────────────────
 eureka:
   client:
     service-url:
@@ -12,8 +56,9 @@ eureka:
   instance:
     prefer-ip-address: true
 
+# ── Actuator ──────────────────────────────────────────────────────────────────
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics

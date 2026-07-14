@@ -17,37 +17,92 @@
     <packaging>jar</packaging>
     <name>notification-service</name>
     <description>
-        Empty scaffold module. Kafka-driven notification fan-out service (push,
-        email, Telegram) — no consumers, entities, or business logic yet (see
-        later migration step).
+        Kafka-driven notification fan-out service (Step 8 of the migration guide).
+        Consumes alerts.triggered (from alert-service) and trades.executed /
+        trades.closed (from trading-service) topics, then delivers real email
+        (Spring JavaMail / SMTP) and Telegram (rubenlagus TelegramBots) notifications.
+
+        Implements the production versions of EmailNotificationChannel and
+        TelegramNotificationChannel — the same NotificationChannel contract as the
+        stubs previously in alert-service (those stubs are now replaced with
+        Kafka-only publish in alert-service, per option (a) in the migration guide).
     </description>
 
+    <properties>
+        <telegrambots.version>6.8.0</telegrambots.version>
+    </properties>
+
     <dependencies>
-        <dependency>
+
+        <!-- ── Web (health endpoint, future admin REST) ──────────────────── -->\n        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
-        <dependency>
+
+        <!-- ── Service discovery ────────────────────────────────────────── -->\n        <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
         </dependency>
 
-        <dependency>
+        <!-- ── Shared contracts (AlertTriggeredEventDto, TradeEventDto,
+               NotificationChannel, UserPreferencesDto) ──────────────────── -->\n        <dependency>
             <groupId>com.mst.matt</groupId>
             <artifactId>contracts</artifactId>
             <version>${project.version}</version>
         </dependency>
 
-        <dependency>
+        <!-- ── Kafka consumer (alerts.triggered + trades.executed/closed) ──
+             spring-kafka brings both the consumer and KafkaTemplate (producer).
+             Version managed by Spring Boot BOM (spring-kafka). ─────────── -->\n        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+        <!-- ── Email (SMTP via JavaMailSender) ──────────────────────────── -->\n        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
+        <!-- ── Telegram Bot API (rubenlagus TelegramBots library) ─────────
+             telegrambots-spring-boot-starter auto-registers long-polling bots
+             as Spring beans when telegram.bot.enabled=true.
+             Pin to 6.8.0 — same major as the desktop monolith's bot; the API
+             shape of TelegramLongPollingBot / SendMessage is stable.
+             TelegramBots 7.x+ moves to a different package structure — update
+             together with desktop when you do the Step 12 thin-client pass. ──── -->\n        <dependency>
+            <groupId>org.telegram</groupId>
+            <artifactId>telegrambots-spring-boot-starter</artifactId>
+            <version>${telegrambots.version}</version>
+        </dependency>
+
+        <!-- ── Actuator (health, info) ───────────────────────────────────── -->\n        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- ── Configuration-processor ───────────────────────────────────── -->\n        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- ── Lombok ───────────────────────────────────────────────────── -->\n        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
-        <dependency>
+
+        <!-- ── Test ─────────────────────────────────────────────────────── -->\n        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <build>
