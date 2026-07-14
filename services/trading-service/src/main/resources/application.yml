@@ -46,6 +46,20 @@ management:
       exposure:
         include: health,info,metrics
 
+# ── Reference-data-service URL (Step 10 — FundamentalsClient) ────────────────
+# Resolved via Eureka in a full cluster; set this property for local / Docker
+# non-Eureka environments.  Leave blank to rely on Eureka service discovery.
+reference-data:
+  service:
+    url: ${REFERENCE_DATA_SERVICE_URL:}
+
+# ── OpenFeign / circuit-breaker ───────────────────────────────────────────────
+# Enable feign circuit-breaker so FundamentalsClientFallback is used when
+# reference-data-service is unreachable.
+feign:
+  circuitbreaker:
+    enabled: true
+
 # ── BitUnix API configuration (TradingProperties, Step 6.6) ──────────────────
 #
 # Two distinct REST base URLs and one private WebSocket URL:
