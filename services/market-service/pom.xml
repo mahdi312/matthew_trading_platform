@@ -124,7 +124,13 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- ── ta4j — technical analysis library (charting sub-package) ──── -->
+        <!-- ── Redis — L2 shared cache (market-service Redis step) ─────────
+             spring-boot-starter-data-redis brings Lettuce (the default
+             reactive-capable driver) + Spring Data Redis auto-configuration.
+             Caffeine stays as the L1 (in-JVM) cache; Redis is L2 (shared
+             across all instances / survives restarts).
+             For local dev: docker run -p 6379:6379 redis:7-alpine
+             For production / Step 15: the redis service in docker-compose.yml ──── -->\n        <dependency>\n            <groupId>org.springframework.boot</groupId>\n            <artifactId>spring-boot-starter-data-redis</artifactId>\n        </dependency>\n\n        <!-- ── ta4j — technical analysis library (charting sub-package) ──── -->
         <dependency>
             <groupId>org.ta4j</groupId>
             <artifactId>ta4j-core</artifactId>

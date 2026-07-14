@@ -5,19 +5,34 @@ spring:
   application:
     name: market-service
 
-  # ── Caffeine cache (Step 5.3) ───────────────────────────────────────────────
-  # Two named cache regions with distinct TTLs, wired via CacheConfig
-  # (spring.cache.type/cache-names/caffeine.spec are NOT used here because
-  # they only support one shared spec for every named cache — CacheConfig's
-  # CacheManager bean below assigns per-region specs instead):
-  #   - tickerSnapshot: short TTL (a live-ish 24h snapshot that should not go
-  #     stale for more than a few seconds).
-  #   - ohlcv: longer TTL (historical bars only change when a new candle
-  #     closes — no need to re-fetch on every request).
-  # `recordStats` is enabled on both so Actuator's /actuator/caches and
-  # /actuator/metrics expose hit/miss counters.
+  # ── Two-tier cache: Caffeine L1 (in-JVM) + Redis L2 (shared) ───────────────
+  #
+  # L1 (Caffeine) — sub-millisecond reads, local to this JVM instance only.
+  #   Configured as plain Caffeine.Cache beans in CacheConfig; used directly
+  #   by OhlcvCacheService (not via @Cacheable) so the L1→L2→provider flow
+  #   is explicit.
+  #
+  # L2 (Redis) — shared across all instances, survives restarts.
+  #   Wired as the primary Spring CacheManager (RedisCacheManager) in CacheConfig.
+  #   spring.cache.type=redis tells Spring Boot to defer to that bean.
+  #
+  # For local dev: docker run -p 6379:6379 redis:7-alpine
+  # For production / Step 15: the redis service in docker-compose.yml
   cache:
-    type: caffeine
+    type: redis
+
+  # ── Redis connection (Lettuce, auto-configured by spring-boot-starter-data-redis)
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      # Lettuce connection pool (optional; defaults are fine for dev)
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 4
+          min-idle: 1
 
 # ── External market-data provider API keys (Phase 3) ────────────────────────
 # All keys default to "" (empty). Providers with blank keys are auto-disabled.
@@ -64,6 +79,18 @@ app:
   market-data:
     sync:
       enabled: ${MARKET_SYNC_ENABLED:false}
+
+# ── Cache TTL tuning (L1 Caffeine / L2 Redis) ────────────────────────────────
+# Override via env vars, e.g.:
+#   CACHE_CAFFEINE_OHLCV_TTL_SECONDS=60
+#   CACHE_REDIS_OHLCV_TTL_MINUTES=10
+cache:
+  caffeine:
+    ohlcv-ttl-seconds: ${CACHE_CAFFEINE_OHLCV_TTL_SECONDS:30}
+    ticker-ttl-seconds: ${CACHE_CAFFEINE_TICKER_TTL_SECONDS:5}
+  redis:
+    ohlcv-ttl-minutes: ${CACHE_REDIS_OHLCV_TTL_MINUTES:5}
+    ticker-ttl-seconds: ${CACHE_REDIS_TICKER_TTL_SECONDS:10}
 
 # ── BitUnix API configuration (Step 5.1) ────────────────────────────────────
 # apiKey/secretKey are only needed for BitUnix's private endpoints (order

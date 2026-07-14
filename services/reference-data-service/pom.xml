@@ -77,6 +77,15 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- ── Redis — L2 shared cache (reference-data-service Redis step) ─
+             Same two-tier Caffeine (L1) + Redis (L2) pattern as market-service.
+             reference-data-service does the heaviest external-provider caching
+             (news, fundamentals, calendar, sentiment, search, NFT — all
+             external API calls with strict rate limits).
+             For local dev: docker run -p 6379:6379 redis:7-alpine ─────────── -->\n        <dependency>\n            <groupId>org.springframework.boot</groupId>\n            <artifactId>spring-boot-starter-data-redis</artifactId>\n        </dependency>
+
+        <!-- ── Caffeine — L1 in-JVM cache ───────────────────────────────── -->\n        <dependency>\n            <groupId>org.springframework.boot</groupId>\n            <artifactId>spring-boot-starter-cache</artifactId>\n        </dependency>\n        <dependency>\n            <groupId>com.github.ben-manes.caffeine</groupId>\n            <artifactId>caffeine</artifactId>\n        </dependency>
     </dependencies>
 
     <build>
