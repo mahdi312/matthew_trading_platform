@@ -55,3 +55,5 @@ app:
 services:
   reference-data:
     url: http://reference-data-service
+  market:
+    url: http://market-service
