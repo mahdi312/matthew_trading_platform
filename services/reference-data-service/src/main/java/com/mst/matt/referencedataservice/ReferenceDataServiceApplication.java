@@ -4,6 +4,7 @@ import com.mst.matt.referencedataservice.config.RefDataProviderProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.cloud.openfeign.EnableFeignClients;
 
 /**
  * Reference Data Service — Spring Boot entry point.
@@ -34,6 +35,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
  * <p>Runs on port {@code 8085} and registers with Eureka.</p>
  */
 @SpringBootApplication
+@EnableFeignClients
 @EnableConfigurationProperties(RefDataProviderProperties.class)
 public class ReferenceDataServiceApplication {
 

@@ -10,8 +10,9 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.GenericJacksonJsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
@@ -56,7 +57,7 @@ public class CacheConfig {
     // ── Cache region names (constants shared with OhlcvCacheService) ─────────
 
     public static final String TICKER_CACHE = "tickerSnapshot";
-    public static final String OHLCV_CACHE  = "ohlcv";
+    public static final String OHLCV_CACHE = "ohlcv";
 
     // ── L2 TTLs (Redis) ───────────────────────────────────────────────────────
 
@@ -108,7 +109,7 @@ public class CacheConfig {
     /**
      * Redis-backed Spring {@link CacheManager} — the primary cache manager.
      *
-     * <p>Uses {@link GenericJackson2JsonRedisSerializer} so cached objects can be
+     * <p>Uses {@link GenericJacksonJsonRedisSerializer} so cached objects can be
      * inspected with {@code redis-cli} and survive class evolution without manual
      * serialisation config (Jackson handles polymorphism via {@code @class} field).</p>
      */
@@ -118,7 +119,7 @@ public class CacheConfig {
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofMinutes(ohlcvRedisTtlMinutes))
                 .serializeValuesWith(RedisSerializationContext.SerializationPair
-                        .fromSerializer(new GenericJackson2JsonRedisSerializer()))
+                        .fromSerializer(new GenericJacksonJsonRedisSerializer(JsonMapper.builder().build())))
                 .disableCachingNullValues();
 
         RedisCacheConfiguration tickerConfig = defaultConfig
@@ -130,7 +131,7 @@ public class CacheConfig {
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)
                 .withCacheConfiguration(TICKER_CACHE, tickerConfig)
-                .withCacheConfiguration(OHLCV_CACHE,  ohlcvConfig)
+                .withCacheConfiguration(OHLCV_CACHE, ohlcvConfig)
                 .build();
     }
 }

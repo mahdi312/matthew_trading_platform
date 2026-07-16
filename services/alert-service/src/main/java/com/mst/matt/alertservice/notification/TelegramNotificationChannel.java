@@ -4,6 +4,7 @@ import com.mst.matt.contracts.dto.AlertTriggeredEventDto;
 import com.mst.matt.contracts.dto.UserPreferencesDto;
 import com.mst.matt.contracts.notification.NotificationChannel;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 /**
@@ -33,6 +34,7 @@ public class TelegramNotificationChannel implements NotificationChannel {
 
     public static final String CHANNEL_NAME = "TELEGRAM";
 
+    @Async("notificationSendExecutor")
     @Override
     public void send(AlertTriggeredEventDto event, UserPreferencesDto prefs) {
         // NO-OP: Telegram delivery has moved to notification-service (Step 8, option a).

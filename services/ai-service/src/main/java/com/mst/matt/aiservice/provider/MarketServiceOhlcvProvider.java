@@ -50,7 +50,9 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor
 public class MarketServiceOhlcvProvider implements OhlcvDataProvider {
 
-    /** Logical provider name registered in the {@code ohlcvRegistry}. */
+    /**
+     * Logical provider name registered in the {@code ohlcvRegistry}.
+     */
     static final String PROVIDER_NAME = "MARKET_SERVICE";
 
     private final MarketDataClient marketDataClient;
@@ -82,16 +84,16 @@ public class MarketServiceOhlcvProvider implements OhlcvDataProvider {
      *
      * @param symbol     canonical symbol (e.g. {@code "BTCUSDT"}, {@code "AAPL"})
      * @param assetClass asset class (used only for {@code supportedAssetClasses} routing;
-     *                   market-service derives it independently from the symbol)
+     *                   market-service derives it independently of the symbol)
      * @param interval   candle timeframe (e.g. {@code "1h"}, {@code "1d"})
      * @param limit      max bars to return
      * @return list of {@link NormalizedOhlcvBar} oldest-first; empty on failure
      */
     @Override
     public List<NormalizedOhlcvBar> getHistoricalBars(String symbol,
-                                                       AssetClass assetClass,
-                                                       String interval,
-                                                       int limit) {
+                                                      AssetClass assetClass,
+                                                      String interval,
+                                                      int limit) {
         try {
             List<OhlcvBarResponse> raw = marketDataClient.getOhlcv(symbol, interval, limit);
             if (raw == null || raw.isEmpty()) {
@@ -117,10 +119,10 @@ public class MarketServiceOhlcvProvider implements OhlcvDataProvider {
      */
     @Override
     public List<NormalizedOhlcvBar> getHistoricalBars(String symbol,
-                                                       AssetClass assetClass,
-                                                       String interval,
-                                                       Instant from,
-                                                       Instant to) {
+                                                      AssetClass assetClass,
+                                                      String interval,
+                                                      Instant from,
+                                                      Instant to) {
         // market-service's /api/market/ohlcv/{symbol} does not yet expose a
         // date-range parameter, so we fetch a wide batch and let the caller
         // post-filter by time if needed.
@@ -134,14 +136,16 @@ public class MarketServiceOhlcvProvider implements OhlcvDataProvider {
      */
     @Override
     public Stream<NormalizedOhlcvBar> streamLiveBars(String symbol,
-                                                      AssetClass assetClass,
-                                                      String interval) {
+                                                     AssetClass assetClass,
+                                                     String interval) {
         throw new UnsupportedOperationException(
                 "MarketServiceOhlcvProvider does not support live streaming; "
-                + "use market-service's WebSocket endpoint directly.");
+                        + "use market-service's WebSocket endpoint directly.");
     }
 
-    /** Always returns {@code false} — streaming not implemented here. */
+    /**
+     * Always returns {@code false} — streaming not implemented here.
+     */
     @Override
     public boolean supportsStreaming(AssetClass assetClass) {
         return false;
@@ -158,8 +162,8 @@ public class MarketServiceOhlcvProvider implements OhlcvDataProvider {
      * We treat it as UTC when converting to {@link Instant}.</p>
      */
     private static NormalizedOhlcvBar toNormalized(OhlcvBarResponse b,
-                                                    AssetClass assetClass,
-                                                    String interval) {
+                                                   AssetClass assetClass,
+                                                   String interval) {
         Instant openInstant = b.openTime() != null
                 ? b.openTime().toInstant(ZoneOffset.UTC)
                 : null;

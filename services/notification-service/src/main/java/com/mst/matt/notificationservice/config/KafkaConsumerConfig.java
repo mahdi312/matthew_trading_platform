@@ -11,25 +11,11 @@ import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
+import org.springframework.kafka.support.serializer.JacksonJsonDeserializer;
 
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Kafka consumer configuration for {@code notification-service}.
- *
- * <p>A single {@link ConcurrentKafkaListenerContainerFactory} handles both
- * {@code AlertTriggeredEventDto} (from {@code alerts.triggered}) and
- * {@code TradeEventDto} (from {@code trades.executed} / {@code trades.closed})
- * because Spring Kafka's {@link JsonDeserializer} can be configured to trust
- * any class in our contracts module.</p>
- *
- * <h3>Error handling</h3>
- * <p>The consumer uses {@link ErrorHandlingDeserializer} as a wrapper so that
- * a single malformed message does not crash the listener thread — the deserialization
- * error is logged and the offset is committed, preventing infinite retry loops.</p>
- */
 @Configuration
 public class KafkaConsumerConfig {
 
@@ -38,24 +24,21 @@ public class KafkaConsumerConfig {
 
     @Bean
     public ConsumerFactory<String, Object> consumerFactory() {
-        JsonDeserializer<Object> deserializer = new JsonDeserializer<>();
-        // Trust all classes from the contracts module (AlertTriggeredEventDto, TradeEventDto)
+        JacksonJsonDeserializer<Object> deserializer = new JacksonJsonDeserializer<>();
         deserializer.addTrustedPackages(
                 "com.mst.matt.contracts.dto",
                 "com.mst.matt.contracts.enums"
         );
-        deserializer.setUseTypeHeaders(true);
+        deserializer.setUseTypeMapperForKey(false); // values only, matches prior setUseTypeHeaders(true) intent
 
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
-        props.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, JsonDeserializer.class.getName());
-        props.put(JsonDeserializer.TRUSTED_PACKAGES,
+        props.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, JacksonJsonDeserializer.class.getName());
+        props.put(JacksonJsonDeserializer.TRUSTED_PACKAGES,
                 "com.mst.matt.contracts.dto,com.mst.matt.contracts.enums");
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        // Group IDs are set per-listener via @KafkaListener(groupId=...) so the
-        // factory does not specify a default group.
 
         return new DefaultKafkaConsumerFactory<>(props,
                 new StringDeserializer(),
@@ -67,7 +50,7 @@ public class KafkaConsumerConfig {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
-        factory.setConcurrency(1); // single partition per topic in dev; increase for production
+        factory.setConcurrency(1);
         return factory;
     }
 }

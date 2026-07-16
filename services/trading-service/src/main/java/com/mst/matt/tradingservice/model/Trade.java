@@ -111,6 +111,14 @@ public class Trade {
     @Column
     private LocalDateTime updatedAt;
 
+    /**
+     * Client-supplied idempotency key (from the {@code Idempotency-Key} request header).
+     * Null for trades created before this field existed, or for internal paths
+     * (broker import) that don't go through the idempotency check.
+     */
+    @Column(name = "idempotency_key", length = 128, unique = true)
+    private String idempotencyKey;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

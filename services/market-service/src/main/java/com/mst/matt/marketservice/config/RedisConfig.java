@@ -4,27 +4,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.GenericJacksonJsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import tools.jackson.databind.json.JsonMapper;
 
-/**
- * Redis template wiring for {@code market-service}.
- *
- * <p>Registers a single {@link RedisTemplate}{@code <String, Object>} with:</p>
- * <ul>
- *   <li>Key serialiser: {@link StringRedisSerializer} — human-readable keys
- *       (inspectable with {@code redis-cli keys 'ohlcv:*'}).</li>
- *   <li>Value serialiser: {@link GenericJackson2JsonRedisSerializer} — Jackson
- *       JSON with embedded {@code @class} field, so deserialisation works even
- *       if a consuming instance has a different classloader order.</li>
- * </ul>
- *
- * <p>Connection is provided by Spring Boot's
- * {@code spring-boot-autoconfigure} Lettuce auto-config, driven by
- * {@code spring.data.redis.*} in {@code application.yml}.</p>
- *
- * <p>For local dev: {@code docker run -p 6379:6379 redis:7-alpine}.</p>
- */
 @Configuration
 public class RedisConfig {
 
@@ -34,7 +17,8 @@ public class RedisConfig {
         template.setConnectionFactory(connectionFactory);
 
         StringRedisSerializer keySerializer = new StringRedisSerializer();
-        GenericJackson2JsonRedisSerializer valueSerializer = new GenericJackson2JsonRedisSerializer();
+        GenericJacksonJsonRedisSerializer valueSerializer =
+                new GenericJacksonJsonRedisSerializer(JsonMapper.builder().build());
 
         template.setKeySerializer(keySerializer);
         template.setHashKeySerializer(keySerializer);

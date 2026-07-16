@@ -92,6 +92,11 @@ public class TradeService {
         return tradeRepository.findByUserIdAndStatus(userId, TradeStatus.CLOSED);
     }
 
+    @Transactional(readOnly = true)
+    public Optional<Trade> findByIdempotencyKey(String idempotencyKey) {
+        return tradeRepository.findByIdempotencyKey(idempotencyKey);
+    }
+
     /**
      * Close an open trade with a given exit price.
      *

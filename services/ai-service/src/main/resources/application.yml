@@ -57,3 +57,8 @@ services:
     url: http://reference-data-service
   market:
     url: http://market-service
+
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level [%X{correlationId:-no-cid}] %logger{36} - %msg%n"

@@ -70,7 +70,21 @@
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
         <!-- ── Spring WebSocket (WS server-side support, Step 6 WS) ────── -->
@@ -102,7 +116,11 @@
         <!-- ── Kafka producer (trades.executed / trades.closed events) ────
              Added in Step 8 of the migration guide: TradeEventPublisher
              broadcasts trade lifecycle events so notification-service can
-             fan out email/Telegram notifications without polling. ──────── -->\n        <dependency>\n            <groupId>org.springframework.kafka</groupId>\n            <artifactId>spring-kafka</artifactId>\n        </dependency>
+             fan out email/Telegram notifications without polling. ──────── -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
 
         <!-- ── Apache POI — Excel report generation (Step 10) ─────────────
              poi-ooxml covers .xlsx (XSSF workbook, XSSF charts, XDD charts).
@@ -128,7 +146,11 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>\n            <groupId>org.springframework.kafka</groupId>\n            <artifactId>spring-kafka-test</artifactId>\n            <scope>test</scope>\n        </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka-test</artifactId>
+            <scope>test</scope>
+        </dependency>
 
     </dependencies>
 

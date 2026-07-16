@@ -2,6 +2,7 @@ package com.mst.matt.identityservice.service;
 
 import com.mst.matt.identityservice.model.AppSetting;
 import com.mst.matt.identityservice.repository.AppSettingRepository;
+import com.mst.matt.identityservice.repository.AppUserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -51,7 +52,15 @@ public class AppSettingsService {
     public static final String KEY_TICKER_DISABLED  = "ticker.symbols.disabled";
     public static final String KEY_TICKER_INTERVAL  = "ticker.poll.interval.seconds";
 
+    public static final String KEY_NOTIF_INAPP_ENABLED    = "notification.inApp.enabled";
+    public static final String KEY_NOTIF_EMAIL_ENABLED     = "notification.email.enabled";
+    public static final String KEY_NOTIF_EMAIL_ADDRESS     = "notification.email.address";
+    public static final String KEY_NOTIF_TELEGRAM_ENABLED  = "notification.telegram.enabled";
+    public static final String KEY_NOTIF_TELEGRAM_CHAT_ID  = "notification.telegram.chatId";
+
     private final AppSettingRepository repository;
+    private final AppUserRepository appUserRepository;
+
 
     // ── Generic read/write ────────────────────────────────────────────────────
 
@@ -87,6 +96,44 @@ public class AppSettingsService {
         setting.setValue(value);
         repository.save(setting);
         log.debug("AppSettings set userId={} key={}", userId, key);
+    }
+
+    /**
+     * Returns this user's notification preferences as the cross-service DTO consumed
+     * by {@code notification-service}. Email defaults to the account's login email if
+     * no override has been set; every "enabled" flag defaults to {@code true} so a
+     * user who has never touched notification settings still receives alerts.
+     */
+    @Transactional(readOnly = true)
+    public com.mst.matt.contracts.dto.UserPreferencesDto getNotificationPreferences(Long userId) {
+        String accountEmail = appUserRepository.findById(userId)
+                .map(com.mst.matt.identityservice.model.AppUser::getEmail)
+                .orElse(null);
+
+        boolean inAppEnabled    = Boolean.parseBoolean(get(userId, KEY_NOTIF_INAPP_ENABLED, "true"));
+        boolean emailEnabled    = Boolean.parseBoolean(get(userId, KEY_NOTIF_EMAIL_ENABLED, "true"));
+        String  email           = get(userId, KEY_NOTIF_EMAIL_ADDRESS, accountEmail);
+        boolean telegramEnabled = Boolean.parseBoolean(get(userId, KEY_NOTIF_TELEGRAM_ENABLED, "false"));
+        String  telegramChatId  = get(userId, KEY_NOTIF_TELEGRAM_CHAT_ID, null);
+
+        return com.mst.matt.contracts.dto.UserPreferencesDto.builder()
+                .userId(userId)
+                .inAppEnabled(inAppEnabled)
+                .emailEnabled(emailEnabled)
+                .email(email)
+                .telegramEnabled(telegramEnabled)
+                .telegramChatId(telegramChatId)
+                .build();
+    }
+
+    /** Upserts notification preferences in one call — used by the PUT endpoint. */
+    @Transactional
+    public void setNotificationPreferences(Long userId, com.mst.matt.contracts.dto.UserPreferencesDto prefs) {
+        set(userId, KEY_NOTIF_INAPP_ENABLED,    String.valueOf(prefs.isInAppEnabled()));
+        set(userId, KEY_NOTIF_EMAIL_ENABLED,    String.valueOf(prefs.isEmailEnabled()));
+        set(userId, KEY_NOTIF_EMAIL_ADDRESS,    prefs.getEmail() != null ? prefs.getEmail() : "");
+        set(userId, KEY_NOTIF_TELEGRAM_ENABLED, String.valueOf(prefs.isTelegramEnabled()));
+        set(userId, KEY_NOTIF_TELEGRAM_CHAT_ID, prefs.getTelegramChatId() != null ? prefs.getTelegramChatId() : "");
     }
 
     /**

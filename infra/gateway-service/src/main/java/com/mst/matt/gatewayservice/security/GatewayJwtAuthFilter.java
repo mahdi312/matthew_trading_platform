@@ -76,6 +76,8 @@ public class GatewayJwtAuthFilter implements GlobalFilter, Ordered {
             "/actuator"
     );
 
+    private static final String CORRELATION_ID_HEADER = "X-Correlation-Id";
+
     private final SecretKey signingKey;
 
     public GatewayJwtAuthFilter(@Value("${jwt.secret}") String secret) {
@@ -100,9 +102,14 @@ public class GatewayJwtAuthFilter implements GlobalFilter, Ordered {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getURI().getPath();
 
-        // ── Allow public paths through ─────────────────────────────────────
+        String correlationId = resolveCorrelationId(request);
+
+        // ── Allow public paths through — still stamp the correlation ID ────
         if (isPublicPath(path)) {
-            return chain.filter(exchange);
+            ServerHttpRequest stamped = request.mutate()
+                    .header(CORRELATION_ID_HEADER, correlationId)
+                    .build();
+            return chain.filter(exchange.mutate().request(stamped).build());
         }
 
         // ── Extract Bearer token ───────────────────────────────────────────
@@ -111,7 +118,6 @@ public class GatewayJwtAuthFilter implements GlobalFilter, Ordered {
             return unauthorised(exchange, "Missing Authorization header");
         }
 
-        // ── Validate token and inject user-identity headers ────────────────
         try {
             Claims claims = Jwts.parser()
                     .verifyWith(signingKey)
@@ -124,12 +130,12 @@ public class GatewayJwtAuthFilter implements GlobalFilter, Ordered {
             String role         = String.valueOf(claims.get("role"));
             String authProvider = String.valueOf(claims.get("authProvider"));
 
-            // Mutate the request to add identity headers for downstream services
             ServerHttpRequest mutated = request.mutate()
                     .header("X-User-Id",       userId)
                     .header("X-User-Name",     username)
                     .header("X-User-Role",     role)
                     .header("X-Auth-Provider", authProvider)
+                    .header(CORRELATION_ID_HEADER, correlationId)
                     .build();
 
             return chain.filter(exchange.mutate().request(mutated).build());
@@ -138,6 +144,12 @@ public class GatewayJwtAuthFilter implements GlobalFilter, Ordered {
             log.debug("JWT validation failed for path={}: {}", path, ex.getMessage());
             return unauthorised(exchange, "Invalid or expired JWT");
         }
+    }
+
+    /** Forward the client's correlation ID if it sent one; otherwise generate a fresh one. */
+    private String resolveCorrelationId(ServerHttpRequest request) {
+        String existing = request.getHeaders().getFirst(CORRELATION_ID_HEADER);
+        return (existing != null && !existing.isBlank()) ? existing : java.util.UUID.randomUUID().toString();
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

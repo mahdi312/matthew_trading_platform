@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
          http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
@@ -29,23 +29,26 @@
     </description>
 
     <properties>
-        <telegrambots.version>6.8.0</telegrambots.version>
+        <telegrambots.version>6.9.7.1</telegrambots.version>
     </properties>
 
     <dependencies>
 
-        <!-- ── Web (health endpoint, future admin REST) ──────────────────── -->\n        <dependency>
+        <!-- ── Web (health endpoint, future admin REST) ──────────────────── -->
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <!-- ── Service discovery ────────────────────────────────────────── -->\n        <dependency>
+        <!-- ── Service discovery ────────────────────────────────────────── -->
+        <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
         </dependency>
 
         <!-- ── Shared contracts (AlertTriggeredEventDto, TradeEventDto,
-               NotificationChannel, UserPreferencesDto) ──────────────────── -->\n        <dependency>
+               NotificationChannel, UserPreferencesDto) ──────────────────── -->
+        <dependency>
             <groupId>com.mst.matt</groupId>
             <artifactId>contracts</artifactId>
             <version>${project.version}</version>
@@ -53,12 +56,19 @@
 
         <!-- ── Kafka consumer (alerts.triggered + trades.executed/closed) ──
              spring-kafka brings both the consumer and KafkaTemplate (producer).
-             Version managed by Spring Boot BOM (spring-kafka). ─────────── -->\n        <dependency>
+             Version managed by Spring Boot BOM (spring-kafka). ─────────── -->
+        <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
 
-        <!-- ── Email (SMTP via JavaMailSender) ──────────────────────────── -->\n        <dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+
+        <!-- ── Email (SMTP via JavaMailSender) ──────────────────────────── -->
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
@@ -69,30 +79,35 @@
              Pin to 6.8.0 — same major as the desktop monolith's bot; the API
              shape of TelegramLongPollingBot / SendMessage is stable.
              TelegramBots 7.x+ moves to a different package structure — update
-             together with desktop when you do the Step 12 thin-client pass. ──── -->\n        <dependency>
+             together with desktop when you do the Step 12 thin-client pass. ──── -->
+        <dependency>
             <groupId>org.telegram</groupId>
             <artifactId>telegrambots-spring-boot-starter</artifactId>
             <version>${telegrambots.version}</version>
         </dependency>
 
-        <!-- ── Actuator (health, info) ───────────────────────────────────── -->\n        <dependency>
+        <!-- ── Actuator (health, info) ───────────────────────────────────── -->
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
-        <!-- ── Configuration-processor ───────────────────────────────────── -->\n        <dependency>
+        <!-- ── Configuration-processor ───────────────────────────────────── -->
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
             <optional>true</optional>
         </dependency>
 
-        <!-- ── Lombok ───────────────────────────────────────────────────── -->\n        <dependency>
+        <!-- ── Lombok ───────────────────────────────────────────────────── -->
+        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
 
-        <!-- ── Test ─────────────────────────────────────────────────────── -->\n        <dependency>
+        <!-- ── Test ─────────────────────────────────────────────────────── -->
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>

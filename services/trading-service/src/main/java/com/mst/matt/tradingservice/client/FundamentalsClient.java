@@ -32,7 +32,7 @@ public interface FundamentalsClient {
      * @param symbol the stock ticker (e.g. "AAPL"); crypto/forex returns null from fallback
      * @param provider optional provider name override (e.g. "FINNHUB"); omit for AUTO
      */
-    @GetMapping("/api/fundamentals/{symbol}")
+    @GetMapping("/api/reference/fundamentals/{symbol}")
     FundamentalsReportDto getFundamentals(
             @PathVariable("symbol") String symbol,
             @RequestParam(value = "provider", required = false) String provider);

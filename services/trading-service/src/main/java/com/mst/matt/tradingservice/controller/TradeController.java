@@ -71,10 +71,24 @@ public class TradeController {
      * <p>TODO: extract {@code userId} from JWT principal (Spring Security) instead
      * of reading it from the request body.
      */
+
     @PostMapping("/trades")
-    public ResponseEntity<TradeResponse> createTrade(@Valid @RequestBody TradeRequest request) {
-        log.debug("POST /api/trades userId={} symbol={} source={}", request.getUserId(), request.getSymbol(), request.getSource());
-        Trade trade = orchestrationService.placeTrade(request);
+    public ResponseEntity<TradeResponse> createTrade(
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @Valid @RequestBody TradeRequest request) {
+        log.debug("POST /api/trades userId={} symbol={} source={} idempotencyKey={}",
+                request.getUserId(), request.getSymbol(), request.getSource(), idempotencyKey);
+
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            java.util.Optional<Trade> existing = tradeService.findByIdempotencyKey(idempotencyKey);
+            if (existing.isPresent()) {
+                log.info("Idempotent replay — returning existing trade id={} for key={}",
+                        existing.get().getId(), idempotencyKey);
+                return ResponseEntity.ok(TradeResponse.from(existing.get())); // 200, not 201 — not newly created
+            }
+        }
+
+        Trade trade = orchestrationService.placeTrade(request, idempotencyKey);
         return ResponseEntity.status(HttpStatus.CREATED).body(TradeResponse.from(trade));
     }
 

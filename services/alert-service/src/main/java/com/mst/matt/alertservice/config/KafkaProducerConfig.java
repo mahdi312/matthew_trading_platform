@@ -9,20 +9,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
-import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
 
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Kafka producer configuration for publishing {@link AlertTriggeredEventDto}
- * to the {@code alerts.triggered} topic (see {@code AlertEventPublisher}).
- *
- * <p>JSON value serialization keeps the wire format human-readable and
- * consumer-agnostic — {@code notification-service} (Step 7) deserializes the
- * same DTO from {@code shared/contracts} without needing Avro/schema-registry
- * infrastructure for this first cross-service event type.</p>
- */
 @Configuration
 public class KafkaProducerConfig {
 
@@ -34,7 +25,7 @@ public class KafkaProducerConfig {
         Map<String, Object> config = new HashMap<>();
         config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-        config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
+        config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JacksonJsonSerializer.class);
         return new DefaultKafkaProducerFactory<>(config);
     }
 

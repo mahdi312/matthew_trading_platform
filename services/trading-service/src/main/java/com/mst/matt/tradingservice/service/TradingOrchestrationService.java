@@ -5,7 +5,6 @@ import com.mst.matt.contracts.broker.trading.TradingProvider;
 import com.mst.matt.contracts.dto.PlaceOrderRequestDto;
 import com.mst.matt.contracts.dto.TradeEventDto;
 import com.mst.matt.contracts.enums.BrokerType;
-import com.mst.matt.contracts.enums.InstrumentType;
 import com.mst.matt.contracts.enums.OrderSide;
 import com.mst.matt.contracts.enums.OrderType;
 import com.mst.matt.tradingservice.dto.TradeRequest;
@@ -14,7 +13,6 @@ import com.mst.matt.tradingservice.model.Trade.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Orchestration service that wires the journal layer ({@link TradeService}) to
@@ -54,24 +52,28 @@ public class TradingOrchestrationService {
     /**
      * Place a trade — either journal-only (MANUAL) or via a live broker (BROKER_LIVE).
      *
+     * <p><b>Not {@code @Transactional}.</b> {@link #placeLiveBrokerTrade} calls a live
+     * exchange API before writing to the database; holding a DB transaction open across
+     * that network call risks connection-pool exhaustion and — worse — an order placed on
+     * the exchange with no local record if the subsequent save fails. The DB write itself
+     * is still transactional via {@link TradeService}'s class-level {@code @Transactional}.
+     *
      * @param request populated trade request (source field controls routing)
      * @return the persisted {@link Trade} record
      */
-    @Transactional
-    public Trade placeTrade(TradeRequest request) {
+    public Trade placeTrade(TradeRequest request, String idempotencyKey) {
         return switch (request.getSource()) {
-            case MANUAL        -> placeManualTrade(request);
-            case BROKER_LIVE   -> placeLiveBrokerTrade(request);
+            case MANUAL        -> placeManualTrade(request, idempotencyKey);
+            case BROKER_LIVE   -> placeLiveBrokerTrade(request, idempotencyKey);
             case BROKER_IMPORT -> throw new IllegalArgumentException(
                     "BROKER_IMPORT trades must go through BrokerImportService, not placeTrade()");
         };
     }
 
-    // ── Manual (journal-only) path ────────────────────────────────────────────
-
-    private Trade placeManualTrade(TradeRequest request) {
+    private Trade placeManualTrade(TradeRequest request, String idempotencyKey) {
         Trade trade = buildTradeEntity(request);
         trade.setSource(TradeSource.MANUAL);
+        trade.setIdempotencyKey(idempotencyKey);
         Trade saved = tradeService.saveTrade(trade);
         log.info("Manual trade journalled: id={} userId={} symbol={}", saved.getId(), saved.getUserId(), saved.getSymbol());
         return saved;
@@ -93,7 +95,7 @@ public class TradingOrchestrationService {
      * override by setting {@code request.notes} to {@code "SPOT"} for now; a
      * dedicated field will be added in the next iteration.</p>
      */
-    private Trade placeLiveBrokerTrade(TradeRequest request) {
+    private Trade placeLiveBrokerTrade(TradeRequest request, String idempotencyKey) {
         // 1. Resolve the broker type
         BrokerType brokerType = resolveBrokerType(request.getBrokerType());
 
@@ -111,8 +113,6 @@ public class TradingOrchestrationService {
                 .stopPrice(request.getStopLoss())
                 .build();
 
-        // 4. Route to spot or futures based on a simple heuristic
-        //    (explicit instrument-type field to be added in next iteration)
         boolean isFutures = request.getAssetType() == AssetType.CRYPTO
                 && (request.getNotes() == null || !request.getNotes().equalsIgnoreCase("SPOT"));
 
@@ -121,21 +121,37 @@ public class TradingOrchestrationService {
                 request.getUserId(), request.getSymbol(),
                 orderRequest.getSide(), request.getQuantity(), brokerType);
 
+        // ── Network call to the live exchange — deliberately OUTSIDE any DB transaction ──
         TradeEventDto event = isFutures
                 ? provider.placeFuturesOrder(orderRequest)
                 : provider.placeSpotOrder(orderRequest);
 
-        // 5. Persist a pending trade journal entry immediately
-        Trade trade = buildTradeEntity(request);
-        trade.setSource(TradeSource.BROKER_LIVE);
-        trade.setBrokerOrderId(event.getEventId());
-        trade.setStatus(TradeStatus.OPEN);  // open until WS confirmation closes it
-        Trade saved = tradeService.saveTrade(trade);
+        // 4. Persist a pending trade journal entry immediately.
+        //    If this throws, the order is already live on the exchange with no local
+        //    record — that mismatch is exactly what Step 13's reconciliation job exists
+        //    to catch, but log it loudly here too so it's visible immediately, not just
+        //    on the next scheduled reconciliation pass.
+        try {
+            Trade trade = buildTradeEntity(request);
+            trade.setSource(TradeSource.BROKER_LIVE);
+            trade.setBrokerOrderId(event.getEventId());
+            trade.setIdempotencyKey(idempotencyKey);
+            trade.setStatus(TradeStatus.OPEN);
+            Trade saved = tradeService.saveTrade(trade);
 
-        log.info("Live trade journalled (pending broker confirmation): id={} brokerOrderId={}",
-                saved.getId(), saved.getBrokerOrderId());
-        return saved;
+            log.info("Live trade journalled (pending broker confirmation): id={} brokerOrderId={}",
+                    saved.getId(), saved.getBrokerOrderId());
+            return saved;
+        } catch (Exception persistFailure) {
+            log.error("ORDER PLACED ON {} BUT NOT JOURNALLED — manual reconciliation required. " +
+                            "userId={} symbol={} brokerOrderId={} side={} qty={} error={}",
+                    brokerType, request.getUserId(), request.getSymbol(),
+                    event.getEventId(), orderRequest.getSide(), request.getQuantity(),
+                    persistFailure.getMessage(), persistFailure);
+            throw persistFailure;
+        }
     }
+
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 

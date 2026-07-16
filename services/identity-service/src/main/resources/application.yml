@@ -5,25 +5,22 @@ spring:
   application:
     name: identity-service
 
-  # ── Datasource (H2 in-memory for dev; override for PostgreSQL in prod) ──────
   datasource:
-    url: jdbc:h2:mem:identitydb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/mtp_identity}
+    driver-class-name: org.postgresql.Driver
+    username: ${SPRING_DATASOURCE_USERNAME:mtp}
+    password: ${SPRING_DATASOURCE_PASSWORD:mtp_secret}
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate   # Flyway owns the schema now — Hibernate only checks it matches
     show-sql: false
-    open-in-view: false
-    database-platform: org.hibernate.dialect.H2Dialect
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
 
-  # H2 console for local development (disable in production)
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
 
   # ── OAuth2 Client (Google) ───────────────────────────────────────────────────
   # Override client-id and client-secret via environment variables or Config Server.
@@ -68,3 +65,8 @@ management:
     web:
       exposure:
         include: health,info
+
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level [%X{correlationId:-no-cid}] %logger{36} - %msg%n"

@@ -25,3 +25,20 @@ Reliability rules:
 DevOps:
 - Kafka for all cross-service events (trade executed, alert triggered) feeding notification-service.
 - Docker Compose for local full-stack runs; Kubernetes manifests for deployment.
+
+Migration-completion rules (Migration_Guide_3):
+- desktop/controller/*.java are JavaFX FXML view controllers, NOT REST controllers. Never port them
+  1:1 into a microservice as a @RestController — write a new REST controller per service instead, then
+  refactor the JavaFX controller (Step 12) to call it over HTTP.
+- Charting/indicator/drawing domain lives in market-service (charting sub-package), not a new service.
+- On-chain/NFT/DeFi data lives in reference-data-service under NftDataProvider (extend DTOs as needed,
+  don't create a new microservice for it).
+- Email/Telegram sending logic lives ONLY in notification-service. alert-service publishes events;
+  it does not send notifications directly once Step 8 is complete.
+- Every external provider integration (AlphaVantage, CoinGecko, Finnhub, etc.) must be wired through
+  the existing ProviderRegistry<T> + Resilience4j pattern already established in market-service's
+  BitUnix integration and reference-data-service's NoOpProviderConfig — never call a provider SDK/HTTP
+  client directly from a controller or another service's code.
+- Before marking any Phase 1 step "done," confirm the corresponding NoOp*/mock bean is still present
+  as a registered fallback in the registry, not deleted — only its priority should drop below the real
+  implementation.

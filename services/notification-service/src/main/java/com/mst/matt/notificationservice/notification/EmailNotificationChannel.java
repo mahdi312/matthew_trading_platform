@@ -6,6 +6,7 @@ import com.mst.matt.contracts.notification.NotificationChannel;
 import com.mst.matt.notificationservice.service.EmailDispatchService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 /**
@@ -41,6 +42,7 @@ public class EmailNotificationChannel implements NotificationChannel {
     @Autowired(required = false)
     private EmailDispatchService emailDispatchService;
 
+    @Async("notificationSendExecutor")
     @Override
     public void send(AlertTriggeredEventDto event, UserPreferencesDto prefs) {
         if (prefs == null || !prefs.isEmailEnabled()

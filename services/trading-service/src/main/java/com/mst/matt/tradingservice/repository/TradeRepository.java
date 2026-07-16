@@ -37,6 +37,11 @@ public interface TradeRepository extends JpaRepository<Trade, Long> {
     /** Find all trades sourced from broker live order placement. */
     List<Trade> findByUserIdAndSource(Long userId, Trade.TradeSource source);
 
-    /** Look up a specific trade by its broker-assigned order ID (for WS update reconciliation). */
+    /**
+     * Look up a specific trade by its broker-assigned order ID (for WS update reconciliation).
+     */
     java.util.Optional<Trade> findByBrokerOrderId(String brokerOrderId);
+
+    java.util.Optional<Trade> findByIdempotencyKey(String idempotencyKey);
+
 }

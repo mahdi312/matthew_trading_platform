@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -242,6 +243,13 @@ public class BitUnixTradingProvider implements TradingProvider {
         }
 
         return balances;
+    }
+
+
+    //todo
+    @Override
+    public Set<String> getOpenPositionIds() {
+        return Set.of();
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

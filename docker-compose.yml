@@ -157,12 +157,17 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     ports:
       - "8082:8082"
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mtp_market
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-mtp}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-mtp_secret}
       # API keys from .env
       ALPHAVANTAGE_KEY: ${ALPHAVANTAGE_KEY:-}
       COINGECKO_KEY: ${COINGECKO_KEY:-}
@@ -215,11 +220,16 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     ports:
       - "8083:8083"
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mtp_trading
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-mtp}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-mtp_secret}
       BITUNIX_API_KEY: ${BITUNIX_API_KEY:-}
       BITUNIX_SECRET_KEY: ${BITUNIX_SECRET_KEY:-}
     restart: unless-stopped
@@ -235,11 +245,16 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     ports:
       - "8087:8087"
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mtp_alert
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-mtp}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-mtp_secret}
     restart: unless-stopped
 
   # ── notification-service ───────────────────────────────────────────────────
@@ -280,9 +295,14 @@ services:
     depends_on:
       discovery-service:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     ports:
       - "8081:8081"
     environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mtp_identity
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-mtp}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-mtp_secret}
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
     restart: unless-stopped
 

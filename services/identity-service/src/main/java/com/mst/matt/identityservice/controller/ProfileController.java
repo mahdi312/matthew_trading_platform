@@ -221,6 +221,33 @@ public class ProfileController {
         return settingsService.getAll(caller.getId());
     }
 
+    /**
+     * GET /api/profile/{userId}/preferences
+     * Service-to-service endpoint (no {@code @AuthenticationPrincipal}) — called by
+     * notification-service to resolve delivery preferences for an event's userId,
+     * which is not the caller's own identity. Network-level trust only for now
+     * (internal Docker/K8s network); add a service-to-service auth check here before
+     * exposing this Gateway route publicly.
+     */
+    @GetMapping("/{userId}/preferences")
+    public com.mst.matt.contracts.dto.UserPreferencesDto getNotificationPreferences(
+            @PathVariable Long userId) {
+        return settingsService.getNotificationPreferences(userId);
+    }
+
+    /**
+     * PUT /api/profile/preferences
+     * Caller updates their own notification preferences.
+     */
+    @PutMapping("/preferences")
+    public com.mst.matt.contracts.dto.UserPreferencesDto updateNotificationPreferences(
+            @AuthenticationPrincipal UserDetails principal,
+            @RequestBody com.mst.matt.contracts.dto.UserPreferencesDto prefs) {
+        AppUser caller = resolveCallerOrThrow(principal);
+        settingsService.setNotificationPreferences(caller.getId(), prefs);
+        return settingsService.getNotificationPreferences(caller.getId());
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private UserProfile findOwnedProfileOrThrow(AppUser caller, Long profileId) {

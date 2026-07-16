@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
          http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
@@ -21,16 +21,27 @@
         consumed by every microservice.
 
         Rules enforced by code review:
-          - NO JPA @Entity classes
-          - NO Spring @Component / @Service / @Repository beans
-          - NO business logic (calculations, persistence, HTTP calls)
-          - YES to: DTOs (Lombok @Data/@Builder), plain interfaces, pure enums
+        - NO JPA @Entity classes
+        - NO Spring Component / Service / Repository beans
+        - NO business logic (calculations, persistence, HTTP calls)
+        - YES to: DTOs (Lombok Data/Builder), plain interfaces, pure enums
 
         Every service that needs cross-service types imports ONLY this module.
     </description>
 
     <dependencies>
 
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <!-- No version needed - inherited from parent or dependencyManagement -->
+        </dependency>
+
+
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
         <!--
             Lombok is used for boilerplate reduction on DTO classes (@Data, @Builder, etc.).
             'optional = true' means it is NOT transitively exported to consumers —
@@ -53,7 +64,7 @@
         </dependency>
 
         <!--
-            Resilience4j core — used by ProviderRegistry<T> for per-provider
+            Resilience core — used by ProviderRegistry<T> for per-provider
             circuit breakers.  Only the plain Java core is needed here (no
             Spring Boot auto-config); each consuming service adds the Spring
             Boot starter for actuator metrics and config binding.
@@ -68,5 +79,24 @@
         </dependency>
 
     </dependencies>
+
+
+<!--    <build>-->
+<!--        <finalName>shared-contracts</finalName>-->
+<!--        <plugins>-->
+<!--            <plugin>-->
+<!--                <groupId>org.springframework.boot</groupId>-->
+<!--                <artifactId>spring-boot-maven-plugin</artifactId>-->
+<!--                <configuration>-->
+<!--                    <excludes>-->
+<!--                        <exclude>-->
+<!--                            <groupId>org.projectlombok</groupId>-->
+<!--                            <artifactId>lombok</artifactId>-->
+<!--                        </exclude>-->
+<!--                    </excludes>-->
+<!--                </configuration>-->
+<!--            </plugin>-->
+<!--        </plugins>-->
+<!--    </build>-->
 
 </project>

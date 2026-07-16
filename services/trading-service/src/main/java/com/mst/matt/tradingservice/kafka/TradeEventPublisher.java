@@ -1,15 +1,18 @@
 package com.mst.matt.tradingservice.kafka;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mst.matt.contracts.dto.TradeEventDto;
 import com.mst.matt.contracts.enums.BrokerType;
 import com.mst.matt.contracts.enums.InstrumentType;
 import com.mst.matt.contracts.enums.OrderSide;
 import com.mst.matt.contracts.enums.OrderType;
+import com.mst.matt.tradingservice.model.OutboxEvent;
 import com.mst.matt.tradingservice.model.Trade;
+import com.mst.matt.tradingservice.repository.OutboxEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -45,41 +48,35 @@ public class TradeEventPublisher {
     public static final String TOPIC_EXECUTED = "trades.executed";
     public static final String TOPIC_CLOSED   = "trades.closed";
 
-    private final KafkaTemplate<String, TradeEventDto> kafkaTemplate;
+    private final OutboxEventRepository outboxRepository;
+    private final ObjectMapper objectMapper;
 
-    /**
-     * Publishes a "trade executed/opened" event.
-     * Call after {@code TradeService.saveTrade()} when a new trade is persisted.
-     *
-     * @param trade the newly persisted trade
-     */
+    @Transactional
     public void publishExecuted(Trade trade) {
-        publish(TOPIC_EXECUTED, toDto(trade, "OPEN"));
+        writeOutbox(TOPIC_EXECUTED, toDto(trade, "OPEN"));
     }
 
-    /**
-     * Publishes a "trade closed" event.
-     * Call after {@code TradeService.closeTrade()} once the trade is persisted as CLOSED.
-     *
-     * @param trade the now-closed trade (with exitPrice and pnlAmount set)
-     */
+    @Transactional
     public void publishClosed(Trade trade) {
-        publish(TOPIC_CLOSED, toDto(trade, "CLOSED"));
+        writeOutbox(TOPIC_CLOSED, toDto(trade, "CLOSED"));
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
-
-    private void publish(String topic, TradeEventDto event) {
+    private void writeOutbox(String topic, TradeEventDto event) {
         try {
-            kafkaTemplate.send(topic, String.valueOf(event.getUserId()), event);
-            log.info("Published TradeEventDto to '{}': eventId={} userId={} symbol={} status={}",
-                    topic, event.getEventId(), event.getUserId(),
-                    event.getSymbol(), event.getStatus());
+            String json = objectMapper.writeValueAsString(event);
+            outboxRepository.save(OutboxEvent.builder()
+                    .topic(topic)
+                    .kafkaKey(String.valueOf(event.getUserId()))
+                    .payload(json)
+                    .build());
+            log.info("Outbox row written for '{}': eventId={} userId={} symbol={} status={}",
+                    topic, event.getEventId(), event.getUserId(), event.getSymbol(), event.getStatus());
         } catch (Exception ex) {
-            // Publishing failure must not surface to the caller — the trade is already
-            // persisted; a missed Kafka publish is a notification miss, not data loss.
-            log.error("Failed to publish TradeEventDto to '{}' (symbol={} userId={}): {}",
-                    topic, event.getSymbol(), event.getUserId(), ex.getMessage(), ex);
+            // This is a serialization failure only — the outbox INSERT itself is part of
+            // the caller's transaction, so if THIS throws, the whole trade save rolls back
+            // too, which is correct: better to fail the request than silently lose the event.
+            log.error("Failed to write outbox event for topic '{}': {}", topic, ex.getMessage(), ex);
+            throw new IllegalStateException("Failed to serialize trade event for outbox", ex);
         }
     }
 

@@ -7,6 +7,7 @@ import com.mst.matt.contracts.dto.TradeEventDto;
 import com.mst.matt.contracts.enums.BrokerType;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Unified contract for executing trades and querying account state on any broker.
@@ -104,4 +105,7 @@ public interface TradingProvider {
      *         exposes them separately
      */
     List<BalanceDto> getBalances(Long userId);
+
+
+    Set<String> getOpenPositionIds();
 }

@@ -3,6 +3,7 @@ package com.mst.matt.notificationservice.service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -116,6 +117,7 @@ public class TradingTelegramBot extends TelegramLongPollingBot {
      *
      * @param markdownMessage message in Telegram Markdown v1 format
      */
+    @Async("notificationSendExecutor")
     public void sendAlertMessage(String markdownMessage) {
         List<Long> allChats = new ArrayList<>(subscribedChatIds);
 

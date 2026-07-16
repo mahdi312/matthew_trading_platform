@@ -6,6 +6,7 @@ import com.mst.matt.contracts.notification.NotificationChannel;
 import com.mst.matt.notificationservice.service.TradingTelegramBot;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 /**
@@ -40,6 +41,7 @@ public class TelegramNotificationChannel implements NotificationChannel {
     @Autowired(required = false)
     private TradingTelegramBot telegramBot;
 
+    @Async("notificationSendExecutor")
     @Override
     public void send(AlertTriggeredEventDto event, UserPreferencesDto prefs) {
         if (prefs == null || !prefs.isTelegramEnabled()

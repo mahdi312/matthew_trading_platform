@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import jakarta.mail.internet.MimeMessage;
@@ -64,6 +65,7 @@ public class EmailDispatchService {
      * @param subject email subject (the "🔔 " prefix is added automatically)
      * @param body    plain-text body — newlines are converted to {@code <br/>}
      */
+    @Async("notificationSendExecutor")
     public void send(String subject, String body) {
         if (!isConfigured()) {
             log.warn("[EmailDispatch] SMTP not fully configured (from={} to={}) — skipping",

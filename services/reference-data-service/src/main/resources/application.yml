@@ -87,3 +87,7 @@ resilience4j:
         sliding-window-size: 10
         slow-call-duration-threshold: 10s
         slow-call-rate-threshold: 80
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level [%X{correlationId:-no-cid}] %logger{36} - %msg%n"
