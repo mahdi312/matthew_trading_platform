@@ -275,6 +275,135 @@
   opacity: 0.8;
 }
 
+/* ── Latest News tab ─────────────────────────────────────────────────────── */
+
+.news-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.news-asset-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.news-filter-label {
+  font-size: 12px;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+.news-cls-btn {
+  font-size: 0.78rem !important;
+  height: 28px !important;
+  padding: 0 12px !important;
+  line-height: 28px !important;
+}
+
+.news-cls-active {
+  border-color: #ab47bc !important;
+  color: #ab47bc !important;
+}
+
+/* ── Article list ────────────────────────────────────────────────────────── */
+.news-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.news-article-row {
+  display: flex;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+
+  &:last-child { border-bottom: none; }
+
+  &:hover { background: rgba(255, 255, 255, 0.02); border-radius: 4px; }
+}
+
+.article-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.article-title {
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1.4;
+  text-decoration: none;
+  color: inherit;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 4px;
+
+  &:hover { color: #ab47bc; }
+
+  &.no-link { cursor: default; }
+}
+
+.external-link-icon {
+  font-size: 13px !important;
+  width: 13px !important;
+  height: 13px !important;
+  opacity: 0.55;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.article-summary {
+  font-size: 0.8rem;
+  opacity: 0.65;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.article-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.meta-source,
+.meta-date {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.72rem;
+  opacity: 0.5;
+
+  .meta-icon {
+    font-size: 13px;
+    width: 13px;
+    height: 13px;
+  }
+}
+
+.meta-sentiment {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+
+  &.positive { color: #66bb6a; background: rgba(102, 187, 106, 0.12); }
+  &.negative { color: #ef5350; background: rgba(239, 83, 80, 0.12); }
+}
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .symbol-row {

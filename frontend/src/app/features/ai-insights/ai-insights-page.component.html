@@ -313,6 +313,113 @@
       </div>
     </mat-tab>
 
+    <!-- ── Tab 4: Latest News ───────────────────────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">newspaper</mat-icon>
+        Latest News
+      </ng-template>
+
+      <div class="tab-content">
+
+        <!-- Asset class selector for news -->
+        <div class="news-controls">
+          <div class="news-asset-chips">
+            <span class="news-filter-label">Asset class:</span>
+            <button
+              mat-stroked-button
+              class="news-cls-btn"
+              [class.news-cls-active]="newsAssetClass() === 'CRYPTO'"
+              (click)="onNewsAssetClassChange('CRYPTO')">Crypto</button>
+            <button
+              mat-stroked-button
+              class="news-cls-btn"
+              [class.news-cls-active]="newsAssetClass() === 'STOCK'"
+              (click)="onNewsAssetClassChange('STOCK')">Stock</button>
+            <button
+              mat-stroked-button
+              class="news-cls-btn"
+              [class.news-cls-active]="newsAssetClass() === 'FOREX'"
+              (click)="onNewsAssetClassChange('FOREX')">Forex</button>
+          </div>
+          <button mat-button (click)="fetchNews()" [disabled]="loadingNews()">
+            <mat-icon>refresh</mat-icon> Refresh
+          </button>
+        </div>
+
+        <!-- Loading -->
+        <div *ngIf="loadingNews()" class="loading-section">
+          <mat-spinner diameter="48"></mat-spinner>
+          <p class="loading-hint">Loading news…</p>
+        </div>
+
+        <!-- Error -->
+        <div *ngIf="newsError() && !loadingNews()" class="error-section">
+          <mat-icon color="warn">error_outline</mat-icon>
+          <span>{{ newsError() }}</span>
+          <button mat-button color="primary" (click)="fetchNews()">Retry</button>
+        </div>
+
+        <!-- Empty -->
+        <div *ngIf="!loadingNews() && !newsError() && newsArticles().length === 0" class="empty-section">
+          <mat-icon>newspaper</mat-icon>
+          <p>No news articles found for <strong>{{ symbol() }}</strong>.</p>
+        </div>
+
+        <!-- Article list -->
+        <div *ngIf="!loadingNews() && !newsError() && newsArticles().length > 0" class="news-list">
+
+          <div
+            *ngFor="let article of newsArticles(); trackBy: trackByArticleId"
+            class="news-article-row">
+
+            <!-- Article body -->
+            <div class="article-body">
+              <!-- Title — links out to original article in a new tab -->
+              <a
+                *ngIf="article.url; else titleNoLink"
+                [href]="article.url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="article-title">
+                {{ article.title }}
+                <mat-icon class="external-link-icon">open_in_new</mat-icon>
+              </a>
+              <ng-template #titleNoLink>
+                <span class="article-title no-link">{{ article.title }}</span>
+              </ng-template>
+
+              <!-- Summary (if available) -->
+              <p *ngIf="article.summary" class="article-summary">
+                {{ article.summary | slice:0:200 }}{{ (article.summary.length > 200 ? '…' : '') }}
+              </p>
+
+              <!-- Meta row: source · date · sentiment -->
+              <div class="article-meta">
+                <span class="meta-source" *ngIf="article.source">
+                  <mat-icon class="meta-icon">source</mat-icon>
+                  {{ article.source }}
+                </span>
+                <span class="meta-date" *ngIf="article.publishedAt">
+                  <mat-icon class="meta-icon">schedule</mat-icon>
+                  {{ formatPublishedAt(article.publishedAt) }}
+                </span>
+                <span
+                  *ngIf="article.sentimentLabel"
+                  class="meta-sentiment"
+                  [class]="sentimentLabelColor(article.sentimentLabel)">
+                  {{ article.sentimentLabel }}
+                </span>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+    </mat-tab>
+
   </mat-tab-group>
 
 </div>

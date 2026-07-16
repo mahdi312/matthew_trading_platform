@@ -24,6 +24,7 @@ import { MatListModule } from '@angular/material/list';
 import { MatBadgeModule } from '@angular/material/badge';
 
 import { AiInsightsApiService } from './ai-insights-api.service';
+import { NewsApiService, NewsArticleDto } from './news-api.service';
 import {
   AiSummary,
   AiSignal,
@@ -71,9 +72,10 @@ import {
   styleUrls: ['./ai-insights-page.component.scss'],
 })
 export class AiInsightsPageComponent implements OnInit {
-  private readonly api   = inject(AiInsightsApiService);
-  private readonly snack = inject(MatSnackBar);
-  private readonly fb    = inject(FormBuilder);
+  private readonly api     = inject(AiInsightsApiService);
+  private readonly newsApi = inject(NewsApiService);
+  private readonly snack   = inject(MatSnackBar);
+  private readonly fb      = inject(FormBuilder);
 
   // ── Symbol selector ───────────────────────────────────────────────────────
 
@@ -100,6 +102,15 @@ export class AiInsightsPageComponent implements OnInit {
   readonly critique         = signal<JournalCritique | null>(null);
   readonly critiqueError    = signal<string | null>(null);
 
+  // ── Latest News tab ───────────────────────────────────────────────────────
+
+  readonly loadingNews  = signal(false);
+  readonly newsArticles = signal<NewsArticleDto[]>([]);
+  readonly newsError    = signal<string | null>(null);
+
+  /** Asset class selector for the news tab. */
+  readonly newsAssetClass = signal<string>('CRYPTO');
+
   readonly critiqueForm: FormGroup = this.fb.group({
     tradeId:    ['', Validators.required],
     symbol:     ['', Validators.required],
@@ -114,6 +125,7 @@ export class AiInsightsPageComponent implements OnInit {
   ngOnInit(): void {
     this.fetchSummary();
     this.fetchSignals();
+    this.fetchNews();
   }
 
   // ── Symbol change ─────────────────────────────────────────────────────────
@@ -122,9 +134,10 @@ export class AiInsightsPageComponent implements OnInit {
     const s = this.symbolInput().toUpperCase().trim();
     if (!s) return;
     this.symbol.set(s);
-    // Refresh summary & signals for new symbol
+    // Refresh summary, signals, and news for new symbol
     this.fetchSummary();
     this.fetchSignals();
+    this.fetchNews();
   }
 
   selectPopular(s: string): void {
@@ -194,6 +207,56 @@ export class AiInsightsPageComponent implements OnInit {
         console.error('[AiInsights] critique error', err);
       },
     });
+  }
+
+  // ── News ──────────────────────────────────────────────────────────────────
+
+  /**
+   * Fetch raw news articles from reference-data-service.
+   * NOT routed through ai-service — this is raw data, no LLM processing.
+   */
+  fetchNews(): void {
+    this.loadingNews.set(true);
+    this.newsError.set(null);
+    this.newsArticles.set([]);
+
+    this.newsApi.getNews(this.symbol(), this.newsAssetClass(), 20).subscribe({
+      next:  (articles) => { this.newsArticles.set(articles); this.loadingNews.set(false); },
+      error: (err) => {
+        this.newsError.set('Failed to load news. The reference data service may be unavailable.');
+        this.loadingNews.set(false);
+        console.error('[AiInsights] news error', err);
+      },
+    });
+  }
+
+  onNewsAssetClassChange(cls: string): void {
+    this.newsAssetClass.set(cls);
+    this.fetchNews();
+  }
+
+  /** Format a published date for display. */
+  formatPublishedAt(iso: string | null): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const now = Date.now();
+    const diffMs = now - d.getTime();
+    const diffH  = diffMs / 3_600_000;
+    if (diffH < 1)    return `${Math.round(diffMs / 60_000)}m ago`;
+    if (diffH < 24)   return `${Math.round(diffH)}h ago`;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  sentimentLabelColor(label: string | null): string {
+    switch (label?.toUpperCase()) {
+      case 'POSITIVE': return 'positive';
+      case 'NEGATIVE': return 'negative';
+      default:         return '';
+    }
+  }
+
+  trackByArticleId(_: number, item: NewsArticleDto): string {
+    return item.articleId ?? item.title ?? String(_);
   }
 
   // ── UI helpers ────────────────────────────────────────────────────────────
