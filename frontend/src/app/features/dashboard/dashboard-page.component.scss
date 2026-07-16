@@ -185,3 +185,15 @@
 .watchlist-col {
   min-height: 400px;
 }
+
+// ── Economic Calendar row ─────────────────────────────────────────────────
+
+.calendar-row {
+  display: block;
+}
+
+.calendar-widget {
+  display: block;
+  max-height: 480px;
+  overflow: hidden;
+}
