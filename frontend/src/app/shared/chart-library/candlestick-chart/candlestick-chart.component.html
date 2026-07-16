@@ -1,0 +1,96 @@
+<div class="chart-wrapper">
+  <!-- Drawing toolbar -->
+  <div class="drawing-toolbar">
+    <button
+      mat-icon-button
+      [class.active]="activeDrawingTool() === null"
+      (click)="selectDrawingTool(null)"
+      matTooltip="Pointer / select"
+    >
+      <mat-icon>mouse</mat-icon>
+    </button>
+
+    <button
+      mat-icon-button
+      [class.active]="activeDrawingTool() === 'TREND_LINE'"
+      (click)="selectDrawingTool('TREND_LINE')"
+      matTooltip="Trend line (2 clicks)"
+    >
+      <mat-icon>show_chart</mat-icon>
+    </button>
+
+    <button
+      mat-icon-button
+      [class.active]="activeDrawingTool() === 'FIBONACCI'"
+      (click)="selectDrawingTool('FIBONACCI')"
+      matTooltip="Fibonacci retracement (2 clicks)"
+    >
+      <mat-icon>format_list_numbered</mat-icon>
+    </button>
+
+    <button
+      mat-icon-button
+      [class.active]="activeDrawingTool() === 'RECTANGLE'"
+      (click)="selectDrawingTool('RECTANGLE')"
+      matTooltip="Rectangle (2 clicks)"
+    >
+      <mat-icon>crop_square</mat-icon>
+    </button>
+
+    <button
+      mat-icon-button
+      [class.active]="activeDrawingTool() === 'HORIZONTAL_LINE'"
+      (click)="selectDrawingTool('HORIZONTAL_LINE')"
+      matTooltip="Horizontal line (1 click)"
+    >
+      <mat-icon>horizontal_rule</mat-icon>
+    </button>
+
+    <button
+      mat-icon-button
+      [class.active]="activeDrawingTool() === 'VERTICAL_LINE'"
+      (click)="selectDrawingTool('VERTICAL_LINE')"
+      matTooltip="Vertical line (1 click)"
+    >
+      <mat-icon>vertical_distribute</mat-icon>
+    </button>
+
+    <span class="toolbar-spacer"></span>
+
+    <button
+      mat-icon-button
+      (click)="clearAllDrawings()"
+      matTooltip="Clear all drawings"
+    >
+      <mat-icon>delete_sweep</mat-icon>
+    </button>
+  </div>
+
+  <!-- Drawing mode hint -->
+  @if (activeDrawingTool()) {
+    <div class="drawing-hint">
+      @switch (activeDrawingTool()) {
+        @case ('TREND_LINE') { Click two price points to draw a trend line. }
+        @case ('FIBONACCI') { Click start and end of the swing to draw Fibonacci levels. }
+        @case ('RECTANGLE') { Click two diagonal corners to draw a rectangle. }
+        @case ('HORIZONTAL_LINE') { Click any price point to draw a horizontal line. }
+        @case ('VERTICAL_LINE') { Click any bar to draw a vertical line. }
+      }
+    </div>
+  }
+
+  <!-- ECharts container -->
+  <div
+    #chartContainer
+    class="chart-container"
+    [class.cursor-crosshair]="activeDrawingTool() !== null"
+  ></div>
+
+  <!-- Empty state -->
+  @if (ohlcvData.length === 0) {
+    <div class="empty-state">
+      <mat-icon>candlestick_chart</mat-icon>
+      <span>No chart data available</span>
+    </div>
+  }
+</div>
