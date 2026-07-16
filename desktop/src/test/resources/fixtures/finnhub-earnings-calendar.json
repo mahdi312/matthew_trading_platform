@@ -1,0 +1,26 @@
+{
+  "earningsCalendar": [
+    {
+      "date": "2024-07-25",
+      "epsActual": null,
+      "epsEstimate": 1.35,
+      "hour": "amc",
+      "quarter": 3,
+      "revenueActual": null,
+      "revenueEstimate": 84500000000,
+      "symbol": "AAPL",
+      "year": 2024
+    },
+    {
+      "date": "2024-07-24",
+      "epsActual": null,
+      "epsEstimate": 2.92,
+      "hour": "amc",
+      "quarter": 2,
+      "revenueActual": null,
+      "revenueEstimate": 64600000000,
+      "symbol": "GOOGL",
+      "year": 2024
+    }
+  ]
+}

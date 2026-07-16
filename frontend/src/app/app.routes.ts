@@ -1,0 +1,40 @@
+import { Routes } from '@angular/router';
+import { authGuard } from './core/auth/auth.guard';
+
+/**
+ * Root route table.
+ *
+ * Auth routes (`/login`, `/register`) are eager-loaded — they must be
+ * accessible without a JWT and are tiny enough that lazy-loading adds no
+ * benefit.
+ *
+ * All protected routes use `canActivate: [authGuard]` and are lazy-loaded
+ * (feature modules will be added here in Steps 4–11).
+ */
+export const routes: Routes = [
+  // Default redirect — after login, land on the dashboard.
+  { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
+
+  // Public routes (no authGuard).
+  {
+    path: 'login',
+    loadComponent: () =>
+      import('./features/auth/login-page/login-page.component').then(
+        (m) => m.LoginPageComponent
+      ),
+  },
+  {
+    path: 'register',
+    loadComponent: () =>
+      import('./features/auth/register-page/register-page.component').then(
+        (m) => m.RegisterPageComponent
+      ),
+  },
+
+  // Protected routes (authGuard applied) — feature modules added in later steps.
+  // Step 4: DashboardModule
+  // { path: 'dashboard', canActivate: [authGuard], loadChildren: () => import('./features/dashboard/...') },
+
+  // Catch-all fallback — send unknown paths to login for now.
+  { path: '**', redirectTo: 'login' },
+];

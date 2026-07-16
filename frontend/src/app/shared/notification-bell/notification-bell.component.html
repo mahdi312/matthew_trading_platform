@@ -1,0 +1,56 @@
+<div class="notification-bell">
+  <button
+    type="button"
+    class="bell-button"
+    (click)="toggleOpen()"
+    [attr.aria-expanded]="isOpen()"
+    aria-label="Alert notifications"
+  >
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+      <path
+        d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"
+      />
+    </svg>
+    @if (notificationService.unreadCount() > 0) {
+      <span class="badge">{{ notificationService.unreadCount() }}</span>
+    }
+  </button>
+
+  @if (isOpen()) {
+    <div class="dropdown" role="menu">
+      <div class="dropdown-header">
+        <span>Alerts</span>
+        <span
+          class="connection-dot"
+          [class.connected]="notificationService.connected()"
+          [title]="notificationService.connected() ? 'Live' : 'Disconnected'"
+        ></span>
+      </div>
+      @if (recent().length === 0) {
+        <p class="empty">No alerts fired yet.</p>
+      } @else {
+        <ul class="recent-list">
+          @for (event of recent(); track event.eventId) {
+            <li>
+              <span class="symbol">{{ event.symbol }}</span>
+              <span class="label">{{ conditionLabel(event.condition) }}</span>
+              <span class="values">{{ event.observedValue }} / {{ event.targetValue }}</span>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  }
+</div>
+
+<div class="toast-stack" aria-live="polite">
+  @for (toast of toasts(); track toast.id) {
+    <div class="toast">
+      <button type="button" class="toast-close" (click)="dismissToast(toast.id)" aria-label="Dismiss">
+        &times;
+      </button>
+      <div class="toast-headline">{{ toast.headline }}</div>
+      <div class="toast-detail">{{ toast.detail }}</div>
+    </div>
+  }
+</div>

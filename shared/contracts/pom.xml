@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.mst.matt</groupId>
+        <artifactId>trading-platform-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>contracts</artifactId>
+    <packaging>jar</packaging>
+    <name>shared-contracts</name>
+    <description>
+        Shared, framework-light DTOs, enums, and broker-abstraction interfaces
+        consumed by every microservice.
+
+        Rules enforced by code review:
+        - NO JPA @Entity classes
+        - NO Spring Component / Service / Repository beans
+        - NO business logic (calculations, persistence, HTTP calls)
+        - YES to: DTOs (Lombok Data/Builder), plain interfaces, pure enums
+
+        Every service that needs cross-service types imports ONLY this module.
+    </description>
+
+    <dependencies>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <!-- No version needed - inherited from parent or dependencyManagement -->
+        </dependency>
+
+
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+        <!--
+            Lombok is used for boilerplate reduction on DTO classes (@Data, @Builder, etc.).
+            'optional = true' means it is NOT transitively exported to consumers —
+            each consuming module declares Lombok for its own annotation processing.
+        -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!--
+            Jakarta Bean Validation API (annotations only — no runtime engine here).
+            Allows DTOs to carry @NotNull / @Size / @Valid annotations that consuming
+            services can enforce via their own validation runtime.
+        -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
+
+        <!--
+            Resilience core — used by ProviderRegistry<T> for per-provider
+            circuit breakers.  Only the plain Java core is needed here (no
+            Spring Boot auto-config); each consuming service adds the Spring
+            Boot starter for actuator metrics and config binding.
+        -->
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-circuitbreaker</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-retry</artifactId>
+        </dependency>
+
+    </dependencies>
+
+
+<!--    <build>-->
+<!--        <finalName>shared-contracts</finalName>-->
+<!--        <plugins>-->
+<!--            <plugin>-->
+<!--                <groupId>org.springframework.boot</groupId>-->
+<!--                <artifactId>spring-boot-maven-plugin</artifactId>-->
+<!--                <configuration>-->
+<!--                    <excludes>-->
+<!--                        <exclude>-->
+<!--                            <groupId>org.projectlombok</groupId>-->
+<!--                            <artifactId>lombok</artifactId>-->
+<!--                        </exclude>-->
+<!--                    </excludes>-->
+<!--                </configuration>-->
+<!--            </plugin>-->
+<!--        </plugins>-->
+<!--    </build>-->
+
+</project>

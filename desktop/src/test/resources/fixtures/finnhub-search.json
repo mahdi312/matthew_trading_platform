@@ -1,0 +1,29 @@
+{
+  "count": 4,
+  "result": [
+    {
+      "description": "APPLE INC",
+      "displaySymbol": "AAPL",
+      "symbol": "AAPL",
+      "type": "Common Stock"
+    },
+    {
+      "description": "APPLE HOSPITALITY REIT INC",
+      "displaySymbol": "APLE",
+      "symbol": "APLE",
+      "type": "Common Stock"
+    },
+    {
+      "description": "APPLEWILD CORP",
+      "displaySymbol": "APWC",
+      "symbol": "APWC",
+      "type": "Common Stock"
+    },
+    {
+      "description": "APPLE INC (CDR)",
+      "displaySymbol": "AAPL:CC",
+      "symbol": "AAPL:CC",
+      "type": "CDR"
+    }
+  ]
+}

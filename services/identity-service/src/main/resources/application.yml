@@ -1,0 +1,72 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: identity-service
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/mtp_identity}
+    driver-class-name: org.postgresql.Driver
+    username: ${SPRING_DATASOURCE_USERNAME:mtp}
+    password: ${SPRING_DATASOURCE_PASSWORD:mtp_secret}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate   # Flyway owns the schema now — Hibernate only checks it matches
+    show-sql: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  # ── OAuth2 Client (Google) ───────────────────────────────────────────────────
+  # Override client-id and client-secret via environment variables or Config Server.
+  # Never commit real credentials to source control.
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:your-google-client-id-here}
+            client-secret: ${GOOGLE_CLIENT_SECRET:your-google-client-secret-here}
+            scope:
+              - openid
+              - profile
+              - email
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          google:
+            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+            token-uri: https://oauth2.googleapis.com/token
+            user-info-uri: https://openidconnect.googleapis.com/v1/userinfo
+            user-name-attribute: sub
+
+# ── JWT configuration ──────────────────────────────────────────────────────────
+# Override jwt.secret via environment variable or Config Server.
+# Must be at least 32 characters. Never commit real secrets to source control.
+jwt:
+  secret: ${JWT_SECRET:change-me-in-production-at-least-32-chars}
+  expiration-seconds: ${JWT_EXPIRATION_SECONDS:86400}   # 24 hours default
+
+# ── Eureka client ───────────────────────────────────────────────────────────────
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+# ── Actuator ────────────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level [%X{correlationId:-no-cid}] %logger{36} - %msg%n"

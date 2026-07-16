@@ -1,0 +1,64 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: ai-service
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,circuitbreakers
+  health:
+    circuitbreakers:
+      enabled: true
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 2
+        sliding-window-size: 5
+        slow-call-duration-threshold: 30s
+        slow-call-rate-threshold: 80
+
+# LLM provider API keys (leave blank to use rule-based fallback)
+app:
+  api:
+    openai:
+      key: ${OPENAI_API_KEY:}
+      model: gpt-4o-mini
+    groq:
+      key: ${GROQ_API_KEY:}
+      model: ""
+    cerebras:
+      key: ${CEREBRAS_API_KEY:}
+      model: ""
+    deepseek:
+      key: ${DEEPSEEK_API_KEY:}
+      model: ""
+    anthropic:
+      key: ${ANTHROPIC_API_KEY:}
+      model: ""
+
+# Internal service URLs (resolved via Eureka by default; override for local dev)
+services:
+  reference-data:
+    url: http://reference-data-service
+  market:
+    url: http://market-service
+
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level [%X{correlationId:-no-cid}] %logger{36} - %msg%n"

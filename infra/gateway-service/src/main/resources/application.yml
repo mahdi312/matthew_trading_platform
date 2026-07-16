@@ -1,0 +1,98 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+  cloud:
+    gateway:
+      server:
+        webflux:
+          # ── Routes ──────────────────────────────────────────────────────────
+          # JWT validation is handled globally by GatewayJwtAuthFilter before
+          # any route is matched.  Public paths (/api/auth/login,
+          # /api/auth/register, /oauth2/**, /actuator/**) are whitelisted in
+          # the filter itself.
+          routes:
+
+            # ── identity-service ──────────────────────────────────────────────
+            # Auth endpoints (/api/auth/**) include the public login/register
+            # paths; the filter lets those through without a JWT.
+            # Profile and admin endpoints (/api/profile/**, /api/admin/**)
+            # require a valid JWT (enforced by GatewayJwtAuthFilter).
+            - id: identity-service
+              uri: lb://identity-service
+              predicates:
+                - Path=/api/auth/**,/api/profile/**,/api/admin/**,/oauth2/**
+
+            # ── market-service ────────────────────────────────────────────────
+            # REST endpoints for OHLCV data, ticker snapshots, chart data, and
+            # technical indicators.  The STOMP/SockJS WebSocket endpoint is
+            # registered at /ws-market (distinct from alert-service's /ws) so
+            # route matching never shadows the other service.
+            - id: market-service
+              uri: lb://market-service
+              predicates:
+                - Path=/api/market/**,/api/charts/**,/api/indicators/**,/ws-market/**
+
+            # ── trading-service ───────────────────────────────────────────────
+            # Trade journal CRUD, portfolio summaries, and reporting/export
+            # endpoints all share the /api/trades, /api/portfolio, /api/reports
+            # prefix so they are captured by a single route entry.
+            - id: trading-service
+              uri: lb://trading-service
+              predicates:
+                - Path=/api/trades/**,/api/portfolio/**,/api/reports/**
+
+            # ── reference-data-service ────────────────────────────────────────
+            # Symbol search, instrument metadata, exchange lists, and other
+            # slowly-changing reference data served from a dedicated service.
+            - id: reference-data-service
+              uri: lb://reference-data-service
+              predicates:
+                - Path=/api/reference/**
+
+            # ── ai-service ────────────────────────────────────────────────────
+            # AI-powered endpoints: news sentiment, LLM recommendations, signal
+            # scoring, and fundamental-analysis summaries.
+            - id: ai-service
+              uri: lb://ai-service
+              predicates:
+                - Path=/api/ai/**
+
+            # ── alert-service ─────────────────────────────────────────────────
+            # Price-alert CRUD lives at /api/alerts/**.  The STOMP/SockJS
+            # push-notification endpoint is registered at /ws (distinct from
+            # market-service's /ws-market) so each WebSocket-serving service
+            # keeps its own sub-path — first-match-wins ordering in SCG means
+            # they can coexist safely on the same gateway port.
+            - id: alert-service
+              uri: lb://alert-service
+              predicates:
+                - Path=/api/alerts/**,/ws/**
+
+            # ── notification-service ──────────────────────────────────────────
+            # Internal fan-out service; exposes a minimal REST surface for
+            # admin/monitoring use.
+            - id: notification-service
+              uri: lb://notification-service
+              predicates:
+                - Path=/api/notifications/**
+
+# ── JWT — must match identity-service's jwt.secret ──────────────────────────
+# Override via environment variable or Config Server. Never commit real secrets.
+jwt:
+  secret: ${JWT_SECRET:change-me-in-production-at-least-32-chars}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
