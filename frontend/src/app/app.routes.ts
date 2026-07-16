@@ -103,6 +103,16 @@ export const routes: Routes = [
       ),
   },
 
+  // Step 10: ReportsModule — yearly P&L report + Excel export.
+  {
+    path: 'reports',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/reports/reports-page.component').then(
+        (m) => m.ReportsPageComponent
+      ),
+  },
+
   // Catch-all fallback — send unknown paths to login for now.
   { path: '**', redirectTo: 'login' },
 ];
