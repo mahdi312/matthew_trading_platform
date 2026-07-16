@@ -25,6 +25,7 @@ import { Subscription } from 'rxjs';
 import { TradeApiService, Trade, CreateTradeRequest } from '../../core/api/trade-api.service';
 import { MarketDataSocketService } from '../../core/api/market-data-socket.service';
 import { CandlestickChartComponent } from '../../shared/chart-library/candlestick-chart/candlestick-chart.component';
+import { SymbolSearchComponent, SymbolSearchResult } from '../../shared/symbol-search';
 import { OhlcvBar } from '../../shared/chart-library/models/ohlcv.model';
 import { AVAILABLE_BROKERS } from './live-trading.models';
 
@@ -60,6 +61,7 @@ import { AVAILABLE_BROKERS } from './live-trading.models';
     MatChipsModule,
     MatTooltipModule,
     CandlestickChartComponent,
+    SymbolSearchComponent,
   ],
   templateUrl: './live-trading-page.component.html',
   styleUrls: ['./live-trading-page.component.scss'],
@@ -128,6 +130,11 @@ export class LiveTradingPageComponent implements OnInit, OnDestroy {
     this.livePrice.set(null);
     this.chartBars.set([]);
     this.subscribeToSymbol(symbol);
+  }
+
+  /** Called by SymbolSearchComponent's (symbolSelected) event. */
+  onSymbolSelected(result: SymbolSearchResult): void {
+    this.onSymbolChange(result.ticker);
   }
 
   private subscribeToSymbol(symbol: string): void {

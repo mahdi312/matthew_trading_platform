@@ -32,11 +32,11 @@
             {{ sym }}
           </button>
         }
-        <mat-form-field appearance="outline" class="custom-symbol">
-          <mat-label>Custom symbol</mat-label>
-          <input matInput placeholder="e.g. LINKUSDT"
-                 (keydown.enter)="onSymbolChange($any($event.target).value)" />
-        </mat-form-field>
+        <app-symbol-search
+          class="symbol-search-lt"
+          placeholder="Search symbol…"
+          (symbolSelected)="onSymbolSelected($event)">
+        </app-symbol-search>
       </div>
 
       <mat-card-content>

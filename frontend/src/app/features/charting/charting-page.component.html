@@ -108,8 +108,11 @@
             {{ sym }}
           </button>
         }
-        <input class="symbol-input" placeholder="Custom symbol…"
-               (keydown.enter)="onSymbolChange($any($event.target).value)" />
+        <app-symbol-search
+          class="symbol-search-inline"
+          placeholder="Search symbol…"
+          (symbolSelected)="onSymbolSelected($event)">
+        </app-symbol-search>
       </div>
 
       <!-- Right controls -->

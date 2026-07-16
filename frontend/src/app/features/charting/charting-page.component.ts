@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -26,6 +26,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { Subscription } from 'rxjs';
 
 import { CandlestickChartComponent } from '../../shared/chart-library/candlestick-chart/candlestick-chart.component';
+import { SymbolSearchComponent, SymbolSearchResult } from '../../shared/symbol-search';
 import { DrawingChangedEvent, ChartDrawing } from '../../shared/chart-library/models/drawing.model';
 import { IndicatorSeries } from '../../shared/chart-library/models/indicator-series.model';
 import { OhlcvBar } from '../../shared/chart-library/models/ohlcv.model';
@@ -77,6 +78,7 @@ import {
     MatTooltipModule,
     MatSlideToggleModule,
     CandlestickChartComponent,
+    SymbolSearchComponent,
   ],
   templateUrl: './charting-page.component.html',
   styleUrls: ['./charting-page.component.scss'],
@@ -85,6 +87,7 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
   private readonly chartingApi  = inject(ChartingApiService);
   private readonly marketSocket = inject(MarketDataSocketService);
   private readonly snack        = inject(MatSnackBar);
+  private readonly route        = inject(ActivatedRoute);
 
   // ── State ─────────────────────────────────────────────────────────────────
 
@@ -145,7 +148,10 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
-    this.activateSymbol(this.activeSymbol());
+    // Support ?symbol=XYZ query param (e.g. from watchlist row clicks)
+    const qpSym = this.route.snapshot.queryParamMap.get('symbol');
+    const initial = qpSym ? qpSym.toUpperCase().trim() : this.activeSymbol();
+    this.activateSymbol(initial);
     this.loadGlobalSettings();
   }
 
@@ -162,6 +168,11 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
     symbol = symbol.toUpperCase().trim();
     if (!symbol || symbol === this.currentSymbol) return;
     this.activateSymbol(symbol);
+  }
+
+  /** Called by SymbolSearchComponent's (symbolSelected) event. */
+  onSymbolSelected(result: SymbolSearchResult): void {
+    this.onSymbolChange(result.ticker);
   }
 
   private activateSymbol(symbol: string): void {
