@@ -1,7 +1,7 @@
 :host { display: block; }
 
 .settings-page {
-  max-width: 720px;
+  max-width: 780px;
   margin: 0 auto;
   padding: 24px 16px;
   display: flex;
@@ -82,4 +82,115 @@
   display: flex;
   justify-content: flex-end;
   padding-top: 4px;
+}
+
+/* ── Connected Accounts section ──────────────────────────────────────────── */
+
+.broker-stub-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: 6px;
+  background: rgba(255, 167, 38, 0.12);
+  border: 1px solid rgba(255, 167, 38, 0.35);
+  font-size: 13px;
+  line-height: 1.5;
+
+  .notice-icon {
+    color: #ffa726;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+}
+
+/* ── Broker grid ─────────────────────────────────────────────────────────── */
+.broker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.broker-card {
+  position: relative;
+  transition: box-shadow 0.2s ease;
+
+  &.broker-connected {
+    border: 1px solid rgba(66, 165, 245, 0.5);
+  }
+
+  &.broker-unavailable {
+    opacity: 0.6;
+  }
+}
+
+.broker-icon {
+  color: #42a5f5;
+  font-size: 28px !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+
+.broker-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px !important;
+}
+
+.coming-soon-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.connected-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #66bb6a;
+  padding: 8px 0;
+
+  .connected-icon {
+    color: #66bb6a;
+  }
+}
+
+/* ── Broker connect form ─────────────────────────────────────────────────── */
+.broker-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 4px;
+}
+
+.broker-field {
+  width: 100%;
+}
+
+.broker-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.unavailable-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  opacity: 0.55;
+  padding: 8px 0;
+
+  mat-icon { font-size: 18px; width: 18px; height: 18px; }
 }

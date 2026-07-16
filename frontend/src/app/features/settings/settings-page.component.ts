@@ -17,12 +17,35 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatExpansionModule } from '@angular/material/expansion';
+import { HttpErrorResponse } from '@angular/common/http';
 
 import { SettingsApiService } from './settings-api.service';
+import { BrokerLinkApiService } from './broker-link-api.service';
 import { UserProfile, UpdateProfileRequest } from './settings.models';
 
 /**
- * SettingsModule — user profile + app settings editor.
+ * Supported brokers shown in the "Connected Accounts" section.
+ * BitUnix is the Phase-1 live target; the rest are listed as "coming soon"
+ * to give users visibility without pretending they're available.
+ */
+interface BrokerCard {
+  /** Matches BrokerType enum value on the backend (case-insensitive). */
+  type:        string;
+  /** Display label. */
+  label:       string;
+  /** Short description shown beneath the label. */
+  description: string;
+  /** Whether this broker is currently available for linking (others show "Coming soon"). */
+  available:   boolean;
+  /** Material icon name. */
+  icon:        string;
+}
+
+/**
+ * SettingsModule — user profile + app settings editor + Connected Accounts.
  *
  * Loads the current user's profile from `GET /api/profile` on init,
  * pre-fills the form, and submits updates via `PUT /api/profile`.
@@ -30,6 +53,13 @@ import { UserProfile, UpdateProfileRequest } from './settings.models';
  * Editable fields: Display Name, Avatar URL, Timezone, Currency,
  *                  Notifications toggle.
  * Read-only fields: Username, Email, Account created date.
+ *
+ * Connected Accounts section:
+ *  - One card per supported broker.
+ *  - If not connected: shows a form to enter API key + secret (masked).
+ *  - If connected: shows status + disconnect action.
+ *  - The backend (BrokerLinkController) is currently stubbed (501);
+ *    the UI handles this gracefully and warns the user.
  *
  * Route: /settings  (behind authGuard)
  */
@@ -51,14 +81,18 @@ import { UserProfile, UpdateProfileRequest } from './settings.models';
     MatProgressSpinnerModule,
     MatDividerModule,
     MatSnackBarModule,
+    MatChipsModule,
+    MatTooltipModule,
+    MatExpansionModule,
   ],
   templateUrl: './settings-page.component.html',
   styleUrls: ['./settings-page.component.scss'],
 })
 export class SettingsPageComponent implements OnInit {
-  private readonly api   = inject(SettingsApiService);
-  private readonly snack = inject(MatSnackBar);
-  private readonly fb    = inject(FormBuilder);
+  private readonly api        = inject(SettingsApiService);
+  private readonly brokerApi  = inject(BrokerLinkApiService);
+  private readonly snack      = inject(MatSnackBar);
+  private readonly fb         = inject(FormBuilder);
 
   // ── State ─────────────────────────────────────────────────────────────────
 
@@ -98,9 +132,92 @@ export class SettingsPageComponent implements OnInit {
     'Australia/Sydney',
   ];
 
+  // ── Broker cards ──────────────────────────────────────────────────────────
+
+  /**
+   * Supported brokers.
+   * BitUnix is Phase-1 live; others are stubbed/coming-soon on the backend too.
+   * Keep this list in sync with the BrokerType enum in shared/contracts.
+   */
+  readonly brokers: BrokerCard[] = [
+    {
+      type:        'BITUNIX',
+      label:       'BitUnix',
+      description: 'Crypto spot & futures exchange — Phase 1 live integration.',
+      available:   true,
+      icon:        'currency_bitcoin',
+    },
+    {
+      type:        'BINANCE',
+      label:       'Binance',
+      description: 'Global crypto spot & futures exchange.',
+      available:   false,
+      icon:        'account_balance',
+    },
+    {
+      type:        'COINBASE',
+      label:       'Coinbase',
+      description: 'Coinbase Advanced Trade API.',
+      available:   false,
+      icon:        'paid',
+    },
+    {
+      type:        'ALPACA',
+      label:       'Alpaca',
+      description: 'US equities & crypto broker.',
+      available:   false,
+      icon:        'show_chart',
+    },
+    {
+      type:        'PAPER',
+      label:       'Paper Trading',
+      description: 'Internal paper-trading simulator — no real API key required.',
+      available:   false,
+      icon:        'science',
+    },
+  ];
+
+  /**
+   * Per-broker link forms — keyed by broker type.
+   * Each form has: apiKey (required), apiSecret (required, masked), label (optional).
+   */
+  readonly brokerForms: Record<string, FormGroup> = {};
+
+  /**
+   * Per-broker submitting state.
+   */
+  readonly brokerSubmitting: Record<string, boolean> = {};
+
+  /**
+   * Per-broker connected state.
+   * Populated by listConnections() on init; updated optimistically on connect/disconnect.
+   *
+   * NOTE: The backend is currently stubbed (501), so this starts empty and
+   * connect/disconnect calls will return a 501 response — the UI shows an
+   * informational notice about this.
+   */
+  readonly brokerConnected: Record<string, boolean> = {};
+
+  /** Whether the broker connection list has been loaded. */
+  readonly brokerStatusLoaded = signal(false);
+
+  /** Whether the broker backend is stubbed (501 responses). */
+  readonly brokerBackendStubbed = signal(false);
+
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
+    // Build a reactive form for each available broker.
+    for (const broker of this.brokers) {
+      this.brokerForms[broker.type] = this.fb.group({
+        apiKey:    ['', Validators.required],
+        apiSecret: ['', Validators.required],
+        label:     [''],
+      });
+      this.brokerSubmitting[broker.type] = false;
+      this.brokerConnected[broker.type]  = false;
+    }
+
     this.api.getProfile().subscribe({
       next: (p) => {
         this.profile.set(p);
@@ -119,9 +236,11 @@ export class SettingsPageComponent implements OnInit {
         console.error('[Settings] load error', err);
       },
     });
+
+    this.loadBrokerConnections();
   }
 
-  // ── Save ──────────────────────────────────────────────────────────────────
+  // ── Save profile ──────────────────────────────────────────────────────────
 
   onSave(): void {
     if (this.form.invalid) return;
@@ -145,6 +264,109 @@ export class SettingsPageComponent implements OnInit {
         this.saving.set(false);
         this.snack.open('Failed to save profile.', 'Close', { duration: 4000 });
         console.error('[Settings] save error', err);
+      },
+    });
+  }
+
+  // ── Broker connections ────────────────────────────────────────────────────
+
+  /** Load the list of connected brokers for the current user. */
+  private loadBrokerConnections(): void {
+    this.brokerApi.listConnections().subscribe({
+      next: (connections) => {
+        for (const conn of connections) {
+          if (conn.brokerType in this.brokerConnected) {
+            this.brokerConnected[conn.brokerType] = conn.connected;
+          }
+        }
+        this.brokerStatusLoaded.set(true);
+        this.brokerBackendStubbed.set(false);
+      },
+      error: (err: HttpErrorResponse) => {
+        // 501 = backend is stubbed — treat as "no connections known yet"
+        // and show an informational banner rather than an error.
+        if (err.status === 501) {
+          this.brokerBackendStubbed.set(true);
+        }
+        this.brokerStatusLoaded.set(true);
+        console.warn('[Settings] broker list unavailable (backend stubbed or error)', err.status);
+      },
+    });
+  }
+
+  /**
+   * Submit API credentials for a broker.
+   * The apiSecret value is read from the form and immediately discarded after
+   * the HTTP request is constructed — it is NEVER logged or stored.
+   */
+  onBrokerConnect(broker: BrokerCard): void {
+    const form = this.brokerForms[broker.type];
+    if (!form || form.invalid) return;
+
+    this.brokerSubmitting[broker.type] = true;
+
+    const apiKey    = form.value.apiKey as string;
+    const apiSecret = form.value.apiSecret as string;   // treated as secret — not logged
+    const label     = form.value.label as string | undefined;
+
+    this.brokerApi.connectBroker(broker.type, apiKey, apiSecret, label).subscribe({
+      next: (res) => {
+        this.brokerSubmitting[broker.type] = false;
+        if (res.status === 'NOT_IMPLEMENTED') {
+          this.brokerBackendStubbed.set(true);
+          this.snack.open(
+            'Broker linking is not yet live — credentials were submitted but not stored. Check back soon.',
+            'OK',
+            { duration: 6000 }
+          );
+        } else {
+          this.brokerConnected[broker.type] = true;
+          form.reset();
+          this.snack.open(`${broker.label} connected successfully.`, 'OK', { duration: 3500 });
+        }
+      },
+      error: (err: HttpErrorResponse) => {
+        this.brokerSubmitting[broker.type] = false;
+        if (err.status === 501) {
+          this.brokerBackendStubbed.set(true);
+          this.snack.open(
+            'Broker linking is coming soon — the backend is not yet implemented.',
+            'Close',
+            { duration: 6000 }
+          );
+        } else {
+          this.snack.open(
+            `Failed to connect ${broker.label}: ${err.error?.error ?? err.message}`,
+            'Close',
+            { duration: 5000 }
+          );
+        }
+      },
+    });
+  }
+
+  /** Revoke a linked broker connection. */
+  onBrokerDisconnect(broker: BrokerCard): void {
+    this.brokerSubmitting[broker.type] = true;
+    this.brokerApi.revokeConnection(broker.type).subscribe({
+      next: (res) => {
+        this.brokerSubmitting[broker.type] = false;
+        if (res.status === 'NOT_IMPLEMENTED') {
+          this.brokerBackendStubbed.set(true);
+          this.snack.open('Disconnect is not yet implemented on the backend.', 'OK', { duration: 5000 });
+        } else {
+          this.brokerConnected[broker.type] = false;
+          this.snack.open(`${broker.label} disconnected.`, 'OK', { duration: 3000 });
+        }
+      },
+      error: (err: HttpErrorResponse) => {
+        this.brokerSubmitting[broker.type] = false;
+        if (err.status === 501) {
+          this.brokerBackendStubbed.set(true);
+          this.snack.open('Disconnect backend not yet implemented.', 'Close', { duration: 5000 });
+        } else {
+          this.snack.open(`Failed to disconnect ${broker.label}.`, 'Close', { duration: 4000 });
+        }
       },
     });
   }

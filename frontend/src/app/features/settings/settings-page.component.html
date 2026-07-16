@@ -108,6 +108,140 @@
       </mat-card-content>
     </mat-card>
 
+    <!-- ── Connected Accounts (broker linking) ────────────────────────── -->
+    <mat-card class="section-card">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>link</mat-icon>
+          Connected Accounts
+        </mat-card-title>
+        <mat-card-subtitle>
+          Link your broker API keys so the platform can execute trades on your behalf.
+          Keys are stored encrypted and are never returned in any API response.
+        </mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+
+        <!-- Backend-stubbed informational notice -->
+        <div *ngIf="brokerBackendStubbed()" class="broker-stub-notice">
+          <mat-icon class="notice-icon">info</mat-icon>
+          <div>
+            <strong>Broker linking is coming soon.</strong>
+            The credential storage backend is not yet active. You can fill in your keys now,
+            but they will not be persisted until the feature is fully deployed.
+            No data is stored while this notice is visible.
+          </div>
+        </div>
+
+        <!-- Broker cards grid -->
+        <div class="broker-grid">
+          <mat-card
+            *ngFor="let broker of brokers"
+            class="broker-card"
+            [class.broker-connected]="brokerConnected[broker.type]"
+            [class.broker-unavailable]="!broker.available">
+
+            <!-- Broker header -->
+            <mat-card-header>
+              <mat-icon mat-card-avatar class="broker-icon">{{ broker.icon }}</mat-icon>
+              <mat-card-title class="broker-title">
+                {{ broker.label }}
+                <span *ngIf="!broker.available" class="coming-soon-badge">Coming soon</span>
+              </mat-card-title>
+              <mat-card-subtitle>{{ broker.description }}</mat-card-subtitle>
+            </mat-card-header>
+
+            <mat-card-content>
+
+              <!-- Connected state -->
+              <div *ngIf="brokerConnected[broker.type]" class="connected-status">
+                <mat-icon class="connected-icon">check_circle</mat-icon>
+                <span>Connected</span>
+              </div>
+
+              <!-- Not connected + available: show API key form -->
+              <ng-container *ngIf="!brokerConnected[broker.type] && broker.available">
+                <form
+                  [formGroup]="brokerForms[broker.type]"
+                  (ngSubmit)="onBrokerConnect(broker)"
+                  class="broker-form"
+                  autocomplete="off">
+
+                  <mat-form-field appearance="outline" class="broker-field">
+                    <mat-label>API Key</mat-label>
+                    <input
+                      matInput
+                      formControlName="apiKey"
+                      placeholder="Paste your exchange API key"
+                      autocomplete="off">
+                    <mat-error>API key is required</mat-error>
+                  </mat-form-field>
+
+                  <!--
+                    apiSecret is always type="password" — it must be treated as a
+                    secret regardless of what the backend expects.
+                    NEVER log or console.print this value.
+                  -->
+                  <mat-form-field appearance="outline" class="broker-field">
+                    <mat-label>API Secret</mat-label>
+                    <input
+                      matInput
+                      type="password"
+                      formControlName="apiSecret"
+                      placeholder="Paste your exchange API secret"
+                      autocomplete="new-password">
+                    <mat-hint>Stored encrypted · never shown again after saving</mat-hint>
+                    <mat-error>API secret is required</mat-error>
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline" class="broker-field">
+                    <mat-label>Label (optional)</mat-label>
+                    <input
+                      matInput
+                      formControlName="label"
+                      placeholder="e.g. My Main BitUnix Account">
+                  </mat-form-field>
+
+                  <div class="broker-form-actions">
+                    <button
+                      mat-raised-button
+                      color="primary"
+                      type="submit"
+                      [disabled]="brokerForms[broker.type].invalid || brokerSubmitting[broker.type]">
+                      <mat-icon>link</mat-icon>
+                      {{ brokerSubmitting[broker.type] ? 'Connecting…' : 'Connect' }}
+                    </button>
+                  </div>
+
+                </form>
+              </ng-container>
+
+              <!-- Not connected + unavailable -->
+              <div *ngIf="!brokerConnected[broker.type] && !broker.available" class="unavailable-hint">
+                <mat-icon>lock_clock</mat-icon>
+                <span>Not yet available — check back in a future release.</span>
+              </div>
+
+            </mat-card-content>
+
+            <!-- Disconnect action for connected brokers -->
+            <mat-card-actions *ngIf="brokerConnected[broker.type]" align="end">
+              <button
+                mat-stroked-button
+                color="warn"
+                (click)="onBrokerDisconnect(broker)"
+                [disabled]="brokerSubmitting[broker.type]">
+                <mat-icon>link_off</mat-icon>
+                {{ brokerSubmitting[broker.type] ? 'Disconnecting…' : 'Disconnect' }}
+              </button>
+            </mat-card-actions>
+
+          </mat-card>
+        </div><!-- /.broker-grid -->
+
+      </mat-card-content>
+    </mat-card>
+
   </ng-container>
 
 </div>
