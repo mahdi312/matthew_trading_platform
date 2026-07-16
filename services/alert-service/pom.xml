@@ -87,6 +87,11 @@
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-config</artifactId>
+        </dependency>
+
         <!-- ── Shared contracts ──────────────────────────────────────────── -->
         <dependency>
             <groupId>com.mst.matt</groupId>

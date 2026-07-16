@@ -1,9 +1,12 @@
+import { getRuntimeConfig } from './runtime-config';
+
 /**
- * Production environment configuration. `gatewayBaseUrl` should be
- * overridden at build/deploy time (e.g., via a replaced file or
- * runtime-injected config) to point at the deployed Gateway's public URL.
+ * Production environment configuration. `gatewayBaseUrl` is loaded at
+ * runtime from `/assets/config.json` (see `loadRuntimeConfig()` in main.ts).
  */
 export const environment = {
   production: true,
-  gatewayBaseUrl: '/', // same-origin by default; override per deployment
+  get gatewayBaseUrl(): string {
+    return getRuntimeConfig().gatewayBaseUrl;
+  },
 };

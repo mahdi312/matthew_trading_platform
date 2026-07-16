@@ -24,7 +24,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 
 import { SettingsApiService } from './settings-api.service';
 import { BrokerLinkApiService } from './broker-link-api.service';
-import { UserProfile, UpdateProfileRequest } from './settings.models';
+import { UserProfile, UpdateProfileRequest, NotificationPreferences, UpdateNotificationPreferencesRequest } from './settings.models';
 
 /**
  * Supported brokers shown in the "Connected Accounts" section.
@@ -50,9 +50,12 @@ interface BrokerCard {
  * Loads the current user's profile from `GET /api/profile` on init,
  * pre-fills the form, and submits updates via `PUT /api/profile`.
  *
- * Editable fields: Display Name, Avatar URL, Timezone, Currency,
- *                  Notifications toggle.
+ * Editable fields: Display Name, Avatar URL, Timezone, Currency.
  * Read-only fields: Username, Email, Account created date.
+ *
+ * Notifications section (separate form + API):
+ *   GET/PUT /api/profile/preferences — in-app, email, Telegram channel toggles
+ *   and optional email / Telegram chat-id overrides.
  *
  * Connected Accounts section:
  *  - One card per supported broker.
@@ -101,14 +104,26 @@ export class SettingsPageComponent implements OnInit {
   readonly error   = signal<string | null>(null);
   readonly profile = signal<UserProfile | null>(null);
 
+  readonly notificationsLoading = signal(true);
+  readonly notificationsSaving  = signal(false);
+  readonly notificationsError   = signal<string | null>(null);
+  readonly notificationPrefs      = signal<NotificationPreferences | null>(null);
+
   // ── Form ──────────────────────────────────────────────────────────────────
 
   readonly form: FormGroup = this.fb.group({
-    displayName:          [''],
-    avatarUrl:            [''],
-    timezone:             [''],
-    currency:             ['USD'],
-    notificationsEnabled: [true],
+    displayName: [''],
+    avatarUrl:   [''],
+    timezone:    [''],
+    currency:    ['USD'],
+  });
+
+  readonly notificationsForm: FormGroup = this.fb.group({
+    inAppEnabled:    [true],
+    emailEnabled:    [true],
+    email:           [''],
+    telegramEnabled: [false],
+    telegramChatId:  [''],
   });
 
   // ── Currency options ──────────────────────────────────────────────────────
@@ -222,11 +237,10 @@ export class SettingsPageComponent implements OnInit {
       next: (p) => {
         this.profile.set(p);
         this.form.patchValue({
-          displayName:          p.displayName ?? '',
-          avatarUrl:            p.avatarUrl ?? '',
-          timezone:             p.timezone ?? 'UTC',
-          currency:             p.currency ?? 'USD',
-          notificationsEnabled: p.notificationsEnabled,
+          displayName: p.displayName ?? '',
+          avatarUrl:   p.avatarUrl ?? '',
+          timezone:    p.timezone ?? 'UTC',
+          currency:    p.currency ?? 'USD',
         });
         this.loading.set(false);
       },
@@ -237,7 +251,29 @@ export class SettingsPageComponent implements OnInit {
       },
     });
 
+    this.loadNotificationPreferences();
     this.loadBrokerConnections();
+  }
+
+  private loadNotificationPreferences(): void {
+    this.api.getNotificationPreferences().subscribe({
+      next: (prefs) => {
+        this.notificationPrefs.set(prefs);
+        this.notificationsForm.patchValue({
+          inAppEnabled:    prefs.inAppEnabled,
+          emailEnabled:    prefs.emailEnabled,
+          email:           prefs.email ?? '',
+          telegramEnabled: prefs.telegramEnabled,
+          telegramChatId:  prefs.telegramChatId ?? '',
+        });
+        this.notificationsLoading.set(false);
+      },
+      error: (err) => {
+        this.notificationsError.set('Failed to load notification preferences.');
+        this.notificationsLoading.set(false);
+        console.error('[Settings] notification preferences load error', err);
+      },
+    });
   }
 
   // ── Save profile ──────────────────────────────────────────────────────────
@@ -247,11 +283,10 @@ export class SettingsPageComponent implements OnInit {
     this.saving.set(true);
 
     const req: UpdateProfileRequest = {
-      displayName:          this.form.value.displayName?.trim() || null,
-      avatarUrl:            this.form.value.avatarUrl?.trim() || null,
-      timezone:             this.form.value.timezone || null,
-      currency:             this.form.value.currency || null,
-      notificationsEnabled: this.form.value.notificationsEnabled,
+      displayName: this.form.value.displayName?.trim() || null,
+      avatarUrl:   this.form.value.avatarUrl?.trim() || null,
+      timezone:    this.form.value.timezone || null,
+      currency:    this.form.value.currency || null,
     };
 
     this.api.updateProfile(req).subscribe({
@@ -264,6 +299,32 @@ export class SettingsPageComponent implements OnInit {
         this.saving.set(false);
         this.snack.open('Failed to save profile.', 'Close', { duration: 4000 });
         console.error('[Settings] save error', err);
+      },
+    });
+  }
+
+  onSaveNotifications(): void {
+    if (this.notificationsForm.invalid) return;
+    this.notificationsSaving.set(true);
+
+    const req: UpdateNotificationPreferencesRequest = {
+      inAppEnabled:    this.notificationsForm.value.inAppEnabled,
+      emailEnabled:    this.notificationsForm.value.emailEnabled,
+      email:           this.notificationsForm.value.email?.trim() || null,
+      telegramEnabled: this.notificationsForm.value.telegramEnabled,
+      telegramChatId:  this.notificationsForm.value.telegramChatId?.trim() || null,
+    };
+
+    this.api.updateNotificationPreferences(req).subscribe({
+      next: (updated) => {
+        this.notificationPrefs.set(updated);
+        this.notificationsSaving.set(false);
+        this.snack.open('Notification preferences saved.', 'OK', { duration: 3000 });
+      },
+      error: (err) => {
+        this.notificationsSaving.set(false);
+        this.snack.open('Failed to save notification preferences.', 'Close', { duration: 4000 });
+        console.error('[Settings] notification preferences save error', err);
       },
     });
   }

@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: trading-service
+  namespace: mtp
+spec:
+  ports:
+    - port: 8083
+      targetPort: 8083
+  selector:
+    app: trading-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trading-service
+  namespace: mtp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trading-service
+  template:
+    metadata:
+      labels:
+        app: trading-service
+    spec:
+      containers:
+        - name: trading-service
+          image: mtp/trading-service:latest
+          ports:
+            - containerPort: 8083
+          envFrom:
+            - configMapRef:
+                name: mtp-shared-config
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://postgres:5432/mtp_trading
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mtp-secrets
+                  key: POSTGRES_PASSWORD
+            - name: BITUNIX_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mtp-secrets
+                  key: BITUNIX_API_KEY
+            - name: BITUNIX_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mtp-secrets
+                  key: BITUNIX_SECRET_KEY

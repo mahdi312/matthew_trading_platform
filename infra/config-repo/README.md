@@ -1,9 +1,10 @@
 # config-repo
 
-Local filesystem-backed configuration source for `config-service`
-(Spring Cloud Config Server, `native` profile).
+Filesystem-backed configuration source for `config-service` (Spring Cloud Config Server, `native` profile).
 
-Per-service configuration files (e.g. `identity-service.yml`,
-`market-service.yml`, `gateway-service.yml`) will be added here in a later
-migration step. This module is currently a scaffold placeholder only — no
-service configuration has been externalized yet.
+Each file is named `{spring.application.name}.yml` and holds environment-specific settings
+(datasource URLs, Kafka/Redis hosts, API keys, JWT secret). Services bootstrap with
+`spring.config.import=configserver:…` and load the matching file from here.
+
+For local dev, start `config-service` on port 8888 before other services, or rely on
+`optional:configserver:` fallbacks in each service's bootstrap `application.yml`.

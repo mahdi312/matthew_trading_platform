@@ -4,13 +4,13 @@ server:
 spring:
   application:
     name: discovery-service
+  config:
+    import: optional:configserver:${CONFIG_SERVER_URI:http://localhost:8888}
 
 eureka:
   instance:
-    hostname: localhost
+    hostname: ${EUREKA_HOSTNAME:localhost}
   client:
-    # The registry server itself does not need to register with / fetch from
-    # another registry.
     register-with-eureka: false
     fetch-registry: false
     service-url:

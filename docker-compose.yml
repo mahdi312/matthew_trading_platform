@@ -109,6 +109,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mtp}"]
@@ -131,6 +132,23 @@ services:
       timeout: 10s
       retries: 5
 
+  # ── Config Server (Spring Cloud Config, native profile) ────────────────────
+  config-service:
+    build:
+      context: .
+      dockerfile: infra/config-service/Dockerfile
+    container_name: mtp-config
+    env_file:
+      - .env
+    ports:
+      - "8888:8888"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
   # ── API Gateway ────────────────────────────────────────────────────────────
   gateway-service:
     build:
@@ -140,10 +158,14 @@ services:
     depends_on:
       discovery-service:
         condition: service_healthy
+      config-service:
+        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
+      CONFIG_SERVER_URI: http://config-service:8888
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-at-least-32-chars}
     restart: unless-stopped
 
   # ── market-service ─────────────────────────────────────────────────────────
@@ -155,6 +177,8 @@ services:
     depends_on:
       discovery-service:
         condition: service_healthy
+      config-service:
+        condition: service_healthy
       redis:
         condition: service_healthy
       postgres:
@@ -162,6 +186,7 @@ services:
     ports:
       - "8082:8082"
     environment:
+      CONFIG_SERVER_URI: http://config-service:8888
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -194,11 +219,14 @@ services:
     depends_on:
       discovery-service:
         condition: service_healthy
+      config-service:
+        condition: service_healthy
       redis:
         condition: service_healthy
     ports:
       - "8085:8085"
     environment:
+      CONFIG_SERVER_URI: http://config-service:8888
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -218,6 +246,8 @@ services:
     depends_on:
       discovery-service:
         condition: service_healthy
+      config-service:
+        condition: service_healthy
       kafka:
         condition: service_healthy
       postgres:
@@ -225,6 +255,7 @@ services:
     ports:
       - "8083:8083"
     environment:
+      CONFIG_SERVER_URI: http://config-service:8888
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mtp_trading
@@ -243,6 +274,8 @@ services:
     depends_on:
       discovery-service:
         condition: service_healthy
+      config-service:
+        condition: service_healthy
       kafka:
         condition: service_healthy
       postgres:
@@ -250,6 +283,7 @@ services:
     ports:
       - "8087:8087"
     environment:
+      CONFIG_SERVER_URI: http://config-service:8888
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mtp_alert
@@ -266,20 +300,21 @@ services:
     depends_on:
       discovery-service:
         condition: service_healthy
+      config-service:
+        condition: service_healthy
       kafka:
         condition: service_healthy
     ports:
       - "8084:8084"
     environment:
+      CONFIG_SERVER_URI: http://config-service:8888
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      # SMTP (set via .env)
-      SPRING_MAIL_HOST: ${SMTP_HOST:-smtp.gmail.com}
-      SPRING_MAIL_PORT: ${SMTP_PORT:-587}
-      SPRING_MAIL_USERNAME: ${SMTP_USERNAME:-}
-      SPRING_MAIL_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       NOTIFICATION_EMAIL_TO: ${NOTIFICATION_EMAIL_TO:-}
-      # Telegram bot (set via .env)
       TELEGRAM_BOT_ENABLED: ${TELEGRAM_BOT_ENABLED:-false}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-TradingBot}
@@ -295,15 +330,19 @@ services:
     depends_on:
       discovery-service:
         condition: service_healthy
+      config-service:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     ports:
       - "8081:8081"
     environment:
+      CONFIG_SERVER_URI: http://config-service:8888
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mtp_identity
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-mtp}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-mtp_secret}
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-at-least-32-chars}
     restart: unless-stopped
 
   # ── ai-service ─────────────────────────────────────────────────────────────
@@ -315,13 +354,30 @@ services:
     depends_on:
       discovery-service:
         condition: service_healthy
+      config-service:
+        condition: service_healthy
     ports:
       - "8086:8086"
     environment:
+      CONFIG_SERVER_URI: http://config-service:8888
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
       SERVICES_MARKET_URL: http://market-service:8082
       SERVICES_REFERENCE_DATA_URL: http://reference-data-service:8085
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    restart: unless-stopped
+
+  # ── Angular frontend (nginx) ───────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mtp-frontend
+    depends_on:
+      - gateway-service
+    ports:
+      - "4200:80"
+    environment:
+      GATEWAY_BASE_URL: ${GATEWAY_BASE_URL:-http://localhost:8080}
     restart: unless-stopped
 
 volumes:

@@ -85,12 +85,6 @@
             </mat-select>
           </mat-form-field>
 
-          <div class="toggle-row">
-            <mat-slide-toggle formControlName="notificationsEnabled" color="primary">
-              Push notifications
-            </mat-slide-toggle>
-          </div>
-
           <mat-divider class="divider"></mat-divider>
 
           <div class="form-actions">
@@ -101,6 +95,89 @@
               [disabled]="form.invalid || saving()">
               <mat-icon>save</mat-icon>
               {{ saving() ? 'Saving…' : 'Save Changes' }}
+            </button>
+          </div>
+
+        </form>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- ── Notification preferences ───────────────────────────────────── -->
+    <mat-card class="section-card">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>notifications</mat-icon>
+          Notifications
+        </mat-card-title>
+        <mat-card-subtitle>
+          Choose how you receive price alerts and trade updates.
+        </mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+
+        <div *ngIf="notificationsLoading()" class="center-spinner">
+          <mat-spinner diameter="32"></mat-spinner>
+        </div>
+
+        <div *ngIf="notificationsError() && !notificationsLoading()" class="inline-error">
+          <mat-icon color="warn">error_outline</mat-icon>
+          {{ notificationsError() }}
+        </div>
+
+        <form
+          *ngIf="!notificationsLoading() && !notificationsError()"
+          [formGroup]="notificationsForm"
+          (ngSubmit)="onSaveNotifications()"
+          class="settings-form">
+
+          <div class="toggle-row">
+            <mat-slide-toggle formControlName="inAppEnabled" color="primary">
+              In-app notifications
+            </mat-slide-toggle>
+            <p class="toggle-hint">Toast and notification bell inside the app.</p>
+          </div>
+
+          <div class="toggle-row">
+            <mat-slide-toggle formControlName="emailEnabled" color="primary">
+              Email notifications
+            </mat-slide-toggle>
+          </div>
+
+          <mat-form-field appearance="outline" class="form-field">
+            <mat-label>Email address override</mat-label>
+            <input
+              matInput
+              type="email"
+              formControlName="email"
+              placeholder="Leave blank to use your account email">
+            <mat-hint>Used when email notifications are enabled.</mat-hint>
+          </mat-form-field>
+
+          <div class="toggle-row">
+            <mat-slide-toggle formControlName="telegramEnabled" color="primary">
+              Telegram notifications
+            </mat-slide-toggle>
+          </div>
+
+          <mat-form-field appearance="outline" class="form-field">
+            <mat-label>Telegram chat ID</mat-label>
+            <input
+              matInput
+              formControlName="telegramChatId"
+              placeholder="Numeric chat id from @userinfobot or /start">
+            <mat-hint>Required for Telegram delivery — send /start to the bot first.</mat-hint>
+          </mat-form-field>
+
+          <mat-divider class="divider"></mat-divider>
+
+          <div class="form-actions">
+            <button
+              mat-raised-button
+              color="primary"
+              type="submit"
+              [disabled]="notificationsForm.invalid || notificationsSaving()">
+              <mat-icon>save</mat-icon>
+              {{ notificationsSaving() ? 'Saving…' : 'Save Notifications' }}
             </button>
           </div>
 

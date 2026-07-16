@@ -222,6 +222,17 @@ public class ProfileController {
     }
 
     /**
+     * GET /api/profile/preferences
+     * Returns notification preferences for the authenticated user.
+     */
+    @GetMapping("/preferences")
+    public com.mst.matt.contracts.dto.UserPreferencesDto getOwnNotificationPreferences(
+            @AuthenticationPrincipal UserDetails principal) {
+        AppUser caller = resolveCallerOrThrow(principal);
+        return settingsService.getNotificationPreferences(caller.getId());
+    }
+
+    /**
      * GET /api/profile/{userId}/preferences
      * Service-to-service endpoint (no {@code @AuthenticationPrincipal}) — called by
      * notification-service to resolve delivery preferences for an event's userId,

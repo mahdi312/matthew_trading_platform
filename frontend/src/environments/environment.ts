@@ -1,3 +1,5 @@
+import { getRuntimeConfig } from './runtime-config';
+
 /**
  * Development environment configuration.
  *
@@ -11,5 +13,7 @@
  */
 export const environment = {
   production: false,
-  gatewayBaseUrl: 'http://localhost:8080',
+  get gatewayBaseUrl(): string {
+    return getRuntimeConfig().gatewayBaseUrl;
+  },
 };

@@ -76,6 +76,20 @@
   padding: 8px 0 4px;
 }
 
+.toggle-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.inline-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
 .divider { margin: 12px 0; }
 
 .form-actions {

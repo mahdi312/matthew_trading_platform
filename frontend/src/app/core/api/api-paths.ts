@@ -13,6 +13,7 @@
 /** identity-service routes */
 export const AUTH_API = '/api/auth';
 export const PROFILE_API = '/api/profile';
+export const PROFILE_PREFERENCES_API = '/api/profile/preferences';
 export const ADMIN_API = '/api/admin';
 
 /** trading-service routes */
