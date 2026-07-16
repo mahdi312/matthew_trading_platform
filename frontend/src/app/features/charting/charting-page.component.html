@@ -1,0 +1,176 @@
+<mat-sidenav-container class="charting-container" [hasBackdrop]="false">
+
+  <!-- ── Right sidenav — indicator & layout panel ──────────────────────── -->
+  <mat-sidenav #sidenav mode="side" position="end" [opened]="sidenavOpen()" class="charting-sidenav">
+
+    <div class="sidenav-header">
+      <span class="sidenav-title">Chart Tools</span>
+      <button mat-icon-button (click)="toggleSidenav()" matTooltip="Hide panel">
+        <mat-icon>chevron_right</mat-icon>
+      </button>
+    </div>
+
+    <mat-divider></mat-divider>
+
+    <!-- ── Layouts section ─────────────────────────────────────────────── -->
+    <div class="sidenav-section">
+      <div class="section-header">
+        <span>Layouts</span>
+        <button mat-icon-button matTooltip="Save new layout"
+                [disabled]="savingLayout()"
+                (click)="saveNewLayout()">
+          <mat-icon>add</mat-icon>
+        </button>
+      </div>
+
+      @if (layouts().length === 0) {
+        <p class="empty-hint">No layouts saved. Draw on the chart, then click + to save.</p>
+      } @else {
+        <mat-list dense>
+          @for (layout of layouts(); track layout.id) {
+            <mat-list-item
+              [class.active-layout]="layout.id === activeLayoutId()"
+              (click)="switchLayout(layout.id)"
+              class="layout-item">
+              <span matListItemTitle>{{ layout.name }}</span>
+              <span matListItemLine class="layout-symbol">{{ layout.symbol }}</span>
+              @if (layout.id === activeLayoutId()) {
+                <button mat-icon-button matTooltip="Set as default"
+                        (click)="setDefaultLayout(); $event.stopPropagation()">
+                  <mat-icon>star</mat-icon>
+                </button>
+              }
+            </mat-list-item>
+          }
+        </mat-list>
+      }
+    </div>
+
+    <mat-divider></mat-divider>
+
+    <!-- ── Indicators section ───────────────────────────────────────────── -->
+    <div class="sidenav-section">
+      <div class="section-header">
+        <span>Indicators</span>
+      </div>
+
+      <!-- Add indicator buttons -->
+      <div class="indicator-buttons">
+        @for (ind of indicatorTypes; track ind.type) {
+          <button mat-stroked-button (click)="addIndicator(ind.type, ind.subPane)"
+                  class="add-ind-btn">
+            + {{ ind.label }}
+          </button>
+        }
+      </div>
+
+      <!-- Active indicator configs -->
+      @if (loadingIndicators()) {
+        <div class="loading-row"><mat-spinner diameter="24"></mat-spinner></div>
+      } @else if (indicatorConfigs().length > 0) {
+        <mat-divider style="margin: 8px 0"></mat-divider>
+        <mat-list dense>
+          @for (cfg of indicatorConfigs(); track cfg.id) {
+            <mat-list-item class="indicator-item">
+              <span class="ind-dot" [style.background]="cfg.color"></span>
+              <span matListItemTitle>{{ cfg.type }}</span>
+              <div class="ind-actions">
+                <mat-slide-toggle
+                  [checked]="cfg.enabled"
+                  (change)="toggleIndicator(cfg)"
+                  color="primary">
+                </mat-slide-toggle>
+                <button mat-icon-button (click)="removeIndicator(cfg)"
+                        matTooltip="Remove">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+            </mat-list-item>
+          }
+        </mat-list>
+      }
+    </div>
+
+  </mat-sidenav>
+
+  <!-- ── Main chart content ─────────────────────────────────────────────── -->
+  <mat-sidenav-content class="charting-content">
+
+    <!-- ── Top toolbar ──────────────────────────────────────────────────── -->
+    <div class="chart-toolbar">
+
+      <!-- Symbol selector -->
+      <div class="symbol-group">
+        @for (sym of popularSymbols; track sym) {
+          <button mat-stroked-button
+                  [class.active-sym]="sym === activeSymbol()"
+                  (click)="onSymbolChange(sym)">
+            {{ sym }}
+          </button>
+        }
+        <input class="symbol-input" placeholder="Custom symbol…"
+               (keydown.enter)="onSymbolChange($any($event.target).value)" />
+      </div>
+
+      <!-- Right controls -->
+      <div class="toolbar-right">
+        <!-- Live price badge -->
+        @if (livePrice() !== null) {
+          <span class="live-price-badge">
+            {{ activeSymbol() }}&nbsp;
+            <strong>{{ livePrice() | number:'1.2-6' }}</strong>
+            <span class="live-dot">●</span>LIVE
+          </span>
+        }
+
+        <!-- Active layout label -->
+        @if (activeLayoutId()) {
+          <mat-chip disableRipple class="layout-chip">
+            <mat-icon>layers</mat-icon>&nbsp;{{ layoutLabel(activeLayoutId()!) }}
+          </mat-chip>
+        }
+
+        <!-- Theme toggle -->
+        <button mat-icon-button [matTooltip]="chartTheme() === 'dark' ? 'Switch to light' : 'Switch to dark'"
+                (click)="toggleTheme()">
+          <mat-icon>{{ chartTheme() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
+        </button>
+
+        <!-- Panel toggle -->
+        <button mat-icon-button matTooltip="Toggle panel" (click)="toggleSidenav()">
+          <mat-icon>tune</mat-icon>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ── Chart ─────────────────────────────────────────────────────────── -->
+    <div class="chart-area">
+      @if (loadingDrawings()) {
+        <div class="chart-overlay-spinner">
+          <mat-spinner diameter="40"></mat-spinner>
+        </div>
+      }
+
+      @if (chartBars().length > 0) {
+        <app-candlestick-chart
+          [ohlcvData]="chartBars()"
+          [indicators]="indicatorSeries()"
+          [drawings]="drawings()"
+          [theme]="chartTheme()"
+          [livePrice]="livePrice()"
+          (drawingChanged)="onDrawingChanged($event)"
+          class="main-chart"
+        ></app-candlestick-chart>
+      } @else {
+        <div class="chart-placeholder">
+          <mat-icon>candlestick_chart</mat-icon>
+          <span>Connecting to live feed for <strong>{{ activeSymbol() }}</strong>…</span>
+          <small>Bars will appear as market data arrives via WebSocket.</small>
+        </div>
+      }
+    </div>
+
+  </mat-sidenav-content>
+
+</mat-sidenav-container>

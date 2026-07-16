@@ -63,7 +63,15 @@ export const routes: Routes = [
       ),
   },
 
-  // Step 6 routes added below (charting).
+  // Step 6: ChartingModule — full-screen charting workspace.
+  {
+    path: 'charting',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/charting/charting-page.component').then(
+        (m) => m.ChartingPageComponent
+      ),
+  },
 
   // Catch-all fallback — send unknown paths to login for now.
   { path: '**', redirectTo: 'login' },
