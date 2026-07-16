@@ -1,0 +1,156 @@
+:host {
+  display: block;
+}
+
+.onchain-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.page-header {
+  display: flex;
+  align-items: center;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.header-icon {
+  font-size: 36px;
+  width: 36px;
+  height: 36px;
+  color: #26c6da;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.page-subtitle {
+  margin: 2px 0 0;
+  font-size: 13px;
+  opacity: 0.6;
+}
+
+/* ── Tab chrome ──────────────────────────────────────────────────────────── */
+.tab-icon {
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.tab-count {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.15);
+  font-size: 11px;
+}
+
+.tab-body {
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+.tab-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-field {
+  flex: 0 0 300px;
+}
+
+/* ── Loading / error / empty ─────────────────────────────────────────────── */
+.center-spinner {
+  display: flex;
+  justify-content: center;
+  padding: 48px 0;
+}
+
+.error-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 0;
+  opacity: 0.4;
+
+  mat-icon {
+    font-size: 56px;
+    width: 56px;
+    height: 56px;
+  }
+}
+
+/* ── Table ───────────────────────────────────────────────────────────────── */
+.table-wrapper {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  min-width: 700px;
+}
+
+.data-row:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+/* NFT collection name cell */
+.collection-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nft-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.sub-label {
+  display: block;
+  font-size: 11px;
+  opacity: 0.55;
+}
+
+/* Number / APY cells */
+.number-cell {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.apy-cell {
+  color: #66bb6a;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .search-field {
+    flex: 1 1 auto;
+  }
+}

@@ -93,6 +93,16 @@ export const routes: Routes = [
       ),
   },
 
+  // Step 9: OnChainModule — NFT collections + DeFi pools views.
+  {
+    path: 'on-chain',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/on-chain/on-chain-page.component').then(
+        (m) => m.OnChainPageComponent
+      ),
+  },
+
   // Catch-all fallback — send unknown paths to login for now.
   { path: '**', redirectTo: 'login' },
 ];

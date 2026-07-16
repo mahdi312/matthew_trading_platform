@@ -1,0 +1,215 @@
+<div class="onchain-page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-left">
+      <mat-icon class="header-icon">account_tree</mat-icon>
+      <div>
+        <h1 class="page-title">On-Chain Data</h1>
+        <p class="page-subtitle">NFT collections &amp; DeFi liquidity pools</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <mat-tab-group animationDuration="200ms">
+
+    <!-- ── Tab 1: NFT Collections ─────────────────────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">image</mat-icon>
+        NFT Collections
+        <span class="tab-count" *ngIf="!loadingNft()">{{ nftFiltered().length }}</span>
+      </ng-template>
+
+      <div class="tab-body">
+
+        <!-- Toolbar -->
+        <div class="tab-toolbar">
+          <mat-form-field appearance="outline" class="search-field">
+            <mat-label>Search collections</mat-label>
+            <mat-icon matPrefix>search</mat-icon>
+            <input
+              matInput
+              [ngModel]="nftSearch()"
+              (ngModelChange)="nftSearch.set($event)"
+              placeholder="Name, symbol, chain…">
+          </mat-form-field>
+          <button mat-icon-button matTooltip="Refresh" (click)="loadNft()">
+            <mat-icon>refresh</mat-icon>
+          </button>
+        </div>
+
+        <!-- Loading -->
+        <div *ngIf="loadingNft()" class="center-spinner">
+          <mat-spinner diameter="48"></mat-spinner>
+        </div>
+
+        <!-- Error -->
+        <div *ngIf="nftError() && !loadingNft()" class="error-row">
+          <mat-icon color="warn">error_outline</mat-icon>
+          {{ nftError() }}
+          <button mat-button (click)="loadNft()">Retry</button>
+        </div>
+
+        <!-- Empty -->
+        <div *ngIf="!loadingNft() && !nftError() && nftFiltered().length === 0" class="empty-state">
+          <mat-icon>image_not_supported</mat-icon>
+          <p>No collections found.</p>
+        </div>
+
+        <!-- Table -->
+        <div class="table-wrapper" *ngIf="!loadingNft() && nftFiltered().length > 0">
+          <table mat-table [dataSource]="nftFiltered()" class="data-table">
+
+            <ng-container matColumnDef="name">
+              <th mat-header-cell *matHeaderCellDef>Collection</th>
+              <td mat-cell *matCellDef="let row">
+                <div class="collection-name">
+                  <img *ngIf="row.imageUrl" [src]="row.imageUrl" class="nft-thumb" [alt]="row.name">
+                  <div>
+                    <strong>{{ row.name }}</strong>
+                    <span class="sub-label">{{ row.symbol }}</span>
+                  </div>
+                </div>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="chain">
+              <th mat-header-cell *matHeaderCellDef>Chain</th>
+              <td mat-cell *matCellDef="let row">
+                <mat-chip>{{ row.chain }}</mat-chip>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="floorPrice">
+              <th mat-header-cell *matHeaderCellDef>Floor</th>
+              <td mat-cell *matCellDef="let row">
+                {{ row.floorPrice !== null ? (row.floorPrice | number:'1.2-4') + ' ETH' : '—' }}
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="volume24h">
+              <th mat-header-cell *matHeaderCellDef>Vol 24h</th>
+              <td mat-cell *matCellDef="let row">{{ usdLabel(row.volume24h) }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="itemCount">
+              <th mat-header-cell *matHeaderCellDef>Items</th>
+              <td mat-cell *matCellDef="let row">{{ row.itemCount !== null ? (row.itemCount | number) : '—' }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="ownerCount">
+              <th mat-header-cell *matHeaderCellDef>Owners</th>
+              <td mat-cell *matCellDef="let row">{{ row.ownerCount !== null ? (row.ownerCount | number) : '—' }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="marketCap">
+              <th mat-header-cell *matHeaderCellDef>Mkt Cap</th>
+              <td mat-cell *matCellDef="let row">{{ usdLabel(row.marketCap) }}</td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="nftColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: nftColumns;" class="data-row"></tr>
+          </table>
+        </div>
+
+      </div>
+    </mat-tab>
+
+    <!-- ── Tab 2: DeFi Pools ──────────────────────────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">water</mat-icon>
+        DeFi Pools
+        <span class="tab-count" *ngIf="!loadingDefi()">{{ defiFiltered().length }}</span>
+      </ng-template>
+
+      <div class="tab-body">
+
+        <!-- Toolbar -->
+        <div class="tab-toolbar">
+          <mat-form-field appearance="outline" class="search-field">
+            <mat-label>Search pools</mat-label>
+            <mat-icon matPrefix>search</mat-icon>
+            <input
+              matInput
+              [ngModel]="defiSearch()"
+              (ngModelChange)="defiSearch.set($event)"
+              placeholder="Protocol, token, chain…">
+          </mat-form-field>
+          <button mat-icon-button matTooltip="Refresh" (click)="loadDefi()">
+            <mat-icon>refresh</mat-icon>
+          </button>
+        </div>
+
+        <!-- Loading -->
+        <div *ngIf="loadingDefi()" class="center-spinner">
+          <mat-spinner diameter="48"></mat-spinner>
+        </div>
+
+        <!-- Error -->
+        <div *ngIf="defiError() && !loadingDefi()" class="error-row">
+          <mat-icon color="warn">error_outline</mat-icon>
+          {{ defiError() }}
+          <button mat-button (click)="loadDefi()">Retry</button>
+        </div>
+
+        <!-- Empty -->
+        <div *ngIf="!loadingDefi() && !defiError() && defiFiltered().length === 0" class="empty-state">
+          <mat-icon>water_drop</mat-icon>
+          <p>No DeFi pools found.</p>
+        </div>
+
+        <!-- Table -->
+        <div class="table-wrapper" *ngIf="!loadingDefi() && defiFiltered().length > 0">
+          <table mat-table [dataSource]="defiFiltered()" class="data-table">
+
+            <ng-container matColumnDef="protocol">
+              <th mat-header-cell *matHeaderCellDef>Protocol</th>
+              <td mat-cell *matCellDef="let row"><strong>{{ row.protocol }}</strong></td>
+            </ng-container>
+
+            <ng-container matColumnDef="chain">
+              <th mat-header-cell *matHeaderCellDef>Chain</th>
+              <td mat-cell *matCellDef="let row">
+                <mat-chip>{{ row.chain }}</mat-chip>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="pair">
+              <th mat-header-cell *matHeaderCellDef>Pair</th>
+              <td mat-cell *matCellDef="let row">{{ pairLabel(row) }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="feeTier">
+              <th mat-header-cell *matHeaderCellDef>Fee</th>
+              <td mat-cell *matCellDef="let row">{{ feeTierLabel(row.feeTier) }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="tvl">
+              <th mat-header-cell *matHeaderCellDef>TVL</th>
+              <td mat-cell *matCellDef="let row" class="number-cell">{{ usdLabel(row.tvl) }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="volume24h">
+              <th mat-header-cell *matHeaderCellDef>Vol 24h</th>
+              <td mat-cell *matCellDef="let row" class="number-cell">{{ usdLabel(row.volume24h) }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="apy">
+              <th mat-header-cell *matHeaderCellDef>APY</th>
+              <td mat-cell *matCellDef="let row" class="apy-cell">{{ apyLabel(row.apy) }}</td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="defiColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: defiColumns;" class="data-row"></tr>
+          </table>
+        </div>
+
+      </div>
+    </mat-tab>
+
+  </mat-tab-group>
+
+</div>
