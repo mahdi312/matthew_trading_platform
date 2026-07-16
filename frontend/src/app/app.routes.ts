@@ -83,6 +83,16 @@ export const routes: Routes = [
       ),
   },
 
+  // Step 8: AiInsightsModule — AI market summary, signals, journal critique.
+  {
+    path: 'ai-insights',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/ai-insights/ai-insights-page.component').then(
+        (m) => m.AiInsightsPageComponent
+      ),
+  },
+
   // Catch-all fallback — send unknown paths to login for now.
   { path: '**', redirectTo: 'login' },
 ];

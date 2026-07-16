@@ -1,0 +1,318 @@
+<div class="ai-page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-left">
+      <mat-icon class="header-icon">psychology</mat-icon>
+      <div>
+        <h1 class="page-title">AI Insights</h1>
+        <p class="page-subtitle">LLM-powered market analysis &amp; journal critique</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Symbol selector -->
+  <mat-card class="symbol-card">
+    <mat-card-content>
+      <div class="symbol-row">
+        <mat-form-field appearance="outline" class="symbol-field">
+          <mat-label>Symbol</mat-label>
+          <input
+            matInput
+            [ngModel]="symbolInput()"
+            (ngModelChange)="symbolInput.set($event)"
+            (keyup.enter)="applySymbol()"
+            placeholder="e.g. BTCUSDT"
+            autocomplete="off">
+        </mat-form-field>
+        <button mat-raised-button color="primary" (click)="applySymbol()">
+          <mat-icon>search</mat-icon>
+          Analyse
+        </button>
+        <div class="popular-chips">
+          <span class="popular-label">Quick:</span>
+          <mat-chip-listbox>
+            <mat-chip-option
+              *ngFor="let s of popularSymbols"
+              (click)="selectPopular(s)"
+              [selected]="symbol() === s">
+              {{ s }}
+            </mat-chip-option>
+          </mat-chip-listbox>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Tabs -->
+  <mat-tab-group animationDuration="200ms" class="ai-tabs">
+
+    <!-- ── Tab 1: Market Summary ──────────────────────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">article</mat-icon>
+        Market Summary
+      </ng-template>
+
+      <div class="tab-content">
+
+        <!-- Loading -->
+        <div *ngIf="loadingSummary()" class="loading-section">
+          <mat-spinner diameter="48"></mat-spinner>
+          <p class="loading-hint">Asking the AI — this may take a few seconds…</p>
+        </div>
+
+        <!-- Error -->
+        <div *ngIf="summaryError() && !loadingSummary()" class="error-section">
+          <mat-icon color="warn">error_outline</mat-icon>
+          <span>{{ summaryError() }}</span>
+          <button mat-button color="primary" (click)="fetchSummary()">Retry</button>
+        </div>
+
+        <!-- Summary card -->
+        <ng-container *ngIf="summary() && !loadingSummary()">
+          <mat-card class="result-card">
+            <mat-card-header>
+              <mat-card-title>
+                <span class="symbol-label">{{ summary()!.symbol }}</span>
+                — AI Market Summary
+              </mat-card-title>
+              <mat-card-subtitle>
+                Generated {{ summary()!.generatedAt | date:'medium' }}
+              </mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+
+              <div class="sentiment-row">
+                <mat-chip [color]="sentimentColor(summary()!.sentiment)" highlighted>
+                  <mat-icon matChipAvatar>{{ sentimentIcon(summary()!.sentiment) }}</mat-icon>
+                  {{ summary()!.sentiment }}
+                </mat-chip>
+                <span class="confidence-label">
+                  Confidence: <strong>{{ confidencePct(summary()!.confidence) }}</strong>
+                </span>
+              </div>
+
+              <mat-divider class="divider"></mat-divider>
+
+              <div class="summary-text">{{ summary()!.summary }}</div>
+
+            </mat-card-content>
+            <mat-card-actions>
+              <button mat-button (click)="fetchSummary()">
+                <mat-icon>refresh</mat-icon> Refresh
+              </button>
+            </mat-card-actions>
+          </mat-card>
+        </ng-container>
+
+        <!-- Empty / initial state -->
+        <div *ngIf="!loadingSummary() && !summary() && !summaryError()" class="empty-section">
+          <mat-icon>psychology</mat-icon>
+          <p>Select a symbol above and click Analyse.</p>
+        </div>
+
+      </div>
+    </mat-tab>
+
+    <!-- ── Tab 2: Trade Signals ───────────────────────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">show_chart</mat-icon>
+        Trade Signals
+      </ng-template>
+
+      <div class="tab-content">
+
+        <!-- Loading -->
+        <div *ngIf="loadingSignals()" class="loading-section">
+          <mat-spinner diameter="48"></mat-spinner>
+          <p class="loading-hint">Generating signals…</p>
+        </div>
+
+        <!-- Error -->
+        <div *ngIf="signalsError() && !loadingSignals()" class="error-section">
+          <mat-icon color="warn">error_outline</mat-icon>
+          <span>{{ signalsError() }}</span>
+          <button mat-button color="primary" (click)="fetchSignals()">Retry</button>
+        </div>
+
+        <!-- Signal list -->
+        <ng-container *ngIf="!loadingSignals() && signals().length > 0">
+          <div class="signals-grid">
+            <mat-card
+              *ngFor="let sig of signals(); trackBy: trackById"
+              class="signal-card"
+              [class.signal-buy]="sig.type === 'BUY'"
+              [class.signal-sell]="sig.type === 'SELL'"
+              [class.signal-hold]="sig.type === 'HOLD'">
+              <mat-card-header>
+                <mat-card-title>
+                  <mat-chip [color]="signalColor(sig.type)" highlighted>
+                    <mat-icon matChipAvatar>{{ signalIcon(sig.type) }}</mat-icon>
+                    {{ sig.type }}
+                  </mat-chip>
+                  <span class="signal-symbol">{{ sig.symbol }}</span>
+                </mat-card-title>
+                <mat-card-subtitle>{{ sig.generatedAt | date:'medium' }}</mat-card-subtitle>
+              </mat-card-header>
+              <mat-card-content>
+                <p class="reasoning-text">{{ sig.reasoning }}</p>
+                <div class="signal-meta" *ngIf="sig.targetPrice || sig.stopLoss">
+                  <span *ngIf="sig.targetPrice">
+                    <mat-icon class="meta-icon">flag</mat-icon>
+                    Target: <strong>{{ sig.targetPrice | number:'1.2-8' }}</strong>
+                  </span>
+                  <span *ngIf="sig.stopLoss">
+                    <mat-icon class="meta-icon stop-icon">block</mat-icon>
+                    Stop: <strong>{{ sig.stopLoss | number:'1.2-8' }}</strong>
+                  </span>
+                </div>
+                <div class="confidence-bar-wrap">
+                  <span class="conf-label">Confidence {{ confidencePct(sig.confidence) }}</span>
+                  <div class="confidence-bar">
+                    <div class="confidence-fill" [style.width.%]="sig.confidence * 100"></div>
+                  </div>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          </div>
+          <div class="refresh-row">
+            <button mat-button (click)="fetchSignals()">
+              <mat-icon>refresh</mat-icon> Refresh Signals
+            </button>
+          </div>
+        </ng-container>
+
+        <!-- Empty -->
+        <div *ngIf="!loadingSignals() && signals().length === 0 && !signalsError()" class="empty-section">
+          <mat-icon>signal_cellular_alt</mat-icon>
+          <p>No signals yet. Select a symbol and click Analyse.</p>
+        </div>
+
+      </div>
+    </mat-tab>
+
+    <!-- ── Tab 3: Journal Critique ────────────────────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">rate_review</mat-icon>
+        Journal Critique
+      </ng-template>
+
+      <div class="tab-content">
+
+        <!-- Input form -->
+        <mat-card class="critique-form-card">
+          <mat-card-header>
+            <mat-card-title>
+              <mat-icon>edit_note</mat-icon>
+              Submit a trade for AI critique
+            </mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <form [formGroup]="critiqueForm" (ngSubmit)="onCritiqueSubmit()" class="critique-form">
+
+              <mat-form-field appearance="outline">
+                <mat-label>Trade ID</mat-label>
+                <input matInput formControlName="tradeId" placeholder="From your journal">
+                <mat-error>Required</mat-error>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Symbol</mat-label>
+                <input matInput formControlName="symbol" placeholder="e.g. ETHUSDT">
+                <mat-error>Required</mat-error>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Side</mat-label>
+                <mat-select formControlName="side">
+                  <mat-option value="BUY">BUY</mat-option>
+                  <mat-option value="SELL">SELL</mat-option>
+                </mat-select>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Entry Price</mat-label>
+                <input matInput type="number" formControlName="entryPrice">
+                <mat-error>Required</mat-error>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Exit Price (optional)</mat-label>
+                <input matInput type="number" formControlName="exitPrice">
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Trade Notes (optional)</mat-label>
+                <textarea matInput formControlName="notes" rows="3" placeholder="Describe your reasoning…"></textarea>
+              </mat-form-field>
+
+              <div class="form-actions">
+                <button
+                  mat-raised-button
+                  color="primary"
+                  type="submit"
+                  [disabled]="critiqueForm.invalid || loadingCritique()">
+                  <mat-icon>send</mat-icon>
+                  {{ loadingCritique() ? 'Analysing…' : 'Get AI Critique' }}
+                </button>
+              </div>
+
+            </form>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Loading -->
+        <div *ngIf="loadingCritique()" class="loading-section">
+          <mat-spinner diameter="48"></mat-spinner>
+          <p class="loading-hint">Analysing your trade — this may take a few seconds…</p>
+        </div>
+
+        <!-- Error -->
+        <div *ngIf="critiqueError() && !loadingCritique()" class="error-section">
+          <mat-icon color="warn">error_outline</mat-icon>
+          <span>{{ critiqueError() }}</span>
+        </div>
+
+        <!-- Critique result -->
+        <mat-card *ngIf="critique() && !loadingCritique()" class="result-card">
+          <mat-card-header>
+            <mat-card-title>
+              <mat-icon>psychology</mat-icon>
+              AI Critique — Trade {{ critique()!.tradeId }}
+            </mat-card-title>
+            <mat-card-subtitle>{{ critique()!.generatedAt | date:'medium' }}</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+
+            <div class="rating-row">
+              <div class="rating-badge" [class]="'rating-' + ratingColor(critique()!.rating)">
+                {{ critique()!.rating }}
+              </div>
+            </div>
+
+            <mat-divider class="divider"></mat-divider>
+
+            <p class="critique-text">{{ critique()!.critique }}</p>
+
+            <div *ngIf="critique()!.suggestions?.length > 0" class="suggestions">
+              <h4>Suggestions</h4>
+              <mat-list>
+                <mat-list-item *ngFor="let sug of critique()!.suggestions">
+                  <mat-icon matListItemIcon>lightbulb</mat-icon>
+                  <span matListItemTitle>{{ sug }}</span>
+                </mat-list-item>
+              </mat-list>
+            </div>
+
+          </mat-card-content>
+        </mat-card>
+
+      </div>
+    </mat-tab>
+
+  </mat-tab-group>
+
+</div>
