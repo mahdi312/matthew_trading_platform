@@ -1,0 +1,85 @@
+<mat-card class="watchlist-card">
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <mat-card-header class="watchlist-header">
+    <mat-card-title>
+      <mat-icon class="watchlist-icon">star</mat-icon>
+      Watchlist
+    </mat-card-title>
+    <button mat-icon-button matTooltip="Refresh watchlist" (click)="loadWatchlist()"
+            class="refresh-btn">
+      <mat-icon>refresh</mat-icon>
+    </button>
+  </mat-card-header>
+
+  <mat-divider></mat-divider>
+
+  <!-- ── Add symbol search ────────────────────────────────────────────────── -->
+  <div class="add-symbol-row">
+    <app-symbol-search
+      class="watchlist-search"
+      placeholder="Add symbol to watchlist…"
+      (symbolSelected)="onSymbolSelected($event)">
+    </app-symbol-search>
+    @if (adding()) {
+      <mat-spinner diameter="20" class="adding-spinner"></mat-spinner>
+    }
+  </div>
+
+  <mat-divider></mat-divider>
+
+  <!-- ── List ─────────────────────────────────────────────────────────────── -->
+  <mat-card-content class="watchlist-content">
+
+    @if (loading()) {
+      <div class="center-spinner">
+        <mat-spinner diameter="32"></mat-spinner>
+      </div>
+    } @else if (items().length === 0) {
+      <div class="empty-state">
+        <mat-icon>playlist_add</mat-icon>
+        <span>Your watchlist is empty.<br>Search above to add symbols.</span>
+      </div>
+    } @else {
+      <mat-list class="watchlist-list">
+        @for (item of items(); track item.symbol) {
+          <mat-list-item
+            class="watchlist-row"
+            (click)="navigateToChart(item.symbol)"
+            matTooltip="Open chart for {{ item.symbol }}"
+            matTooltipPosition="left">
+
+            <!-- Symbol ticker -->
+            <span matListItemTitle class="row-ticker">{{ item.symbol }}</span>
+
+            <!-- Asset class badge -->
+            <span class="row-class {{ item.assetClass | lowercase }}-badge">
+              {{ item.assetClass }}
+            </span>
+
+            <!-- Live price — updated via STOMP WebSocket -->
+            <span class="row-price">
+              @if (priceFor(item.symbol) !== null) {
+                {{ priceFor(item.symbol) | number:'1.2-8' }}
+                <span class="live-dot">●</span>
+              } @else {
+                <span class="price-pending">—</span>
+              }
+            </span>
+
+            <!-- Remove button -->
+            <button mat-icon-button
+                    matTooltip="Remove from watchlist"
+                    class="remove-btn"
+                    (click)="removeSymbol($event, item.symbol)">
+              <mat-icon>close</mat-icon>
+            </button>
+
+          </mat-list-item>
+        }
+      </mat-list>
+    }
+
+  </mat-card-content>
+
+</mat-card>

@@ -113,6 +113,13 @@
           placeholder="Search symbol…"
           (symbolSelected)="onSymbolSelected($event)">
         </app-symbol-search>
+        <!-- Add current symbol to watchlist -->
+        <button mat-icon-button
+                matTooltip="Add {{ activeSymbol() }} to watchlist"
+                (click)="addToWatchlist()"
+                [disabled]="addingToWatchlist()">
+          <mat-icon>{{ addingToWatchlist() ? 'hourglass_empty' : 'star_border' }}</mat-icon>
+        </button>
       </div>
 
       <!-- Right controls -->

@@ -65,8 +65,14 @@
 
     </div>
 
-    <!-- ── Equity Curve ──────────────────────────────────────────────────── -->
-    <mat-card class="equity-card">
+    <!-- ── Main row: Watchlist + Equity Curve side-by-side ──────────────────── -->
+    <div class="main-row">
+
+      <!-- Watchlist widget (left column) -->
+      <app-watchlist-widget class="watchlist-col"></app-watchlist-widget>
+
+      <!-- ── Equity Curve (right column) ──────────────────────────────────────── -->
+      <mat-card class="equity-card">
       <mat-card-header>
         <mat-card-title>Equity Curve</mat-card-title>
       </mat-card-header>
@@ -86,6 +92,8 @@
         }
       </mat-card-content>
     </mat-card>
+
+    </div><!-- /.main-row -->
 
     <!-- ── Recent Trades Table ──────────────────────────────────────────── -->
     <mat-card class="trades-card">

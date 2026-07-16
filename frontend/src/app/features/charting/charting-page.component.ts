@@ -33,6 +33,7 @@ import { OhlcvBar } from '../../shared/chart-library/models/ohlcv.model';
 
 import { ChartingApiService } from './charting-api.service';
 import { MarketDataSocketService } from '../../core/api/market-data-socket.service';
+import { WatchlistApiService } from '../dashboard/watchlist-widget/watchlist-api.service';
 import {
   ApiChartDrawing,
   DrawingLayout,
@@ -84,17 +85,19 @@ import {
   styleUrls: ['./charting-page.component.scss'],
 })
 export class ChartingPageComponent implements OnInit, OnDestroy {
-  private readonly chartingApi  = inject(ChartingApiService);
-  private readonly marketSocket = inject(MarketDataSocketService);
-  private readonly snack        = inject(MatSnackBar);
-  private readonly route        = inject(ActivatedRoute);
+  private readonly chartingApi    = inject(ChartingApiService);
+  private readonly marketSocket   = inject(MarketDataSocketService);
+  private readonly snack          = inject(MatSnackBar);
+  private readonly route          = inject(ActivatedRoute);
+  private readonly watchlistApi   = inject(WatchlistApiService);
 
   // ── State ─────────────────────────────────────────────────────────────────
 
-  readonly activeSymbol     = signal<string>('BTCUSDT');
-  readonly activeLayoutId   = signal<string | null>(null);
-  readonly chartTheme       = signal<'dark' | 'light'>('dark');
-  readonly sidenavOpen      = signal(true);
+  readonly activeSymbol       = signal<string>('BTCUSDT');
+  readonly activeLayoutId     = signal<string | null>(null);
+  readonly chartTheme         = signal<'dark' | 'light'>('dark');
+  readonly sidenavOpen        = signal(true);
+  readonly addingToWatchlist  = signal(false);
 
   /** Live OHLCV bars from the market WebSocket. */
   readonly chartBars        = signal<OhlcvBar[]>([]);
@@ -173,6 +176,22 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
   /** Called by SymbolSearchComponent's (symbolSelected) event. */
   onSymbolSelected(result: SymbolSearchResult): void {
     this.onSymbolChange(result.ticker);
+  }
+
+  /** Add the currently active symbol to the user's watchlist. */
+  addToWatchlist(): void {
+    if (this.addingToWatchlist()) return;
+    this.addingToWatchlist.set(true);
+    this.watchlistApi.addSymbol({ symbol: this.activeSymbol() }).subscribe({
+      next: () => {
+        this.snack.open(`${this.activeSymbol()} added to watchlist.`, 'OK', { duration: 2500 });
+        this.addingToWatchlist.set(false);
+      },
+      error: () => {
+        this.snack.open('Could not add to watchlist.', 'Close', { duration: 3000 });
+        this.addingToWatchlist.set(false);
+      },
+    });
   }
 
   private activateSymbol(symbol: string): void {

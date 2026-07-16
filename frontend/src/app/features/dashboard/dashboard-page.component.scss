@@ -168,3 +168,20 @@
   background: rgba(120, 120, 120, 0.15) !important;
   color: #aaa !important;
 }
+
+// ── Watchlist + Equity Curve main row ─────────────────────────────────────
+
+.main-row {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+  align-items: start;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.watchlist-col {
+  min-height: 400px;
+}

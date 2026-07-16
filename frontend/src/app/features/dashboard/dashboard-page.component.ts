@@ -18,6 +18,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { DashboardApiService } from './dashboard-api.service';
 import { PortfolioStats, TradeSummary } from './dashboard.models';
 import { CandlestickChartComponent } from '../../shared/chart-library/candlestick-chart/candlestick-chart.component';
+import { WatchlistWidgetComponent } from './watchlist-widget/watchlist-widget.component';
 import { OhlcvBar } from '../../shared/chart-library/models/ohlcv.model';
 import { IndicatorSeries } from '../../shared/chart-library/models/indicator-series.model';
 
@@ -48,6 +49,7 @@ import { IndicatorSeries } from '../../shared/chart-library/models/indicator-ser
     MatChipsModule,
     MatTooltipModule,
     CandlestickChartComponent,
+    WatchlistWidgetComponent,
   ],
   templateUrl: './dashboard-page.component.html',
   styleUrls: ['./dashboard-page.component.scss'],
