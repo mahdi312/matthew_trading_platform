@@ -43,7 +43,26 @@ export const routes: Routes = [
       ),
   },
 
-  // Step 5 routes added below (live-trading, journal).
+  // Step 5: LiveTradingModule
+  {
+    path: 'live-trading',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/live-trading/live-trading-page.component').then(
+        (m) => m.LiveTradingPageComponent
+      ),
+  },
+
+  // Step 5: JournalModule
+  {
+    path: 'journal',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/journal/journal-page.component').then(
+        (m) => m.JournalPageComponent
+      ),
+  },
+
   // Step 6 routes added below (charting).
 
   // Catch-all fallback — send unknown paths to login for now.

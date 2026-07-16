@@ -1,0 +1,179 @@
+<div class="lt-root">
+
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <div class="lt-header">
+    <h1 class="lt-title">Live Trading</h1>
+    <button mat-icon-button matTooltip="Refresh positions" (click)="loadOpenPositions()">
+      <mat-icon>refresh</mat-icon>
+    </button>
+  </div>
+
+  <!-- ── Top row: chart + order form ───────────────────────────────────── -->
+  <div class="lt-top-row">
+
+    <!-- ── Chart Panel ──────────────────────────────────────────────────── -->
+    <mat-card class="chart-panel">
+      <mat-card-header>
+        <mat-card-title>
+          {{ selectedSymbol() }}
+          @if (livePrice() !== null) {
+            <span class="live-badge">LIVE</span>
+            <span class="live-price">{{ livePrice() | number:'1.2-8' }}</span>
+          }
+        </mat-card-title>
+      </mat-card-header>
+
+      <!-- Symbol Quick-Select -->
+      <div class="symbol-row">
+        @for (sym of popularSymbols; track sym) {
+          <button mat-stroked-button
+                  [class.active-symbol]="sym === selectedSymbol()"
+                  (click)="onSymbolChange(sym)">
+            {{ sym }}
+          </button>
+        }
+        <mat-form-field appearance="outline" class="custom-symbol">
+          <mat-label>Custom symbol</mat-label>
+          <input matInput placeholder="e.g. LINKUSDT"
+                 (keydown.enter)="onSymbolChange($any($event.target).value)" />
+        </mat-form-field>
+      </div>
+
+      <mat-card-content>
+        @if (chartBars().length > 0) {
+          <app-candlestick-chart
+            [ohlcvData]="chartBars()"
+            [livePrice]="livePrice()"
+            [theme]="'dark'"
+            class="live-chart"
+          ></app-candlestick-chart>
+        } @else {
+          <div class="chart-placeholder">
+            <mat-icon>show_chart</mat-icon>
+            <span>Waiting for live data for <strong>{{ selectedSymbol() }}</strong>…</span>
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+
+    <!-- ── Order Entry Form ─────────────────────────────────────────────── -->
+    <mat-card class="order-panel">
+      <mat-card-header>
+        <mat-card-title>New Order</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <form [formGroup]="orderForm" (ngSubmit)="submitOrder()" class="order-form">
+
+          <!-- Broker -->
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Broker</mat-label>
+            <mat-select [value]="selectedBroker()" (valueChange)="selectedBroker.set($event)">
+              @for (b of brokers; track b.id) {
+                <mat-option [value]="b.id">{{ b.label }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <!-- Side -->
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Side</mat-label>
+            <mat-select formControlName="side">
+              <mat-option value="BUY">BUY</mat-option>
+              <mat-option value="SELL">SELL</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <!-- Order Type -->
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Order Type</mat-label>
+            <mat-select formControlName="type">
+              <mat-option value="SPOT">SPOT</mat-option>
+              <mat-option value="FUTURES">FUTURES</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <!-- Entry Price -->
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Entry Price</mat-label>
+            <input matInput type="number" formControlName="price"
+                   [placeholder]="livePrice() !== null ? (livePrice()!.toString()) : '0.00'" />
+            <mat-error>Enter a valid price</mat-error>
+          </mat-form-field>
+
+          <!-- Quantity -->
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Quantity</mat-label>
+            <input matInput type="number" step="any" formControlName="quantity" placeholder="0.00" />
+            <mat-error>Enter a valid quantity</mat-error>
+          </mat-form-field>
+
+          <!-- Notes -->
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Notes (optional)</mat-label>
+            <textarea matInput formControlName="notes" rows="2"></textarea>
+          </mat-form-field>
+
+          <button mat-flat-button color="primary" type="submit"
+                  class="submit-btn"
+                  [disabled]="orderForm.invalid || submitting()">
+            @if (submitting()) {
+              <mat-spinner diameter="20" class="inline-spinner"></mat-spinner>
+            } @else {
+              Place Order
+            }
+          </button>
+
+        </form>
+      </mat-card-content>
+    </mat-card>
+
+  </div>
+
+  <!-- ── Open Positions Table ───────────────────────────────────────────── -->
+  <mat-card class="positions-card">
+    <mat-card-header>
+      <mat-card-title>Open Positions</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+
+      @if (loadingPositions()) {
+        <div class="loading-row"><mat-spinner diameter="32"></mat-spinner></div>
+      } @else if (openPositions().length === 0) {
+        <div class="empty-row">
+          <mat-icon>inbox</mat-icon>
+          <span>No open positions.</span>
+        </div>
+      } @else {
+        <table class="positions-table">
+          <thead>
+            <tr>
+              <th>#</th><th>Symbol</th><th>Side</th><th>Type</th>
+              <th>Entry</th><th>Qty</th><th>Unrealised P&L</th><th>Opened</th><th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (t of openPositions(); track t.id) {
+              <tr>
+                <td>{{ t.id }}</td>
+                <td><strong>{{ t.symbol }}</strong></td>
+                <td><span [class]="t.side === 'BUY' ? 'side-buy' : 'side-sell'">{{ t.side }}</span></td>
+                <td>{{ t.type }}</td>
+                <td>{{ t.entryPrice | number:'1.2-8' }}</td>
+                <td>{{ t.quantity | number:'1.2-8' }}</td>
+                <td [class]="pnlClass(t.pnl)">{{ t.pnl !== null ? (t.pnl | number:'1.2-2') : '—' }}</td>
+                <td>{{ t.openedAt | date:'mediumDate' }}</td>
+                <td>
+                  <button mat-stroked-button color="warn" (click)="closePosition(t)">
+                    Close at {{ livePrice() !== null ? (livePrice()! | number:'1.2-2') : 'mkt' }}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+
+    </mat-card-content>
+  </mat-card>
+
+</div>

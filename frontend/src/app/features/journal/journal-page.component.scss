@@ -1,0 +1,117 @@
+// ── Layout ────────────────────────────────────────────────────────────────
+
+.journal-root {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  box-sizing: border-box;
+}
+
+.journal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.journal-title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+// ── Filter Panel ──────────────────────────────────────────────────────────
+
+.filter-card mat-card-content {
+  padding: 16px !important;
+}
+
+.filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+
+  mat-form-field {
+    min-width: 160px;
+    flex: 1;
+  }
+}
+
+.filter-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-top: 4px;
+}
+
+// ── Error Banner ──────────────────────────────────────────────────────────
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(239, 83, 80, 0.12);
+  border: 1px solid rgba(239, 83, 80, 0.4);
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: #ef5350;
+
+  span { flex: 1; }
+}
+
+// ── Trades Table ──────────────────────────────────────────────────────────
+
+.trades-card mat-card-content {
+  padding: 0 !important;
+  overflow-x: auto;
+}
+
+.journal-table {
+  width: 100%;
+  min-width: 900px;
+}
+
+.trade-row:hover { background: rgba(255, 255, 255, 0.04); }
+
+.loading-center {
+  display: flex;
+  justify-content: center;
+  padding: 48px 0;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 16px;
+  opacity: 0.5;
+  text-align: center;
+
+  mat-icon { font-size: 36px; width: 36px; height: 36px; }
+}
+
+.row-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+// ── Colour helpers ────────────────────────────────────────────────────────
+
+.positive { color: #26a69a; }
+.negative { color: #ef5350; }
+.side-buy  { color: #26a69a; font-weight: 600; }
+.side-sell { color: #ef5350; font-weight: 600; }
+
+.chip-open {
+  background: rgba(38, 166, 154, 0.15) !important;
+  color: #26a69a !important;
+}
+
+.chip-closed {
+  background: rgba(120, 120, 120, 0.15) !important;
+  color: #aaa !important;
+}
