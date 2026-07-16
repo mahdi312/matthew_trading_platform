@@ -146,6 +146,14 @@
           <mat-icon>{{ chartTheme() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
         </button>
 
+        <!-- Company Info toggle -->
+        <button mat-icon-button
+                matTooltip="Company Info / Fundamentals"
+                (click)="toggleFundamentalsPanel()"
+                [class.active-panel-btn]="fundamentalsPanelOpen()">
+          <mat-icon>info_outline</mat-icon>
+        </button>
+
         <!-- Panel toggle -->
         <button mat-icon-button matTooltip="Toggle panel" (click)="toggleSidenav()">
           <mat-icon>tune</mat-icon>
@@ -154,32 +162,344 @@
 
     </div>
 
-    <!-- ── Chart ─────────────────────────────────────────────────────────── -->
-    <div class="chart-area">
-      @if (loadingDrawings()) {
-        <div class="chart-overlay-spinner">
-          <mat-spinner diameter="40"></mat-spinner>
-        </div>
+    <!-- ── Chart + Fundamentals row ─────────────────────────────────────── -->
+    <div class="chart-and-info-row">
+
+      <!-- ── Chart area ──────────────────────────────────────────────────── -->
+      <div class="chart-area">
+        @if (loadingDrawings()) {
+          <div class="chart-overlay-spinner">
+            <mat-spinner diameter="40"></mat-spinner>
+          </div>
+        }
+
+        @if (chartBars().length > 0) {
+          <app-candlestick-chart
+            [ohlcvData]="chartBars()"
+            [indicators]="indicatorSeries()"
+            [drawings]="drawings()"
+            [theme]="chartTheme()"
+            [livePrice]="livePrice()"
+            (drawingChanged)="onDrawingChanged($event)"
+            class="main-chart"
+          ></app-candlestick-chart>
+        } @else {
+          <div class="chart-placeholder">
+            <mat-icon>candlestick_chart</mat-icon>
+            <span>Connecting to live feed for <strong>{{ activeSymbol() }}</strong>…</span>
+            <small>Bars will appear as market data arrives via WebSocket.</small>
+          </div>
+        }
+      </div>
+
+      <!-- ── Company Info / Fundamentals side panel ─────────────────────── -->
+      @if (fundamentalsPanelOpen()) {
+        <aside class="fundamentals-panel">
+
+          <div class="fund-panel-header">
+            <mat-icon class="fund-header-icon">business</mat-icon>
+            <span class="fund-panel-title">Company Info</span>
+            <button mat-icon-button class="fund-close-btn"
+                    matTooltip="Close"
+                    (click)="toggleFundamentalsPanel()">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+
+          <!-- Asset class selector -->
+          <div class="fund-asset-selector">
+            <span class="fund-label">Asset class</span>
+            <div class="asset-class-chips">
+              <button
+                mat-stroked-button
+                [class.asset-chip-active]="fundamentalsAssetClass() === 'STOCK'"
+                (click)="onFundamentalsAssetClassChange('STOCK')">
+                Stock
+              </button>
+              <button
+                mat-stroked-button
+                [class.asset-chip-active]="fundamentalsAssetClass() === 'CRYPTO'"
+                (click)="onFundamentalsAssetClassChange('CRYPTO')">
+                Crypto
+              </button>
+              <button
+                mat-stroked-button
+                [class.asset-chip-active]="fundamentalsAssetClass() === 'FOREX'"
+                (click)="onFundamentalsAssetClassChange('FOREX')">
+                Forex
+              </button>
+            </div>
+          </div>
+
+          <!-- Refresh button -->
+          <div class="fund-refresh-row">
+            <button mat-button (click)="loadFundamentals()" [disabled]="loadingFundamentals()">
+              <mat-icon>refresh</mat-icon> Refresh
+            </button>
+            <span class="fund-symbol-label">{{ activeSymbol() }}</span>
+          </div>
+
+          <mat-divider></mat-divider>
+
+          <!-- Loading -->
+          @if (loadingFundamentals()) {
+            <div class="fund-loading">
+              <mat-spinner diameter="32"></mat-spinner>
+              <span>Loading fundamentals…</span>
+            </div>
+          }
+
+          <!-- Error -->
+          @if (fundamentalsError() && !loadingFundamentals()) {
+            <div class="fund-error">
+              <mat-icon color="warn">error_outline</mat-icon>
+              <span>{{ fundamentalsError() }}</span>
+            </div>
+          }
+
+          <!-- ── STOCK shape ──────────────────────────────────────────── -->
+          @if (fundamentals() && !loadingFundamentals() && isStockFundamentals(fundamentals()!)) {
+            <div class="fund-content">
+              <div class="fund-company-name">
+                {{ $any(fundamentals()).companyName }}
+              </div>
+              <div class="fund-subtitle">
+                {{ orDash($any(fundamentals()).exchange) }}
+                · {{ orDash($any(fundamentals()).sector) }}
+                · {{ orDash($any(fundamentals()).country) }}
+              </div>
+              <mat-divider class="fund-divider"></mat-divider>
+
+              <mat-accordion multi class="fund-accordion">
+
+                <!-- Valuation -->
+                <mat-expansion-panel>
+                  <mat-expansion-panel-header>
+                    <mat-panel-title>Valuation</mat-panel-title>
+                  </mat-expansion-panel-header>
+                  <div class="fund-kv-grid">
+                    <span class="fund-k">Market Cap</span>
+                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).marketCap, '$') }}</span>
+                    <span class="fund-k">P/E (TTM)</span>
+                    <span class="fund-v">{{ orDash($any(fundamentals()).peRatioTtm) }}</span>
+                    <span class="fund-k">P/E (Fwd)</span>
+                    <span class="fund-v">{{ orDash($any(fundamentals()).peRatioForward) }}</span>
+                    <span class="fund-k">Price/Book</span>
+                    <span class="fund-v">{{ orDash($any(fundamentals()).priceToBook) }}</span>
+                    <span class="fund-k">EV/EBITDA</span>
+                    <span class="fund-v">{{ orDash($any(fundamentals()).evToEbitda) }}</span>
+                  </div>
+                </mat-expansion-panel>
+
+                <!-- Income -->
+                <mat-expansion-panel>
+                  <mat-expansion-panel-header>
+                    <mat-panel-title>Income</mat-panel-title>
+                  </mat-expansion-panel-header>
+                  <div class="fund-kv-grid">
+                    <span class="fund-k">Revenue</span>
+                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).revenueAnnual, '$') }}</span>
+                    <span class="fund-k">Rev. Growth YoY</span>
+                    <span class="fund-v">{{ formatPct($any(fundamentals()).revenueGrowthYoy) }}</span>
+                    <span class="fund-k">Gross Margin</span>
+                    <span class="fund-v">{{ formatPct($any(fundamentals()).grossMargin) }}</span>
+                    <span class="fund-k">Net Margin</span>
+                    <span class="fund-v">{{ formatPct($any(fundamentals()).netMargin) }}</span>
+                    <span class="fund-k">EPS (TTM)</span>
+                    <span class="fund-v">{{ orDash($any(fundamentals()).epsDilutedTtm) }}</span>
+                  </div>
+                </mat-expansion-panel>
+
+                <!-- Balance Sheet -->
+                <mat-expansion-panel>
+                  <mat-expansion-panel-header>
+                    <mat-panel-title>Balance Sheet</mat-panel-title>
+                  </mat-expansion-panel-header>
+                  <div class="fund-kv-grid">
+                    <span class="fund-k">Total Assets</span>
+                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).totalAssets, '$') }}</span>
+                    <span class="fund-k">Total Debt</span>
+                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).totalDebt, '$') }}</span>
+                    <span class="fund-k">Cash &amp; Equiv.</span>
+                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).cashAndEquivalents, '$') }}</span>
+                    <span class="fund-k">D/E Ratio</span>
+                    <span class="fund-v">{{ orDash($any(fundamentals()).debtToEquity) }}</span>
+                    <span class="fund-k">Current Ratio</span>
+                    <span class="fund-v">{{ orDash($any(fundamentals()).currentRatio) }}</span>
+                  </div>
+                </mat-expansion-panel>
+
+                <!-- Analyst -->
+                <mat-expansion-panel>
+                  <mat-expansion-panel-header>
+                    <mat-panel-title>Analyst Consensus</mat-panel-title>
+                  </mat-expansion-panel-header>
+                  <div class="fund-kv-grid">
+                    <span class="fund-k">Recommendation</span>
+                    <span class="fund-v">{{ orDash($any(fundamentals()).analystRecommendation) }}</span>
+                    <span class="fund-k">Target Price</span>
+                    <span class="fund-v">{{ orDash($any(fundamentals()).targetPriceMean) }}</span>
+                    <span class="fund-k">Analysts</span>
+                    <span class="fund-v">{{ orDash($any(fundamentals()).analystCount) }}</span>
+                    <span class="fund-k">Div. Yield</span>
+                    <span class="fund-v">{{ formatPct($any(fundamentals()).dividendYield) }}</span>
+                  </div>
+                </mat-expansion-panel>
+
+              </mat-accordion>
+            </div>
+          }
+
+          <!-- ── CRYPTO shape ────────────────────────────────────────── -->
+          @if (fundamentals() && !loadingFundamentals() && isCryptoTokenomics(fundamentals()!)) {
+            <div class="fund-content">
+              <div class="fund-company-name">
+                {{ $any(fundamentals()).name }}
+              </div>
+              <div class="fund-subtitle" *ngIf="$any(fundamentals()).description">
+                {{ $any(fundamentals()).description | slice:0:120 }}…
+              </div>
+              <mat-divider class="fund-divider"></mat-divider>
+
+              <mat-accordion multi class="fund-accordion">
+
+                <!-- Market -->
+                <mat-expansion-panel>
+                  <mat-expansion-panel-header>
+                    <mat-panel-title>Market</mat-panel-title>
+                  </mat-expansion-panel-header>
+                  <div class="fund-kv-grid">
+                    <span class="fund-k">Market Cap</span>
+                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).marketCapUsd, '$') }}</span>
+                    <span class="fund-k">FDV</span>
+                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).fullyDilutedValuationUsd, '$') }}</span>
+                    <span class="fund-k">Volume 24h</span>
+                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).volume24hUsd, '$') }}</span>
+                    <span class="fund-k">Rank</span>
+                    <span class="fund-v">#{{ orDash($any(fundamentals()).marketCapRank) }}</span>
+                    <span class="fund-k">ATH</span>
+                    <span class="fund-v">{{ orDash($any(fundamentals()).athUsd) }}</span>
+                    <span class="fund-k">From ATH</span>
+                    <span class="fund-v">{{ formatPct($any(fundamentals()).athChangePercent) }}</span>
+                  </div>
+                </mat-expansion-panel>
+
+                <!-- Supply -->
+                <mat-expansion-panel>
+                  <mat-expansion-panel-header>
+                    <mat-panel-title>Supply</mat-panel-title>
+                  </mat-expansion-panel-header>
+                  <div class="fund-kv-grid">
+                    <span class="fund-k">Circulating</span>
+                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).circulatingSupply) }}</span>
+                    <span class="fund-k">Total</span>
+                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).totalSupply) }}</span>
+                    <span class="fund-k">Max</span>
+                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).maxSupply) }}</span>
+                    <span class="fund-k">Inflation/yr</span>
+                    <span class="fund-v">{{ formatPct($any(fundamentals()).inflationRateYearly) }}</span>
+                  </div>
+                </mat-expansion-panel>
+
+                <!-- On-chain -->
+                <mat-expansion-panel>
+                  <mat-expansion-panel-header>
+                    <mat-panel-title>On-Chain / Network</mat-panel-title>
+                  </mat-expansion-panel-header>
+                  <div class="fund-kv-grid">
+                    <span class="fund-k">Active Addresses (24h)</span>
+                    <span class="fund-v">{{ orDash($any(fundamentals()).activeAddresses24h) }}</span>
+                    <span class="fund-k">Transactions (24h)</span>
+                    <span class="fund-v">{{ orDash($any(fundamentals()).transactions24h) }}</span>
+                    <span class="fund-k">TVL</span>
+                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).tvlUsd, '$') }}</span>
+                    <span class="fund-k">Stake Ratio</span>
+                    <span class="fund-v">{{ formatPct($any(fundamentals()).stakeRatio) }}</span>
+                  </div>
+                </mat-expansion-panel>
+
+              </mat-accordion>
+            </div>
+          }
+
+          <!-- ── FOREX shape ─────────────────────────────────────────── -->
+          @if (fundamentals() && !loadingFundamentals() && isForexMacro(fundamentals()!)) {
+            <div class="fund-content">
+              <div class="fund-company-name">
+                {{ $any(fundamentals()).symbol }}
+              </div>
+              <div class="fund-subtitle">
+                {{ orDash($any(fundamentals()).baseCurrency) }} /
+                {{ orDash($any(fundamentals()).quoteCurrency) }}
+                · {{ orDash($any(fundamentals()).country) }}
+              </div>
+              <mat-divider class="fund-divider"></mat-divider>
+
+              <mat-accordion multi class="fund-accordion">
+
+                <!-- FX rates -->
+                <mat-expansion-panel>
+                  <mat-expansion-panel-header>
+                    <mat-panel-title>Exchange Rate</mat-panel-title>
+                  </mat-expansion-panel-header>
+                  <div class="fund-kv-grid">
+                    <span class="fund-k">Spot Rate</span>
+                    <span class="fund-v">{{ orDash($any(fundamentals()).spotRate) }}</span>
+                    <span class="fund-k">52W High</span>
+                    <span class="fund-v">{{ orDash($any(fundamentals()).weekHigh52) }}</span>
+                    <span class="fund-k">52W Low</span>
+                    <span class="fund-v">{{ orDash($any(fundamentals()).weekLow52) }}</span>
+                    <span class="fund-k">PPP Fair Value</span>
+                    <span class="fund-v">{{ orDash($any(fundamentals()).pppFairValue) }}</span>
+                  </div>
+                </mat-expansion-panel>
+
+                <!-- Macro -->
+                <mat-expansion-panel>
+                  <mat-expansion-panel-header>
+                    <mat-panel-title>Macro Indicators</mat-panel-title>
+                  </mat-expansion-panel-header>
+                  <div class="fund-kv-grid">
+                    <span class="fund-k">CB Rate</span>
+                    <span class="fund-v">{{ formatPct($any(fundamentals()).centralBankRate) }}</span>
+                    <span class="fund-k">CPI YoY</span>
+                    <span class="fund-v">{{ formatPct($any(fundamentals()).cpiYoy) }}</span>
+                    <span class="fund-k">Core CPI YoY</span>
+                    <span class="fund-v">{{ formatPct($any(fundamentals()).coreCpiYoy) }}</span>
+                    <span class="fund-k">GDP Growth YoY</span>
+                    <span class="fund-v">{{ formatPct($any(fundamentals()).gdpGrowthYoy) }}</span>
+                    <span class="fund-k">Unemployment</span>
+                    <span class="fund-v">{{ formatPct($any(fundamentals()).unemploymentRate) }}</span>
+                  </div>
+                </mat-expansion-panel>
+
+              </mat-accordion>
+            </div>
+          }
+
+          <!-- Empty state: data loaded but no matching shape found -->
+          @if (fundamentals() && !loadingFundamentals()
+               && !isStockFundamentals(fundamentals()!)
+               && !isCryptoTokenomics(fundamentals()!)
+               && !isForexMacro(fundamentals()!)) {
+            <div class="fund-error">
+              <mat-icon>help_outline</mat-icon>
+              <span>Unrecognised response shape from server.</span>
+            </div>
+          }
+
+          <!-- Initial state: panel opened but not yet loaded -->
+          @if (!fundamentals() && !loadingFundamentals() && !fundamentalsError()) {
+            <div class="fund-empty">
+              <mat-icon>analytics</mat-icon>
+              <span>Select asset class above and click Refresh.</span>
+            </div>
+          }
+
+        </aside>
       }
 
-      @if (chartBars().length > 0) {
-        <app-candlestick-chart
-          [ohlcvData]="chartBars()"
-          [indicators]="indicatorSeries()"
-          [drawings]="drawings()"
-          [theme]="chartTheme()"
-          [livePrice]="livePrice()"
-          (drawingChanged)="onDrawingChanged($event)"
-          class="main-chart"
-        ></app-candlestick-chart>
-      } @else {
-        <div class="chart-placeholder">
-          <mat-icon>candlestick_chart</mat-icon>
-          <span>Connecting to live feed for <strong>{{ activeSymbol() }}</strong>…</span>
-          <small>Bars will appear as market data arrives via WebSocket.</small>
-        </div>
-      }
-    </div>
+    </div><!-- /.chart-and-info-row -->
 
   </mat-sidenav-content>
 

@@ -23,6 +23,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatExpansionModule } from '@angular/material/expansion';
 import { Subscription } from 'rxjs';
 
 import { CandlestickChartComponent } from '../../shared/chart-library/candlestick-chart/candlestick-chart.component';
@@ -34,6 +35,17 @@ import { OhlcvBar } from '../../shared/chart-library/models/ohlcv.model';
 import { ChartingApiService } from './charting-api.service';
 import { MarketDataSocketService } from '../../core/api/market-data-socket.service';
 import { WatchlistApiService } from '../dashboard/watchlist-widget/watchlist-api.service';
+import {
+  FundamentalsApiService,
+  FundamentalsPayload,
+  AssetClass,
+  isStockFundamentals,
+  isCryptoTokenomics,
+  isForexMacro,
+  CompanyFundamentalsDto,
+  CryptoTokenomicsDto,
+  ForexMacroIndicatorsDto,
+} from './fundamentals-api.service';
 import {
   ApiChartDrawing,
   DrawingLayout,
@@ -78,6 +90,7 @@ import {
     MatChipsModule,
     MatTooltipModule,
     MatSlideToggleModule,
+    MatExpansionModule,
     CandlestickChartComponent,
     SymbolSearchComponent,
   ],
@@ -85,11 +98,17 @@ import {
   styleUrls: ['./charting-page.component.scss'],
 })
 export class ChartingPageComponent implements OnInit, OnDestroy {
-  private readonly chartingApi    = inject(ChartingApiService);
-  private readonly marketSocket   = inject(MarketDataSocketService);
-  private readonly snack          = inject(MatSnackBar);
-  private readonly route          = inject(ActivatedRoute);
-  private readonly watchlistApi   = inject(WatchlistApiService);
+  private readonly chartingApi      = inject(ChartingApiService);
+  private readonly marketSocket     = inject(MarketDataSocketService);
+  private readonly snack            = inject(MatSnackBar);
+  private readonly route            = inject(ActivatedRoute);
+  private readonly watchlistApi     = inject(WatchlistApiService);
+  private readonly fundamentalsApi  = inject(FundamentalsApiService);
+
+  // Expose type guards to the template
+  readonly isStockFundamentals = isStockFundamentals;
+  readonly isCryptoTokenomics  = isCryptoTokenomics;
+  readonly isForexMacro        = isForexMacro;
 
   // ── State ─────────────────────────────────────────────────────────────────
 
@@ -98,6 +117,21 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
   readonly chartTheme         = signal<'dark' | 'light'>('dark');
   readonly sidenavOpen        = signal(true);
   readonly addingToWatchlist  = signal(false);
+
+  // ── Fundamentals / Company Info panel ─────────────────────────────────────
+
+  /** Currently selected asset class for fundamentals lookup. */
+  readonly fundamentalsAssetClass = signal<AssetClass>('CRYPTO');
+
+  /** Whether the fundamentals panel is expanded. */
+  readonly fundamentalsPanelOpen  = signal(false);
+
+  /** Fundamentals data for the active symbol. */
+  readonly fundamentals           = signal<FundamentalsPayload | null>(null);
+
+  /** Loading / error state for the fundamentals panel. */
+  readonly loadingFundamentals    = signal(false);
+  readonly fundamentalsError      = signal<string | null>(null);
 
   /** Live OHLCV bars from the market WebSocket. */
   readonly chartBars        = signal<OhlcvBar[]>([]);
@@ -208,6 +242,13 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
     this.drawings.set([]);
     this.indicatorSeries.set([]);
     this.activeLayoutId.set(null);
+
+    // Reset fundamentals so the panel re-fetches for the new symbol.
+    this.fundamentals.set(null);
+    this.fundamentalsError.set(null);
+    if (this.fundamentalsPanelOpen()) {
+      this.loadFundamentals();
+    }
 
     // Subscribe to live feed.
     this.marketSocket.subscribeSymbol(symbol);
@@ -454,6 +495,75 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
       label:     d.label,
       fibLevels: d.fibLevels,
     };
+  }
+
+  // ── Fundamentals panel ────────────────────────────────────────────────────
+
+  /** Toggle the Company Info / Fundamentals panel open/closed. */
+  toggleFundamentalsPanel(): void {
+    const opening = !this.fundamentalsPanelOpen();
+    this.fundamentalsPanelOpen.set(opening);
+    // Load fundamentals when first opened (or if the symbol has changed since last load).
+    if (opening && !this.fundamentals()) {
+      this.loadFundamentals();
+    }
+  }
+
+  /** Called when the user changes asset class in the panel selector. */
+  onFundamentalsAssetClassChange(cls: AssetClass): void {
+    this.fundamentalsAssetClass.set(cls);
+    this.loadFundamentals();
+  }
+
+  /** Fetch fundamentals from reference-data-service for the active symbol. */
+  loadFundamentals(): void {
+    this.loadingFundamentals.set(true);
+    this.fundamentalsError.set(null);
+    this.fundamentals.set(null);
+
+    this.fundamentalsApi
+      .getFundamentals(this.activeSymbol(), this.fundamentalsAssetClass())
+      .subscribe({
+        next: (data) => {
+          this.fundamentals.set(data);
+          this.loadingFundamentals.set(false);
+        },
+        error: (err) => {
+          this.fundamentalsError.set(
+            err.status === 404
+              ? `No fundamentals found for ${this.activeSymbol()}.`
+              : 'Failed to load fundamentals data.'
+          );
+          this.loadingFundamentals.set(false);
+          console.error('[Charting] fundamentals error', err);
+        },
+      });
+  }
+
+  /**
+   * Helper: format large numbers (market cap, revenue, etc.) to a readable string.
+   * e.g. 1_234_567_890 → "$1.23B"
+   */
+  formatLargeNumber(value: number | null | undefined, prefix = ''): string {
+    if (value == null) return '—';
+    const abs = Math.abs(value);
+    if (abs >= 1e12) return `${prefix}${(value / 1e12).toFixed(2)}T`;
+    if (abs >= 1e9)  return `${prefix}${(value / 1e9).toFixed(2)}B`;
+    if (abs >= 1e6)  return `${prefix}${(value / 1e6).toFixed(2)}M`;
+    if (abs >= 1e3)  return `${prefix}${(value / 1e3).toFixed(2)}K`;
+    return `${prefix}${value.toFixed(2)}`;
+  }
+
+  /** Format a ratio/percentage field (e.g. 0.12 → "12.0%"). */
+  formatPct(value: number | null | undefined): string {
+    if (value == null) return '—';
+    return (value * 100).toFixed(1) + '%';
+  }
+
+  /** Return a string or '—' for null values. */
+  orDash(value: string | number | null | undefined): string {
+    if (value == null) return '—';
+    return String(value);
   }
 
   // ── UI helpers ────────────────────────────────────────────────────────────
