@@ -31,9 +31,20 @@ export const routes: Routes = [
       ),
   },
 
-  // Protected routes (authGuard applied) — feature modules added in later steps.
-  // Step 4: DashboardModule
-  // { path: 'dashboard', canActivate: [authGuard], loadChildren: () => import('./features/dashboard/...') },
+  // Protected routes (authGuard applied).
+
+  // Step 4: DashboardModule — landing screen after login.
+  {
+    path: 'dashboard',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/dashboard/dashboard-page.component').then(
+        (m) => m.DashboardPageComponent
+      ),
+  },
+
+  // Step 5 routes added below (live-trading, journal).
+  // Step 6 routes added below (charting).
 
   // Catch-all fallback — send unknown paths to login for now.
   { path: '**', redirectTo: 'login' },
