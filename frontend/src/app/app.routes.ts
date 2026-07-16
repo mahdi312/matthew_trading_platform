@@ -73,6 +73,16 @@ export const routes: Routes = [
       ),
   },
 
+  // Step 7: AlertsModule — price alert CRUD management.
+  {
+    path: 'alerts',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/alerts/alerts-page.component').then(
+        (m) => m.AlertsPageComponent
+      ),
+  },
+
   // Catch-all fallback — send unknown paths to login for now.
   { path: '**', redirectTo: 'login' },
 ];
