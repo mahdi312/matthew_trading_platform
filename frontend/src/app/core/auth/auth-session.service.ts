@@ -46,6 +46,36 @@ export class AuthSessionService {
     this.token.set(this.readToken());
   }
 
+  /**
+   * Decodes the `roles` claim from the current JWT and returns it as a string
+   * array, or an empty array if the token is absent/unparseable.
+   *
+   * The claim name and format matches identity-service's `JwtUtil.java`:
+   * the token payload contains a `"roles"` field which may be either
+   * a JSON array of strings (e.g. `["ROLE_ADMIN","ROLE_USER"]`) or a
+   * single comma-separated string — both are handled here.
+   *
+   * This reuses the private {@link decodeClaims} method exactly as
+   * `getCurrentUserId()` already does, so there is no second JWT decoder.
+   */
+  getRoles(): string[] {
+    const token = this.token();
+    if (!token) return [];
+    const claims = this.decodeClaims(token);
+    if (!claims) return [];
+    const raw = claims['roles'];
+    if (Array.isArray(raw)) return raw.map(String);
+    if (typeof raw === 'string' && raw.length > 0) {
+      return raw.split(',').map(r => r.trim()).filter(Boolean);
+    }
+    return [];
+  }
+
+  /** Returns true if the current JWT contains the given role string (case-sensitive). */
+  hasRole(role: string): boolean {
+    return this.getRoles().includes(role);
+  }
+
   private readToken(): string | null {
     try {
       return localStorage.getItem(AuthSessionService.TOKEN_STORAGE_KEY);

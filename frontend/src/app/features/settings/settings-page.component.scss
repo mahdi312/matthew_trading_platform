@@ -1,0 +1,85 @@
+:host { display: block; }
+
+.settings-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.header-icon {
+  font-size: 36px;
+  width: 36px;
+  height: 36px;
+  color: #42a5f5;
+}
+
+.page-title { margin: 0; font-size: 22px; font-weight: 600; }
+.page-subtitle { margin: 2px 0 0; font-size: 13px; opacity: 0.6; }
+
+.center-spinner { display: flex; justify-content: center; padding: 48px 0; }
+
+.error-card mat-card-content {
+  display: flex; align-items: center; gap: 10px;
+}
+
+/* ── Section cards ───────────────────────────────────────────────────────── */
+.section-card mat-card-title {
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* ── Read-only info grid ─────────────────────────────────────────────────── */
+.info-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 8px 0;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.info-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.55;
+}
+
+.info-value {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* ── Editable form ───────────────────────────────────────────────────────── */
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+}
+
+.form-field { width: 100%; }
+
+.toggle-row {
+  padding: 8px 0 4px;
+}
+
+.divider { margin: 12px 0; }
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}

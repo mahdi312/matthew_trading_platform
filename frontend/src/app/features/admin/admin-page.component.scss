@@ -1,0 +1,139 @@
+:host { display: block; }
+
+.admin-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.header-icon {
+  font-size: 36px;
+  width: 36px;
+  height: 36px;
+  color: #ef5350;
+}
+
+.page-title { margin: 0; font-size: 22px; font-weight: 600; }
+.page-subtitle { margin: 2px 0 0; font-size: 13px; opacity: 0.6; }
+
+/* ── Role notice ─────────────────────────────────────────────────────────── */
+.role-notice mat-card-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+code {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* ── Loading / error ─────────────────────────────────────────────────────── */
+.center-spinner { display: flex; justify-content: center; padding: 48px 0; }
+
+.error-card mat-card-content {
+  display: flex; align-items: center; gap: 10px;
+}
+
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.search-field { flex: 0 0 320px; }
+
+.user-count {
+  font-size: 13px;
+  opacity: 0.6;
+}
+
+/* ── Table ───────────────────────────────────────────────────────────────── */
+.table-wrapper { overflow-x: auto; }
+
+.users-table {
+  width: 100%;
+  min-width: 700px;
+}
+
+.user-row:hover { background: rgba(255,255,255,0.04); }
+
+/* User name cell */
+.user-name-cell {
+  display: flex;
+  flex-direction: column;
+}
+
+.display-name {
+  font-size: 11px;
+  opacity: 0.55;
+}
+
+/* Role chips */
+.role-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.role-chip {
+  font-size: 11px;
+  height: 22px;
+  line-height: 22px;
+}
+
+.role-edit-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.role-toggle-chip {
+  cursor: pointer;
+  font-size: 11px;
+  height: 26px;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+
+  &.selected {
+    opacity: 1;
+    background: rgba(66, 165, 245, 0.25);
+  }
+}
+
+/* Status select in edit mode */
+.status-select {
+  width: 120px;
+}
+
+/* Action buttons */
+.action-buttons {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .search-field { flex: 1 1 auto; }
+}

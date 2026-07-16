@@ -1,0 +1,113 @@
+<div class="settings-page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <mat-icon class="header-icon">manage_accounts</mat-icon>
+    <div>
+      <h1 class="page-title">Settings</h1>
+      <p class="page-subtitle">Profile &amp; application preferences</p>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading()" class="center-spinner">
+    <mat-spinner diameter="48"></mat-spinner>
+  </div>
+
+  <!-- Error -->
+  <mat-card *ngIf="error() && !loading()" class="error-card">
+    <mat-card-content>
+      <mat-icon color="warn">error_outline</mat-icon>
+      {{ error() }}
+    </mat-card-content>
+  </mat-card>
+
+  <ng-container *ngIf="!loading() && profile()">
+
+    <!-- ── Read-only account info ─────────────────────────────────────── -->
+    <mat-card class="section-card">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>account_circle</mat-icon>
+          Account
+        </mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="info-label">Username</span>
+            <span class="info-value">{{ profile()!.username }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Email</span>
+            <span class="info-value">{{ profile()!.email }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Member since</span>
+            <span class="info-value">{{ profile()!.createdAt | date:'mediumDate' }}</span>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- ── Editable profile form ──────────────────────────────────────── -->
+    <mat-card class="section-card">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>edit</mat-icon>
+          Profile
+        </mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <form [formGroup]="form" (ngSubmit)="onSave()" class="settings-form">
+
+          <mat-form-field appearance="outline" class="form-field">
+            <mat-label>Display Name</mat-label>
+            <input matInput formControlName="displayName" placeholder="How you appear in the UI">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="form-field">
+            <mat-label>Avatar URL</mat-label>
+            <input matInput formControlName="avatarUrl" placeholder="https://…">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="form-field">
+            <mat-label>Timezone</mat-label>
+            <mat-select formControlName="timezone">
+              <mat-option *ngFor="let tz of timezones" [value]="tz">{{ tz }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="form-field">
+            <mat-label>Currency</mat-label>
+            <mat-select formControlName="currency">
+              <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <div class="toggle-row">
+            <mat-slide-toggle formControlName="notificationsEnabled" color="primary">
+              Push notifications
+            </mat-slide-toggle>
+          </div>
+
+          <mat-divider class="divider"></mat-divider>
+
+          <div class="form-actions">
+            <button
+              mat-raised-button
+              color="primary"
+              type="submit"
+              [disabled]="form.invalid || saving()">
+              <mat-icon>save</mat-icon>
+              {{ saving() ? 'Saving…' : 'Save Changes' }}
+            </button>
+          </div>
+
+        </form>
+      </mat-card-content>
+    </mat-card>
+
+  </ng-container>
+
+</div>

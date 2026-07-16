@@ -1,0 +1,154 @@
+<div class="admin-page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-left">
+      <mat-icon class="header-icon">admin_panel_settings</mat-icon>
+      <div>
+        <h1 class="page-title">Admin — User Management</h1>
+        <p class="page-subtitle">Manage user accounts, roles, and access</p>
+      </div>
+    </div>
+    <button mat-icon-button matTooltip="Refresh" (click)="loadUsers()">
+      <mat-icon>refresh</mat-icon>
+    </button>
+  </div>
+
+  <!-- Role notice banner -->
+  <mat-card class="role-notice">
+    <mat-card-content>
+      <mat-icon color="warn">security</mat-icon>
+      Admin area — visible only to <strong>ROLE_ADMIN</strong> users. Route-level access is enforced by <code>adminGuard</code>.
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Loading -->
+  <div *ngIf="loading()" class="center-spinner">
+    <mat-spinner diameter="48"></mat-spinner>
+  </div>
+
+  <!-- Error -->
+  <mat-card *ngIf="error() && !loading()" class="error-card">
+    <mat-card-content>
+      <mat-icon color="warn">error_outline</mat-icon>
+      {{ error() }}
+      <button mat-button color="primary" (click)="loadUsers()">Retry</button>
+    </mat-card-content>
+  </mat-card>
+
+  <ng-container *ngIf="!loading() && !error()">
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <mat-form-field appearance="outline" class="search-field">
+        <mat-label>Search users</mat-label>
+        <mat-icon matPrefix>search</mat-icon>
+        <input
+          matInput
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event)"
+          placeholder="Username, email, display name…">
+      </mat-form-field>
+      <span class="user-count">{{ users().length }} user(s)</span>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrapper">
+      <table mat-table [dataSource]="users()" class="users-table">
+
+        <!-- Username -->
+        <ng-container matColumnDef="username">
+          <th mat-header-cell *matHeaderCellDef>Username</th>
+          <td mat-cell *matCellDef="let row">
+            <div class="user-name-cell">
+              <strong>{{ row.username }}</strong>
+              <span class="display-name" *ngIf="row.displayName">{{ row.displayName }}</span>
+            </div>
+          </td>
+        </ng-container>
+
+        <!-- Email -->
+        <ng-container matColumnDef="email">
+          <th mat-header-cell *matHeaderCellDef>Email</th>
+          <td mat-cell *matCellDef="let row">{{ row.email }}</td>
+        </ng-container>
+
+        <!-- Roles -->
+        <ng-container matColumnDef="roles">
+          <th mat-header-cell *matHeaderCellDef>Roles</th>
+          <td mat-cell *matCellDef="let row">
+            <!-- View mode -->
+            <div *ngIf="editingId() !== row.id" class="role-chips">
+              <mat-chip *ngFor="let r of row.roles" class="role-chip">{{ roleLabel(r) }}</mat-chip>
+            </div>
+            <!-- Edit mode -->
+            <div *ngIf="editingId() === row.id" class="role-edit-chips">
+              <mat-chip
+                *ngFor="let r of allRoles"
+                [class.selected]="isRoleSelected(r)"
+                (click)="toggleEditRole(r)"
+                class="role-toggle-chip">
+                <mat-icon matChipAvatar *ngIf="isRoleSelected(r)">check</mat-icon>
+                {{ roleLabel(r) }}
+              </mat-chip>
+            </div>
+          </td>
+        </ng-container>
+
+        <!-- Status -->
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Status</th>
+          <td mat-cell *matCellDef="let row">
+            <!-- View mode -->
+            <mat-chip *ngIf="editingId() !== row.id" [color]="statusColor(row.status)" highlighted>
+              {{ row.status }}
+            </mat-chip>
+            <!-- Edit mode -->
+            <mat-select *ngIf="editingId() === row.id" [(ngModel)]="editStatus" class="status-select">
+              <mat-option *ngFor="let s of allStatuses" [value]="s">{{ s }}</mat-option>
+            </mat-select>
+          </td>
+        </ng-container>
+
+        <!-- Last Login -->
+        <ng-container matColumnDef="lastLoginAt">
+          <th mat-header-cell *matHeaderCellDef>Last Login</th>
+          <td mat-cell *matCellDef="let row">
+            {{ row.lastLoginAt ? (row.lastLoginAt | date:'mediumDate') : 'Never' }}
+          </td>
+        </ng-container>
+
+        <!-- Actions -->
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let row">
+            <div class="action-buttons">
+              <!-- View mode -->
+              <ng-container *ngIf="editingId() !== row.id">
+                <button mat-icon-button matTooltip="Edit roles / status" (click)="startEdit(row)">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <button mat-icon-button color="warn" matTooltip="Delete user" (click)="deleteUser(row)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </ng-container>
+              <!-- Edit mode -->
+              <ng-container *ngIf="editingId() === row.id">
+                <button mat-icon-button color="primary" matTooltip="Save" (click)="saveEdit(row)">
+                  <mat-icon>check</mat-icon>
+                </button>
+                <button mat-icon-button matTooltip="Cancel" (click)="cancelEdit()">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </ng-container>
+            </div>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="columns"></tr>
+        <tr mat-row *matRowDef="let row; columns: columns;" class="user-row"></tr>
+      </table>
+    </div>
+
+  </ng-container>
+</div>

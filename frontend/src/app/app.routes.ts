@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth/auth.guard';
+import { adminGuard } from './core/auth/admin.guard';
 
 /**
  * Root route table.
@@ -110,6 +111,28 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/reports/reports-page.component').then(
         (m) => m.ReportsPageComponent
+      ),
+  },
+
+  // Step 11: SettingsModule — user profile + app preferences.
+  {
+    path: 'settings',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/settings/settings-page.component').then(
+        (m) => m.SettingsPageComponent
+      ),
+  },
+
+  // Step 11: AdminModule — user list + role management (ROLE_ADMIN only).
+  // Uses both authGuard (token required) and adminGuard (ROLE_ADMIN claim required).
+  // The route itself is inaccessible to non-admins — not just visually hidden.
+  {
+    path: 'admin',
+    canActivate: [authGuard, adminGuard],
+    loadComponent: () =>
+      import('./features/admin/admin-page.component').then(
+        (m) => m.AdminPageComponent
       ),
   },
 
