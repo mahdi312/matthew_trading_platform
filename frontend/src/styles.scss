@@ -1,1 +1,158 @@
-/* You can add global styles to this file, and also import other style files */
+/* ============================================================
+   Global Styles — Trading Intelligence Platform (Angular)
+   Theme variables match the JavaFX desktop app palettes:
+     dark:  desktop/src/main/resources/css/dark-theme.css
+     light: desktop/src/main/resources/css/light-theme.css
+   ============================================================ */
+
+/* Reset & base */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: 'Segoe UI', 'SF Pro Display', 'Helvetica Neue', sans-serif;
+  font-size: 13px;
+}
+
+/* ── Dark theme (default) — mirrors dark-theme.css ─────────── */
+html, html.theme-dark {
+  /* Backgrounds */
+  --tp-bg-primary: #0d1117;
+  --tp-bg-secondary: #161b22;
+  --tp-bg-card: #1c2128;
+  --tp-bg-hover: #21262d;
+  --tp-bg-active: #2d333b;
+
+  /* Accents */
+  --tp-accent-blue: #388bfd;
+  --tp-accent-green: #3fb950;
+  --tp-accent-red: #f85149;
+  --tp-accent-yellow: #d29922;
+  --tp-accent-purple: #bc8cff;
+  --tp-accent-orange: #e3b341;
+
+  /* Text */
+  --tp-text-primary: #e6edf3;
+  --tp-text-secondary: #8b949e;
+  --tp-text-muted: #484f58;
+
+  /* Borders */
+  --tp-border: #30363d;
+  --tp-border-focus: #388bfd;
+
+  /* Chart candles */
+  --tp-candle-bull: #3fb950;
+  --tp-candle-bear: #f85149;
+
+  background-color: var(--tp-bg-primary);
+  color: var(--tp-text-primary);
+
+  /* Angular Material dark overrides */
+  color-scheme: dark;
+}
+
+/* ── Light theme — mirrors light-theme.css ─────────────────── */
+html.theme-light {
+  /* Backgrounds */
+  --tp-bg-primary: #f6f8fa;
+  --tp-bg-secondary: #ffffff;
+  --tp-bg-card: #ffffff;
+  --tp-bg-hover: #f3f4f6;
+  --tp-bg-active: #e8eaed;
+
+  /* Accents */
+  --tp-accent-blue: #0969da;
+  --tp-accent-green: #1a7f37;
+  --tp-accent-red: #cf222e;
+  --tp-accent-yellow: #9a6700;
+  --tp-accent-purple: #8250df;
+  --tp-accent-orange: #bc4c00;
+
+  /* Text */
+  --tp-text-primary: #1f2328;
+  --tp-text-secondary: #57606a;
+  --tp-text-muted: #8c959f;
+
+  /* Borders */
+  --tp-border: #d0d7de;
+  --tp-border-focus: #0969da;
+
+  /* Chart candles */
+  --tp-candle-bull: #1a7f37;
+  --tp-candle-bear: #cf222e;
+
+  background-color: var(--tp-bg-primary);
+  color: var(--tp-text-primary);
+
+  color-scheme: light;
+}
+
+/* ── Shared utility classes ─────────────────────────────────── */
+.card {
+  background-color: var(--tp-bg-card);
+  border: 1px solid var(--tp-border);
+  border-radius: 8px;
+  padding: 16px;
+  transition: border-color 0.15s ease;
+}
+
+.card:hover {
+  border-color: color-mix(in srgb, var(--tp-accent-blue) 33%, transparent);
+}
+
+.text-primary {
+  color: var(--tp-text-primary);
+}
+
+.text-secondary {
+  color: var(--tp-text-secondary);
+}
+
+.text-muted {
+  color: var(--tp-text-muted);
+}
+
+.text-green {
+  color: var(--tp-accent-green);
+}
+
+.text-red {
+  color: var(--tp-accent-red);
+}
+
+.text-blue {
+  color: var(--tp-accent-blue);
+}
+
+.text-yellow {
+  color: var(--tp-accent-yellow);
+}
+
+/* ── Angular Material overrides to respect theme vars ───────── */
+.mat-mdc-card {
+  background-color: var(--tp-bg-card) !important;
+  color: var(--tp-text-primary) !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--tp-bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--tp-bg-active);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--tp-text-muted);
+}

@@ -1,0 +1,190 @@
+/*
+ * AppShellComponent styles
+ * Palette variables are defined in styles.scss (global) and driven by
+ * .theme-dark / .theme-light on <html> — matching the desktop app's
+ * dark-theme.css and light-theme.css palettes.
+ */
+
+:host {
+  display: block;
+  height: 100%;
+}
+
+/* ── Shell layout: sidebar + main ──────────────────────────── */
+.app-shell {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: var(--tp-bg-primary);
+  color: var(--tp-text-primary);
+  font-family: 'Segoe UI', 'SF Pro Display', 'Helvetica Neue', sans-serif;
+  font-size: 13px;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* ── Sidebar ────────────────────────────────────────────────── */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 56px;
+  min-width: 56px;
+  max-width: 56px;
+  background-color: var(--tp-bg-secondary);
+  border-right: 1px solid var(--tp-border);
+  transition: width 0.2s ease, min-width 0.2s ease, max-width 0.2s ease;
+  overflow: hidden;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.sidebar.sidebar-expanded {
+  width: 220px;
+  min-width: 200px;
+  max-width: 260px;
+}
+
+/* ── Sidebar header ─────────────────────────────────────────── */
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--tp-border);
+  gap: 8px;
+  min-height: 52px;
+}
+
+.brand-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--tp-accent-blue);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.toggle-btn {
+  color: var(--tp-text-secondary) !important;
+  flex-shrink: 0;
+}
+
+.toggle-btn:hover {
+  color: var(--tp-text-primary) !important;
+}
+
+/* ── Nav list ───────────────────────────────────────────────── */
+.nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.nav-list li {
+  padding: 0 4px;
+  margin-bottom: 2px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 6px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--tp-text-secondary);
+  transition: background-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  background-color: var(--tp-bg-hover);
+  color: var(--tp-text-primary);
+}
+
+.nav-item--active {
+  background-color: var(--tp-bg-active);
+  color: var(--tp-accent-blue);
+}
+
+.nav-item--active .nav-icon {
+  color: var(--tp-accent-blue);
+}
+
+.nav-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.nav-label {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Sidebar footer (theme toggle) ─────────────────────────── */
+.sidebar-footer {
+  display: flex;
+  align-items: center;
+  padding: 8px 6px;
+  border-top: 1px solid var(--tp-border);
+  gap: 8px;
+  min-height: 52px;
+}
+
+.theme-toggle-btn {
+  color: var(--tp-text-secondary) !important;
+  flex-shrink: 0;
+}
+
+.theme-toggle-btn:hover {
+  color: var(--tp-accent-yellow) !important;
+}
+
+.theme-label {
+  font-size: 12px;
+  color: var(--tp-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Main area ──────────────────────────────────────────────── */
+.main-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ── Top toolbar ────────────────────────────────────────────── */
+.top-toolbar {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--tp-border);
+  background-color: var(--tp-bg-secondary);
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+/* ── Page content ───────────────────────────────────────────── */
+.page-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px;
+  background-color: var(--tp-bg-primary);
+}

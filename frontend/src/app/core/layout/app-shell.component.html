@@ -1,0 +1,79 @@
+<div [class.theme-dark]="activeTheme() === 'dark'" [class.theme-light]="activeTheme() === 'light'" class="app-shell">
+
+  <!-- ── Sidebar ─────────────────────────────────────────── -->
+  <nav [class.sidebar-expanded]="sidebarExpanded()" class="sidebar">
+
+    <!-- Brand / toggle row -->
+    <div class="sidebar-header">
+      <button
+        (click)="toggleSidebar()"
+        [matTooltip]="sidebarExpanded() ? 'Collapse' : 'Expand'"
+        aria-label="Toggle sidebar"
+        class="toggle-btn"
+        mat-icon-button
+      >
+        <mat-icon>{{ sidebarExpanded() ? 'menu_open' : 'menu' }}</mat-icon>
+      </button>
+      @if (sidebarExpanded()) {
+        <span class="brand-name">MTP</span>
+      }
+    </div>
+
+    <!-- Navigation links -->
+    <ul class="nav-list" role="navigation">
+      @for (item of visibleNavItems; track item.path) {
+        <li>
+          <a
+            class="nav-item"
+            [routerLink]="item.path"
+            routerLinkActive="nav-item--active"
+            [matTooltip]="!sidebarExpanded() ? item.label : ''"
+            matTooltipPosition="right"
+          >
+            <mat-icon class="nav-icon">{{ item.icon }}</mat-icon>
+            @if (sidebarExpanded()) {
+              <span class="nav-label">{{ item.label }}</span>
+            }
+          </a>
+        </li>
+      }
+    </ul>
+
+    <!-- Bottom actions -->
+    <div class="sidebar-footer">
+      <button
+        (click)="toggleTheme()"
+        [matTooltip]="(activeTheme() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')"
+        aria-label="Toggle theme"
+        class="theme-toggle-btn"
+        mat-icon-button
+        matTooltipPosition="right"
+      >
+        <mat-icon>{{ activeTheme() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
+      </button>
+      @if (sidebarExpanded()) {
+        <span class="theme-label">
+          {{ activeTheme() === 'dark' ? 'Light mode' : 'Dark mode' }}
+        </span>
+      }
+    </div>
+
+  </nav>
+
+  <!-- ── Main area ───────────────────────────────────────── -->
+  <div class="main-area">
+
+    <!-- Top toolbar -->
+    <header class="top-toolbar">
+      <span class="toolbar-spacer"></span>
+      <app-notification-bell/>
+    </header>
+
+    <!-- Routed page content -->
+    <main class="page-content">
+      <router-outlet/>
+    </main>
+
+  </div>
+
+</div>
