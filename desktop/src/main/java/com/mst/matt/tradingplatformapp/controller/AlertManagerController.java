@@ -1,11 +1,12 @@
 package com.mst.matt.tradingplatformapp.controller;
 
-import com.mst.matt.tradingplatformapp.model.*;
-import com.mst.matt.tradingplatformapp.model.PriceAlert.*;
-import com.mst.matt.tradingplatformapp.repository.SymbolEntryRepository;
-import com.mst.matt.tradingplatformapp.service.alert.AlertService;
-import com.mst.matt.tradingplatformapp.service.alert.NotificationService;
-import com.mst.matt.tradingplatformapp.ui.AutocompleteSymbolField;
+import com.mst.matt.tradingplatformapp.client.AlertApiClient;
+import com.mst.matt.tradingplatformapp.client.AlertApiClient.AlertResponse;
+import com.mst.matt.tradingplatformapp.client.AlertApiClient.CreateAlertRequest;
+import com.mst.matt.tradingplatformapp.client.AlertApiClient.UpdateAlertRequest;
+import com.mst.matt.tradingplatformapp.model.UserProfile;
+import com.mst.matt.tradingplatformapp.model.UserProfile.ProfileAssetFocus;
+import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -16,100 +17,70 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.net.URL;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.ResourceBundle;
 
 /**
  * Alert manager — view, create, toggle, and delete price alerts.
+ *
+ * <h3>Phase 2, Step 12 — trading domain</h3>
+ * <p>Alerts are now fetched/created/updated/deleted through {@link AlertApiClient}
+ * ({@code /api/alerts/**} on the Gateway → {@code alert-service}) instead of the
+ * local {@code AlertService} (JPA) + {@code NotificationService}:</p>
+ * <ul>
+ *   <li>The table now displays {@link AlertResponse} rows — alerts are scoped
+ *       to the logged-in user (via the JWT {@code X-User-Id} header at the
+ *       Gateway), not to the local desktop {@code UserProfile}.</li>
+ *   <li>{@code alert-service} does not persist per-alert notification-channel
+ *       flags (email/Telegram/desktop dispatch is owned solely by
+ *       {@code notification-service}); the channel checkboxes remain in the
+ *       UI for the user's intent but are not sent to the server.</li>
+ *   <li>Symbol autocomplete backed by the local {@code SymbolEntryRepository}
+ *       has been removed — {@code newSymbolField} falls back to a plain
+ *       {@link TextField}.</li>
+ * </ul>
  */
 @Component
 @FxmlView("/fxml/AlertManagerView.fxml")
 public class AlertManagerController implements Initializable {
 
-    @FXML private TableView<PriceAlert>           alertsTable;
-    @FXML private TableColumn<PriceAlert,String>  colSymbol, colType,
+    @FXML private TableView<AlertResponse>           alertsTable;
+    @FXML private TableColumn<AlertResponse,String>  colSymbol, colType,
             colTarget, colStatus,
             colNotify, colTriggered;
-    @FXML private TableColumn<PriceAlert,Void>    colActions;
+    @FXML private TableColumn<AlertResponse,Void>    colActions;
 
     @FXML private TextField   newSymbolField;
-    @FXML private ComboBox<AlertType>    alertTypeCombo;
+    @FXML private ComboBox<AlertConditionOption> alertTypeCombo;
     @FXML private TextField   targetPriceField;
     @FXML private CheckBox    emailCheck, telegramCheck, desktopCheck, repeatingCheck;
     @FXML private TextField   customMessageField;
     @FXML private Label       channelStatusLabel;
 
-    @Autowired private AlertService         alertService;
-    @Autowired private NotificationService  notificationService;
-    @Autowired private SymbolEntryRepository symbolEntryRepository;
-
-    /** Replaces the plain newSymbolField with an autocomplete field at runtime. */
-    private AutocompleteSymbolField symbolAutocomplete;
+    @Autowired private AlertApiClient alertApiClient;
 
     private UserProfile activeProfile;
     private static final DateTimeFormatter DTF =
-            DateTimeFormatter.ofPattern("MM/dd HH:mm");
+            DateTimeFormatter.ofPattern("MM/dd HH:mm").withZone(ZoneId.systemDefault());
+
+    /** Friendly wrapper around {@code alert-service}'s {@code AlertCondition} enum values. */
+    private enum AlertConditionOption {
+        ABOVE("Price Above"),
+        BELOW("Price Below"),
+        PERCENT_CHANGE("24h % Change");
+
+        final String label;
+        AlertConditionOption(String label) { this.label = label; }
+        @Override public String toString() { return label; }
+    }
 
     @Override
     public void initialize(URL url, ResourceBundle rb) {
-        alertTypeCombo.getItems().setAll(AlertType.values());
-        alertTypeCombo.setValue(AlertType.PRICE_ABOVE);
+        alertTypeCombo.getItems().setAll(AlertConditionOption.values());
+        alertTypeCombo.setValue(AlertConditionOption.ABOVE);
         setupTable();
-        setupSymbolAutocomplete();
-        setupChannelCheckListeners();
-    }
-
-    /** Replace the plain newSymbolField with an AutocompleteSymbolField. */
-    private void setupSymbolAutocomplete() {
-        if (newSymbolField == null) return;
-        javafx.scene.Parent parent = newSymbolField.getParent();
-        if (!(parent instanceof javafx.scene.layout.HBox hbox)) return;
-
-        int idx = hbox.getChildren().indexOf(newSymbolField);
-        if (idx < 0) return;
-
-        symbolAutocomplete = new AutocompleteSymbolField(symbolEntryRepository);
-        symbolAutocomplete.setPrefWidth(140);
-        symbolAutocomplete.setPromptText("Symbol");
-        // Mirror text back to the FXML field (used in onAddAlert)
-        symbolAutocomplete.textProperty().addListener((o, a, n) -> {
-            if (newSymbolField != null) newSymbolField.setText(n);
-        });
-        hbox.getChildren().set(idx, symbolAutocomplete);
-    }
-
-    /** Wire channel checkbox listeners to show/clear warnings when the user
-     *  toggles email or telegram. */
-    private void setupChannelCheckListeners() {
-        if (emailCheck != null) {
-            emailCheck.selectedProperty().addListener((o, a, sel) -> updateChannelWarning());
-        }
-        if (telegramCheck != null) {
-            telegramCheck.selectedProperty().addListener((o, a, sel) -> updateChannelWarning());
-        }
-        // Show initial state
-        updateChannelWarning();
-    }
-
-    /** Update the channel status label based on current checkbox state. */
-    private void updateChannelWarning() {
-        boolean wantEmail    = emailCheck    != null && emailCheck.isSelected();
-        boolean wantTelegram = telegramCheck != null && telegramCheck.isSelected();
-        String warning = notificationService.buildChannelWarning(wantEmail, wantTelegram);
-        if (channelStatusLabel != null) {
-            if (warning != null) {
-                channelStatusLabel.setText("⚠ " + warning);
-                channelStatusLabel.setStyle("-fx-text-fill:#d29922; -fx-font-size:11px;"
-                        + "-fx-wrap-text:true;");
-                channelStatusLabel.setVisible(true);
-                channelStatusLabel.setManaged(true);
-            } else {
-                channelStatusLabel.setText("");
-                channelStatusLabel.setVisible(false);
-                channelStatusLabel.setManaged(false);
-            }
-        }
     }
 
     public void setProfile(UserProfile profile) {
@@ -121,17 +92,17 @@ public class AlertManagerController implements Initializable {
         colSymbol.setCellValueFactory(c ->
                 new SimpleStringProperty(c.getValue().getSymbol()));
         colType.setCellValueFactory(c ->
-                new SimpleStringProperty(c.getValue().getAlertType().name()));
+                new SimpleStringProperty(conditionLabel(c.getValue().getCondition())));
         colTarget.setCellValueFactory(c -> {
-            PriceAlert a = c.getValue();
-            if (a.getTargetPrice() != null)
-                return new SimpleStringProperty("$" + a.getTargetPrice());
-            if (a.getPercentageThreshold() != null)
-                return new SimpleStringProperty(a.getPercentageThreshold() + "%");
-            return new SimpleStringProperty("—");
+            AlertResponse a = c.getValue();
+            if (a.getTargetValue() == null) return new SimpleStringProperty("—");
+            boolean isPercent = "PERCENT_CHANGE".equals(a.getCondition());
+            return new SimpleStringProperty(isPercent
+                    ? a.getTargetValue() + "%"
+                    : "$" + a.getTargetValue());
         });
         colStatus.setCellValueFactory(c ->
-                new SimpleStringProperty(c.getValue().isActive() ? "🟢 Active" : "⚫ Off"));
+                new SimpleStringProperty(statusLabel(c.getValue().getStatus())));
         colStatus.setCellFactory(col -> new TableCell<>() {
             @Override protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
@@ -140,17 +111,18 @@ public class AlertManagerController implements Initializable {
                         ? "-fx-text-fill:#3fb950;" : "-fx-text-fill:#484f58;");
             }
         });
+        // Repeated from AlertResponse.repeating/cooldownSeconds — alert-service has no
+        // per-alert notification-channel fields (email/Telegram dispatch lives solely in
+        // notification-service), so this column shows the re-arm behaviour instead.
         colNotify.setCellValueFactory(c -> {
-            PriceAlert a = c.getValue();
-            StringBuilder sb = new StringBuilder();
-            if (a.isNotifyEmail())   sb.append("📧 ");
-            if (a.isNotifyTelegram())sb.append("✈ ");
-            if (a.isNotifyDesktop()) sb.append("🖥 ");
-            return new SimpleStringProperty(sb.toString());
+            AlertResponse a = c.getValue();
+            return new SimpleStringProperty(a.isRepeating()
+                    ? "↩ " + Math.max(1, a.getCooldownSeconds() / 60) + "m"
+                    : "—");
         });
         colTriggered.setCellValueFactory(c ->
-                new SimpleStringProperty(c.getValue().getTriggeredAt() != null
-                        ? c.getValue().getTriggeredAt().format(DTF) : "—"));
+                new SimpleStringProperty(c.getValue().getLastTriggeredAt() != null
+                        ? DTF.format(c.getValue().getLastTriggeredAt()) : "—"));
 
         colActions.setCellFactory(col -> new TableCell<>() {
             private final Button toggleBtn = new Button("⏸");
@@ -163,26 +135,22 @@ public class AlertManagerController implements Initializable {
                 deleteBtn.setStyle("-fx-background-color:#da3633; -fx-text-fill:white;"
                         + "-fx-background-radius:4; -fx-cursor:hand;");
                 toggleBtn.setOnAction(e -> {
-                    // Fix #3: guard against stale index after list mutations
                     int idx = getIndex();
                     if (getTableView() == null) return;
                     var items = getTableView().getItems();
                     if (items == null || idx < 0 || idx >= items.size()) return;
-                    PriceAlert a = items.get(idx);
+                    AlertResponse a = items.get(idx);
                     if (a == null || a.getId() == null) return;
-                    alertService.toggleAlert(a.getId(), !a.isActive());
-                    refreshTable();
+                    toggleAlert(a);
                 });
                 deleteBtn.setOnAction(e -> {
-                    // Fix #3: guard against stale index after list mutations
                     int idx = getIndex();
                     if (getTableView() == null) return;
                     var items = getTableView().getItems();
                     if (items == null || idx < 0 || idx >= items.size()) return;
-                    PriceAlert a = items.get(idx);
+                    AlertResponse a = items.get(idx);
                     if (a == null || a.getId() == null) return;
-                    alertService.deleteAlert(a.getId());
-                    refreshTable();
+                    deleteAlert(a);
                 });
             }
             @Override protected void updateItem(Void v, boolean empty) {
@@ -192,11 +160,48 @@ public class AlertManagerController implements Initializable {
         });
     }
 
+    private String conditionLabel(String condition) {
+        if (condition == null) return "—";
+        try {
+            return AlertConditionOption.valueOf(condition).label;
+        } catch (IllegalArgumentException e) {
+            return condition;
+        }
+    }
+
+    private String statusLabel(String status) {
+        if (status == null) return "⚫ Unknown";
+        return switch (status) {
+            case "ACTIVE"    -> "🟢 Active";
+            case "TRIGGERED" -> "🔔 Triggered";
+            case "PAUSED"    -> "⏸ Paused";
+            case "CANCELLED" -> "⚫ Cancelled";
+            default          -> status;
+        };
+    }
+
+    private void toggleAlert(AlertResponse a) {
+        try {
+            UpdateAlertRequest req = new UpdateAlertRequest();
+            req.setStatus("ACTIVE".equals(a.getStatus()) ? "PAUSED" : "ACTIVE");
+            alertApiClient.updateAlert(a.getId(), req);
+            refreshTable();
+        } catch (Exception ex) {
+            showError("Failed to update alert: " + ex.getMessage());
+        }
+    }
+
+    private void deleteAlert(AlertResponse a) {
+        try {
+            alertApiClient.deleteAlert(a.getId());
+            refreshTable();
+        } catch (Exception ex) {
+            showError("Failed to delete alert: " + ex.getMessage());
+        }
+    }
+
     @FXML public void onAddAlert() {
-        // Read symbol from autocomplete field if present, else from original field
-        String sym = symbolAutocomplete != null
-                ? symbolAutocomplete.getText().trim().toUpperCase()
-                : newSymbolField.getText().trim().toUpperCase();
+        String sym = newSymbolField.getText().trim().toUpperCase();
 
         if (activeProfile == null) {
             new Alert(Alert.AlertType.WARNING,
@@ -208,106 +213,94 @@ public class AlertManagerController implements Initializable {
             return;
         }
 
-        AlertType selectedType = alertTypeCombo.getValue();
-        if (selectedType == null) {
-            new Alert(Alert.AlertType.WARNING, "Alert type is required.").showAndWait();
+        AlertConditionOption selectedCondition = alertTypeCombo.getValue();
+        if (selectedCondition == null) {
+            new Alert(Alert.AlertType.WARNING, "Alert condition is required.").showAndWait();
             return;
         }
-
-        boolean wantEmail    = emailCheck    != null && emailCheck.isSelected();
-        boolean wantTelegram = telegramCheck != null && telegramCheck.isSelected();
-
-        // ── Pre-approval: check notification channels are configured ─────────
-        String channelWarning = notificationService.buildChannelWarning(wantEmail, wantTelegram);
-        if (channelWarning != null) {
-            // Show a confirmation dialog — user can continue with unconfigured channels disabled
-            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-            confirm.setTitle("Notification Channel Warning");
-            confirm.setHeaderText("Some notification channels are not configured:");
-            confirm.setContentText(channelWarning
-                    + "\n\nThe alert will be saved, but unconfigured channels will be skipped "
-                    + "when the alert fires.\n\nContinue?");
-            confirm.getButtonTypes().setAll(ButtonType.OK, ButtonType.CANCEL);
-            var result = confirm.showAndWait();
-            if (result.isEmpty() || result.get() != ButtonType.OK) return;
-
-            // Disable channels that are not configured
-            if (wantEmail    && !notificationService.isEmailConfigured())    wantEmail    = false;
-            if (wantTelegram && !notificationService.isTelegramConfigured()) wantTelegram = false;
-        }
-
-        PriceAlertBuilder builder = PriceAlert.builder()
-                .profile(activeProfile)
-                .symbol(sym)
-                .alertType(selectedType)
-                .active(true)
-                .notifyEmail(wantEmail)
-                .notifyTelegram(wantTelegram)
-                .notifyDesktop(desktopCheck != null && desktopCheck.isSelected())
-                .repeating(repeatingCheck   != null && repeatingCheck.isSelected())
-                .triggered(false)
-                .customMessage(customMessageField.getText().trim());
 
         String targetText = targetPriceField.getText().trim();
-        if (targetText.isEmpty() && requiresThreshold(selectedType)) {
+        if (targetText.isEmpty()) {
             new Alert(Alert.AlertType.WARNING,
-                    "Target price / percentage is required for " + selectedType + ".")
-                    .showAndWait();
+                    "Target price / percentage is required.").showAndWait();
             return;
         }
-        if (!targetText.isEmpty()) {
-            try {
-                BigDecimal target = new BigDecimal(targetText);
-                if (selectedType == AlertType.PCT_CHANGE_24H)
-                    builder.percentageThreshold(target.abs());
-                else
-                    builder.targetPrice(target);
-            } catch (NumberFormatException e) {
-                new Alert(Alert.AlertType.ERROR,
-                        "Invalid target: " + targetText).showAndWait();
-                return;
-            }
+
+        BigDecimal target;
+        try {
+            target = new BigDecimal(targetText).abs();
+        } catch (NumberFormatException e) {
+            new Alert(Alert.AlertType.ERROR, "Invalid target: " + targetText).showAndWait();
+            return;
         }
 
-        alertService.createAlert(builder.build());
-        refreshTable();
-        // Clear form
-        if (symbolAutocomplete != null) symbolAutocomplete.clear();
-        newSymbolField.clear();
-        targetPriceField.clear();
-        customMessageField.clear();
-        // Clear any channel warning
-        updateChannelWarning();
+        CreateAlertRequest req = new CreateAlertRequest();
+        req.setSymbol(sym);
+        req.setAssetClass(resolveAssetClass());
+        req.setCondition(selectedCondition.name());
+        req.setTargetValue(target);
+        req.setMessage(customMessageField.getText().trim());
+        req.setRepeating(repeatingCheck != null && repeatingCheck.isSelected());
+        // alert-service currently ignores these (see CreateAlertRequest javadoc) —
+        // collected so the user's intent isn't silently dropped once the server
+        // contract adds per-alert channel support.
+        req.setNotifyEmail(emailCheck    != null && emailCheck.isSelected());
+        req.setNotifyTelegram(telegramCheck != null && telegramCheck.isSelected());
+        req.setNotifyDesktop(desktopCheck  != null && desktopCheck.isSelected());
+
+        try {
+            alertApiClient.createAlert(req);
+            refreshTable();
+            // Clear form
+            newSymbolField.clear();
+            targetPriceField.clear();
+            customMessageField.clear();
+        } catch (Exception ex) {
+            showError("Failed to create alert: " + ex.getMessage());
+        }
     }
 
-    private boolean requiresThreshold(AlertType type) {
-        return switch (type) {
-            case PRICE_ABOVE, PRICE_BELOW, PCT_CHANGE_24H,
-                    FIBONACCI_LEVEL_TOUCH, VOLUME_SPIKE -> true;
-            case INDICATOR_BUY_SIGNAL, INDICATOR_SELL_SIGNAL -> false;
+    /** Maps the active desktop profile's asset focus to alert-service's AssetClass. */
+    private String resolveAssetClass() {
+        if (activeProfile == null) return "CRYPTO";
+        ProfileAssetFocus focus = activeProfile.getAssetFocus();
+        return switch (focus) {
+            case CRYPTO -> "CRYPTO";
+            case STOCK  -> "STOCK";
+            case FOREX  -> "FOREX";
+            case MULTI  -> "CRYPTO";
         };
     }
 
     private void refreshTable() {
-        if (activeProfile == null) return;
-        // Fetch on a background thread so the FX thread is never blocked by DB I/O.
-        // The result is applied back on the FX thread via Platform.runLater, ensuring
-        // no Hibernate session is open when the TableView accesses the list items.
+        // Fetch on a background thread so the FX thread is never blocked by the
+        // blocking WebClient call in AlertApiClient.
         Thread.ofVirtual().start(() -> {
             try {
-                List<PriceAlert> alerts = alertService.getAlertsForProfile(activeProfile);
-                javafx.application.Platform.runLater(() -> {
+                List<AlertResponse> alerts = alertApiClient.listAlerts();
+                Platform.runLater(() -> {
                     if (alertsTable != null) {
                         alertsTable.getItems().setAll(alerts);
                     }
                 });
             } catch (Exception ex) {
-                javafx.application.Platform.runLater(() ->
-                        new javafx.scene.control.Alert(
-                                javafx.scene.control.Alert.AlertType.ERROR,
-                                "Failed to refresh alerts: " + ex.getMessage())
-                                .show());
+                Platform.runLater(() -> showError("Failed to refresh alerts: " + ex.getMessage()));
             }
         });
     }
+
+    private void showError(String message) {
+        Platform.runLater(() -> {
+            if (channelStatusLabel != null) {
+                channelStatusLabel.setText("⚠ " + message);
+                channelStatusLabel.setStyle("-fx-text-fill:#f85149; -fx-font-size:11px;"
+                        + "-fx-wrap-text:true;");
+                channelStatusLabel.setVisible(true);
+                channelStatusLabel.setManaged(true);
+            } else {
+                new Alert(Alert.AlertType.ERROR, message).showAndWait();
+            }
+        });
+    }
+
 }

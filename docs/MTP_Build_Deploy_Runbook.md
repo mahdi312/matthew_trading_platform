@@ -1,5 +1,7 @@
 # TradingPlatformApp V2.0.8 — Build → Deploy Runbook
 
+> **Quick start:** see [`docs/RUN_GUIDE.md`](RUN_GUIDE.md) and one-click scripts in [`scripts/`](../scripts/).
+
 Verified directly against your uploaded source tree (not assumed). Three parts:
 1. Compile → deploy instructions (local, Docker, Kubernetes)
 2. Database + Angular instructions per environment
@@ -38,9 +40,7 @@ Before touching Docker Compose for the whole stack, you can run just the infra p
 ```bash
 docker run -d -p 6379:6379 --name mtp-redis redis:7-alpine
 docker compose up -d zookeeper kafka
-docker run -d -p 5432:5432 \
-  -e POSTGRES_USER=mtp -e POSTGRES_PASSWORD=mtp_secret -e POSTGRES_DB=mtp \
-  --name mtp-postgres postgres:16-alpine
+docker run -d -p 5432:5432 -e POSTGRES_USER=mtp -e POSTGRES_PASSWORD=mtp_secret -e POSTGRES_DB=mtp --name mtp-postgres postgres:16-alpine
 ```
 
 ### Step 3 — Create per-service databases
@@ -64,7 +64,7 @@ cd services/market-service    && mvn spring-boot:run &  # port 8082
 cd services/trading-service  && mvn spring-boot:run &   # port 8083
 cd services/notification-service && mvn spring-boot:run & # port 8084
 cd services/reference-data-service && mvn spring-boot:run & # port 8085
-cd services/ai-service       && mvn spring-boot:run &   # port 8086
+cd services/ai-service       && mvn spring-boot:run &   # port 8089
 cd services/alert-service    && mvn spring-boot:run &   # port 8087
 ```
 Verify registration: `http://localhost:8761` should list all 7 services + gateway.

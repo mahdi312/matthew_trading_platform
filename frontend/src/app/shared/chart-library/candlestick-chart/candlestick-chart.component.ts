@@ -93,6 +93,9 @@ export class CandlestickChartComponent implements OnInit, AfterViewInit, OnChang
   /** Chart colour theme. */
   @Input() theme: 'dark' | 'light' = 'dark';
 
+  /** When false, hides the drawing toolbar (embed / read-only hosts). */
+  @Input() showToolbar = true;
+
   /**
    * Latest live price fed from a WebSocket subscription in the host module.
    * When set, updates only the last candle's close price without a full
@@ -238,7 +241,7 @@ export class CandlestickChartComponent implements OnInit, AfterViewInit, OnChang
         backgroundColor: isDark ? '#1e1e2e' : '#ffffff',
         borderColor: isDark ? '#444' : '#ddd',
         textStyle: { color: textColor },
-        formatter: this.tooltipFormatter.bind(this),
+        formatter: (params) => this.tooltipFormatter(params),
       },
       legend: {
         top: 4,
@@ -581,10 +584,20 @@ export class CandlestickChartComponent implements OnInit, AfterViewInit, OnChang
 
   // ── Tooltip formatter ──────────────────────────────────────────────────────
 
-  private tooltipFormatter(params: any[]): string {
-    if (!params?.length) return '';
-    const candle = params.find((p: any) => p.seriesName === 'OHLCV');
-    if (!candle) return params[0]?.axisValue ?? '';
+  private tooltipFormatter(params: unknown): string {
+    type TooltipItem = {
+      seriesName?: string;
+      axisValue?: string | number;
+      data?: number[];
+      value?: number;
+      color?: string;
+    };
+    const items: TooltipItem[] = Array.isArray(params)
+      ? (params as TooltipItem[])
+      : [params as TooltipItem];
+    if (!items.length) return '';
+    const candle = items.find((p) => p.seriesName === 'OHLCV');
+    if (!candle) return String(items[0]?.axisValue ?? '');
 
     const [open, close, low, high] = candle.data as number[];
     const color = close >= open ? '#26a69a' : '#ef5350';
@@ -599,13 +612,13 @@ export class CandlestickChartComponent implements OnInit, AfterViewInit, OnChang
         <div>C: <b style="color:${color}">${close?.toFixed(2)}</b></div>
     `;
 
-    const vol = params.find((p: any) => p.seriesName === 'Volume');
+    const vol = items.find((p) => p.seriesName === 'Volume');
     if (vol) {
-      html += `<div>Vol: <b>${this.formatVolume(vol.value)}</b></div>`;
+      html += `<div>Vol: <b>${this.formatVolume(vol.value as number)}</b></div>`;
     }
 
-    for (const ind of params.filter(
-      (p: any) => p.seriesName !== 'OHLCV' && p.seriesName !== 'Volume'
+    for (const ind of items.filter(
+      (p) => p.seriesName !== 'OHLCV' && p.seriesName !== 'Volume'
     )) {
       html += `<div>${ind.seriesName}: <b style="color:${ind.color}">${Number(ind.value)?.toFixed(4)}</b></div>`;
     }

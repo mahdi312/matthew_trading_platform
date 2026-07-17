@@ -1,6 +1,11 @@
 jwt:
   secret: ${JWT_SECRET:change-me-in-production-at-least-32-chars}
 
+# Comma-separated secret keys for detachable chart/widget embeds.
+# Third-party hosts send X-Embed-Key (or ?embedKey=) to read OHLCV/indicators.
+embed:
+  api-keys: ${EMBED_API_KEYS:dev-embed-key-change-me}
+
 eureka:
   client:
     service-url:

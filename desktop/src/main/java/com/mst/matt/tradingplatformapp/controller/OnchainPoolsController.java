@@ -1,10 +1,7 @@
 package com.mst.matt.tradingplatformapp.controller;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.mst.matt.tradingplatformapp.model.OhlcvBar;
-import com.mst.matt.tradingplatformapp.service.price.api.coingecko.CoinGeckoDexService;
+import com.mst.matt.tradingplatformapp.client.ReferenceDataApiClient;
+import com.mst.matt.tradingplatformapp.client.ReferenceDataApiClient.DeFiPool;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -24,12 +21,19 @@ import java.math.RoundingMode;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.ResourceBundle;
+import java.util.Set;
 
 /**
- * Controller for the Onchain Pools tab — DEX pool discovery and OHLCV preview.
+ * Controller for the Onchain Pools tab — DEX pool discovery.
+ *
+ * <p>Phase 2, Step 12 — pool data fetched via {@link ReferenceDataApiClient}
+ * ({@code /api/reference/defi/pools} on the Gateway). Pool OHLCV preview is not
+ * yet exposed through the Gateway and remains disabled.</p>
  */
 @Component
 @FxmlView("/fxml/OnchainPoolsView.fxml")
@@ -37,6 +41,8 @@ public class OnchainPoolsController implements Initializable {
 
     private static final Logger log = LoggerFactory.getLogger(OnchainPoolsController.class);
     private static final DateTimeFormatter DT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final List<String> DEFAULT_NETWORKS =
+            List.of("eth", "bsc", "polygon_pos", "arbitrum", "base", "solana");
 
     @FXML private ComboBox<String> networkSelector;
     @FXML private ToggleButton topPoolsBtn;
@@ -62,14 +68,13 @@ public class OnchainPoolsController implements Initializable {
     @FXML private ToggleButton tf4Hour;
     @FXML private ToggleButton tfDay;
 
-    @Autowired private CoinGeckoDexService dexService;
+    @Autowired private ReferenceDataApiClient referenceDataApiClient;
 
     private int currentPage = 1;
     private boolean trendingMode = false;
     private String selectedNetwork = "eth";
-    private String selectedPoolAddress;
-    private String ohlcvTimeframe = "hour";
-    private int ohlcvAggregate = 1;
+    private DeFiPool selectedPool;
+    private List<DeFiPool> lastLoadedPools = List.of();
 
     @Override
     public void initialize(URL url, ResourceBundle rb) {
@@ -108,14 +113,16 @@ public class OnchainPoolsController implements Initializable {
         setLoading(true);
         Thread.ofVirtual().name("pool-search").start(() -> {
             try {
-                Optional<JsonObject> result = dexService.searchPools(query);
+                List<DeFiPool> pools = referenceDataApiClient.getDefiPools(
+                        selectedNetwork, query, false);
                 Platform.runLater(() -> {
-                    result.ifPresentOrElse(
-                            obj -> renderPoolsFromJson(obj, false),
-                            () -> {
-                                poolsContainer.getChildren().clear();
-                                setStatus("No pools found for: " + query);
-                            });
+                    lastLoadedPools = pools;
+                    renderPools(pools, false);
+                    if (pools.isEmpty()) {
+                        setStatus("No pools found for: " + query);
+                    } else {
+                        setStatus("");
+                    }
                     lastUpdateLabel.setText("Last updated: " + LocalDateTime.now().format(DT_FMT));
                     setLoading(false);
                 });
@@ -132,77 +139,75 @@ public class OnchainPoolsController implements Initializable {
     @FXML private void onPrevPage() {
         if (currentPage <= 1) return;
         currentPage--;
-        loadPools();
+        renderPools(pageSlice(lastLoadedPools), !trendingMode);
+        pageLabel.setText("Page " + currentPage);
+        prevPageBtn.setDisable(currentPage <= 1);
+        nextPageBtn.setDisable(pageSlice(lastLoadedPools).size() < 20);
     }
 
     @FXML private void onNextPage() {
+        int maxPage = Math.max(1, (lastLoadedPools.size() + 19) / 20);
+        if (currentPage >= maxPage) return;
         currentPage++;
-        loadPools();
+        renderPools(pageSlice(lastLoadedPools), !trendingMode);
+        pageLabel.setText("Page " + currentPage);
+        prevPageBtn.setDisable(currentPage <= 1);
+        nextPageBtn.setDisable(pageSlice(lastLoadedPools).size() < 20);
     }
 
     @FXML private void onTimeframeChange() {
         ToggleButton selected = (ToggleButton) tfMinute.getToggleGroup().getSelectedToggle();
-        if (selected == null || selected.getUserData() == null) return;
-        String[] parts = selected.getUserData().toString().split("\\|");
-        ohlcvTimeframe = parts[0];
-        ohlcvAggregate = parts.length > 1 ? Integer.parseInt(parts[1]) : 1;
+        if (selected == null) return;
         styleTimeframeButtons(selected);
     }
 
     @FXML private void onLoadPoolOhlcv() {
-        if (selectedPoolAddress == null || selectedNetwork == null) {
+        if (selectedPool == null) {
             setStatus("Select a pool first.");
             return;
         }
-        setLoading(true);
-        Thread.ofVirtual().name("pool-ohlcv").start(() -> {
-            try {
-                List<OhlcvBar> bars = dexService.getPoolOhlcv(
-                        selectedNetwork, selectedPoolAddress, ohlcvTimeframe, ohlcvAggregate, 50);
-                Platform.runLater(() -> {
-                    renderOhlcv(bars);
-                    setStatus(bars.isEmpty()
-                            ? "No OHLCV data returned for this pool/timeframe."
-                            : "Loaded " + bars.size() + " OHLCV bars.");
-                    setLoading(false);
-                });
-            } catch (Exception e) {
-                log.error("Pool OHLCV error: {}", e.getMessage(), e);
-                Platform.runLater(() -> {
-                    setStatus("OHLCV load failed: " + e.getMessage());
-                    setLoading(false);
-                });
-            }
-        });
+        ohlcvContainer.getChildren().clear();
+        setStatus("Pool OHLCV is not yet available through the Gateway API.");
     }
 
     private void loadNetworks() {
-        Thread.ofVirtual().name("onchain-networks").start(() -> {
-            try {
-                List<String> ids = dexService.getNetworkIds();
-                Platform.runLater(() -> {
-                    networkSelector.getItems().setAll(ids.isEmpty()
-                            ? List.of("eth", "bsc", "polygon_pos", "arbitrum", "base") : ids);
-                    if (!networkSelector.getItems().isEmpty()) {
-                        networkSelector.setValue(
-                                networkSelector.getItems().contains("eth") ? "eth"
-                                        : networkSelector.getItems().get(0));
-                        selectedNetwork = networkSelector.getValue();
-                    }
-                    networkSelector.valueProperty().addListener((o, a, n) -> {
-                        if (n != null) {
-                            selectedNetwork = n;
-                            currentPage = 1;
-                            loadPools();
-                        }
-                    });
-                    loadPools();
-                });
-            } catch (Exception e) {
-                log.warn("Failed to load networks: {}", e.getMessage());
-                Platform.runLater(this::loadPools);
+        networkSelector.getItems().setAll(DEFAULT_NETWORKS);
+        networkSelector.setValue(networkSelector.getItems().contains("eth")
+                ? "eth" : networkSelector.getItems().get(0));
+        selectedNetwork = networkSelector.getValue();
+
+        networkSelector.valueProperty().addListener((o, a, n) -> {
+            if (n != null) {
+                selectedNetwork = n;
+                currentPage = 1;
+                loadPools();
             }
         });
+
+        Thread.ofVirtual().name("onchain-networks").start(() -> {
+            try {
+                List<DeFiPool> trending = referenceDataApiClient.getDefiPools(null, null, true);
+                Set<String> networks = new LinkedHashSet<>(DEFAULT_NETWORKS);
+                trending.stream()
+                        .map(DeFiPool::getNetworkId)
+                        .filter(id -> id != null && !id.isBlank())
+                        .forEach(networks::add);
+                Platform.runLater(() -> {
+                    String previous = networkSelector.getValue();
+                    networkSelector.getItems().setAll(networks);
+                    if (previous != null && networkSelector.getItems().contains(previous)) {
+                        networkSelector.setValue(previous);
+                    } else if (!networkSelector.getItems().isEmpty()) {
+                        networkSelector.setValue(networkSelector.getItems().get(0));
+                    }
+                    selectedNetwork = networkSelector.getValue();
+                });
+            } catch (Exception e) {
+                log.warn("Failed to enrich network list: {}", e.getMessage());
+            }
+        });
+
+        loadPools();
     }
 
     private void loadPools() {
@@ -214,20 +219,21 @@ public class OnchainPoolsController implements Initializable {
         final String network = selectedNetwork != null ? selectedNetwork : "eth";
         Thread.ofVirtual().name("pool-list-" + page).start(() -> {
             try {
-                Optional<JsonObject> result = trendingMode
-                        ? (page == 1
-                            ? dexService.getTrendingPoolsGlobal()
-                            : dexService.getTrendingPoolsByNetwork(network))
-                        : dexService.getTopPools(network, page);
+                List<DeFiPool> pools = trendingMode
+                        ? referenceDataApiClient.getDefiPools(null, null, true)
+                        : referenceDataApiClient.getDefiPools(network, null, false);
                 Platform.runLater(() -> {
-                    result.ifPresentOrElse(
-                            obj -> renderPoolsFromJson(obj, !trendingMode),
-                            () -> {
-                                poolsContainer.getChildren().clear();
-                                setStatus("Failed to load pools. Check API key or network.");
-                            });
+                    lastLoadedPools = pools;
+                    currentPage = page;
+                    renderPools(pageSlice(pools), !trendingMode);
                     pageLabel.setText("Page " + page);
                     prevPageBtn.setDisable(page <= 1);
+                    nextPageBtn.setDisable(pageSlice(pools).size() < 20);
+                    if (pools.isEmpty()) {
+                        setStatus("Failed to load pools. Check API key or network.");
+                    } else {
+                        setStatus("");
+                    }
                     lastUpdateLabel.setText("Last updated: " + LocalDateTime.now().format(DT_FMT));
                     setLoading(false);
                 });
@@ -241,32 +247,37 @@ public class OnchainPoolsController implements Initializable {
         });
     }
 
-    private void renderPoolsFromJson(JsonObject root, boolean enablePagination) {
-        JsonArray data = extractDataArray(root);
+    private List<DeFiPool> pageSlice(List<DeFiPool> pools) {
+        int pageSize = 20;
+        int from = (currentPage - 1) * pageSize;
+        if (from >= pools.size()) return List.of();
+        int to = Math.min(from + pageSize, pools.size());
+        return new ArrayList<>(pools.subList(from, to));
+    }
+
+    private void renderPools(List<DeFiPool> pools, boolean enablePagination) {
         poolsContainer.getChildren().clear();
-        if (data == null || data.isEmpty()) {
+        if (pools.isEmpty()) {
             setStatus("No pools in response.");
             nextPageBtn.setDisable(true);
             return;
         }
-        for (JsonElement el : data) {
-            if (!el.isJsonObject()) continue;
-            JsonObject pool = el.getAsJsonObject();
-            poolsContainer.getChildren().add(buildPoolRow(pool));
+        pools.stream()
+                .sorted(Comparator.comparing(
+                        DeFiPool::getLiquidityUsd,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .forEach(pool -> poolsContainer.getChildren().add(buildPoolRow(pool)));
+        nextPageBtn.setDisable(!enablePagination || pools.size() < 20);
+        if (statusLabel != null && statusLabel.getText().isBlank()) {
+            setStatus("");
         }
-        nextPageBtn.setDisable(!enablePagination || data.size() < 20);
-        setStatus("");
     }
 
-    private HBox buildPoolRow(JsonObject pool) {
-        JsonObject attrs = pool.has("attributes") ? pool.getAsJsonObject("attributes") : pool;
-        String name = attrs.has("name") ? attrs.get("name").getAsString()
-                : (pool.has("id") ? pool.get("id").getAsString() : "—");
-        String address = attrs.has("address") ? attrs.get("address").getAsString() : extractAddressFromId(pool);
-        String price = attrs.has("base_token_price_usd")
-                ? formatNumber(attrs.get("base_token_price_usd").getAsString()) : "—";
-        String liquidity = attrs.has("reserve_in_usd")
-                ? formatLargeUsd(new BigDecimal(attrs.get("reserve_in_usd").getAsString())) : "—";
+    private HBox buildPoolRow(DeFiPool pool) {
+        String name = pool.getPoolName() != null ? pool.getPoolName() : poolPairLabel(pool);
+        String price = pool.getPriceUsd() != null
+                ? formatNumber(pool.getPriceUsd()) : "—";
+        String liquidity = formatLargeUsd(pool.getLiquidityUsd());
 
         HBox row = new HBox();
         row.setAlignment(Pos.CENTER_LEFT);
@@ -279,68 +290,35 @@ public class OnchainPoolsController implements Initializable {
         liqLbl.setAlignment(Pos.CENTER_RIGHT);
         row.getChildren().addAll(nameLbl, priceLbl, liqLbl);
 
-        row.setOnMouseClicked(e -> selectPool(pool, name, address, attrs));
+        row.setOnMouseClicked(e -> selectPool(pool, name));
         return row;
     }
 
-    private void selectPool(JsonObject pool, String name, String address, JsonObject attrs) {
-        selectedPoolAddress = address;
-        if (selectedNetwork == null && pool.has("id")) {
-            String id = pool.get("id").getAsString();
-            int idx = id.indexOf('_');
-            if (idx > 0) selectedNetwork = id.substring(0, idx);
-        }
-        poolNameLabel.setText(name);
-        poolAddressLabel.setText(address != null ? address : "—");
-        poolNetworkLabel.setText(selectedNetwork != null ? selectedNetwork : "—");
-        poolPriceLabel.setText(attrs.has("base_token_price_usd")
-                ? "$" + formatNumber(attrs.get("base_token_price_usd").getAsString()) : "—");
-        poolLiquidityLabel.setText(attrs.has("reserve_in_usd")
-                ? formatLargeUsd(new BigDecimal(attrs.get("reserve_in_usd").getAsString())) : "—");
-        if (attrs.has("volume_usd") && attrs.get("volume_usd").isJsonObject()) {
-            JsonObject vol = attrs.getAsJsonObject("volume_usd");
-            if (vol.has("h24")) {
-                poolVolumeLabel.setText(formatLargeUsd(new BigDecimal(vol.get("h24").getAsString())));
+    private void selectPool(DeFiPool pool, String name) {
+        selectedPool = pool;
+        if (pool.getNetworkId() != null) {
+            selectedNetwork = pool.getNetworkId();
+            if (networkSelector.getItems().contains(pool.getNetworkId())) {
+                networkSelector.setValue(pool.getNetworkId());
             }
         }
+        poolNameLabel.setText(name);
+        poolAddressLabel.setText(pool.getPoolAddress() != null ? pool.getPoolAddress() : "—");
+        poolNetworkLabel.setText(pool.getNetworkName() != null ? pool.getNetworkName()
+                : (pool.getNetworkId() != null ? pool.getNetworkId() : "—"));
+        poolPriceLabel.setText(pool.getPriceUsd() != null
+                ? "$" + formatNumber(pool.getPriceUsd()) : "—");
+        poolLiquidityLabel.setText(formatLargeUsd(pool.getLiquidityUsd()));
+        poolVolumeLabel.setText(formatLargeUsd(pool.getVolume24hUsd()));
         ohlcvContainer.getChildren().clear();
-        setStatus("Pool selected — click Load OHLCV to fetch candles.");
+        setStatus("Pool selected — OHLCV preview requires a future Gateway endpoint.");
     }
 
-    private void renderOhlcv(List<OhlcvBar> bars) {
-        ohlcvContainer.getChildren().clear();
-        for (OhlcvBar bar : bars) {
-            HBox row = new HBox();
-            row.setStyle("-fx-padding:5 12; -fx-border-color:#30363d; -fx-border-width:0 0 1 0;");
-            Label timeLbl = cellLabel(bar.getOpenTime() != null ? bar.getOpenTime().toString() : "—", 140, false);
-            Label openLbl = cellLabel(formatPrice(bar.getOpen()), 0, true);
-            openLbl.setAlignment(Pos.CENTER_RIGHT);
-            Label highLbl = cellLabel(formatPrice(bar.getHigh()), 90, false);
-            highLbl.setAlignment(Pos.CENTER_RIGHT);
-            Label lowLbl = cellLabel(formatPrice(bar.getLow()), 90, false);
-            lowLbl.setAlignment(Pos.CENTER_RIGHT);
-            Label closeLbl = cellLabel(formatPrice(bar.getClose()), 90, false);
-            closeLbl.setAlignment(Pos.CENTER_RIGHT);
-            Label volLbl = cellLabel(formatLargeUsd(bar.getVolume()), 100, false);
-            volLbl.setAlignment(Pos.CENTER_RIGHT);
-            row.getChildren().addAll(timeLbl, openLbl, highLbl, lowLbl, closeLbl, volLbl);
-            ohlcvContainer.getChildren().add(row);
+    private static String poolPairLabel(DeFiPool pool) {
+        if (pool.getBaseTokenSymbol() != null && pool.getQuoteTokenSymbol() != null) {
+            return pool.getBaseTokenSymbol() + "/" + pool.getQuoteTokenSymbol();
         }
-    }
-
-    private static JsonArray extractDataArray(JsonObject root) {
-        if (root == null) return null;
-        if (root.has("data") && root.get("data").isJsonArray()) {
-            return root.getAsJsonArray("data");
-        }
-        return null;
-    }
-
-    private static String extractAddressFromId(JsonObject pool) {
-        if (!pool.has("id")) return null;
-        String id = pool.get("id").getAsString();
-        int idx = id.indexOf('_');
-        return idx >= 0 && idx < id.length() - 1 ? id.substring(idx + 1) : id;
+        return "—";
     }
 
     private static Label cellLabel(String text, double prefWidth, boolean hgrow) {
@@ -351,17 +329,10 @@ public class OnchainPoolsController implements Initializable {
         return l;
     }
 
-    private static String formatNumber(String raw) {
-        try {
-            return new BigDecimal(raw).setScale(4, RoundingMode.HALF_UP).toPlainString();
-        } catch (Exception e) {
-            return raw;
-        }
-    }
-
-    private static String formatPrice(BigDecimal v) {
-        if (v == null) return "—";
-        return v.setScale(v.compareTo(BigDecimal.TEN) >= 0 ? 2 : 4, RoundingMode.HALF_UP).toPlainString();
+    private static String formatNumber(BigDecimal value) {
+        if (value == null) return "—";
+        return value.setScale(value.compareTo(BigDecimal.TEN) >= 0 ? 2 : 4, RoundingMode.HALF_UP)
+                .toPlainString();
     }
 
     private static String formatLargeUsd(BigDecimal n) {

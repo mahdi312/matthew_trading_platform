@@ -71,11 +71,6 @@ public class HttpJsonClient {
         this.cooldown = Duration.ofSeconds(Math.max(1, cooldownSec));
     }
 
-    /** Package-private constructor for unit tests (no Spring context). */
-    HttpJsonClient(OkHttpClient http) {
-        this(http, 3, 300);
-    }
-
     // ── Public API ────────────────────────────────────────────────────────────
 
     public Optional<JsonObject> getJson(String url) {

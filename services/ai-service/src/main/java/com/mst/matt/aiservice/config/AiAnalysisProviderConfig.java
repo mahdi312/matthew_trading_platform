@@ -35,6 +35,16 @@ import org.springframework.context.annotation.Configuration;
 public class AiAnalysisProviderConfig {
 
     @Bean
+    public NoOpAiAnalysisProvider noOpAiAnalysisProvider() {
+        return new NoOpAiAnalysisProvider();
+    }
+
+    @Bean
+    public NoOpOhlcvDataProvider noOpOhlcvDataProvider() {
+        return new NoOpOhlcvDataProvider();
+    }
+
+    @Bean
     public ProviderRegistry<AiAnalysisProvider> aiRegistry(
             AiAnalysisProviderImpl realProvider,
             NoOpAiAnalysisProvider noOpAiAnalysisProvider) {

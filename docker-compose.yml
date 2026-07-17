@@ -116,7 +116,18 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - app-network
 
+  pgadmin:
+    image: dpage/pgadmin4
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: mahdi.mostafavi312@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    networks:
+      - app-network
   # ── Service registry (Eureka) ──────────────────────────────────────────────
   discovery-service:
     build:
@@ -357,7 +368,7 @@ services:
       config-service:
         condition: service_healthy
     ports:
-      - "8086:8086"
+      - "8089:8089"
     environment:
       CONFIG_SERVER_URI: http://config-service:8888
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
@@ -385,3 +396,6 @@ volumes:
     driver: local
   postgres_data:
     driver: local
+
+networks:
+  app-network:

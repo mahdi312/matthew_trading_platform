@@ -17,16 +17,20 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 
 /**
- * CRUD REST controller for {@code /alerts}.
+ * CRUD REST controller for {@code /api/alerts}.
  *
  * <p>The owning user id is read from the {@code X-User-Id} header injected
  * by {@code gateway-service}'s {@code GatewayJwtAuthFilter} — this service
  * never validates the JWT itself (validated once at the edge, per
  * {@code .cursorrules}).</p>
+ *
+ * <p>Base path matches the Gateway route ({@code Path=/api/alerts/**} in
+ * {@code gateway-service}'s {@code application.yml}) — the Angular frontend
+ * and the desktop {@code AlertApiClient} both call {@code /api/alerts/**}.</p>
  */
 @Slf4j
 @RestController
-@RequestMapping("/alerts")
+@RequestMapping("/api/alerts")
 @RequiredArgsConstructor
 public class AlertController {
 

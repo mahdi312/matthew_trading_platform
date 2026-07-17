@@ -125,7 +125,7 @@ export class JournalPageComponent implements OnInit {
     this.loadTrades();
   }
 
-  private loadTrades(): void {
+  loadTrades(): void {
     this.loading.set(true);
     this.error.set(null);
 

@@ -21,9 +21,8 @@
             <Insets top="16" right="24" bottom="16" left="24"/>
         </padding>
         <Label text="Create New Alert" styleClass="label-subtitle"/>
-        <!-- Row 1: symbol + type + target + channels + message + add -->
+        <!-- Row 1: symbol + condition + target + channels + message + add -->
         <HBox spacing="12" alignment="CENTER_LEFT">
-            <!-- newSymbolField is replaced at runtime by AutocompleteSymbolField -->
             <TextField fx:id="newSymbolField" promptText="Symbol"  prefWidth="140"/>
             <ComboBox  fx:id="alertTypeCombo" prefWidth="200"/>
             <TextField fx:id="targetPriceField" promptText="Target Price / %" prefWidth="140"/>
@@ -35,7 +34,7 @@
                        HBox.hgrow="ALWAYS"/>
             <Button text="+ Add Alert" styleClass="btn-primary" onAction="#onAddAlert"/>
         </HBox>
-        <!-- Row 2: channel warning label (shown only when a channel is misconfigured) -->
+        <!-- Row 2: status/error label, shown only when a create/update/delete call fails -->
         <Label fx:id="channelStatusLabel" text="" visible="false" managed="false"
                style="-fx-text-fill:#d29922; -fx-font-size:11px; -fx-wrap-text:true;"
                wrapText="true"/>
@@ -45,10 +44,10 @@
     <TableView fx:id="alertsTable" VBox.vgrow="ALWAYS">
         <columns>
             <TableColumn fx:id="colSymbol"    text="SYMBOL"    prefWidth="100"/>
-            <TableColumn fx:id="colType"      text="TYPE"      prefWidth="180"/>
+            <TableColumn fx:id="colType"      text="CONDITION" prefWidth="180"/>
             <TableColumn fx:id="colTarget"    text="TARGET"    prefWidth="100"/>
             <TableColumn fx:id="colStatus"    text="STATUS"    prefWidth="90"/>
-            <TableColumn fx:id="colNotify"    text="NOTIFY"    prefWidth="90"/>
+            <TableColumn fx:id="colNotify"    text="REPEAT"    prefWidth="90"/>
             <TableColumn fx:id="colTriggered" text="TRIGGERED" prefWidth="130"/>
             <TableColumn fx:id="colActions"   text="ACTIONS"   prefWidth="100"/>
         </columns>

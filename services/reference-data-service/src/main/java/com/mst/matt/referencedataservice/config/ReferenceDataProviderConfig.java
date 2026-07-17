@@ -1,6 +1,7 @@
 package com.mst.matt.referencedataservice.config;
 
 import com.mst.matt.contracts.provider.calendar.EconomicCalendarProvider;
+import com.mst.matt.contracts.provider.defi.DeFiDataProvider;
 import com.mst.matt.contracts.provider.fundamentals.FundamentalsProvider;
 import com.mst.matt.contracts.provider.news.NewsProvider;
 import com.mst.matt.contracts.provider.nft.NftDataProvider;
@@ -9,6 +10,7 @@ import com.mst.matt.contracts.provider.search.SymbolSearchProvider;
 import com.mst.matt.contracts.provider.sentiment.SentimentProvider;
 import com.mst.matt.referencedataservice.provider.calendar.AlphaVantageCalendarProvider;
 import com.mst.matt.referencedataservice.provider.calendar.FinnhubCalendarProvider;
+import com.mst.matt.referencedataservice.provider.defi.CoinGeckoDeFiProvider;
 import com.mst.matt.referencedataservice.provider.fundamentals.AlphaVantageFundamentalsProvider;
 import com.mst.matt.referencedataservice.provider.fundamentals.FinnhubFundamentalsProvider;
 import com.mst.matt.referencedataservice.provider.news.AlphaVantageNewsProvider;
@@ -37,6 +39,7 @@ import java.util.List;
  *   <li><b>Calendar</b>:    AlphaVantage → Finnhub → NoOp</li>
  *   <li><b>Search</b>:      AlphaVantage → Finnhub → TwelveData → CoinGecko → NoOp</li>
  *   <li><b>NFT</b>:         CoinGecko → NoOp</li>
+ *   <li><b>DeFi</b>:        CoinGecko → NoOp</li>
  * </ul>
  *
  * <p>Registration order = priority order inside each chain.
@@ -145,6 +148,20 @@ public class ReferenceDataProviderConfig {
         return ProviderRegistry.<NftDataProvider>builder()
                 .register(coinGecko)
                 .register(noOpNftDataProvider)
+                .build();
+    }
+
+    // ── DeFiDataProvider registry ─────────────────────────────────────────────
+    // Priority: CoinGecko → NoOp
+
+    @Bean
+    public ProviderRegistry<DeFiDataProvider> deFiRegistry(
+            CoinGeckoDeFiProvider coinGecko,
+            DeFiDataProvider noOpDeFiDataProvider) {
+
+        return ProviderRegistry.<DeFiDataProvider>builder()
+                .register(coinGecko)
+                .register(noOpDeFiDataProvider)
                 .build();
     }
 }

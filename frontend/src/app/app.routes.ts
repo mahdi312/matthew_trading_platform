@@ -32,6 +32,15 @@ export const routes: Routes = [
       ),
   },
 
+  // Detachable chart embed — authenticated via embed API key query/header, not JWT.
+  {
+    path: 'embed/chart',
+    loadComponent: () =>
+      import('./features/embed/chart-embed-page.component').then(
+        (m) => m.ChartEmbedPageComponent
+      ),
+  },
+
   // Protected routes (authGuard applied).
 
   // Step 4: DashboardModule — landing screen after login.

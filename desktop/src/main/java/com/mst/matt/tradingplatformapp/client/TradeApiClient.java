@@ -11,6 +11,7 @@ import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -93,6 +94,54 @@ public class TradeApiClient {
         private LocalDateTime exitTime;
     }
 
+    /** Request body for {@code POST /api/trades/{id}/close}. */
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class CloseTradeRequest {
+        private BigDecimal exitPrice;
+    }
+
+    /**
+     * Response body for {@code GET /api/portfolio/stats} — mirrors
+     * {@code trading-service}'s {@code PortfolioStatsResponse}.
+     */
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class PortfolioStatsResponse {
+        private int totalTrades;
+        private int openTrades;
+        private int wins;
+        private int losses;
+        private BigDecimal winRate;
+        private BigDecimal totalPnl;
+        private BigDecimal totalPnlPercent;
+        private BigDecimal totalInvested;
+        private BigDecimal totalFees;
+        private BigDecimal bestTrade;
+        private BigDecimal worstTrade;
+        private BigDecimal avgWin;
+        private BigDecimal avgLoss;
+        private BigDecimal profitFactor;
+        private List<BigDecimal> equityCurve;
+
+        /** Safe zero-value fallback used when the request fails or the user has no trades. */
+        public static PortfolioStatsResponse empty() {
+            PortfolioStatsResponse s = new PortfolioStatsResponse();
+            s.totalPnl = BigDecimal.ZERO;
+            s.totalPnlPercent = BigDecimal.ZERO;
+            s.totalInvested = BigDecimal.ZERO;
+            s.totalFees = BigDecimal.ZERO;
+            s.bestTrade = BigDecimal.ZERO;
+            s.worstTrade = BigDecimal.ZERO;
+            s.avgWin = BigDecimal.ZERO;
+            s.avgLoss = BigDecimal.ZERO;
+            s.profitFactor = BigDecimal.ZERO;
+            s.winRate = BigDecimal.ZERO;
+            s.equityCurve = new ArrayList<>();
+            return s;
+        }
+    }
+
     // ── Trade CRUD ────────────────────────────────────────────────────────────
 
     /**
@@ -151,12 +200,24 @@ public class TradeApiClient {
     }
 
     /**
-     * {@code GET /api/trades?profileId={profileId}} — lists all trades for a profile.
+     * {@code GET /api/trades?userId={userId}} — lists all trades for a user.
      */
-    public List<TradeResponse> getTradesByProfile(Long profileId) {
+    public List<TradeResponse> getTradesByUserId(Long userId) {
+        return getTradesByUserId(userId, null);
+    }
+
+    /**
+     * {@code GET /api/trades?userId={userId}&status={status}} — lists trades for a user,
+     * optionally filtered by status ({@code OPEN} | {@code CLOSED} | {@code CANCELLED}).
+     */
+    public List<TradeResponse> getTradesByUserId(Long userId, String status) {
         try {
             List<TradeResponse> list = webClient.get()
-                    .uri(u -> u.path("/api/trades").queryParam("profileId", profileId).build())
+                    .uri(u -> {
+                        var b = u.path("/api/trades").queryParam("userId", userId);
+                        if (status != null && !status.isBlank()) b.queryParam("status", status);
+                        return b.build();
+                    })
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, r ->
                             r.bodyToMono(String.class)
@@ -166,8 +227,56 @@ public class TradeApiClient {
                     .block();
             return list != null ? list : List.of();
         } catch (Exception ex) {
-            log.warn("getTradesByProfile failed: {}", ex.getMessage());
+            log.warn("getTradesByUserId({}) failed: {}", userId, ex.getMessage());
             return List.of();
+        }
+    }
+
+    /**
+     * {@code POST /api/trades/{id}/close} — closes an open trade with a given exit price.
+     */
+    public TradeResponse closeTrade(Long id, BigDecimal exitPrice) {
+        try {
+            CloseTradeRequest body = new CloseTradeRequest();
+            body.setExitPrice(exitPrice);
+            TradeResponse resp = webClient.post()
+                    .uri("/api/trades/{id}/close", id)
+                    .bodyValue(body)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, r ->
+                            r.bodyToMono(String.class)
+                             .flatMap(b -> Mono.error(
+                                     new RuntimeException("Close trade failed: " + b))))
+                    .bodyToMono(TradeResponse.class)
+                    .block();
+            if (resp == null) throw new RuntimeException("Server returned empty response.");
+            log.debug("Trade closed: id={}", id);
+            return resp;
+        } catch (RuntimeException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new RuntimeException("Could not close trade: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * {@code GET /api/portfolio/stats?userId={userId}} — portfolio-level statistics for a user.
+     */
+    public PortfolioStatsResponse getPortfolioStats(Long userId) {
+        try {
+            PortfolioStatsResponse resp = webClient.get()
+                    .uri(u -> u.path("/api/portfolio/stats").queryParam("userId", userId).build())
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, r ->
+                            r.bodyToMono(String.class)
+                             .flatMap(body -> Mono.error(
+                                     new RuntimeException("Fetch portfolio stats failed: " + body))))
+                    .bodyToMono(PortfolioStatsResponse.class)
+                    .block();
+            return resp != null ? resp : PortfolioStatsResponse.empty();
+        } catch (Exception ex) {
+            log.warn("getPortfolioStats({}) failed: {}", userId, ex.getMessage());
+            return PortfolioStatsResponse.empty();
         }
     }
 

@@ -2,6 +2,7 @@ package com.mst.matt.referencedataservice.cache;
 
 import com.mst.matt.contracts.enums.AssetClass;
 import com.mst.matt.contracts.provider.calendar.EconomicCalendarProvider;
+import com.mst.matt.contracts.provider.defi.DeFiDataProvider;
 import com.mst.matt.contracts.provider.dto.*;
 import com.mst.matt.contracts.provider.fundamentals.FundamentalsProvider;
 import com.mst.matt.contracts.provider.news.NewsProvider;
@@ -46,6 +47,7 @@ public class RefDataCacheService {
     private final ProviderRegistry<EconomicCalendarProvider> calendarRegistry;
     private final ProviderRegistry<SymbolSearchProvider>     searchRegistry;
     private final ProviderRegistry<NftDataProvider>          nftRegistry;
+    private final ProviderRegistry<DeFiDataProvider>         deFiRegistry;
 
     private final com.github.benmanes.caffeine.cache.Cache<String, Object> caffeineNews;
     private final com.github.benmanes.caffeine.cache.Cache<String, Object> caffeineFundamentals;
@@ -53,6 +55,7 @@ public class RefDataCacheService {
     private final com.github.benmanes.caffeine.cache.Cache<String, Object> caffeineCalendar;
     private final com.github.benmanes.caffeine.cache.Cache<String, Object> caffeineSearch;
     private final com.github.benmanes.caffeine.cache.Cache<String, Object> caffeineNft;
+    private final com.github.benmanes.caffeine.cache.Cache<String, Object> caffeineDefi;
 
     private final RedisTemplate<String, Object> redisTemplate;
 
@@ -62,6 +65,7 @@ public class RefDataCacheService {
     private final Duration calendarTtl;
     private final Duration searchTtl;
     private final Duration nftTtl;
+    private final Duration defiTtl;
 
     public RefDataCacheService(
             ProviderRegistry<FundamentalsProvider>     fundamentalsRegistry,
@@ -70,19 +74,22 @@ public class RefDataCacheService {
             ProviderRegistry<EconomicCalendarProvider> calendarRegistry,
             ProviderRegistry<SymbolSearchProvider>     searchRegistry,
             ProviderRegistry<NftDataProvider>          nftRegistry,
+            ProviderRegistry<DeFiDataProvider>         deFiRegistry,
             @Qualifier("caffeineNewsCache")         com.github.benmanes.caffeine.cache.Cache<String, Object> caffeineNews,
             @Qualifier("caffeineFundamentalsCache") com.github.benmanes.caffeine.cache.Cache<String, Object> caffeineFundamentals,
             @Qualifier("caffeineSentimentCache")    com.github.benmanes.caffeine.cache.Cache<String, Object> caffeineSentiment,
             @Qualifier("caffeineCalendarCache")     com.github.benmanes.caffeine.cache.Cache<String, Object> caffeineCalendar,
             @Qualifier("caffeineSearchCache")       com.github.benmanes.caffeine.cache.Cache<String, Object> caffeineSearch,
             @Qualifier("caffeineNftCache")          com.github.benmanes.caffeine.cache.Cache<String, Object> caffeineNft,
+            @Qualifier("caffeineDefiCache")         com.github.benmanes.caffeine.cache.Cache<String, Object> caffeineDefi,
             RedisTemplate<String, Object> redisTemplate,
             @Value("${cache.redis.news-ttl-minutes:10}")         long newsTtlMin,
             @Value("${cache.redis.fundamentals-ttl-minutes:60}") long fundamentalsTtlMin,
             @Value("${cache.redis.sentiment-ttl-minutes:5}")     long sentimentTtlMin,
             @Value("${cache.redis.calendar-ttl-minutes:60}")     long calendarTtlMin,
             @Value("${cache.redis.search-ttl-minutes:30}")       long searchTtlMin,
-            @Value("${cache.redis.nft-ttl-minutes:15}")          long nftTtlMin) {
+            @Value("${cache.redis.nft-ttl-minutes:15}")          long nftTtlMin,
+            @Value("${cache.redis.defi-ttl-minutes:5}")          long defiTtlMin) {
 
         this.fundamentalsRegistry = fundamentalsRegistry;
         this.newsRegistry         = newsRegistry;
@@ -90,6 +97,7 @@ public class RefDataCacheService {
         this.calendarRegistry     = calendarRegistry;
         this.searchRegistry       = searchRegistry;
         this.nftRegistry          = nftRegistry;
+        this.deFiRegistry         = deFiRegistry;
 
         this.caffeineNews         = caffeineNews;
         this.caffeineFundamentals = caffeineFundamentals;
@@ -97,6 +105,7 @@ public class RefDataCacheService {
         this.caffeineCalendar     = caffeineCalendar;
         this.caffeineSearch       = caffeineSearch;
         this.caffeineNft          = caffeineNft;
+        this.caffeineDefi         = caffeineDefi;
 
         this.redisTemplate = redisTemplate;
 
@@ -106,6 +115,7 @@ public class RefDataCacheService {
         this.calendarTtl     = Duration.ofMinutes(calendarTtlMin);
         this.searchTtl       = Duration.ofMinutes(searchTtlMin);
         this.nftTtl          = Duration.ofMinutes(nftTtlMin);
+        this.defiTtl         = Duration.ofMinutes(defiTtlMin);
     }
 
     // ── News ──────────────────────────────────────────────────────────────────
@@ -277,6 +287,44 @@ public class RefDataCacheService {
                 AssetClass.NFT, p -> p.searchCollections(query, limit));
         if (result != null && !result.isEmpty()) writeBack(caffeineNft, key, result, nftTtl);
         return result;
+    }
+
+    // ── DeFi ──────────────────────────────────────────────────────────────────
+
+    @SuppressWarnings("unchecked")
+    public List<DeFiPoolDto> getTrendingDefiPools() {
+        String key = "defi:trending";
+        Object hit = lookup(caffeineDefi, key);
+        if (hit instanceof List<?> list) return (List<DeFiPoolDto>) list;
+
+        List<DeFiPoolDto> result = deFiRegistry.executeWithFallback(
+                AssetClass.CRYPTO, DeFiDataProvider::getTrendingPools);
+        if (result != null && !result.isEmpty()) writeBack(caffeineDefi, key, result, defiTtl);
+        return result != null ? result : List.of();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<DeFiPoolDto> getDefiPoolsByNetwork(String networkId) {
+        String key = "defi:network:" + networkId;
+        Object hit = lookup(caffeineDefi, key);
+        if (hit instanceof List<?> list) return (List<DeFiPoolDto>) list;
+
+        List<DeFiPoolDto> result = deFiRegistry.executeWithFallback(
+                AssetClass.CRYPTO, p -> p.getPoolsByNetwork(networkId));
+        if (result != null && !result.isEmpty()) writeBack(caffeineDefi, key, result, defiTtl);
+        return result != null ? result : List.of();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<DeFiPoolDto> searchDefiPools(String query) {
+        String key = "defi:search:" + query;
+        Object hit = lookup(caffeineDefi, key);
+        if (hit instanceof List<?> list) return (List<DeFiPoolDto>) list;
+
+        List<DeFiPoolDto> result = deFiRegistry.executeWithFallback(
+                AssetClass.CRYPTO, p -> p.searchPools(query));
+        if (result != null && !result.isEmpty()) writeBack(caffeineDefi, key, result, defiTtl);
+        return result != null ? result : List.of();
     }
 
     // ── Internal two-tier helpers (unchanged logic, kept as-is) ──────────────

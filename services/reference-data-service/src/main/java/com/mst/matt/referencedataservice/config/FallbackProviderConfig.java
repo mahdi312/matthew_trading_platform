@@ -1,6 +1,7 @@
 package com.mst.matt.referencedataservice.config;
 
 import com.mst.matt.contracts.provider.calendar.EconomicCalendarProvider;
+import com.mst.matt.contracts.provider.defi.DeFiDataProvider;
 import com.mst.matt.contracts.provider.fundamentals.FundamentalsProvider;
 import com.mst.matt.contracts.provider.mock.*;
 import com.mst.matt.contracts.provider.news.NewsProvider;
@@ -52,5 +53,10 @@ public class FallbackProviderConfig {
     @Bean
     public SymbolSearchProvider noOpSymbolSearchProvider() {
         return new NoOpSymbolSearchProvider();
+    }
+
+    @Bean
+    public DeFiDataProvider noOpDeFiDataProvider() {
+        return new NoOpDeFiDataProvider();
     }
 }

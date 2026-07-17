@@ -23,6 +23,10 @@ app:
   alert:
     poll-interval-ms: ${ALERT_POLL_INTERVAL_MS:10000}
 
+services:
+  market:
+    url: ${SERVICES_MARKET_URL:http://market-service}
+
 eureka:
   client:
     service-url:

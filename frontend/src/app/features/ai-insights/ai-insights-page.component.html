@@ -297,7 +297,7 @@
 
             <p class="critique-text">{{ critique()!.critique }}</p>
 
-            <div *ngIf="critique()!.suggestions?.length > 0" class="suggestions">
+            <div *ngIf="(critique()?.suggestions?.length ?? 0) > 0" class="suggestions">
               <h4>Suggestions</h4>
               <mat-list>
                 <mat-list-item *ngFor="let sug of critique()!.suggestions">

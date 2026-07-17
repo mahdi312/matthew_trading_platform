@@ -37,12 +37,17 @@ export class AppComponent implements OnInit {
   /** Routes that render full-screen (no nav shell). */
   private readonly PUBLIC_ROUTES = new Set(['/login', '/register']);
 
+  private isShellless(url: string): boolean {
+    if (this.PUBLIC_ROUTES.has(url)) return true;
+    return url.startsWith('/embed/');
+  }
+
   ngOnInit(): void {
     this.router.events
       .pipe(filter(e => e instanceof NavigationEnd))
       .subscribe((e: NavigationEnd) => {
         const url = e.urlAfterRedirects.split('?')[0];
-        this.showShell = !this.PUBLIC_ROUTES.has(url);
+        this.showShell = !this.isShellless(url);
       });
   }
 }

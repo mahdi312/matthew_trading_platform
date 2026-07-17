@@ -5,8 +5,8 @@ metadata:
   namespace: mtp
 spec:
   ports:
-    - port: 8086
-      targetPort: 8086
+    - port: 8089
+      targetPort: 8089
   selector:
     app: ai-service
 ---
@@ -29,7 +29,7 @@ spec:
         - name: ai-service
           image: mtp/ai-service:latest
           ports:
-            - containerPort: 8086
+            - containerPort: 8089
           envFrom:
             - configMapRef:
                 name: mtp-shared-config

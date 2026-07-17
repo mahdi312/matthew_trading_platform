@@ -83,6 +83,7 @@ export class DashboardPageComponent implements OnInit {
     return [
       {
         name: 'Equity',
+        type: 'SMA',
         data: s.equityCurve.map(([, value]) => value),
         color: '#42a5f5',
         subPane: false,

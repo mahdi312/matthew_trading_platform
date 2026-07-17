@@ -3,7 +3,6 @@ package com.mst.matt.referencedataservice.controller;
 import com.mst.matt.contracts.enums.AssetClass;
 import com.mst.matt.contracts.provider.dto.*;
 import com.mst.matt.referencedataservice.cache.RefDataCacheService;
-import com.mst.matt.referencedataservice.provider.defi.CoinGeckoDeFiProvider;
 import com.mst.matt.referencedataservice.provider.nft.CoinGeckoNftDataProvider;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -13,35 +12,27 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * REST controller for the Reference Data Service.
  *
  * <p>All calls go through {@link RefDataCacheService} (L1 Caffeine → L2 Redis →
- * provider registry fallback chain) — never directly to a {@code ProviderRegistry}
- * or concrete provider, except the two direct-provider bypasses that were already
- * here before caching existed ({@code nftDataProvider.listCollections},
- * {@code deFiProvider.*}) — those remain direct calls to the single concrete
- * CoinGecko-backed bean since there is only one implementation registered for
- * either today; wrap them in the cache service too if/when a second provider is
- * added for either.</p>
+ * provider registry fallback chain) — never directly to a concrete provider,
+ * except the NFT paginated list bypass ({@code listCollections}) which is not
+ * yet on the {@code NftDataProvider} contract.</p>
  */
 @RestController
 @RequestMapping("/api/reference")
 public class ReferenceDataController {
 
-    private final RefDataCacheService     cacheService;
+    private final RefDataCacheService      cacheService;
     private final CoinGeckoNftDataProvider nftDataProvider;
-    private final CoinGeckoDeFiProvider    deFiProvider;
 
     public ReferenceDataController(
-            RefDataCacheService     cacheService,
-            CoinGeckoNftDataProvider nftDataProvider,
-            CoinGeckoDeFiProvider    deFiProvider) {
+            RefDataCacheService      cacheService,
+            CoinGeckoNftDataProvider nftDataProvider) {
         this.cacheService    = cacheService;
         this.nftDataProvider = nftDataProvider;
-        this.deFiProvider    = deFiProvider;
     }
 
     // ── 1. Fundamentals ───────────────────────────────────────────────────────
@@ -165,12 +156,12 @@ public class ReferenceDataController {
         } else if (query != null && !query.isBlank()) {
             result = cacheService.searchNftCollections(query, limit);
         } else {
-            result = nftDataProvider.listCollections(limit, page); // direct bypass — see class Javadoc
+            result = nftDataProvider.listCollections(limit, page);
         }
         return ResponseEntity.ok(result);
     }
 
-    // ── 7. DeFi Pools ────────────────────────────────────────────────────────
+    // ── 7. DeFi Pools (via ProviderRegistry + cache) ───────────────────────────
 
     @GetMapping("/defi/pools")
     public ResponseEntity<List<DeFiPoolDto>> getDefiPools(
@@ -179,10 +170,13 @@ public class ReferenceDataController {
             @RequestParam(defaultValue = "false") boolean trending) {
 
         List<DeFiPoolDto> result;
-        if (trending)                              result = deFiProvider.getTrendingPools();
-        else if (query != null && !query.isBlank()) result = deFiProvider.searchPools(query);
-        else if (network != null && !network.isBlank()) result = deFiProvider.getPoolsByNetwork(network);
-        else                                        result = deFiProvider.getTrendingPools();
+        if (query != null && !query.isBlank()) {
+            result = cacheService.searchDefiPools(query);
+        } else if (network != null && !network.isBlank()) {
+            result = cacheService.getDefiPoolsByNetwork(network);
+        } else {
+            result = cacheService.getTrendingDefiPools();
+        }
         return ResponseEntity.ok(result);
     }
 }

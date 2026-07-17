@@ -1,8 +1,9 @@
 package com.mst.matt.tradingplatformapp.controller;
 
-import com.mst.matt.tradingplatformapp.model.*;
-import com.mst.matt.tradingplatformapp.service.TradeService;
-import com.mst.matt.tradingplatformapp.service.TradeService.PortfolioStats;
+import com.mst.matt.tradingplatformapp.client.TradeApiClient;
+import com.mst.matt.tradingplatformapp.client.TradeApiClient.PortfolioStatsResponse;
+import com.mst.matt.tradingplatformapp.client.TradeApiClient.TradeResponse;
+import com.mst.matt.tradingplatformapp.model.UserProfile;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.fxml.FXML;
@@ -25,6 +26,13 @@ import java.util.stream.Collectors;
 
 /**
  * Dashboard controller — portfolio stats, equity curve, recent trades table.
+ *
+ * <h3>Phase 2, Step 12 — trading domain</h3>
+ * <p>Portfolio stats and the trades list are now fetched from
+ * {@code trading-service} via {@link TradeApiClient} ({@code /api/portfolio/stats}
+ * and {@code /api/trades}) instead of the local {@code TradeService} (JPA).
+ * The table, canvas, and broker-tab UI logic are unchanged — they simply
+ * consume {@link TradeResponse} DTOs instead of the local {@code Trade} entity.</p>
  */
 @Component
 @FxmlView("/fxml/DashboardView.fxml")
@@ -60,14 +68,14 @@ public class DashboardController implements Initializable {
     @FXML private ScrollPane tradesScrollPane;
 
     // ── Recent Trades Table ───────────────────────────────────
-    @FXML private TableView<Trade>       recentTradesTable;
-    @FXML private TableColumn<Trade,String> colDate, colSymbol, colType,
+    @FXML private TableView<TradeResponse>       recentTradesTable;
+    @FXML private TableColumn<TradeResponse,String> colDate, colSymbol, colType,
             colDir,  colEntry,  colExit,
             colQty,  colPnl,    colPnlPct,
             colStatus;
-    @FXML private TableColumn<Trade,Void> colActions;
+    @FXML private TableColumn<TradeResponse,Void> colActions;
 
-    @Autowired private TradeService tradeService;
+    @Autowired private TradeApiClient tradeApiClient;
 
     private UserProfile activeProfile;
     private ViewMode viewMode = ViewMode.DASHBOARD;
@@ -75,7 +83,7 @@ public class DashboardController implements Initializable {
     private List<BigDecimal> currentEquityCurve = new ArrayList<>();
 
     // Parent-supplied callback for editing a specific trade
-    private java.util.function.Consumer<Trade> onEditTradeCallback;
+    private java.util.function.Consumer<TradeResponse> onEditTradeCallback;
     // Parent notified when user wants to open Trade Entry (new) or view all
     private Runnable onNewTradeCallback;
     private Runnable onViewAllCallback;
@@ -155,26 +163,32 @@ public class DashboardController implements Initializable {
 
     public void refreshAll() {
         if (activeProfile == null) return;
+        Long userId = activeProfile.getId();
 
-        PortfolioStats stats = tradeService.getStats(activeProfile);
-        List<Trade>    recent = tradeService.getTradesForProfile(activeProfile);
+        // Fetch on a background thread so the FX thread is never blocked by the
+        // blocking WebClient calls in TradeApiClient. Results are applied back
+        // on the FX thread via Platform.runLater (same pattern as AlertManagerController).
+        Thread.ofVirtual().start(() -> {
+            PortfolioStatsResponse stats  = tradeApiClient.getPortfolioStats(userId);
+            List<TradeResponse>    recent = tradeApiClient.getTradesByUserId(userId);
 
-        Platform.runLater(() -> {
-            updateStatCards(stats);
-            fullEquityCurve = new ArrayList<>(stats.getEquityCurve());
-            drawEquityCurve(stats.getEquityCurve());
-            drawBreakdown(recent);
-            int limit = viewMode == ViewMode.JOURNAL
-                    ? recent.size()
-                    : Math.min(recent.size(), 20);
-            populateTable(limit > 0 ? recent.subList(0, limit) : List.of());
-            buildBrokerTabs(recent);
+            Platform.runLater(() -> {
+                updateStatCards(stats);
+                fullEquityCurve = new ArrayList<>(stats.getEquityCurve());
+                drawEquityCurve(stats.getEquityCurve());
+                drawBreakdown(recent);
+                int limit = viewMode == ViewMode.JOURNAL
+                        ? recent.size()
+                        : Math.min(recent.size(), 20);
+                populateTable(limit > 0 ? recent.subList(0, limit) : List.of());
+                buildBrokerTabs(recent);
+            });
         });
     }
 
     // ── Stat Cards ────────────────────────────────────────────
 
-    private void updateStatCards(PortfolioStats s) {
+    private void updateStatCards(PortfolioStatsResponse s) {
         boolean profit = s.getTotalPnl().compareTo(BigDecimal.ZERO) >= 0;
 
         totalPnlLabel.setText((profit ? "+" : "") + "$"
@@ -279,17 +293,17 @@ public class DashboardController implements Initializable {
 
     // ── Asset Breakdown ───────────────────────────────────────
 
-    private void drawBreakdown(List<Trade> trades) {
+    private void drawBreakdown(List<TradeResponse> trades) {
         breakdownContainer.getChildren().clear();
         Map<String, BigDecimal> pnlByType = new LinkedHashMap<>();
         pnlByType.put("CRYPTO", BigDecimal.ZERO);
         pnlByType.put("STOCK",  BigDecimal.ZERO);
         pnlByType.put("FOREX",  BigDecimal.ZERO);
 
-        for (Trade t : trades) {
-            if (t.getPnlAmount() == null || t.getStatus() != Trade.TradeStatus.CLOSED)
+        for (TradeResponse t : trades) {
+            if (t.getPnlAmount() == null || !"CLOSED".equals(t.getStatus()))
                 continue;
-            String key = t.getAssetType().name();
+            String key = t.getAssetType();
             pnlByType.merge(key, t.getPnlAmount(), BigDecimal::add);
         }
 
@@ -339,22 +353,22 @@ public class DashboardController implements Initializable {
      * For each unique exchange that has at least one trade with "Imported from" in notes,
      * create (or re-populate) a tab named "<BrokerName> Imports" with a read-only TableView.
      */
-    private void buildBrokerTabs(List<Trade> allTrades) {
+    private void buildBrokerTabs(List<TradeResponse> allTrades) {
         if (tradesTabPane == null) return;
 
         // Group imported trades by exchange (non-blank exchange field + notes contain "Imported from")
-        Map<String, List<Trade>> byBroker = allTrades.stream()
+        Map<String, List<TradeResponse>> byBroker = allTrades.stream()
                 .filter(t -> t.getExchange() != null && !t.getExchange().isBlank()
                         && t.getNotes() != null && t.getNotes().contains("Imported from"))
-                .collect(Collectors.groupingBy(Trade::getExchange, LinkedHashMap::new, Collectors.toList()));
+                .collect(Collectors.groupingBy(TradeResponse::getExchange, LinkedHashMap::new, Collectors.toList()));
 
         // Remove old broker tabs (keep only "My Trades" tab at index 0)
         tradesTabPane.getTabs().removeIf(tab -> tab != myTradesTab);
 
         // Create a tab per broker
-        for (Map.Entry<String, List<Trade>> entry : byBroker.entrySet()) {
+        for (Map.Entry<String, List<TradeResponse>> entry : byBroker.entrySet()) {
             String broker = entry.getKey();
-            List<Trade> brokerTrades = entry.getValue();
+            List<TradeResponse> brokerTrades = entry.getValue();
 
             Tab tab = new Tab(brokerIcon(broker) + " " + broker + " Imports");
             tab.setClosable(false);
@@ -365,10 +379,10 @@ public class DashboardController implements Initializable {
 
             // Summary bar
             long closedCount = brokerTrades.stream()
-                    .filter(t -> t.getStatus() == Trade.TradeStatus.CLOSED).count();
+                    .filter(t -> "CLOSED".equals(t.getStatus())).count();
             BigDecimal totalPnl = brokerTrades.stream()
                     .filter(t -> t.getPnlAmount() != null)
-                    .map(Trade::getPnlAmount)
+                    .map(TradeResponse::getPnlAmount)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             boolean net = totalPnl.compareTo(BigDecimal.ZERO) >= 0;
 
@@ -390,7 +404,7 @@ public class DashboardController implements Initializable {
                     new Region() {{ HBox.setHgrow(this, Priority.ALWAYS); }},
                     closedLbl, pnlLbl);
 
-            TableView<Trade> table = buildBrokerTableView();
+            TableView<TradeResponse> table = buildBrokerTableView();
             table.getItems().setAll(brokerTrades);
             VBox.setVgrow(table, Priority.ALWAYS);
 
@@ -415,21 +429,21 @@ public class DashboardController implements Initializable {
 
     /** Builds a read-only TableView with the same columns as recentTradesTable. */
     @SuppressWarnings("unchecked")
-    private TableView<Trade> buildBrokerTableView() {
+    private TableView<TradeResponse> buildBrokerTableView() {
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("MM/dd HH:mm");
-        TableView<Trade> table = new TableView<>();
+        TableView<TradeResponse> table = new TableView<>();
         table.setMinHeight(300);
         table.setStyle("-fx-background-color:#161b22; -fx-border-color:#30363d; -fx-border-width:1;");
         table.setPlaceholder(new Label("No imported trades") {{
             setStyle("-fx-text-fill:#8b949e; -fx-font-size:13px;");
         }});
 
-        TableColumn<Trade, String> cDate = col("DATE", 130,
+        TableColumn<TradeResponse, String> cDate = col("DATE", 130,
                 t -> t.getEntryTime() != null ? t.getEntryTime().format(dtf) : "—");
-        TableColumn<Trade, String> cSymbol = col("SYMBOL", 100, Trade::getSymbol);
-        TableColumn<Trade, String> cType   = col("TYPE",   70,  t -> t.getAssetType().name());
+        TableColumn<TradeResponse, String> cSymbol = col("SYMBOL", 100, TradeResponse::getSymbol);
+        TableColumn<TradeResponse, String> cType   = col("TYPE",   70,  TradeResponse::getAssetType);
 
-        TableColumn<Trade, String> cDir = col("DIR", 60, t -> t.getDirection().name());
+        TableColumn<TradeResponse, String> cDir = col("DIR", 60, TradeResponse::getDirection);
         cDir.setCellFactory(c -> new TableCell<>() {
             @Override protected void updateItem(String v, boolean empty) {
                 super.updateItem(v, empty);
@@ -441,33 +455,33 @@ public class DashboardController implements Initializable {
             }
         });
 
-        TableColumn<Trade, String> cEntry = col("ENTRY", 110,
+        TableColumn<TradeResponse, String> cEntry = col("ENTRY", 110,
                 t -> t.getEntryPrice() != null ? "$" + t.getEntryPrice().toPlainString() : "—");
-        TableColumn<Trade, String> cExit  = col("EXIT",  110,
+        TableColumn<TradeResponse, String> cExit  = col("EXIT",  110,
                 t -> t.getExitPrice()  != null ? "$" + t.getExitPrice().toPlainString()  : "OPEN");
-        TableColumn<Trade, String> cQty   = col("QTY",   90,
+        TableColumn<TradeResponse, String> cQty   = col("QTY",   90,
                 t -> t.getQuantity() != null ? t.getQuantity().toPlainString() : "—");
 
-        TableColumn<Trade, String> cPnl = col("P&L $", 100, t -> {
+        TableColumn<TradeResponse, String> cPnl = col("P&L $", 100, t -> {
             BigDecimal p = t.getPnlAmount();
             return p == null ? "—" : (p.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "") + "$" + fmt(p);
         });
         cPnl.setCellFactory(colPnl.getCellFactory());
 
-        TableColumn<Trade, String> cPnlPct = col("P&L %", 90, t -> {
+        TableColumn<TradeResponse, String> cPnlPct = col("P&L %", 90, t -> {
             BigDecimal p = t.getPnlPercent();
             return p == null ? "—" : (p.compareTo(BigDecimal.ZERO) >= 0 ? "+" : "") + fmt(p) + "%";
         });
         cPnlPct.setCellFactory(colPnl.getCellFactory());
 
-        TableColumn<Trade, String> cStatus = col("STATUS", 80, t -> t.getStatus().name());
+        TableColumn<TradeResponse, String> cStatus = col("STATUS", 80, TradeResponse::getStatus);
         cStatus.setCellFactory(colStatus.getCellFactory());
 
         table.getColumns().addAll(cDate, cSymbol, cType, cDir,
                 cEntry, cExit, cQty, cPnl, cPnlPct, cStatus);
 
         table.setRowFactory(tv -> new TableRow<>() {
-            @Override protected void updateItem(Trade t, boolean empty) {
+            @Override protected void updateItem(TradeResponse t, boolean empty) {
                 super.updateItem(t, empty);
                 getStyleClass().removeAll("row-profit", "row-loss");
                 if (!empty && t != null && t.getPnlAmount() != null)
@@ -479,9 +493,9 @@ public class DashboardController implements Initializable {
         return table;
     }
 
-    private TableColumn<Trade, String> col(String title, double pref,
-                                            java.util.function.Function<Trade, String> extractor) {
-        TableColumn<Trade, String> c = new TableColumn<>(title);
+    private TableColumn<TradeResponse, String> col(String title, double pref,
+                                            java.util.function.Function<TradeResponse, String> extractor) {
+        TableColumn<TradeResponse, String> c = new TableColumn<>(title);
         c.setPrefWidth(pref);
         c.setCellValueFactory(cellData ->
                 new SimpleStringProperty(
@@ -506,10 +520,10 @@ public class DashboardController implements Initializable {
                 new SimpleStringProperty(c.getValue().getSymbol()));
 
         colType.setCellValueFactory(c ->
-                new SimpleStringProperty(c.getValue().getAssetType().name()));
+                new SimpleStringProperty(c.getValue().getAssetType()));
 
         colDir.setCellValueFactory(c ->
-                new SimpleStringProperty(c.getValue().getDirection().name()));
+                new SimpleStringProperty(c.getValue().getDirection()));
         colDir.setCellFactory(col -> new TableCell<>() {
             @Override protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
@@ -562,7 +576,7 @@ public class DashboardController implements Initializable {
         colPnlPct.setCellFactory(colPnl.getCellFactory());
 
         colStatus.setCellValueFactory(c ->
-                new SimpleStringProperty(c.getValue().getStatus().name()));
+                new SimpleStringProperty(c.getValue().getStatus()));
         colStatus.setCellFactory(col -> new TableCell<>() {
             @Override protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
@@ -595,17 +609,17 @@ public class DashboardController implements Initializable {
                 deleteBtn.setTooltip(new Tooltip("Delete trade"));
 
                 editBtn.setOnAction(e -> {
-                    Trade t = getTableView().getItems().get(getIndex());
+                    TradeResponse t = getTableView().getItems().get(getIndex());
                     if (onEditTradeCallback != null) onEditTradeCallback.accept(t);
                 });
                 closeBtn.setOnAction(e -> {
-                    Trade t = getTableView().getItems().get(getIndex());
-                    if (t.getStatus() == Trade.TradeStatus.OPEN) {
+                    TradeResponse t = getTableView().getItems().get(getIndex());
+                    if ("OPEN".equals(t.getStatus())) {
                         showCloseTradeDialog(t);
                     }
                 });
                 deleteBtn.setOnAction(e -> {
-                    Trade t = getTableView().getItems().get(getIndex());
+                    TradeResponse t = getTableView().getItems().get(getIndex());
                     showDeleteTradeDialog(t);
                 });
             }
@@ -616,15 +630,15 @@ public class DashboardController implements Initializable {
                     setGraphic(null);
                     return;
                 }
-                Trade trade = getTableView().getItems().get(getIndex());
-                closeBtn.setDisable(trade.getStatus() != Trade.TradeStatus.OPEN);
+                TradeResponse trade = getTableView().getItems().get(getIndex());
+                closeBtn.setDisable(!"OPEN".equals(trade.getStatus()));
                 setGraphic(box);
             }
         });
 
         // Color rows by profit/loss
         recentTradesTable.setRowFactory(tv -> new TableRow<>() {
-            @Override protected void updateItem(Trade t, boolean empty) {
+            @Override protected void updateItem(TradeResponse t, boolean empty) {
                 super.updateItem(t, empty);
                 getStyleClass().removeAll("row-profit","row-loss");
                 if (!empty && t != null && t.getPnlAmount() != null) {
@@ -636,12 +650,12 @@ public class DashboardController implements Initializable {
         });
     }
 
-    private void populateTable(List<Trade> trades) {
+    private void populateTable(List<TradeResponse> trades) {
         recentTradesTable.getItems().setAll(trades);
     }
 
-    /** T-11: confirm-and-delete dialog. Cascades through TradeService.deleteTrade. */
-    private void showDeleteTradeDialog(Trade trade) {
+    /** T-11: confirm-and-delete dialog. Cascades through TradeApiClient.deleteTrade. */
+    private void showDeleteTradeDialog(TradeResponse trade) {
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
         confirm.setTitle("Delete Trade");
         confirm.setHeaderText("Delete " + trade.getSymbol()
@@ -652,7 +666,7 @@ public class DashboardController implements Initializable {
         confirm.showAndWait().ifPresent(bt -> {
             if (bt == ButtonType.OK) {
                 try {
-                    tradeService.deleteTrade(trade.getId());
+                    tradeApiClient.deleteTrade(trade.getId());
                     refreshAll();
                 } catch (Exception ex) {
                     new Alert(Alert.AlertType.ERROR,
@@ -662,7 +676,7 @@ public class DashboardController implements Initializable {
         });
     }
 
-    private void showCloseTradeDialog(Trade trade) {
+    private void showCloseTradeDialog(TradeResponse trade) {
         TextInputDialog dialog = new TextInputDialog(
                 trade.getEntryPrice().toPlainString());
         dialog.setTitle("Close Trade");
@@ -671,7 +685,7 @@ public class DashboardController implements Initializable {
         dialog.showAndWait().ifPresent(priceStr -> {
             try {
                 BigDecimal exitPrice = new BigDecimal(priceStr.trim());
-                tradeService.closeTrade(trade.getId(), exitPrice);
+                tradeApiClient.closeTrade(trade.getId(), exitPrice);
                 refreshAll();
             } catch (Exception e) {
                 new Alert(Alert.AlertType.ERROR,
@@ -697,7 +711,7 @@ public class DashboardController implements Initializable {
 
     public void setOnNewTradeCallback(Runnable r) { onNewTradeCallback = r; }
     public void setOnViewAllCallback(Runnable r)  { onViewAllCallback  = r; }
-    public void setOnEditTradeCallback(java.util.function.Consumer<Trade> c) { onEditTradeCallback = c; }
+    public void setOnEditTradeCallback(java.util.function.Consumer<TradeResponse> c) { onEditTradeCallback = c; }
 
     private String fmt(BigDecimal bd) {
         if (bd == null) return "0.00";

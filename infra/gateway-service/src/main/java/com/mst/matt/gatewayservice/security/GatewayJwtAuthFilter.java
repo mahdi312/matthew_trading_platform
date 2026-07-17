@@ -20,54 +20,27 @@ import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
- * Reactive (WebFlux) global gateway filter that validates the JWT on every
- * incoming request and injects user-identity headers for downstream services.
+ * Reactive global gateway filter that validates JWT (or embed API keys) and
+ * injects user-identity headers for downstream services.
  *
- * <h3>Responsibility</h3>
- * <p>JWT is validated <em>once</em> here at the edge.  Downstream services
- * ({@code identity-service}, {@code market-service}, {@code trading-service},
- * {@code notification-service}, {@code alert-service}, {@code reference-data-service},
- * {@code ai-service}) trust these headers without re-validating the token themselves:</p>
+ * <h3>Auth modes</h3>
  * <ul>
- *   <li>{@code X-User-Id}       — numeric AppUser.id</li>
- *   <li>{@code X-User-Name}     — username (JWT {@code sub} claim)</li>
- *   <li>{@code X-User-Role}     — role name (e.g., "REGULAR_USER")</li>
- *   <li>{@code X-Auth-Provider} — "LOCAL" or "GOOGLE"</li>
+ *   <li><b>JWT Bearer</b> — default for the Angular app and desktop thin client</li>
+ *   <li><b>Embed API key</b> — {@code X-Embed-Key} header (or {@code embedKey} query)
+ *       matching {@code embed.api-keys}; grants read-only access to market/chart
+ *       paths so third-party apps can host the detachable chart widget</li>
  * </ul>
- *
- * <h3>Public paths</h3>
- * <p>The following paths bypass JWT validation entirely:</p>
- * <ul>
- *   <li>{@code /api/auth/login}     — login endpoint (identity-service)</li>
- *   <li>{@code /api/auth/register}  — self-registration (identity-service)</li>
- *   <li>{@code /api/auth/oauth2/**} — OAuth2 callback flows (identity-service)</li>
- *   <li>{@code /oauth2/**}          — OAuth2 authorization redirect</li>
- *   <li>{@code /actuator/**}        — health / metrics endpoints</li>
- * </ul>
- *
- * <p>All other paths (including the rest of {@code /api/auth/**} such as
- * {@code /api/auth/me} and {@code /api/auth/logout}) <em>require</em> a valid JWT
- * so that downstream services always receive authenticated identity headers.</p>
- *
- * <h3>Algorithm</h3>
- * <p>HS256 with the same {@code jwt.secret} shared with {@code identity-service}.
- * Both services must be configured with the same secret — deliver it via
- * Spring Cloud Config Server or environment variable in production.</p>
  */
 @Slf4j
 @Component
 public class GatewayJwtAuthFilter implements GlobalFilter, Ordered {
 
-    /**
-     * Exact-prefix paths that are allowed through without a valid JWT.
-     *
-     * <p>Only the specific unauthenticated actions are listed here.
-     * {@code /api/auth/me}, {@code /api/auth/logout}, etc. still require a
-     * JWT so that downstream identity-service always gets the identity headers.</p>
-     */
     private static final List<String> PUBLIC_PATH_PREFIXES = List.of(
             "/api/auth/login",
             "/api/auth/register",
@@ -76,35 +49,45 @@ public class GatewayJwtAuthFilter implements GlobalFilter, Ordered {
             "/actuator"
     );
 
+    /** Paths an embed API key may access (read-only market/chart surface). */
+    private static final List<String> EMBED_ALLOWED_PREFIXES = List.of(
+            "/api/market/ohlcv",
+            "/api/market/symbols",
+            "/api/indicators",
+            "/api/charts/layouts"
+    );
+
     private static final String CORRELATION_ID_HEADER = "X-Correlation-Id";
+    private static final String EMBED_KEY_HEADER = "X-Embed-Key";
 
     private final SecretKey signingKey;
+    private final Set<String> embedApiKeys;
 
-    public GatewayJwtAuthFilter(@Value("${jwt.secret}") String secret) {
+    public GatewayJwtAuthFilter(
+            @Value("${jwt.secret}") String secret,
+            @Value("${embed.api-keys:}") String embedKeysCsv) {
         if (secret == null || secret.length() < 32) {
             throw new IllegalArgumentException(
                     "jwt.secret must be at least 32 characters long");
         }
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.embedApiKeys = Arrays.stream(embedKeysCsv.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toUnmodifiableSet());
     }
-
-    // ── Filter order — run before routing ────────────────────────────────────
 
     @Override
     public int getOrder() {
         return Ordered.HIGHEST_PRECEDENCE;
     }
 
-    // ── Filter logic ─────────────────────────────────────────────────────────
-
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getURI().getPath();
-
         String correlationId = resolveCorrelationId(request);
 
-        // ── Allow public paths through — still stamp the correlation ID ────
         if (isPublicPath(path)) {
             ServerHttpRequest stamped = request.mutate()
                     .header(CORRELATION_ID_HEADER, correlationId)
@@ -112,7 +95,25 @@ public class GatewayJwtAuthFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange.mutate().request(stamped).build());
         }
 
-        // ── Extract Bearer token ───────────────────────────────────────────
+        String embedKey = extractEmbedKey(request);
+        if (embedKey != null) {
+            if (!embedApiKeys.contains(embedKey)) {
+                return unauthorised(exchange, "Invalid embed API key");
+            }
+            if (!isEmbedAllowedPath(path)) {
+                return unauthorised(exchange, "Embed key not permitted for this path");
+            }
+            ServerHttpRequest stamped = request.mutate()
+                    .header(CORRELATION_ID_HEADER, correlationId)
+                    .header("X-Auth-Mode", "EMBED")
+                    .header("X-User-Id", "0")
+                    .header("X-User-Name", "embed")
+                    .header("X-User-Role", "EMBED")
+                    .header("X-Auth-Provider", "EMBED_KEY")
+                    .build();
+            return chain.filter(exchange.mutate().request(stamped).build());
+        }
+
         String token = extractBearerToken(request);
         if (token == null) {
             return unauthorised(exchange, "Missing Authorization header");
@@ -135,6 +136,7 @@ public class GatewayJwtAuthFilter implements GlobalFilter, Ordered {
                     .header("X-User-Name",     username)
                     .header("X-User-Role",     role)
                     .header("X-Auth-Provider", authProvider)
+                    .header("X-Auth-Mode",     "JWT")
                     .header(CORRELATION_ID_HEADER, correlationId)
                     .build();
 
@@ -146,17 +148,29 @@ public class GatewayJwtAuthFilter implements GlobalFilter, Ordered {
         }
     }
 
-    /** Forward the client's correlation ID if it sent one; otherwise generate a fresh one. */
     private String resolveCorrelationId(ServerHttpRequest request) {
         String existing = request.getHeaders().getFirst(CORRELATION_ID_HEADER);
         return (existing != null && !existing.isBlank()) ? existing : java.util.UUID.randomUUID().toString();
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
-
     private boolean isPublicPath(String path) {
-        return PUBLIC_PATH_PREFIXES.stream()
-                .anyMatch(prefix -> path.startsWith(prefix));
+        return PUBLIC_PATH_PREFIXES.stream().anyMatch(path::startsWith);
+    }
+
+    private boolean isEmbedAllowedPath(String path) {
+        return EMBED_ALLOWED_PREFIXES.stream().anyMatch(path::startsWith);
+    }
+
+    private String extractEmbedKey(ServerHttpRequest request) {
+        String header = request.getHeaders().getFirst(EMBED_KEY_HEADER);
+        if (StringUtils.hasText(header)) {
+            return header.trim();
+        }
+        List<String> query = request.getQueryParams().get("embedKey");
+        if (query != null && !query.isEmpty() && StringUtils.hasText(query.get(0))) {
+            return query.get(0).trim();
+        }
+        return null;
     }
 
     private String extractBearerToken(ServerHttpRequest request) {

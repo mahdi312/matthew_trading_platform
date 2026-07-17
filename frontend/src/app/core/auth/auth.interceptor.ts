@@ -43,14 +43,20 @@ export const authInterceptor: HttpInterceptorFn = (
 
   return next(outgoing).pipe(
     catchError((err: unknown) => {
-      // On 401 from any Gateway route, clear the stale token and redirect.
-      if (isGatewayCall && err instanceof HttpErrorResponse && err.status === 401) {
+      const isEmbedCall = outgoing.headers.has('X-Embed-Key');
+      // Embed widgets handle 401 in-page — do not clear session or bounce to login.
+      if (
+        isGatewayCall &&
+        !isEmbedCall &&
+        err instanceof HttpErrorResponse &&
+        err.status === 401
+      ) {
         try {
           localStorage.removeItem(AuthSessionService.TOKEN_STORAGE_KEY);
         } catch {
           // localStorage may be unavailable in some contexts — ignore.
         }
-        authSession.refresh(); // notify all signal consumers (e.g. notification bell)
+        authSession.refresh();
         router.navigate(['/login']);
       }
       return throwError(() => err);

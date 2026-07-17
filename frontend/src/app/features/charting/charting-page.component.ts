@@ -418,6 +418,7 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
         this.indicatorSeries.set(
           results.map((r) => ({
             name:    r.name,
+            type:    r.type as IndicatorSeries['type'],
             data:    r.data.filter((v): v is number => v !== null),
             color:   r.color,
             subPane: r.subPane,

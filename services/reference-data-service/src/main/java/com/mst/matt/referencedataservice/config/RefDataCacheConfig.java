@@ -60,6 +60,7 @@ public class RefDataCacheConfig {
     public static final String CALENDAR_CACHE     = "calendar";
     public static final String SEARCH_CACHE       = "search";
     public static final String NFT_CACHE          = "nft";
+    public static final String DEFI_CACHE         = "defi";
 
     // ── L1 TTLs (Caffeine) ───────────────────────────────────────────────────
 
@@ -81,6 +82,9 @@ public class RefDataCacheConfig {
     @Value("${cache.caffeine.nft-ttl-seconds:120}")
     private long nftCaffeineTtl;
 
+    @Value("${cache.caffeine.defi-ttl-seconds:60}")
+    private long defiCaffeineTtl;
+
     // ── L2 TTLs (Redis) ──────────────────────────────────────────────────────
 
     @Value("${cache.redis.news-ttl-minutes:10}")
@@ -100,6 +104,9 @@ public class RefDataCacheConfig {
 
     @Value("${cache.redis.nft-ttl-minutes:15}")
     private long nftRedisTtl;
+
+    @Value("${cache.redis.defi-ttl-minutes:5}")
+    private long defiRedisTtl;
 
     // ── L1 beans (Caffeine) ──────────────────────────────────────────────────
 
@@ -133,6 +140,11 @@ public class RefDataCacheConfig {
         return buildCaffeine(nftCaffeineTtl, 200);
     }
 
+    @Bean(name = "caffeineDefiCache")
+    public com.github.benmanes.caffeine.cache.Cache<String, Object> caffeineDefiCache() {
+        return buildCaffeine(defiCaffeineTtl, 200);
+    }
+
     // ── L2: Redis CacheManager (primary Spring CacheManager) ─────────────────
 
     /**
@@ -157,6 +169,7 @@ public class RefDataCacheConfig {
         regionConfigs.put(CALENDAR_CACHE,     base.entryTtl(Duration.ofMinutes(calendarRedisTtl)));
         regionConfigs.put(SEARCH_CACHE,       base.entryTtl(Duration.ofMinutes(searchRedisTtl)));
         regionConfigs.put(NFT_CACHE,          base.entryTtl(Duration.ofMinutes(nftRedisTtl)));
+        regionConfigs.put(DEFI_CACHE,         base.entryTtl(Duration.ofMinutes(defiRedisTtl)));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(base.entryTtl(Duration.ofMinutes(30)))

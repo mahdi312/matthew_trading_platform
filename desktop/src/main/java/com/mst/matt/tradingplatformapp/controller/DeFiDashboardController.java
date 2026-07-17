@@ -1,6 +1,7 @@
 package com.mst.matt.tradingplatformapp.controller;
 
-import com.mst.matt.tradingplatformapp.service.price.api.coingecko.*;
+import com.mst.matt.tradingplatformapp.client.ReferenceDataApiClient;
+import com.mst.matt.tradingplatformapp.client.ReferenceDataApiClient.DeFiPool;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -20,20 +21,17 @@ import java.net.URL;
 import java.text.NumberFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.ResourceBundle;
-import java.util.Set;
 
 /**
  * Controller for the DeFi Dashboard tab.
  *
- * Displays global market statistics and DeFi data sourced from CoinGecko:
- * <ul>
- *   <li>Global market cap, BTC dominance, active cryptocurrencies</li>
- *   <li>DeFi market cap, trading volume, DeFi dominance</li>
- *   <li>Exchange rates (fiat/crypto relative to BTC)</li>
- * </ul>
+ * <p>Phase 2, Step 12 — DeFi pool statistics fetched via {@link ReferenceDataApiClient}
+ * ({@code /api/reference/defi/pools} on the Gateway). KPI cards are aggregated from
+ * trending pool data; the exchange-rates table lists top pools by liquidity.</p>
  */
 @Component
 @FxmlView("/fxml/DeFiDashboardView.fxml")
@@ -43,62 +41,49 @@ public class DeFiDashboardController implements Initializable {
     private static final DateTimeFormatter DT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private static final NumberFormat      NUM_FMT = NumberFormat.getNumberInstance(Locale.US);
 
-    // ── Global stats ──────────────────────────────────────────────────────────
     @FXML private Label totalMarketCapLabel;
     @FXML private Label marketCapChangeLabel;
     @FXML private Label btcDominanceLabel;
     @FXML private Label activeCryptosLabel;
     @FXML private Label totalVolumeLabel;
 
-    // ── DeFi stats ────────────────────────────────────────────────────────────
     @FXML private Label defiMarketCapLabel;
     @FXML private Label defiVolumeLabel;
     @FXML private Label defiDominanceLabel;
     @FXML private Label topDefiCoinLabel;
     @FXML private Label topDefiCoinDominanceLabel;
 
-    // ── Exchange rates ────────────────────────────────────────────────────────
     @FXML private VBox  exchangeRatesContainer;
 
-    // ── Misc ──────────────────────────────────────────────────────────────────
     @FXML private javafx.scene.control.Button refreshBtn;
     @FXML private ProgressIndicator loadingSpinner;
     @FXML private Label             lastUpdateLabel;
     @FXML private Label             statusLabel;
 
-    @Autowired private CoinGeckoDefiService   defiService;
-    @Autowired private CoinGeckoMarketService marketService;
+    @Autowired private ReferenceDataApiClient referenceDataApiClient;
 
     @Override
     public void initialize(URL url, ResourceBundle rb) {
         loadData();
     }
 
-    // ── FXML actions ──────────────────────────────────────────────────────────
-
     @FXML
     private void onRefresh() {
         loadData();
     }
 
-    // ── Data loading ──────────────────────────────────────────────────────────
-
     private void loadData() {
         setLoading(true);
         Thread.ofVirtual().name("defi-dashboard-load").start(() -> {
             try {
-                // Load global stats
-                Optional<CoinGeckoGlobalData> global = defiService.getGlobalData();
-                Optional<CoinGeckoDefiData>   defi   = defiService.getDefiData();
-                Optional<CoinGeckoExchangeRates> rates = defiService.getExchangeRates();
+                List<DeFiPool> pools = referenceDataApiClient.getDefiPools(null, null, true);
 
                 Platform.runLater(() -> {
-                    global.ifPresent(this::updateGlobalStats);
-                    defi.ifPresent(this::updateDefiStats);
-                    rates.ifPresent(this::updateExchangeRates);
-                    if (global.isEmpty() && defi.isEmpty()) {
+                    if (pools.isEmpty()) {
                         setStatus("Failed to load data. Check API key or network connection.");
                     } else {
+                        updateStatsFromPools(pools);
+                        updatePoolTable(pools);
                         setStatus("");
                     }
                     lastUpdateLabel.setText("Last updated: " + LocalDateTime.now().format(DT_FMT));
@@ -114,78 +99,114 @@ public class DeFiDashboardController implements Initializable {
         });
     }
 
-    // ── UI update helpers ─────────────────────────────────────────────────────
+    private void updateStatsFromPools(List<DeFiPool> pools) {
+        BigDecimal totalMarketCap = sum(pools, DeFiPool::getMarketCapUsd);
+        BigDecimal totalLiquidity = sum(pools, DeFiPool::getLiquidityUsd);
+        BigDecimal totalVolume    = sum(pools, DeFiPool::getVolume24hUsd);
 
-    private void updateGlobalStats(CoinGeckoGlobalData data) {
-        if (data.getTotalMarketCap() != null && data.getTotalMarketCap().containsKey("usd")) {
-            totalMarketCapLabel.setText(formatLargeNumber(data.getTotalMarketCap().get("usd")));
+        if (totalMarketCapLabel != null) {
+            totalMarketCapLabel.setText(formatLargeNumber(totalMarketCap));
         }
-        if (data.getTotalVolume() != null && data.getTotalVolume().containsKey("usd")) {
-            totalVolumeLabel.setText(formatLargeNumber(data.getTotalVolume().get("usd")));
+        if (totalVolumeLabel != null) {
+            totalVolumeLabel.setText(formatLargeNumber(totalVolume));
         }
-        if (data.getMarketCapPercentage() != null) {
-            BigDecimal btcDom = data.getMarketCapPercentage().getOrDefault("btc", BigDecimal.ZERO);
-            btcDominanceLabel.setText(btcDom.setScale(1, RoundingMode.HALF_UP) + "%");
+        if (activeCryptosLabel != null) {
+            activeCryptosLabel.setText(NUM_FMT.format(pools.size()));
         }
-        if (data.getActiveCryptocurrencies() != null) {
-            activeCryptosLabel.setText(NUM_FMT.format(data.getActiveCryptocurrencies()));
+        if (defiMarketCapLabel != null) {
+            defiMarketCapLabel.setText(formatLargeNumber(totalLiquidity));
+        }
+        if (defiVolumeLabel != null) {
+            defiVolumeLabel.setText(formatLargeNumber(totalVolume));
+        }
+
+        long networkCount = pools.stream()
+                .map(DeFiPool::getNetworkId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .count();
+        if (btcDominanceLabel != null) {
+            btcDominanceLabel.setText(networkCount > 0 ? networkCount + " nets" : "—");
+        }
+
+        if (defiDominanceLabel != null && totalMarketCap.compareTo(BigDecimal.ZERO) > 0
+                && totalLiquidity.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal dominance = totalLiquidity
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(totalMarketCap, 2, RoundingMode.HALF_UP);
+            defiDominanceLabel.setText(dominance.toPlainString() + "%");
+        }
+
+        pools.stream()
+                .filter(p -> p.getLiquidityUsd() != null)
+                .max(Comparator.comparing(DeFiPool::getLiquidityUsd))
+                .ifPresent(top -> {
+                    if (topDefiCoinLabel != null) {
+                        String pair = poolPairLabel(top);
+                        topDefiCoinLabel.setText(pair);
+                    }
+                    if (topDefiCoinDominanceLabel != null && totalLiquidity.compareTo(BigDecimal.ZERO) > 0
+                            && top.getLiquidityUsd() != null) {
+                        BigDecimal share = top.getLiquidityUsd()
+                                .multiply(BigDecimal.valueOf(100))
+                                .divide(totalLiquidity, 2, RoundingMode.HALF_UP);
+                        topDefiCoinDominanceLabel.setText(share.toPlainString() + "% of pool liquidity");
+                    }
+                });
+
+        if (marketCapChangeLabel != null) {
+            pools.stream()
+                    .filter(p -> p.getPriceChangePercent24h() != null)
+                    .mapToDouble(p -> p.getPriceChangePercent24h().doubleValue())
+                    .average()
+                    .ifPresentOrElse(
+                            avg -> marketCapChangeLabel.setText(String.format("Avg 24h change: %+.2f%%", avg)),
+                            () -> marketCapChangeLabel.setText("24h change: —"));
         }
     }
 
-    private void updateDefiStats(CoinGeckoDefiData data) {
-        if (data.getDefiMarketCap() != null)
-            defiMarketCapLabel.setText(formatLargeNumber(data.getDefiMarketCap()));
-        if (data.getTradingVolume24h() != null)
-            defiVolumeLabel.setText(formatLargeNumber(data.getTradingVolume24h()));
-        if (data.getDefiDominance() != null)
-            defiDominanceLabel.setText(data.getDefiDominance().setScale(2, RoundingMode.HALF_UP) + "%");
-        if (data.getTopCoinName() != null)
-            topDefiCoinLabel.setText(data.getTopCoinName());
-        if (data.getTopCoinDominance() != null)
-            topDefiCoinDominanceLabel.setText(
-                    data.getTopCoinDominance().setScale(2, RoundingMode.HALF_UP) + "% dominance");
-    }
-
-    private void updateExchangeRates(CoinGeckoExchangeRates rates) {
-        if (rates == null || rates.getRates() == null) return;
+    private void updatePoolTable(List<DeFiPool> pools) {
+        if (exchangeRatesContainer == null) return;
         exchangeRatesContainer.getChildren().clear();
 
-        // Show the 20 most common fiat + top crypto rates
-        rates.getRates().entrySet().stream()
-                .filter(e -> isCommonRate(e.getKey()))
+        pools.stream()
+                .sorted(Comparator.comparing(
+                        DeFiPool::getLiquidityUsd,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
                 .limit(30)
-                .forEach(e -> {
-                    CoinGeckoRate rate = e.getValue();
-                    if (rate == null) return;
-                    HBox row = buildRateRow(e.getKey(), rate);
-                    exchangeRatesContainer.getChildren().add(row);
-                });
+                .forEach(pool -> exchangeRatesContainer.getChildren().add(buildPoolRow(pool)));
     }
 
-    private boolean isCommonRate(String key) {
-        // Show major fiat + top crypto
-        return Set.of("usd","eur","gbp","jpy","aud","cad","chf","cny","hkd","sgd",
-                "btc","eth","bnb","sol","xrp","usdt","usdc","ada","doge","dot",
-                "nok","sek","dkk","inr","brl","mxn","krw","zar","rub","try")
-                .contains(key.toLowerCase());
-    }
-
-    private HBox buildRateRow(String key, CoinGeckoRate rate) {
+    private HBox buildPoolRow(DeFiPool pool) {
         HBox row = new HBox();
         row.setStyle("-fx-padding:7 16; -fx-border-color:#30363d; -fx-border-width:0 0 1 0;");
 
-        Label keyLbl  = styledLabel(key.toUpperCase(), true,  "ALWAYS", null);
-        Label nameLbl = styledLabel(rate.getName() != null ? rate.getName() : "—", false, "180", null);
-        Label valLbl  = styledLabel(
-                rate.getValue() != null ? rate.getValue().setScale(4, RoundingMode.HALF_UP).toPlainString() : "—",
-                false, "120", "CENTER_RIGHT");
-        Label typeLbl = styledLabel(rate.getType() != null ? rate.getType() : "—",
+        String symbol = poolPairLabel(pool);
+        Label keyLbl  = styledLabel(symbol, true,  "ALWAYS", null);
+        Label nameLbl = styledLabel(pool.getDexName() != null ? pool.getDexName()
+                : (pool.getNetworkName() != null ? pool.getNetworkName() : "—"), false, "180", null);
+        Label valLbl  = styledLabel(formatLargeNumber(pool.getLiquidityUsd()), false, "120", "CENTER_RIGHT");
+        Label typeLbl = styledLabel(pool.getNetworkId() != null ? pool.getNetworkId() : "pool",
                 false, "80", "CENTER_RIGHT");
-        typeLbl.setStyle(typeLbl.getStyle() + "; -fx-text-fill:" +
-                ("crypto".equalsIgnoreCase(rate.getType()) ? "#f7931a" : "#8b949e") + ";");
+        typeLbl.setStyle(typeLbl.getStyle() + "; -fx-text-fill:#58a6ff;");
 
         row.getChildren().addAll(keyLbl, nameLbl, valLbl, typeLbl);
         return row;
+    }
+
+    private static String poolPairLabel(DeFiPool pool) {
+        if (pool.getBaseTokenSymbol() != null && pool.getQuoteTokenSymbol() != null) {
+            return pool.getBaseTokenSymbol() + "/" + pool.getQuoteTokenSymbol();
+        }
+        if (pool.getPoolName() != null) return pool.getPoolName();
+        return "—";
+    }
+
+    private static BigDecimal sum(List<DeFiPool> pools, java.util.function.Function<DeFiPool, BigDecimal> getter) {
+        return pools.stream()
+                .map(getter)
+                .filter(v -> v != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private Label styledLabel(String text, boolean hgrow, String prefW, String align) {
@@ -197,10 +218,8 @@ public class DeFiDashboardController implements Initializable {
         return l;
     }
 
-    // ── Formatting helpers ────────────────────────────────────────────────────
-
     private String formatLargeNumber(BigDecimal n) {
-        if (n == null) return "—";
+        if (n == null || n.compareTo(BigDecimal.ZERO) == 0) return "—";
         double d = n.doubleValue();
         if (d >= 1_000_000_000_000d) return String.format("$%.2fT", d / 1_000_000_000_000d);
         if (d >= 1_000_000_000d)     return String.format("$%.2fB", d / 1_000_000_000d);
@@ -213,11 +232,10 @@ public class DeFiDashboardController implements Initializable {
             loadingSpinner.setVisible(loading);
             loadingSpinner.setManaged(loading);
         }
+        if (refreshBtn != null) refreshBtn.setDisable(loading);
     }
 
     private void setStatus(String msg) {
         if (statusLabel != null) statusLabel.setText(msg);
     }
-
 }
-

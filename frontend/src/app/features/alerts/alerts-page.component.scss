@@ -33,14 +33,16 @@
 
 .page-title {
   margin: 0;
-  font-size: 22px;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-size: 1.65rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .page-subtitle {
-  margin: 2px 0 0;
-  font-size: 13px;
-  opacity: 0.6;
+  margin: 0.15rem 0 0;
+  color: var(--tp-text-secondary, #8b949e);
+  font-size: 0.9rem;
 }
 
 /* ── Loading / error ─────────────────────────────────────────────────────── */

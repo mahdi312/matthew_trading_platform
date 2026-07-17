@@ -133,7 +133,7 @@ export class AlertsPageComponent implements OnInit {
 
   // ── Data loading ──────────────────────────────────────────────────────────
 
-  private loadAlerts(): void {
+  loadAlerts(): void {
     this.loading.set(true);
     this.error.set(null);
     this.api.getAlerts().subscribe({

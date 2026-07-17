@@ -3,6 +3,8 @@ package com.mst.matt.referencedataservice.provider.defi;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.mst.matt.contracts.enums.AssetClass;
+import com.mst.matt.contracts.provider.defi.DeFiDataProvider;
 import com.mst.matt.contracts.provider.dto.DeFiPoolDto;
 import com.mst.matt.referencedataservice.client.JsonUtil;
 import com.mst.matt.referencedataservice.client.RefDataHttpClient;
@@ -31,12 +33,25 @@ import java.util.Optional;
  *
  * <p>Throttle key: {@code "coingecko_defi_ref"} at 10 req/min (free-tier limit).
  * The GeckoTerminal on-chain endpoint uses a different base URL from the CoinGecko v3 API.
+ *
+ * <p>Registered ahead of {@code NoOpDeFiDataProvider} in the
+ * {@code ProviderRegistry&lt;DeFiDataProvider&gt;} chain.</p>
  */
 @Component
-public class CoinGeckoDeFiProvider {
+public class CoinGeckoDeFiProvider implements DeFiDataProvider {
 
     private static final Logger log = LoggerFactory.getLogger(CoinGeckoDeFiProvider.class);
     public static final String PROVIDER_NAME = "COINGECKO_DEFI";
+
+    @Override
+    public String providerName() {
+        return PROVIDER_NAME;
+    }
+
+    @Override
+    public List<AssetClass> supportedAssetClasses() {
+        return List.of(AssetClass.CRYPTO);
+    }
 
     // GeckoTerminal on-chain API base URL
     private static final String ONCHAIN_BASE = "https://api.geckoterminal.com/api/v2";
@@ -54,12 +69,14 @@ public class CoinGeckoDeFiProvider {
 
     // ── Trending pools (global) ────────────────────────────────────────────────
 
+    @Override
     public List<DeFiPoolDto> getTrendingPools() {
         return fetchPools(ONCHAIN_BASE + "/networks/trending_pools?include=dex,network");
     }
 
     // ── Pools for a specific network ──────────────────────────────────────────
 
+    @Override
     public List<DeFiPoolDto> getPoolsByNetwork(String networkId) {
         if (networkId == null || networkId.isBlank()) return List.of();
         String url = ONCHAIN_BASE + "/networks/" + networkId + "/pools?include=dex,network";
@@ -68,6 +85,7 @@ public class CoinGeckoDeFiProvider {
 
     // ── Pool search ───────────────────────────────────────────────────────────
 
+    @Override
     public List<DeFiPoolDto> searchPools(String query) {
         if (query == null || query.isBlank()) return List.of();
         try {

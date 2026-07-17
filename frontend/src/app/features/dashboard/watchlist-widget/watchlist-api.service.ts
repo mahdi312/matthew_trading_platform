@@ -34,8 +34,10 @@ export class WatchlistApiService {
   private readonly url  = `${this.base}${MARKET_API}/watchlist`;
 
   getWatchlist(assetClass?: string): Observable<WatchlistItem[]> {
-    const params = assetClass ? { assetClass } : {};
-    return this.http.get<WatchlistItem[]>(this.url, { params });
+    if (assetClass) {
+      return this.http.get<WatchlistItem[]>(this.url, { params: { assetClass } });
+    }
+    return this.http.get<WatchlistItem[]>(this.url);
   }
 
   addSymbol(req: AddWatchlistRequest): Observable<WatchlistItem> {

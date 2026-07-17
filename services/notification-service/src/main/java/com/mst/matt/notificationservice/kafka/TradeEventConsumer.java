@@ -1,18 +1,15 @@
 package com.mst.matt.notificationservice.kafka;
 
-import com.mst.matt.contracts.dto.AlertTriggeredEventDto;
 import com.mst.matt.contracts.dto.TradeEventDto;
 import com.mst.matt.notificationservice.client.IdentityClient;
 import com.mst.matt.notificationservice.service.EmailDispatchService;
 import com.mst.matt.notificationservice.service.TradingTelegramBot;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
-
-import static com.mst.matt.contracts.observability.CorrelationIdFilter.MDC_KEY;
-import static com.mst.matt.notificationservice.kafka.AlertTriggeredEventConsumer.TOPIC;
 
 /**
  * Kafka consumer for {@code trades.executed} and {@code trades.closed} topics.
@@ -43,12 +40,13 @@ public class TradeEventConsumer {
     public static final String GROUP_ID       = "notification-service-trades";
 
     private final IdentityClient identityClient;
-
     private final EmailDispatchService emailDispatchService;
-
     private final TradingTelegramBot telegramBot;
 
-    public TradeEventConsumer(IdentityClient identityClient, EmailDispatchService emailDispatchService, TradingTelegramBot telegramBot) {
+    public TradeEventConsumer(
+            IdentityClient identityClient,
+            @Autowired(required = false) EmailDispatchService emailDispatchService,
+            @Autowired(required = false) TradingTelegramBot telegramBot) {
         this.identityClient = identityClient;
         this.emailDispatchService = emailDispatchService;
         this.telegramBot = telegramBot;
@@ -124,27 +122,5 @@ public class TradeEventConsumer {
         sb.append("*Status:* ").append(event.getStatus()).append("\n");
         sb.append("_").append(event.getUpdatedAt()).append("_");
         return sb.toString();
-    }
-
-
-    @KafkaListener(
-            topics  = TOPIC,
-            groupId = GROUP_ID,
-            containerFactory = "kafkaListenerContainerFactory"
-    )
-    public void onAlertTriggered(
-            AlertTriggeredEventDto event,
-            @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
-            @Header(KafkaHeaders.OFFSET) long offset,
-            @Header(value = "X-Correlation-Id", required = false) String correlationId) {
-
-        if (correlationId != null) {
-            org.slf4j.MDC.put(MDC_KEY, correlationId);
-        }
-        try {
-            // ... existing method body unchanged ...
-        } finally {
-            org.slf4j.MDC.remove(MDC_KEY);
-        }
     }
 }
