@@ -5,6 +5,9 @@ import com.mst.matt.alertservice.dto.CreateAlertRequestDto;
 import com.mst.matt.alertservice.dto.UpdateAlertRequestDto;
 import com.mst.matt.alertservice.model.PriceAlert;
 import com.mst.matt.alertservice.service.AlertService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +31,8 @@ import java.util.NoSuchElementException;
  * {@code gateway-service}'s {@code application.yml}) — the Angular frontend
  * and the desktop {@code AlertApiClient} both call {@code /api/alerts/**}.</p>
  */
+@Tag(name = "Alerts", description = "Price alert CRUD for authenticated users")
+@SecurityRequirement(name = "bearer-jwt")
 @Slf4j
 @RestController
 @RequestMapping("/api/alerts")
@@ -36,6 +41,7 @@ public class AlertController {
 
     private final AlertService alertService;
 
+    @Operation(summary = "Create a new price alert")
     @PostMapping
     public ResponseEntity<AlertResponseDto> create(
             @RequestHeader("X-User-Id") Long userId,
@@ -46,6 +52,7 @@ public class AlertController {
         return ResponseEntity.status(HttpStatus.CREATED).body(AlertResponseDto.from(created));
     }
 
+    @Operation(summary = "List all alerts for the authenticated user")
     @GetMapping
     public ResponseEntity<List<AlertResponseDto>> listForUser(
             @RequestHeader("X-User-Id") Long userId) {
@@ -55,6 +62,7 @@ public class AlertController {
         return ResponseEntity.ok(alerts);
     }
 
+    @Operation(summary = "Get a single alert by ID")
     @GetMapping("/{id}")
     public ResponseEntity<?> getOne(
             @RequestHeader("X-User-Id") Long userId,
@@ -67,6 +75,7 @@ public class AlertController {
         }
     }
 
+    @Operation(summary = "Update an alert by ID")
     @PutMapping("/{id}")
     public ResponseEntity<?> update(
             @RequestHeader("X-User-Id") Long userId,
@@ -81,6 +90,7 @@ public class AlertController {
         }
     }
 
+    @Operation(summary = "Delete an alert by ID")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(
             @RequestHeader("X-User-Id") Long userId,

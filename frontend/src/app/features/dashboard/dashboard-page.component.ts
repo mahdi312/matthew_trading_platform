@@ -18,21 +18,13 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { DashboardApiService } from './dashboard-api.service';
 import { PortfolioStats, TradeSummary } from './dashboard.models';
 import { CandlestickChartComponent } from '../../shared/chart-library/candlestick-chart/candlestick-chart.component';
-import { WatchlistWidgetComponent } from './watchlist-widget/watchlist-widget.component';
 import { EconomicCalendarComponent } from './economic-calendar/economic-calendar.component';
 import { OhlcvBar } from '../../shared/chart-library/models/ohlcv.model';
 import { IndicatorSeries } from '../../shared/chart-library/models/indicator-series.model';
 
 /**
- * Landing screen after login.
- *
- * Shows:
- *  1. KPI cards — Total P&L, Win Rate, Trade Count, Open Positions.
- *  2. Equity curve — rendered via CandlestickChartComponent in line-chart
- *     mode (ohlcvData left empty; indicators carry the equity line).
- *  3. Recent trades table — last 20 trades with symbol, side, P&L, status.
- *
- * Route: /dashboard  (protected by authGuard, default redirect after login)
+ * Landing screen after login — KPIs, equity, calendar, recent trades.
+ * Watchlist lives in the global app-shell tools panel (all routes).
  */
 @Component({
   selector: 'app-dashboard-page',
@@ -50,7 +42,6 @@ import { IndicatorSeries } from '../../shared/chart-library/models/indicator-ser
     MatChipsModule,
     MatTooltipModule,
     CandlestickChartComponent,
-    WatchlistWidgetComponent,
     EconomicCalendarComponent,
   ],
   templateUrl: './dashboard-page.component.html',
@@ -59,24 +50,12 @@ import { IndicatorSeries } from '../../shared/chart-library/models/indicator-ser
 export class DashboardPageComponent implements OnInit {
   private readonly api = inject(DashboardApiService);
 
-  // ── Loading / error state ─────────────────────────────────────────────────
-
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
-
-  // ── Data signals ─────────────────────────────────────────────────────────
 
   readonly stats = signal<PortfolioStats | null>(null);
   readonly recentTrades = signal<TradeSummary[]>([]);
 
-  /**
-   * Equity curve converted to an IndicatorSeries so CandlestickChartComponent
-   * can render it as a line overlay on an empty OHLCV canvas.
-   *
-   * We use the equity curve timestamps as the category axis by constructing
-   * a matching fake OhlcvBar array (all prices set to the equity value so
-   * the "candle" degenerates into a point — the line series is what we see).
-   */
   readonly equityIndicator = computed<IndicatorSeries[]>(() => {
     const s = this.stats();
     if (!s?.equityCurve?.length) return [];
@@ -85,13 +64,12 @@ export class DashboardPageComponent implements OnInit {
         name: 'Equity',
         type: 'SMA',
         data: s.equityCurve.map(([, value]) => value),
-        color: '#42a5f5',
+        color: '#388bfd',
         subPane: false,
       },
     ];
   });
 
-  /** Fake OHLCV bars to serve as the category axis for the equity line chart. */
   readonly equityBars = computed<OhlcvBar[]>(() => {
     const s = this.stats();
     if (!s?.equityCurve?.length) return [];
@@ -105,8 +83,6 @@ export class DashboardPageComponent implements OnInit {
     }));
   });
 
-  // ── Table column definitions ─────────────────────────────────────────────
-
   readonly displayedColumns = [
     'symbol',
     'side',
@@ -117,8 +93,6 @@ export class DashboardPageComponent implements OnInit {
     'status',
     'openedAt',
   ];
-
-  // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
     this.loadDashboard();
@@ -169,8 +143,6 @@ export class DashboardPageComponent implements OnInit {
       },
     });
   }
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
 
   pnlClass(pnl: number | null): string {
     if (pnl === null) return '';

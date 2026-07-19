@@ -3,6 +3,9 @@ package com.mst.matt.marketservice.charting.controller;
 import com.mst.matt.marketservice.charting.model.ChartDrawing;
 import com.mst.matt.marketservice.charting.model.DrawingLayout;
 import com.mst.matt.marketservice.charting.service.ChartDrawingService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -37,6 +40,8 @@ import java.util.List;
  *   <tr><td>POST</td>  <td>/api/charts/layouts</td>         <td>Save current drawings as a named layout</td></tr>
  * </table>
  */
+@Tag(name = "Charting", description = "Chart drawings and named layout snapshots")
+@SecurityRequirement(name = "bearer-jwt")
 @Slf4j
 @RestController
 @RequestMapping("/api/charts")
@@ -56,6 +61,7 @@ public class ChartingController {
      * @param timeframe candle timeframe, e.g. {@code 1h}, {@code 1d}
      * @return list of drawings; empty list if none saved
      */
+    @Operation(summary = "Load active chart drawings for a symbol and timeframe")
     @GetMapping("/drawings")
     public ResponseEntity<List<ChartDrawing>> getDrawings(
             @RequestHeader("X-User-Id") Long   userId,
@@ -80,6 +86,7 @@ public class ChartingController {
      *                is assigned by the DB
      * @return the persisted drawing with its generated {@code id}
      */
+    @Operation(summary = "Persist a new chart drawing")
     @PostMapping("/drawings")
     public ResponseEntity<ChartDrawing> createDrawing(
             @RequestHeader("X-User-Id") Long         userId,
@@ -105,6 +112,7 @@ public class ChartingController {
      * @param userId    authenticated user id, injected by the gateway JWT filter
      * @param drawingId id of the drawing to delete
      */
+    @Operation(summary = "Delete a chart drawing by ID")
     @DeleteMapping("/drawings/{id}")
     public ResponseEntity<Void> deleteDrawing(
             @RequestHeader("X-User-Id") Long userId,
@@ -126,6 +134,7 @@ public class ChartingController {
      * @param timeframe candle timeframe
      * @return list of {@link DrawingLayout} metadata records (no drawing bodies)
      */
+    @Operation(summary = "List saved drawing layouts for a symbol and timeframe")
     @GetMapping("/layouts")
     public ResponseEntity<List<DrawingLayout>> getLayouts(
             @RequestHeader("X-User-Id") Long   userId,
@@ -146,6 +155,7 @@ public class ChartingController {
      * @param userId  authenticated user id, injected by the gateway JWT filter
      * @param request layout name plus the drawings to persist
      */
+    @Operation(summary = "Save drawings as a named layout")
     @PostMapping("/layouts")
     public ResponseEntity<Void> saveLayout(
             @RequestHeader("X-User-Id") Long          userId,

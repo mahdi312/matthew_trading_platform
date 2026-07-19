@@ -3,6 +3,9 @@ package com.mst.matt.identityservice.controller;
 import com.mst.matt.identityservice.dto.*;
 import com.mst.matt.identityservice.model.AppUser;
 import com.mst.matt.identityservice.repository.AppUserRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +42,8 @@ import java.util.stream.Collectors;
  * <p>All known tab names are exposed via {@code GET /api/admin/roles} for the frontend
  * to populate the permissions editor.</p>
  */
+@Tag(name = "Administration", description = "Admin-only user and role management")
+@SecurityRequirement(name = "bearer-jwt")
 @Slf4j
 @RestController
 @RequestMapping("/api/admin")
@@ -60,6 +65,7 @@ public class AdminController {
      * GET /api/admin/users
      * Returns all users in the system, ordered by creation date ascending.
      */
+    @Operation(summary = "List all users")
     @GetMapping("/users")
     public List<AppUserResponse> listUsers() {
         return userRepository.findAll()
@@ -72,6 +78,7 @@ public class AdminController {
      * GET /api/admin/users/{id}
      * Returns a single user by ID.
      */
+    @Operation(summary = "Get a user by ID")
     @GetMapping("/users/{id}")
     public AppUserResponse getUser(@PathVariable Long id) {
         return AppUserResponse.from(findOrThrow(id));
@@ -83,6 +90,7 @@ public class AdminController {
      * POST /api/admin/users
      * Admin creates a new local user with a specified role.
      */
+    @Operation(summary = "Create a new user")
     @PostMapping("/users")
     public ResponseEntity<AppUserResponse> createUser(
             @Valid @RequestBody AdminCreateUserRequest req) {
@@ -119,6 +127,7 @@ public class AdminController {
      * PUT /api/admin/users/{id}/role
      * Change a user's role. Request body: {@code { "role": "PRO_USER" }}.
      */
+    @Operation(summary = "Change a user's role")
     @PutMapping("/users/{id}/role")
     public AppUserResponse changeRole(
             @PathVariable Long id,
@@ -138,6 +147,7 @@ public class AdminController {
      * PUT /api/admin/users/{id}/active
      * Enable or disable a user account. Request body: {@code { "active": true/false }}.
      */
+    @Operation(summary = "Enable or disable a user account")
     @PutMapping("/users/{id}/active")
     public AppUserResponse setActive(
             @PathVariable Long id,
@@ -156,6 +166,7 @@ public class AdminController {
      * DELETE /api/admin/users/{id}
      * Hard-delete a user. This cannot be undone.
      */
+    @Operation(summary = "Delete a user by ID")
     @DeleteMapping("/users/{id}")
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
         AppUser user = findOrThrow(id);
@@ -173,6 +184,7 @@ public class AdminController {
      *
      * <p>Request body: {@code { "tabVisibility": { "CHART": true, "ADMIN": false } } }</p>
      */
+    @Operation(summary = "Set per-user tab visibility permissions")
     @PutMapping("/users/{id}/tab-permissions")
     public AppUserResponse setTabPermissions(
             @PathVariable Long id,
@@ -199,6 +211,7 @@ public class AdminController {
      * GET /api/admin/users/{id}/tab-permissions
      * Returns the current tab visibility map for the given user.
      */
+    @Operation(summary = "Get tab visibility permissions for a user")
     @GetMapping("/users/{id}/tab-permissions")
     public Map<String, Boolean> getTabPermissions(@PathVariable Long id) {
         AppUser user = findOrThrow(id);
@@ -216,6 +229,7 @@ public class AdminController {
      * Returns all available roles and the full list of controllable tab names.
      * Used by the frontend admin panel to populate role selector and tab checkboxes.
      */
+    @Operation(summary = "List available roles and controllable tabs")
     @GetMapping("/roles")
     public Map<String, Object> getRolesMetadata() {
         return Map.of(

@@ -51,8 +51,8 @@
 }
 
 .active-symbol {
-  border-color: #42a5f5 !important;
-  color: #42a5f5 !important;
+  border-color: var(--tp-accent-blue) !important;
+  color: var(--tp-accent-blue) !important;
 }
 
 // Replaced custom-symbol mat-form-field with SymbolSearchComponent
@@ -86,7 +86,7 @@
 
 .live-badge {
   display: inline-block;
-  background: #ef5350;
+  background: var(--tp-accent-red);
   color: #fff;
   font-size: 0.55rem;
   font-weight: 700;
@@ -100,7 +100,7 @@
 .live-price {
   font-size: 1rem;
   font-weight: 600;
-  color: #42a5f5;
+  color: var(--tp-accent-blue);
   margin-left: 8px;
   vertical-align: middle;
 }
@@ -146,7 +146,7 @@
   th, td {
     padding: 10px 14px;
     text-align: left;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid var(--tp-border);
   }
 
   th {
@@ -157,7 +157,7 @@
     opacity: 0.7;
   }
 
-  tr:hover td { background: rgba(255, 255, 255, 0.03); }
+  tr:hover td { background: var(--tp-bg-hover); }
 }
 
 .loading-row, .empty-row {
@@ -173,7 +173,7 @@
 
 // ── Colour helpers ────────────────────────────────────────────────────────
 
-.positive { color: #26a69a; }
-.negative { color: #ef5350; }
-.side-buy  { color: #26a69a; font-weight: 600; }
-.side-sell { color: #ef5350; font-weight: 600; }
+.positive { color: var(--tp-accent-green); }
+.negative { color: var(--tp-accent-red); }
+.side-buy  { color: var(--tp-accent-green); font-weight: 600; }
+.side-sell { color: var(--tp-accent-red); font-weight: 600; }

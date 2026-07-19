@@ -4,71 +4,64 @@ import {
   OnDestroy,
   inject,
   signal,
+  input,
+  output,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { MatCardModule } from '@angular/material/card';
-import { MatListModule } from '@angular/material/list';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatDividerModule } from '@angular/material/divider';
-import { Subscription } from 'rxjs';
+import { forkJoin, of, Subscription } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 
 import { WatchlistApiService, WatchlistItem } from './watchlist-api.service';
 import { MarketDataSocketService } from '../../../core/api/market-data-socket.service';
 import { SymbolSearchComponent, SymbolSearchResult } from '../../../shared/symbol-search';
 
+interface QuoteState {
+  price: number | null;
+  prevClose: number | null;
+}
+
 /**
- * WatchlistWidgetComponent
- *
- * Shows the current user's watchlist with live prices (via MarketDataSocketService —
- * the same STOMP connection used by live-trading-page, not a second WebSocket).
- *
- * Each row: symbol  |  live price  |  asset class badge  |  remove button
- * Clicking a row navigates to /charting?symbol=X.
- *
- * The top of the card contains the SymbolSearchComponent so users can add symbols
- * directly from the search box — connecting GAP 1 and GAP 2 naturally.
+ * Right-drawer watchlist: symbol name, live price, and day change vs previous close.
  */
 @Component({
   selector: 'app-watchlist-widget',
   standalone: true,
   imports: [
     CommonModule,
-    MatCardModule,
-    MatListModule,
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
     MatSnackBarModule,
-    MatDividerModule,
     SymbolSearchComponent,
   ],
   templateUrl: './watchlist-widget.component.html',
   styleUrls: ['./watchlist-widget.component.scss'],
 })
 export class WatchlistWidgetComponent implements OnInit, OnDestroy {
-  private readonly api          = inject(WatchlistApiService);
+  /** When true, show a close control (drawer mode). */
+  readonly drawerMode = input(false);
+  readonly closed = output<void>();
+
+  private readonly api = inject(WatchlistApiService);
   private readonly marketSocket = inject(MarketDataSocketService);
-  private readonly router       = inject(Router);
-  private readonly snack        = inject(MatSnackBar);
+  private readonly router = inject(Router);
+  private readonly snack = inject(MatSnackBar);
 
-  // ── State ─────────────────────────────────────────────────────────────────
-
-  readonly items   = signal<WatchlistItem[]>([]);
+  readonly items = signal<WatchlistItem[]>([]);
   readonly loading = signal(false);
-  readonly adding  = signal(false);
+  readonly adding = signal(false);
 
-  /** symbol → live price map */
-  readonly livePrices = signal<Record<string, number>>({});
+  /** symbol → live / seeded price + previous-day close */
+  readonly quotes = signal<Record<string, QuoteState>>({});
 
   private tickSubs: Subscription[] = [];
-
-  // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
     this.loadWatchlist();
@@ -76,10 +69,7 @@ export class WatchlistWidgetComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.cleanupSubscriptions();
-    this.marketSocket.disconnect();
   }
-
-  // ── Data loading ──────────────────────────────────────────────────────────
 
   loadWatchlist(): void {
     this.loading.set(true);
@@ -89,7 +79,7 @@ export class WatchlistWidgetComponent implements OnInit, OnDestroy {
       next: (data) => {
         this.items.set(data);
         this.loading.set(false);
-        this.subscribeToLivePrices(data.map((i) => i.symbol));
+        this.bootstrapQuotes(data.map((i) => i.symbol));
       },
       error: () => {
         this.snack.open('Failed to load watchlist.', 'Close', { duration: 3000 });
@@ -98,9 +88,6 @@ export class WatchlistWidgetComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ── Add from search ───────────────────────────────────────────────────────
-
-  /** Called by (symbolSelected) from SymbolSearchComponent. */
   onSymbolSelected(result: SymbolSearchResult): void {
     this.adding.set(true);
     this.api.addSymbol({ symbol: result.ticker, assetClass: result.assetClass || undefined }).subscribe({
@@ -108,7 +95,7 @@ export class WatchlistWidgetComponent implements OnInit, OnDestroy {
         const current = this.items();
         if (!current.some((i) => i.symbol === added.symbol)) {
           this.items.set([added, ...current]);
-          this.subscribeToLivePrices([added.symbol]);
+          this.bootstrapQuotes([added.symbol]);
         }
         this.snack.open(`${added.symbol} added to watchlist.`, 'OK', { duration: 2000 });
         this.adding.set(false);
@@ -120,16 +107,14 @@ export class WatchlistWidgetComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ── Remove ────────────────────────────────────────────────────────────────
-
   removeSymbol(event: Event, symbol: string): void {
-    event.stopPropagation(); // don't navigate when remove is clicked
+    event.stopPropagation();
     this.api.removeSymbol(symbol).subscribe({
       next: () => {
         this.items.update((list) => list.filter((i) => i.symbol !== symbol));
         this.marketSocket.unsubscribeSymbol(symbol);
-        this.livePrices.update((prices) => {
-          const copy = { ...prices };
+        this.quotes.update((q) => {
+          const copy = { ...q };
           delete copy[symbol];
           return copy;
         });
@@ -141,26 +126,70 @@ export class WatchlistWidgetComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ── Navigation ────────────────────────────────────────────────────────────
-
   navigateToChart(symbol: string): void {
     this.router.navigate(['/charting'], { queryParams: { symbol } });
   }
 
-  // ── Live price helpers ────────────────────────────────────────────────────
-
-  priceFor(symbol: string): number | null {
-    const p = this.livePrices()[symbol];
-    return p !== undefined ? p : null;
+  requestClose(): void {
+    this.closed.emit();
   }
 
-  // ── Private ───────────────────────────────────────────────────────────────
+  priceFor(symbol: string): number | null {
+    return this.quotes()[symbol]?.price ?? null;
+  }
+
+  /** Signed % change vs previous daily close; null if unknown. */
+  changePctFor(symbol: string): number | null {
+    const q = this.quotes()[symbol];
+    if (!q?.price || q.prevClose == null || q.prevClose === 0) return null;
+    return ((q.price - q.prevClose) / q.prevClose) * 100;
+  }
+
+  changeClass(symbol: string): string {
+    const pct = this.changePctFor(symbol);
+    if (pct === null) return '';
+    if (pct > 0) return 'up';
+    if (pct < 0) return 'down';
+    return 'flat';
+  }
+
+  private bootstrapQuotes(symbols: string[]): void {
+    if (!symbols.length) return;
+
+    const requests = symbols.map((sym) =>
+      forkJoin({
+        symbol: of(sym),
+        prevClose: this.api.getPreviousClose(sym),
+        latest: this.api.getLatestClose(sym),
+      }).pipe(catchError(() => of({ symbol: sym, prevClose: null as number | null, latest: null as number | null }))),
+    );
+
+    forkJoin(requests).subscribe((results) => {
+      this.quotes.update((current) => {
+        const next = { ...current };
+        for (const r of results) {
+          next[r.symbol] = {
+            price: r.latest ?? current[r.symbol]?.price ?? null,
+            prevClose: r.prevClose,
+          };
+        }
+        return next;
+      });
+      this.subscribeToLivePrices(symbols);
+    });
+  }
 
   private subscribeToLivePrices(symbols: string[]): void {
     for (const sym of symbols) {
       this.marketSocket.subscribeSymbol(sym);
       const sub = this.marketSocket.ticks$(sym).subscribe((tick) => {
-        this.livePrices.update((prices) => ({ ...prices, [tick.symbol]: tick.price }));
+        this.quotes.update((q) => ({
+          ...q,
+          [tick.symbol]: {
+            price: tick.price,
+            prevClose: q[tick.symbol]?.prevClose ?? null,
+          },
+        }));
       });
       this.tickSubs.push(sub);
     }
@@ -171,7 +200,6 @@ export class WatchlistWidgetComponent implements OnInit, OnDestroy {
       sub.unsubscribe();
     }
     this.tickSubs = [];
-    // Unsubscribe all current symbols from STOMP
     for (const item of this.items()) {
       this.marketSocket.unsubscribeSymbol(item.symbol);
     }

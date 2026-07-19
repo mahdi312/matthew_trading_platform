@@ -32,6 +32,7 @@ public class GatewaySecurityConfig {
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 // Permit all at the Spring Security level; the GatewayJwtAuthFilter
                 // enforces JWT auth before requests reach the routes.
+                // CORS is handled by CorsWebFilter (CorsConfig).
                 .authorizeExchange(exchanges -> exchanges.anyExchange().permitAll())
                 .build();
     }

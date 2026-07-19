@@ -4,15 +4,16 @@
 $Root = Get-MtpRoot
 Set-Location $Root
 Import-MtpDotEnv
-
-Test-MtpCommand java
+Initialize-MtpLocalDevDefaults
+Initialize-MtpJava25
 Test-MtpCommand mvn
 
 Write-Host "Starting backend services (each in its own window)..."
 Write-Host "Prerequisite: run scripts\local-infra-up.ps1 first."
+Write-Host "Kafka bootstrap: $env:KAFKA_BOOTSTRAP_SERVERS"
 Write-Host ""
 
-$services = Get-MtpServices | Sort-Object Order
+$services = Get-MtpServices | Sort-Object { $_.Order }
 foreach ($svc in $services) {
     Start-MtpServiceWindow -Name $svc.Name -Path $svc.Path -Port $svc.Port
     if ($svc.Order -le 3) { Start-Sleep -Seconds 8 }

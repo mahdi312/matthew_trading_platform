@@ -73,9 +73,28 @@ Run all scripts from the **`webapp/`** directory.
 | Angular (Docker/K8s) | 4200 / 80 | nginx container |
 | Postgres | 5432 | DBs: `mtp_identity`, `mtp_market`, `mtp_trading`, `mtp_alert` |
 | Redis | 6379 | L2 cache |
-| Kafka | 9092 | Events |
+| Kafka | 9092 | Events (host; container still uses 9092/29092) |
 
 **Clients never call microservices directly** — only the Gateway (`http://localhost:8080`).
+
+### OpenAPI / Swagger UI
+
+Each REST microservice exposes **springdoc** Swagger UI and OpenAPI JSON (Bearer JWT authorized in the UI). Use these for exploring and trying endpoints during local development.
+
+| Service | Swagger UI | OpenAPI JSON |
+|---------|------------|--------------|
+| identity-service | http://localhost:8081/swagger-ui.html | http://localhost:8081/v3/api-docs |
+| market-service | http://localhost:8082/swagger-ui.html | http://localhost:8082/v3/api-docs |
+| trading-service | http://localhost:8083/swagger-ui.html | http://localhost:8083/v3/api-docs |
+| reference-data-service | http://localhost:8085/swagger-ui.html | http://localhost:8085/v3/api-docs |
+| alert-service | http://localhost:8087/swagger-ui.html | http://localhost:8087/v3/api-docs |
+| ai-service | http://localhost:8089/swagger-ui.html | http://localhost:8089/v3/api-docs |
+
+**Tips**
+- In Swagger UI, click **Authorize** and paste a JWT from `POST /api/auth/login` (e.g. via Gateway or identity Swagger).
+- Prefer the **Via Gateway** server entry in each spec when testing the same paths the SPA uses (`http://localhost:8080`).
+- `notification-service` has no REST API (Kafka only) — no Swagger UI.
+- Controllers are annotated with `@Tag` / `@Operation`; specs stay in sync with the code.
 
 ---
 
@@ -121,6 +140,8 @@ Verify: [http://localhost:8761](http://localhost:8761) lists registered services
 ```
 
 Open [http://localhost:4200](http://localhost:4200). Dev config uses Gateway at `http://localhost:8080`.
+
+Local login (seeded on first `identity-service` start): username **`admin`**, password **`admin1234`**.
 
 ### Step 5 — Desktop (JavaFX thin client)
 
@@ -249,7 +270,7 @@ Edit secrets before production: `k8s/secrets/mtp-secrets.yaml` (or use sealed se
 | Port already in use | `local-backend-stop.ps1` or kill the process on that port |
 | Flyway / schema errors | Ensure Postgres is up; delete DB volume and re-run infra if needed |
 | Eureka registration fails | Start discovery → config → gateway before business services |
-| Frontend CORS errors | Gateway must allow `http://localhost:4200` origin |
+| Frontend CORS errors | Restart **gateway-service** after CORS changes; origins default to `http://localhost:4200` (`GATEWAY_CORS_ORIGINS`) |
 | Docker build slow | First `docker-up` builds all images; subsequent runs use cache |
 | K8s ImagePullBackOff | Run `k8s-deploy` on same machine as cluster, or push images to a registry and update `k8s/*/deployment.yaml` image names |
 

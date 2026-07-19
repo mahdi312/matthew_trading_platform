@@ -1,11 +1,12 @@
 /* ============================================================
    Global Styles — Trading Intelligence Platform (Angular)
-   Theme variables match the JavaFX desktop app palettes:
-     dark:  desktop/src/main/resources/css/dark-theme.css
-     light: desktop/src/main/resources/css/light-theme.css
+
+   Single design system:
+     --tp-*     app tokens (parity with JavaFX desktop palettes)
+     --mat-sys-* remapped to --tp-* so Material MDC surfaces
+                 (tables, tabs, sidenav, menus) never fight the theme
    ============================================================ */
 
-/* Reset & base */
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -16,18 +17,17 @@ html, body {
   height: 100%;
   font-family: 'IBM Plex Sans', 'Segoe UI', 'SF Pro Display', 'Helvetica Neue', sans-serif;
   font-size: 13px;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ── Dark theme (default) — mirrors dark-theme.css ─────────── */
+/* ── Dark theme (default) ──────────────────────────────────── */
 html, html.theme-dark {
-  /* Backgrounds */
   --tp-bg-primary: #0d1117;
   --tp-bg-secondary: #161b22;
   --tp-bg-card: #1c2128;
   --tp-bg-hover: #21262d;
   --tp-bg-active: #2d333b;
 
-  /* Accents */
   --tp-accent-blue: #388bfd;
   --tp-accent-green: #3fb950;
   --tp-accent-red: #f85149;
@@ -35,36 +35,66 @@ html, html.theme-dark {
   --tp-accent-purple: #bc8cff;
   --tp-accent-orange: #e3b341;
 
-  /* Text */
   --tp-text-primary: #e6edf3;
   --tp-text-secondary: #8b949e;
   --tp-text-muted: #484f58;
 
-  /* Borders */
   --tp-border: #30363d;
   --tp-border-focus: #388bfd;
 
-  /* Chart candles */
   --tp-candle-bull: #3fb950;
   --tp-candle-bear: #f85149;
 
+  --tp-radius-sm: 6px;
+  --tp-radius-md: 10px;
+  --tp-radius-lg: 14px;
+  --tp-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+
+  /* Bridge Material M3 → MTP tokens (fixes white tables / panels) */
+  --mat-sys-background: var(--tp-bg-primary);
+  --mat-sys-on-background: var(--tp-text-primary);
+  --mat-sys-surface: var(--tp-bg-card);
+  --mat-sys-surface-dim: var(--tp-bg-secondary);
+  --mat-sys-surface-bright: var(--tp-bg-hover);
+  --mat-sys-surface-container-lowest: var(--tp-bg-primary);
+  --mat-sys-surface-container-low: var(--tp-bg-secondary);
+  --mat-sys-surface-container: var(--tp-bg-card);
+  --mat-sys-surface-container-high: var(--tp-bg-hover);
+  --mat-sys-surface-container-highest: var(--tp-bg-active);
+  --mat-sys-on-surface: var(--tp-text-primary);
+  --mat-sys-on-surface-variant: var(--tp-text-secondary);
+  --mat-sys-inverse-surface: var(--tp-text-primary);
+  --mat-sys-inverse-on-surface: var(--tp-bg-primary);
+  --mat-sys-outline: var(--tp-border);
+  --mat-sys-outline-variant: var(--tp-border);
+  --mat-sys-primary: var(--tp-accent-blue);
+  --mat-sys-on-primary: #ffffff;
+  --mat-sys-primary-container: color-mix(in srgb, var(--tp-accent-blue) 22%, var(--tp-bg-card));
+  --mat-sys-on-primary-container: var(--tp-text-primary);
+  --mat-sys-secondary: var(--tp-text-secondary);
+  --mat-sys-on-secondary: var(--tp-bg-primary);
+  --mat-sys-secondary-container: var(--tp-bg-active);
+  --mat-sys-on-secondary-container: var(--tp-text-primary);
+  --mat-sys-tertiary: var(--tp-accent-purple);
+  --mat-sys-on-tertiary: #ffffff;
+  --mat-sys-error: var(--tp-accent-red);
+  --mat-sys-on-error: #ffffff;
+  --mat-sys-error-container: color-mix(in srgb, var(--tp-accent-red) 18%, var(--tp-bg-card));
+  --mat-sys-on-error-container: var(--tp-accent-red);
+
   background-color: var(--tp-bg-primary);
   color: var(--tp-text-primary);
-
-  /* Angular Material dark overrides */
   color-scheme: dark;
 }
 
-/* ── Light theme — mirrors light-theme.css ─────────────────── */
+/* ── Light theme ───────────────────────────────────────────── */
 html.theme-light {
-  /* Backgrounds */
   --tp-bg-primary: #f6f8fa;
   --tp-bg-secondary: #ffffff;
   --tp-bg-card: #ffffff;
   --tp-bg-hover: #f3f4f6;
   --tp-bg-active: #e8eaed;
 
-  /* Accents */
   --tp-accent-blue: #0969da;
   --tp-accent-green: #1a7f37;
   --tp-accent-red: #cf222e;
@@ -72,73 +102,389 @@ html.theme-light {
   --tp-accent-purple: #8250df;
   --tp-accent-orange: #bc4c00;
 
-  /* Text */
   --tp-text-primary: #1f2328;
   --tp-text-secondary: #57606a;
   --tp-text-muted: #8c959f;
 
-  /* Borders */
   --tp-border: #d0d7de;
   --tp-border-focus: #0969da;
 
-  /* Chart candles */
   --tp-candle-bull: #1a7f37;
   --tp-candle-bear: #cf222e;
 
+  --tp-shadow: 0 8px 24px rgba(31, 35, 40, 0.08);
+
+  --mat-sys-background: var(--tp-bg-primary);
+  --mat-sys-on-background: var(--tp-text-primary);
+  --mat-sys-surface: var(--tp-bg-card);
+  --mat-sys-surface-dim: var(--tp-bg-primary);
+  --mat-sys-surface-bright: var(--tp-bg-card);
+  --mat-sys-surface-container-lowest: #ffffff;
+  --mat-sys-surface-container-low: var(--tp-bg-primary);
+  --mat-sys-surface-container: var(--tp-bg-card);
+  --mat-sys-surface-container-high: var(--tp-bg-hover);
+  --mat-sys-surface-container-highest: var(--tp-bg-active);
+  --mat-sys-on-surface: var(--tp-text-primary);
+  --mat-sys-on-surface-variant: var(--tp-text-secondary);
+  --mat-sys-inverse-surface: #24292f;
+  --mat-sys-inverse-on-surface: #f6f8fa;
+  --mat-sys-outline: var(--tp-border);
+  --mat-sys-outline-variant: var(--tp-border);
+  --mat-sys-primary: var(--tp-accent-blue);
+  --mat-sys-on-primary: #ffffff;
+  --mat-sys-primary-container: #ddf4ff;
+  --mat-sys-on-primary-container: #0550ae;
+  --mat-sys-secondary: var(--tp-text-secondary);
+  --mat-sys-on-secondary: #ffffff;
+  --mat-sys-secondary-container: var(--tp-bg-active);
+  --mat-sys-on-secondary-container: var(--tp-text-primary);
+  --mat-sys-tertiary: var(--tp-accent-purple);
+  --mat-sys-on-tertiary: #ffffff;
+  --mat-sys-error: var(--tp-accent-red);
+  --mat-sys-on-error: #ffffff;
+  --mat-sys-error-container: #ffebe9;
+  --mat-sys-on-error-container: var(--tp-accent-red);
+
   background-color: var(--tp-bg-primary);
   color: var(--tp-text-primary);
-
   color-scheme: light;
 }
 
-/* ── Shared utility classes ─────────────────────────────────── */
+/* ── Shared utilities ──────────────────────────────────────── */
 .card {
   background-color: var(--tp-bg-card);
   border: 1px solid var(--tp-border);
-  border-radius: 8px;
+  border-radius: var(--tp-radius-md);
   padding: 16px;
   transition: border-color 0.15s ease;
 }
 
 .card:hover {
-  border-color: color-mix(in srgb, var(--tp-accent-blue) 33%, transparent);
+  border-color: color-mix(in srgb, var(--tp-accent-blue) 40%, var(--tp-border));
 }
 
-.text-primary {
-  color: var(--tp-text-primary);
+.text-primary { color: var(--tp-text-primary); }
+.text-secondary { color: var(--tp-text-secondary); }
+.text-muted { color: var(--tp-text-muted); }
+.text-green { color: var(--tp-accent-green); }
+.text-red { color: var(--tp-accent-red); }
+.text-blue { color: var(--tp-accent-blue); }
+.text-yellow { color: var(--tp-accent-yellow); }
+
+/* ── Page patterns (use across feature pages) ──────────────── */
+.page-shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.text-secondary {
-  color: var(--tp-text-secondary);
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
-.text-muted {
-  color: var(--tp-text-muted);
+.page-header .header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
-.text-green {
-  color: var(--tp-accent-green);
-}
-
-.text-red {
-  color: var(--tp-accent-red);
-}
-
-.text-blue {
+.page-header .header-icon {
+  font-size: 32px;
+  width: 32px;
+  height: 32px;
   color: var(--tp-accent-blue);
 }
 
-.text-yellow {
-  color: var(--tp-accent-yellow);
+.page-header .page-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--tp-text-primary);
+  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
 }
 
-/* ── Angular Material overrides to respect theme vars ───────── */
+.page-header .page-subtitle {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--tp-text-secondary);
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+.empty-state,
+.tp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 48px 16px;
+  color: var(--tp-text-secondary);
+  text-align: center;
+
+  mat-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    opacity: 0.45;
+  }
+}
+
+.tp-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--tp-radius-md);
+  border: 1px solid color-mix(in srgb, var(--tp-accent-red) 35%, var(--tp-border));
+  background: color-mix(in srgb, var(--tp-accent-red) 12%, var(--tp-bg-card));
+  color: var(--tp-text-primary);
+}
+
+.tp-alert mat-icon {
+  color: var(--tp-accent-red);
+}
+
+/* ── Angular Material — surfaces & chrome ──────────────────── */
 .mat-mdc-card {
   background-color: var(--tp-bg-card) !important;
   color: var(--tp-text-primary) !important;
+  border: 1px solid var(--tp-border) !important;
+  border-radius: var(--tp-radius-md) !important;
+  box-shadow: none !important;
 }
 
-/* Scrollbar styling */
+.mat-mdc-card-title {
+  color: var(--tp-text-primary) !important;
+  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif !important;
+}
+
+.mat-mdc-card-subtitle {
+  color: var(--tp-text-secondary) !important;
+}
+
+/* Tables — kill light azure-blue row surfaces */
+.mat-mdc-table,
+table.mat-mdc-table {
+  background: transparent !important;
+  color: var(--tp-text-primary) !important;
+  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif !important;
+}
+
+.mat-mdc-header-row,
+.mat-mdc-row,
+.mat-mdc-footer-row {
+  background: transparent !important;
+}
+
+.mat-mdc-header-cell {
+  color: var(--tp-text-secondary) !important;
+  border-bottom-color: var(--tp-border) !important;
+  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mat-mdc-cell,
+.mat-mdc-footer-cell {
+  color: var(--tp-text-primary) !important;
+  border-bottom-color: var(--tp-border) !important;
+  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif !important;
+}
+
+.mat-mdc-row:hover .mat-mdc-cell {
+  background: var(--tp-bg-hover) !important;
+}
+
+.mat-mdc-form-field {
+  --mdc-outlined-text-field-input-text-color: var(--tp-text-primary);
+  --mdc-outlined-text-field-label-text-color: var(--tp-text-secondary);
+  --mdc-outlined-text-field-hover-label-text-color: var(--tp-text-primary);
+  --mdc-outlined-text-field-focus-label-text-color: var(--tp-accent-blue);
+  --mdc-outlined-text-field-outline-color: var(--tp-border);
+  --mdc-outlined-text-field-hover-outline-color: var(--tp-text-muted);
+  --mdc-outlined-text-field-focus-outline-color: var(--tp-accent-blue);
+  --mdc-outlined-text-field-caret-color: var(--tp-accent-blue);
+  --mat-form-field-focus-select-arrow-color: var(--tp-accent-blue);
+}
+
+.mat-mdc-form-field .mat-mdc-input-element {
+  color: var(--tp-text-primary) !important;
+  caret-color: var(--tp-accent-blue);
+}
+
+.mat-mdc-form-field .mat-mdc-form-field-focus-overlay {
+  background-color: transparent;
+}
+
+.mat-mdc-form-field .mdc-floating-label,
+.mat-mdc-form-field .mdc-floating-label--float-above {
+  color: var(--tp-text-secondary) !important;
+}
+
+.mat-mdc-form-field.mat-focused .mdc-floating-label {
+  color: var(--tp-accent-blue) !important;
+}
+
+.mat-mdc-form-field input::placeholder,
+.mat-mdc-form-field textarea::placeholder {
+  color: var(--tp-text-muted) !important;
+  opacity: 1;
+}
+
+.mat-mdc-select-panel,
+.mat-mdc-autocomplete-panel,
+.mat-mdc-menu-panel {
+  background: var(--tp-bg-card) !important;
+  color: var(--tp-text-primary) !important;
+  border: 1px solid var(--tp-border);
+  border-radius: var(--tp-radius-md) !important;
+}
+
+.mat-mdc-option {
+  color: var(--tp-text-primary) !important;
+}
+
+.mat-mdc-option.mdc-list-item--selected:not(.mdc-list-item--disabled) {
+  background: var(--tp-bg-active) !important;
+}
+
+.mat-mdc-option:hover:not(.mdc-list-item--disabled) {
+  background: var(--tp-bg-hover) !important;
+}
+
+.mat-mdc-tab-group,
+.mat-mdc-tab-header {
+  --mdc-tab-indicator-active-indicator-color: var(--tp-accent-blue);
+  --mat-tab-header-active-label-text-color: var(--tp-accent-blue);
+  --mat-tab-header-active-focus-label-text-color: var(--tp-accent-blue);
+  --mat-tab-header-active-hover-label-text-color: var(--tp-accent-blue);
+  --mat-tab-header-inactive-label-text-color: var(--tp-text-secondary);
+  --mat-tab-header-inactive-hover-label-text-color: var(--tp-text-primary);
+  --mat-tab-header-inactive-focus-label-text-color: var(--tp-text-primary);
+}
+
+.mat-mdc-tab .mdc-tab__text-label {
+  color: inherit;
+}
+
+.mat-mdc-tab-body-content {
+  background: transparent;
+  color: var(--tp-text-primary);
+}
+
+.mat-drawer-container,
+.mat-sidenav-container {
+  background: var(--tp-bg-primary) !important;
+  color: var(--tp-text-primary) !important;
+}
+
+.mat-drawer,
+.mat-sidenav {
+  background: var(--tp-bg-secondary) !important;
+  color: var(--tp-text-primary) !important;
+  border-color: var(--tp-border) !important;
+}
+
+.mat-drawer-content,
+.mat-sidenav-content {
+  background: var(--tp-bg-primary) !important;
+  color: var(--tp-text-primary) !important;
+}
+
+.mat-mdc-list-base,
+.mat-mdc-list-item,
+.mat-mdc-list-item .mdc-list-item__primary-text {
+  color: var(--tp-text-primary) !important;
+}
+
+.mat-expansion-panel {
+  background: var(--tp-bg-card) !important;
+  color: var(--tp-text-primary) !important;
+}
+
+.mat-mdc-chip {
+  --mdc-chip-label-text-color: var(--tp-text-primary);
+  --mdc-chip-elevated-container-color: var(--tp-bg-active);
+  --mdc-chip-outline-color: var(--tp-border);
+}
+
+.mat-mdc-standard-chip {
+  background: var(--tp-bg-active) !important;
+  color: var(--tp-text-primary) !important;
+}
+
+.mat-mdc-icon-button {
+  color: var(--tp-text-secondary) !important;
+}
+
+.mat-mdc-button:not(.mat-mdc-button-disabled) {
+  --mdc-text-button-label-text-color: var(--tp-accent-blue);
+}
+
+.mat-mdc-outlined-button {
+  --mdc-outlined-button-label-text-color: var(--tp-text-primary);
+  --mdc-outlined-button-outline-color: var(--tp-border);
+  border-color: var(--tp-border) !important;
+  color: var(--tp-text-primary) !important;
+}
+
+.mat-mdc-unelevated-button.mat-primary,
+.mat-mdc-raised-button.mat-primary,
+.mat-mdc-fab.mat-primary {
+  --mdc-filled-button-container-color: var(--tp-accent-blue);
+  --mdc-filled-button-label-text-color: #ffffff;
+  --mdc-protected-button-container-color: var(--tp-accent-blue);
+  --mdc-protected-button-label-text-color: #ffffff;
+  background-color: var(--tp-accent-blue) !important;
+  color: #fff !important;
+}
+
+.mat-mdc-raised-button:not(.mat-primary):not(.mat-accent):not(.mat-warn):not(.mat-mdc-button-disabled) {
+  background-color: var(--tp-bg-active) !important;
+  color: var(--tp-text-primary) !important;
+}
+
+.mat-mdc-progress-bar {
+  --mdc-linear-progress-active-indicator-color: var(--tp-accent-blue);
+  --mdc-linear-progress-track-color: var(--tp-bg-active);
+}
+
+.mat-mdc-snack-bar-container {
+  --mdc-snackbar-container-color: var(--tp-bg-active);
+  --mdc-snackbar-supporting-text-color: var(--tp-text-primary);
+}
+
+.mat-mdc-dialog-container .mdc-dialog__surface {
+  background: var(--tp-bg-card) !important;
+  color: var(--tp-text-primary) !important;
+  border: 1px solid var(--tp-border);
+}
+
+.mat-datepicker-content {
+  background: var(--tp-bg-card) !important;
+  color: var(--tp-text-primary) !important;
+}
+
+.mat-calendar {
+  background: var(--tp-bg-card) !important;
+  color: var(--tp-text-primary) !important;
+}
+
+/* Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;

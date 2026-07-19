@@ -6,6 +6,8 @@ import com.mst.matt.contracts.provider.ai.AiAnalysisProvider;
 import com.mst.matt.contracts.provider.dto.*;
 import com.mst.matt.contracts.provider.ohlcv.OhlcvDataProvider;
 import com.mst.matt.contracts.provider.registry.ProviderRegistry;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,6 +37,7 @@ import java.util.List;
  * to market-service; {@code NoOpOhlcvDataProvider} is the final fallback.</p>
  */
 @RestController
+@Tag(name = "AI Analysis", description = "AI-powered market summaries, signals, and journal critique")
 @RequestMapping("/api/ai")
 public class AiController {
 
@@ -64,6 +67,7 @@ public class AiController {
      * @param assetClass optional asset class override; default CRYPTO
      * @param request    optional body with OHLCV bars and news articles
      */
+    @Operation(summary = "Generate a market summary with caller-supplied OHLCV data")
     @PostMapping("/summary/{symbol}")
     public ResponseEntity<AiMarketSummaryDto> summarizeMarket(
             @PathVariable String symbol,
@@ -91,6 +95,7 @@ public class AiController {
      * If market-service is unreachable the registry falls through to NoOp
      * and the analysis proceeds with an empty bar list (graceful degradation).</p>
      */
+    @Operation(summary = "Generate a market summary (auto-fetches OHLCV)")
     @GetMapping("/summary/{symbol}")
     public ResponseEntity<AiMarketSummaryDto> summarizeMarketGet(
             @PathVariable String symbol,
@@ -115,6 +120,7 @@ public class AiController {
      * @param assetClass optional asset class override
      * @param request    optional body with OHLCV bars and news articles
      */
+    @Operation(summary = "Generate trading signals with caller-supplied OHLCV data")
     @PostMapping("/signals/{symbol}")
     public ResponseEntity<List<AiSignalDto>> generateSignals(
             @PathVariable String symbol,
@@ -140,6 +146,7 @@ public class AiController {
      * if market-service is unavailable the signals are generated with an
      * empty bar list (NoOp fallback).</p>
      */
+    @Operation(summary = "Generate trading signals (auto-fetches OHLCV)")
     @GetMapping("/signals/{symbol}")
     public ResponseEntity<List<AiSignalDto>> generateSignalsGet(
             @PathVariable String symbol,
@@ -162,6 +169,7 @@ public class AiController {
      *
      * @param request body containing tradeId, tradeContext (JSON/text), assetClass
      */
+    @Operation(summary = "Generate an AI critique of a trade journal entry")
     @PostMapping("/journal-critique")
     public ResponseEntity<AiTradeJournalCritiqueDto> critiqueJournalEntry(
             @RequestBody CritiqueRequest request) {
@@ -183,6 +191,7 @@ public class AiController {
      * @param query   symbol or natural-language query (e.g. "NVDA", "AI sector")
      * @param modelId optional registry model id to use (e.g. "groq:llama-3.3-70b")
      */
+    @Operation(summary = "Get an AI news insight for a symbol or query")
     @GetMapping("/news/insight")
     public ResponseEntity<AiNewsService.AiInsight> getNewsInsight(
             @RequestParam(defaultValue = "MARKET") String query,
@@ -196,6 +205,7 @@ public class AiController {
     /**
      * Returns all known LLM models (configured status can be checked client-side).
      */
+    @Operation(summary = "List all available LLM models")
     @GetMapping("/models")
     public ResponseEntity<?> listModels() {
         return ResponseEntity.ok(newsService.availableModels());
@@ -204,6 +214,7 @@ public class AiController {
     /**
      * Returns only LLM models that have an API key configured.
      */
+    @Operation(summary = "List LLM models with configured API keys")
     @GetMapping("/models/configured")
     public ResponseEntity<?> listConfiguredModels() {
         return ResponseEntity.ok(newsService.configuredModels());

@@ -5,8 +5,8 @@
   width: 100%;
   height: 100%;
   min-height: 400px;
-  background: #1a1a2e;
-  border-radius: 4px;
+  background: var(--tp-bg-primary);
+  border-radius: var(--tp-radius-sm, 6px);
   overflow: hidden;
 }
 
@@ -17,8 +17,8 @@
   align-items: center;
   gap: 2px;
   padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.04);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--tp-bg-secondary);
+  border-bottom: 1px solid var(--tp-border);
   flex-shrink: 0;
 
   button {
@@ -34,8 +34,8 @@
     }
 
     &.active {
-      background: rgba(144, 202, 249, 0.16);
-      color: #90caf9;
+      background: color-mix(in srgb, var(--tp-accent-blue) 20%, transparent);
+      color: var(--tp-accent-blue);
       border-radius: 4px;
     }
   }
@@ -50,9 +50,9 @@
 .drawing-hint {
   padding: 4px 12px;
   font-size: 0.75rem;
-  color: #ffd700;
-  background: rgba(255, 215, 0, 0.06);
-  border-bottom: 1px solid rgba(255, 215, 0, 0.16);
+  color: var(--tp-accent-yellow);
+  background: color-mix(in srgb, var(--tp-accent-yellow) 10%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--tp-accent-yellow) 22%, transparent);
   flex-shrink: 0;
 }
 
@@ -79,13 +79,14 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--tp-text-secondary);
   pointer-events: none;
 
   mat-icon {
     font-size: 48px;
     width: 48px;
     height: 48px;
+    opacity: 0.5;
   }
 
   span {

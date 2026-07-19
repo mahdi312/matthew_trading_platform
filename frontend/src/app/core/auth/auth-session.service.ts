@@ -47,28 +47,37 @@ export class AuthSessionService {
   }
 
   /**
-   * Decodes the `roles` claim from the current JWT and returns it as a string
-   * array, or an empty array if the token is absent/unparseable.
+   * Decodes role claim(s) from the current JWT.
    *
-   * The claim name and format matches identity-service's `JwtUtil.java`:
-   * the token payload contains a `"roles"` field which may be either
-   * a JSON array of strings (e.g. `["ROLE_ADMIN","ROLE_USER"]`) or a
-   * single comma-separated string — both are handled here.
-   *
-   * This reuses the private {@link decodeClaims} method exactly as
-   * `getCurrentUserId()` already does, so there is no second JWT decoder.
+   * identity-service {@code JwtUtil} embeds a single {@code role} claim
+   * (e.g. {@code "ADMIN"}). Authorities at runtime are {@code ROLE_<role>}.
+   * Older tokens may use a {@code roles} array — both shapes are supported.
    */
   getRoles(): string[] {
     const token = this.token();
     if (!token) return [];
     const claims = this.decodeClaims(token);
     if (!claims) return [];
+
+    const normalized = new Set<string>();
+    const add = (value: unknown) => {
+      if (value === undefined || value === null) return;
+      const s = String(value).trim();
+      if (!s) return;
+      normalized.add(s);
+      if (!s.startsWith('ROLE_')) {
+        normalized.add(`ROLE_${s}`);
+      }
+    };
+
+    add(claims['role']);
     const raw = claims['roles'];
-    if (Array.isArray(raw)) return raw.map(String);
-    if (typeof raw === 'string' && raw.length > 0) {
-      return raw.split(',').map(r => r.trim()).filter(Boolean);
+    if (Array.isArray(raw)) {
+      raw.forEach(add);
+    } else if (typeof raw === 'string' && raw.length > 0) {
+      raw.split(',').forEach(add);
     }
-    return [];
+    return [...normalized];
   }
 
   /** Returns true if the current JWT contains the given role string (case-sensitive). */

@@ -30,19 +30,21 @@
   font-size: 36px;
   width: 36px;
   height: 36px;
-  color: #ffa726;
+  color: var(--tp-accent-orange);
 }
 
 .page-title {
   margin: 0;
   font-size: 22px;
   font-weight: 600;
+  color: var(--tp-text-primary);
+  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
 }
 
 .page-subtitle {
   margin: 2px 0 0;
   font-size: 13px;
-  opacity: 0.6;
+  color: var(--tp-text-secondary);
 }
 
 .header-actions {
@@ -81,7 +83,7 @@
 
 .kpi-label {
   font-size: 12px;
-  opacity: 0.6;
+  color: var(--tp-text-secondary);
   margin-bottom: 6px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -91,6 +93,7 @@
   font-size: 24px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  color: var(--tp-text-primary);
 }
 
 .wins-losses {
@@ -115,17 +118,17 @@
 }
 
 .month-row:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--tp-bg-hover);
 }
 
 /* ── P&L colour helpers ──────────────────────────────────────────────────── */
 .positive {
-  color: #66bb6a;
+  color: var(--tp-accent-green);
   font-weight: 600;
 }
 
 .negative {
-  color: #ef5350;
+  color: var(--tp-accent-red);
   font-weight: 600;
 }
 

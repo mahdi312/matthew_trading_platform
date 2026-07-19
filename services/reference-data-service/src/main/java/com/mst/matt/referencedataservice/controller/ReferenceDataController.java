@@ -4,6 +4,8 @@ import com.mst.matt.contracts.enums.AssetClass;
 import com.mst.matt.contracts.provider.dto.*;
 import com.mst.matt.referencedataservice.cache.RefDataCacheService;
 import com.mst.matt.referencedataservice.provider.nft.CoinGeckoNftDataProvider;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +24,7 @@ import java.util.List;
  * yet on the {@code NftDataProvider} contract.</p>
  */
 @RestController
+@Tag(name = "Reference Data", description = "Fundamentals, news, sentiment, calendar, NFT, and DeFi data")
 @RequestMapping("/api/reference")
 public class ReferenceDataController {
 
@@ -37,6 +40,7 @@ public class ReferenceDataController {
 
     // ── 1. Fundamentals ───────────────────────────────────────────────────────
 
+    @Operation(summary = "Get fundamentals for a symbol by asset class")
     @GetMapping("/fundamentals/{symbol}")
     public ResponseEntity<?> getFundamentals(
             @PathVariable String symbol,
@@ -58,6 +62,7 @@ public class ReferenceDataController {
 
     // ── 2. News ───────────────────────────────────────────────────────────────
 
+    @Operation(summary = "Get news articles by symbol or asset class")
     @GetMapping("/news")
     public ResponseEntity<List<NewsArticleDto>> getNews(
             @RequestParam(required = false) String symbol,
@@ -91,6 +96,7 @@ public class ReferenceDataController {
 
     // ── 3. Sentiment ──────────────────────────────────────────────────────────
 
+    @Operation(summary = "Get sentiment snapshot for a symbol or market index")
     @GetMapping("/sentiment")
     public ResponseEntity<SentimentSnapshotDto> getSentiment(
             @RequestParam(required = false) String symbol,
@@ -106,6 +112,7 @@ public class ReferenceDataController {
 
     // ── 4. Economic Calendar ──────────────────────────────────────────────────
 
+    @Operation(summary = "Get upcoming economic calendar events")
     @GetMapping("/calendar")
     public ResponseEntity<List<EconomicEventDto>> getCalendar(
             @RequestParam(defaultValue = "STOCK") AssetClass assetClass,
@@ -129,6 +136,7 @@ public class ReferenceDataController {
 
     // ── 5. Symbol Search ──────────────────────────────────────────────────────
 
+    @Operation(summary = "Search symbols across asset classes")
     @GetMapping("/search")
     public ResponseEntity<List<SymbolSearchResultDto>> search(
             @RequestParam String query,
@@ -143,6 +151,7 @@ public class ReferenceDataController {
 
     // ── 6. NFT Collections ────────────────────────────────────────────────────
 
+    @Operation(summary = "List, search, or get trending NFT collections")
     @GetMapping("/nft/collections")
     public ResponseEntity<List<NftCollectionDto>> getNftCollections(
             @RequestParam(defaultValue = "20")  int     limit,
@@ -163,6 +172,7 @@ public class ReferenceDataController {
 
     // ── 7. DeFi Pools (via ProviderRegistry + cache) ───────────────────────────
 
+    @Operation(summary = "List, search, or get trending DeFi pools")
     @GetMapping("/defi/pools")
     public ResponseEntity<List<DeFiPoolDto>> getDefiPools(
             @RequestParam(required = false)       String  network,

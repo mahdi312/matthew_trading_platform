@@ -6,6 +6,9 @@ import com.mst.matt.marketservice.charting.service.IndicatorResult;
 import com.mst.matt.marketservice.charting.service.IndicatorService;
 import com.mst.matt.marketservice.model.OhlcvBar;
 import com.mst.matt.marketservice.service.OhlcvStorageService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.ta4j.core.BarSeries;
@@ -42,6 +45,8 @@ import java.util.List;
  * {@link IndicatorService#compute} with the user's saved {@link IndicatorConfig}
  * (falling back to the {@code SWING_TRADING} preset if no config has been saved).</p>
  */
+@Tag(name = "Indicators", description = "Indicator configuration and on-demand computation")
+@SecurityRequirement(name = "bearer-jwt")
 @Slf4j
 @RestController
 @RequestMapping("/api/indicators")
@@ -72,6 +77,7 @@ public class IndicatorController {
      * @param userId authenticated user id, injected by the gateway JWT filter
      * @return the user's {@link IndicatorConfig} or a preset default; never 404
      */
+    @Operation(summary = "Get the authenticated user's indicator configuration")
     @GetMapping("/configs")
     public ResponseEntity<IndicatorConfig> getConfig(
             @RequestHeader("X-User-Id") Long userId) {
@@ -99,6 +105,7 @@ public class IndicatorController {
      * @param config indicator configuration body from the client
      * @return the persisted {@link IndicatorConfig} with its assigned {@code id}
      */
+    @Operation(summary = "Save the authenticated user's indicator configuration")
     @PostMapping("/configs")
     public ResponseEntity<IndicatorConfig> saveConfig(
             @RequestHeader("X-User-Id") Long            userId,
@@ -139,6 +146,7 @@ public class IndicatorController {
      * @param limit     max number of bars to load (default: {@value DEFAULT_LIMIT})
      * @return computed indicator values and series for all enabled indicators
      */
+    @Operation(summary = "Compute technical indicators for a symbol")
     @GetMapping("/{symbol}/compute")
     public ResponseEntity<IndicatorResult> computeIndicators(
             @RequestHeader("X-User-Id")           Long   userId,

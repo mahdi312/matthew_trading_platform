@@ -3,6 +3,9 @@ package com.mst.matt.marketservice.watchlist.controller;
 import com.mst.matt.marketservice.watchlist.dto.AddWatchlistRequest;
 import com.mst.matt.marketservice.watchlist.dto.WatchlistItemDto;
 import com.mst.matt.marketservice.watchlist.service.WatchlistService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -28,6 +31,8 @@ import java.util.List;
  * gateway's {@code GatewayJwtAuthFilter} — exactly the same pattern used by
  * {@code alert-service}'s {@code AlertController}.</p>
  */
+@Tag(name = "Watchlist", description = "Per-user symbol watchlists")
+@SecurityRequirement(name = "bearer-jwt")
 @Slf4j
 @RestController
 @RequestMapping("/api/market/watchlist")
@@ -46,6 +51,7 @@ public class WatchlistController {
      * @param assetClass optional — if supplied and the user has no watchlist yet,
      *                  seeds with the matching asset-class defaults
      */
+    @Operation(summary = "Get the current user's watchlist")
     @GetMapping
     public ResponseEntity<List<WatchlistItemDto>> getWatchlist(
             @RequestHeader("X-User-Id") Long userId,
@@ -64,6 +70,7 @@ public class WatchlistController {
      * Adds a symbol to the watchlist.  Idempotent — re-adding an existing symbol
      * returns the stored entry with {@code 200 OK} instead of {@code 201 Created}.
      */
+    @Operation(summary = "Add a symbol to the watchlist")
     @PostMapping
     public ResponseEntity<WatchlistItemDto> addSymbol(
             @RequestHeader("X-User-Id") Long userId,
@@ -86,6 +93,7 @@ public class WatchlistController {
      * Removes a symbol from the watchlist.
      * Returns {@code 204 No Content} even if the symbol was not present (idempotent).
      */
+    @Operation(summary = "Remove a symbol from the watchlist")
     @DeleteMapping("/{symbol}")
     public ResponseEntity<Void> removeSymbol(
             @RequestHeader("X-User-Id") Long userId,

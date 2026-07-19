@@ -36,8 +36,8 @@ export class LoginPageComponent {
   private readonly fb = inject(FormBuilder);
 
   readonly form = this.fb.nonNullable.group({
-    email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required, Validators.minLength(6)]],
+    username: ['', [Validators.required, Validators.minLength(3)]],
+    password: ['', [Validators.required, Validators.minLength(8)]],
   });
 
   readonly loading = signal(false);
@@ -49,18 +49,17 @@ export class LoginPageComponent {
     this.loading.set(true);
     this.errorMessage.set(null);
 
-    const { email, password } = this.form.getRawValue();
-    this.auth.login({ email, password }).subscribe({
+    const { username, password } = this.form.getRawValue();
+    this.auth.login({ username, password }).subscribe({
       next: () => {
-        // Token is persisted + authSession.refresh() already called by AuthService.
-        // Connect the notification bell for the newly-authenticated session.
+        this.loading.set(false);
         this.notification.connect();
-        this.router.navigate(['/dashboard']);
+        void this.router.navigate(['/dashboard']);
       },
       error: (err) => {
         this.loading.set(false);
         this.errorMessage.set(
-          err?.error?.message ?? 'Login failed. Please check your credentials.'
+          err?.error?.error ?? err?.error?.message ?? 'Login failed. Please check your credentials.'
         );
       },
     });

@@ -88,7 +88,7 @@ public class GatewayJwtAuthFilter implements GlobalFilter, Ordered {
         String path = request.getURI().getPath();
         String correlationId = resolveCorrelationId(request);
 
-        if (isPublicPath(path)) {
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod().name()) || isPublicPath(path)) {
             ServerHttpRequest stamped = request.mutate()
                     .header(CORRELATION_ID_HEADER, correlationId)
                     .build();

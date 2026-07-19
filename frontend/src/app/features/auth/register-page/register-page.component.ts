@@ -12,7 +12,6 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../auth.service';
 import { NotificationService } from '../../../core/notification/notification.service';
 
-/** Cross-field validator: password must match confirmPassword. */
 function passwordMatchValidator(control: AbstractControl): ValidationErrors | null {
   const pwd = control.get('password')?.value;
   const confirm = control.get('confirmPassword')?.value;
@@ -44,9 +43,10 @@ export class RegisterPageComponent {
 
   readonly form = this.fb.nonNullable.group(
     {
-      username: ['', [Validators.required, Validators.minLength(3)]],
-      email: ['', [Validators.required, Validators.email]],
-      password: ['', [Validators.required, Validators.minLength(6)]],
+      username: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(80)]],
+      displayName: ['', [Validators.required, Validators.maxLength(100)]],
+      email: ['', [Validators.email]],
+      password: ['', [Validators.required, Validators.minLength(8)]],
       confirmPassword: ['', Validators.required],
     },
     { validators: passwordMatchValidator }
@@ -62,22 +62,34 @@ export class RegisterPageComponent {
     this.loading.set(true);
     this.errorMessage.set(null);
 
-    const { email, password, username } = this.form.getRawValue();
-    this.auth.register({ email, password, username }).subscribe({
-      next: () => {
-        // Token is persisted + authSession.refresh() already called by AuthService.
-        this.notification.connect();
-        this.router.navigate(['/dashboard']);
-      },
-      error: (err) => {
-        this.loading.set(false);
-        this.errorMessage.set(
-          err?.error?.message ?? 'Registration failed. Please try again.'
-        );
-      },
-    });
+    const { email, password, username, displayName } = this.form.getRawValue();
+    this.auth
+      .register({
+        username,
+        password,
+        displayName,
+        email: email || undefined,
+      })
+      .subscribe({
+        next: () => {
+          this.loading.set(false);
+          this.notification.connect();
+          void this.router.navigate(['/dashboard']);
+        },
+        error: (err) => {
+          this.loading.set(false);
+          this.errorMessage.set(
+            err?.error?.error ?? err?.error?.message ?? 'Registration failed. Please try again.'
+          );
+        },
+      });
   }
 
-  togglePassword(): void { this.hidePassword.update((v) => !v); }
-  toggleConfirm(): void { this.hideConfirm.update((v) => !v); }
+  togglePassword(): void {
+    this.hidePassword.update((v) => !v);
+  }
+
+  toggleConfirm(): void {
+    this.hideConfirm.update((v) => !v);
+  }
 }

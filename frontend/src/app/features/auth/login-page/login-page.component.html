@@ -1,93 +1,101 @@
-<div class="auth-container">
-  <mat-card class="auth-card">
-    <mat-card-header>
-      <mat-card-title>Sign in to MTP</mat-card-title>
-      <mat-card-subtitle>Matthew Trading Platform</mat-card-subtitle>
-    </mat-card-header>
+<div class="auth-page">
+  <div class="auth-backdrop" aria-hidden="true"></div>
 
-    <mat-card-content>
-      <!-- Google OAuth2 -->
-      <button
-        mat-stroked-button
-        class="google-btn"
-        type="button"
-        (click)="onGoogleSignIn()"
-      >
-        <mat-icon svgIcon="google" aria-hidden="true"></mat-icon>
-        Sign in with Google
-      </button>
+  <section class="auth-panel">
+    <header class="auth-brand">
+      <span class="auth-brand__mark">MTP</span>
+      <p class="auth-brand__tag">Matthew Trading Platform</p>
+    </header>
 
-      <div class="divider">
-        <span>or sign in with email</span>
-      </div>
+    <mat-card class="auth-card" appearance="outlined">
+      <mat-card-header>
+        <mat-card-title>Sign in</mat-card-title>
+        <mat-card-subtitle>Access your trading workspace</mat-card-subtitle>
+      </mat-card-header>
 
-      <!-- Email / password form -->
-      <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Email</mat-label>
-          <input
-            matInput
-            type="email"
-            formControlName="email"
-            autocomplete="email"
-            placeholder="trader@example.com"
-          />
-          @if (form.get('email')?.hasError('required')) {
-            <mat-error>Email is required</mat-error>
-          } @else if (form.get('email')?.hasError('email')) {
-            <mat-error>Enter a valid email address</mat-error>
-          }
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Password</mat-label>
-          <input
-            matInput
-            [type]="hidePassword() ? 'password' : 'text'"
-            formControlName="password"
-            autocomplete="current-password"
-          />
-          <button
-            mat-icon-button
-            matSuffix
-            type="button"
-            (click)="togglePasswordVisibility()"
-            [attr.aria-label]="hidePassword() ? 'Show password' : 'Hide password'"
-          >
-            <mat-icon>{{ hidePassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
-          </button>
-          @if (form.get('password')?.hasError('required')) {
-            <mat-error>Password is required</mat-error>
-          } @else if (form.get('password')?.hasError('minlength')) {
-            <mat-error>Password must be at least 6 characters</mat-error>
-          }
-        </mat-form-field>
-
-        @if (errorMessage()) {
-          <p class="error-msg">{{ errorMessage() }}</p>
-        }
-
+      <mat-card-content>
         <button
-          mat-flat-button
-          color="primary"
-          type="submit"
-          class="full-width submit-btn"
-          [disabled]="form.invalid || loading()"
+          mat-stroked-button
+          class="google-btn"
+          type="button"
+          (click)="onGoogleSignIn()"
         >
-          @if (loading()) {
-            <mat-spinner diameter="20"></mat-spinner>
-          } @else {
-            Sign In
-          }
+          <mat-icon aria-hidden="true">login</mat-icon>
+          Continue with Google
         </button>
-      </form>
-    </mat-card-content>
 
-    <mat-card-actions align="end">
-      <span class="register-link">
-        Don't have an account?
-        <a routerLink="/register">Create one</a>
-      </span>
-    </mat-card-actions>
-  </mat-card>
+        <div class="divider"><span>or use username</span></div>
+
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Username</mat-label>
+            <input
+              matInput
+              formControlName="username"
+              autocomplete="username"
+              placeholder="admin"
+            />
+            @if (form.get('username')?.hasError('required')) {
+              <mat-error>Username is required</mat-error>
+            } @else if (form.get('username')?.hasError('minlength')) {
+              <mat-error>Username must be at least 3 characters</mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Password</mat-label>
+            <input
+              matInput
+              [type]="hidePassword() ? 'password' : 'text'"
+              formControlName="password"
+              autocomplete="current-password"
+            />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              (click)="togglePasswordVisibility()"
+              [attr.aria-label]="hidePassword() ? 'Show password' : 'Hide password'"
+            >
+              <mat-icon>{{ hidePassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
+            </button>
+            @if (form.get('password')?.hasError('required')) {
+              <mat-error>Password is required</mat-error>
+            } @else if (form.get('password')?.hasError('minlength')) {
+              <mat-error>Password must be at least 8 characters</mat-error>
+            }
+          </mat-form-field>
+
+          @if (errorMessage()) {
+            <p class="error-msg" role="alert">{{ errorMessage() }}</p>
+          }
+
+          <button
+            mat-flat-button
+            color="primary"
+            type="submit"
+            class="full-width submit-btn"
+            [disabled]="form.invalid || loading()"
+          >
+            @if (loading()) {
+              <mat-spinner diameter="20"></mat-spinner>
+            } @else {
+              Sign in
+            }
+          </button>
+        </form>
+
+        <p class="dev-hint">
+          Local default: <code>admin</code> / <code>admin1234</code>
+        </p>
+      </mat-card-content>
+
+      <mat-card-actions align="end">
+        <span class="auth-footer">
+          New here?
+          <a routerLink="/register">Create an account</a>
+        </span>
+      </mat-card-actions>
+    </mat-card>
+  </section>
 </div>

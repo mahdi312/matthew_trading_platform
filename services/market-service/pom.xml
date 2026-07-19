@@ -162,6 +162,11 @@
             <artifactId>ta4j-core</artifactId>
             <version>0.16</version>
         </dependency>
+        <!-- ── OpenAPI / Swagger UI ───────────────────────────────────── -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

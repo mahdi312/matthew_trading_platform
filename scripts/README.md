@@ -2,7 +2,11 @@
 
 One-click helpers for local, Docker, and Kubernetes environments.
 
-**Run from `webapp/`:**
+**Java:** microservices require **JDK 25+**. `build-all` and `local-backend-start` auto-detect `JAVA_HOME` (`MTP_JAVA_HOME`, existing `JAVA_HOME` if ≥25, or `D:\java\jdk-25` / Temurin paths). Desktop uses **JDK 21**. Service windows launch with `pwsh -NoProfile` (falls back to `powershell`) so a broken profile (e.g. missing `DockerCompletion`) cannot break startups.
+
+**Ports (Windows):** Postgres host **5432**, Kafka host **9092** (avoids Hyper-V reserved ranges). Compose-internal ports are unchanged.
+
+**Run from repo root:**
 
 ```powershell
 # Windows
@@ -23,7 +27,7 @@ See [`docs/RUN_GUIDE.md`](../docs/RUN_GUIDE.md) for full instructions.
 
 | Script | Description |
 |--------|-------------|
-| `build-all` | `mvn clean install -DskipTests` for all modules |
+| `build-all` | `mvn clean install -DskipTests` (auto JDK 25+, fails on Maven errors) |
 | `local-infra-up` | Postgres, Redis, ZooKeeper, Kafka (Compose) |
 | `local-infra-down` | Stop infra containers |
 | `local-backend-start` | All Spring Boot services (windows on Windows, background on bash) |

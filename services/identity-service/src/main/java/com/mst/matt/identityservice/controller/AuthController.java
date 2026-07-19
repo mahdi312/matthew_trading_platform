@@ -9,6 +9,9 @@ import com.mst.matt.identityservice.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -32,9 +35,10 @@ import java.util.Map;
  * <p>All sensitive operations (password verification, BCrypt hashing) are delegated
  * to {@link UserService} — this controller is intentionally thin.</p>
  */
+@Tag(name = "Authentication", description = "User login, registration, and OAuth2 flows")
 @Slf4j
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
@@ -49,6 +53,8 @@ public class AuthController {
      * @param request login credentials
      * @return 200 with {@link AuthResponse} on success, 401 on bad credentials
      */
+    @Operation(summary = "Login with username and password")
+    @SecurityRequirements
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
         try {
@@ -80,6 +86,8 @@ public class AuthController {
      * @param request registration payload
      * @return 201 with {@link AuthResponse} on success, 400 if username/email taken
      */
+    @Operation(summary = "Register a new local account")
+    @SecurityRequirements
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
         try {
@@ -117,6 +125,8 @@ public class AuthController {
      * <p>To initiate Google login, the client must navigate to:
      * {@code /oauth2/authorization/google}</p>
      */
+    @Operation(summary = "Get Google OAuth2 flow information")
+    @SecurityRequirements
     @GetMapping("/oauth2/google/callback")
     public ResponseEntity<Map<String, String>> googleCallbackInfo() {
         return ResponseEntity.ok(Map.of(
@@ -135,6 +145,8 @@ public class AuthController {
      * redirects here with {@code ?token=<jwt>}.  In a real SPA the frontend
      * JavaScript reads the token from the URL and stores it (e.g., localStorage).</p>
      */
+    @Operation(summary = "OAuth2 success callback landing page")
+    @SecurityRequirements
     @GetMapping("/oauth2/success")
     public ResponseEntity<Map<String, String>> oauth2Success(
             @RequestParam(required = false) String token) {

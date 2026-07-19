@@ -27,19 +27,21 @@
   font-size: 36px;
   width: 36px;
   height: 36px;
-  color: #26c6da;
+  color: var(--tp-accent-blue);
 }
 
 .page-title {
   margin: 0;
   font-size: 22px;
   font-weight: 600;
+  color: var(--tp-text-primary);
+  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
 }
 
 .page-subtitle {
   margin: 2px 0 0;
   font-size: 13px;
-  opacity: 0.6;
+  color: var(--tp-text-secondary);
 }
 
 /* ── Tab chrome ──────────────────────────────────────────────────────────── */
@@ -52,7 +54,8 @@
   margin-left: 6px;
   padding: 0 6px;
   border-radius: 10px;
-  background: rgba(255,255,255,0.15);
+  background: var(--tp-bg-active);
+  color: var(--tp-text-secondary);
   font-size: 11px;
 }
 
@@ -113,7 +116,7 @@
 }
 
 .data-row:hover {
-  background: rgba(255,255,255,0.04);
+  background: var(--tp-bg-hover);
 }
 
 /* NFT collection name cell */
@@ -143,7 +146,7 @@
 }
 
 .apy-cell {
-  color: #66bb6a;
+  color: var(--tp-accent-green);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }

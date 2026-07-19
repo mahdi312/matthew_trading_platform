@@ -26,11 +26,21 @@
   font-size: 36px;
   width: 36px;
   height: 36px;
-  color: #ef5350;
+  color: var(--tp-accent-red);
 }
 
-.page-title { margin: 0; font-size: 22px; font-weight: 600; }
-.page-subtitle { margin: 2px 0 0; font-size: 13px; opacity: 0.6; }
+.page-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--tp-text-primary);
+  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+}
+.page-subtitle {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--tp-text-secondary);
+}
 
 /* ── Role notice ─────────────────────────────────────────────────────────── */
 .role-notice mat-card-content {
@@ -41,10 +51,11 @@
 }
 
 code {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--tp-bg-active);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 12px;
+  color: var(--tp-accent-blue);
 }
 
 /* ── Loading / error ─────────────────────────────────────────────────────── */
@@ -76,7 +87,7 @@ code {
   min-width: 700px;
 }
 
-.user-row:hover { background: rgba(255,255,255,0.04); }
+.user-row:hover { background: var(--tp-bg-hover); }
 
 /* User name cell */
 .user-name-cell {
@@ -117,7 +128,7 @@ code {
 
   &.selected {
     opacity: 1;
-    background: rgba(66, 165, 245, 0.25);
+    background: color-mix(in srgb, var(--tp-accent-blue) 25%, var(--tp-bg-card));
   }
 }
 

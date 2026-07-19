@@ -1,7 +1,8 @@
-// ── Dashboard layout ──────────────────────────────────────────────────────
+:host {
+  display: block;
+}
 
 .dashboard-root {
-  padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -13,6 +14,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 }
 
 .dashboard-title {
@@ -20,9 +22,8 @@
   font-size: 1.75rem;
   font-weight: 600;
   letter-spacing: -0.02em;
+  color: var(--tp-text-primary);
 }
-
-// ── Loading / Error ───────────────────────────────────────────────────────
 
 .loading-center {
   display: flex;
@@ -34,22 +35,15 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(239, 83, 80, 0.12);
-  border: 1px solid rgba(239, 83, 80, 0.4);
+  background: color-mix(in srgb, var(--tp-accent-red) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tp-accent-red) 40%, transparent);
   border-radius: 8px;
   padding: 12px 16px;
-  color: #ef5350;
+  color: var(--tp-accent-red);
 
-  mat-icon {
-    color: inherit;
-  }
-
-  span {
-    flex: 1;
-  }
+  mat-icon { color: inherit; }
+  span { flex: 1; }
 }
-
-// ── KPI Grid ──────────────────────────────────────────────────────────────
 
 .kpi-grid {
   display: grid;
@@ -57,17 +51,15 @@
   gap: 16px;
 }
 
-.kpi-card {
-  mat-card-content {
-    padding: 16px !important;
-  }
+.kpi-card mat-card-content {
+  padding: 16px !important;
 }
 
 .kpi-label {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  opacity: 0.7;
+  color: var(--tp-text-secondary);
   margin-bottom: 4px;
 }
 
@@ -75,19 +67,16 @@
   font-size: 1.8rem;
   font-weight: 700;
   line-height: 1.2;
+  color: var(--tp-text-primary);
 }
 
-// ── Equity Curve ──────────────────────────────────────────────────────────
-
-.equity-card {
-  mat-card-content {
-    padding: 0 16px 16px !important;
-  }
+.equity-card mat-card-content {
+  padding: 0 16px 16px !important;
 }
 
 .equity-chart {
   display: block;
-  height: 280px;
+  height: 320px;
   width: 100%;
 }
 
@@ -97,17 +86,16 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 180px;
-  opacity: 0.5;
+  height: 200px;
+  color: var(--tp-text-secondary);
 
   mat-icon {
     font-size: 40px;
     width: 40px;
     height: 40px;
+    opacity: 0.5;
   }
 }
-
-// ── Trades Table ──────────────────────────────────────────────────────────
 
 .trades-card {
   mat-card-header {
@@ -132,7 +120,7 @@
 }
 
 .trade-row:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--tp-bg-hover);
 }
 
 .empty-trades {
@@ -141,52 +129,32 @@
   align-items: center;
   gap: 8px;
   padding: 48px 16px;
-  opacity: 0.5;
+  color: var(--tp-text-secondary);
   text-align: center;
 
   mat-icon {
     font-size: 36px;
     width: 36px;
     height: 36px;
+    opacity: 0.5;
   }
 }
 
-// ── Colour helpers ────────────────────────────────────────────────────────
+.positive { color: var(--tp-accent-green); }
+.negative { color: var(--tp-accent-red); }
 
-.positive { color: #26a69a; }
-.negative { color: #ef5350; }
-
-.side-buy  { color: #26a69a; font-weight: 600; }
-.side-sell { color: #ef5350; font-weight: 600; }
+.side-buy  { color: var(--tp-accent-green); font-weight: 600; }
+.side-sell { color: var(--tp-accent-red); font-weight: 600; }
 
 .chip-open {
-  background: rgba(38, 166, 154, 0.15) !important;
-  color: #26a69a !important;
+  background: color-mix(in srgb, var(--tp-accent-green) 15%, transparent) !important;
+  color: var(--tp-accent-green) !important;
 }
 
 .chip-closed {
-  background: rgba(120, 120, 120, 0.15) !important;
-  color: #aaa !important;
+  background: var(--tp-bg-active) !important;
+  color: var(--tp-text-secondary) !important;
 }
-
-// ── Watchlist + Equity Curve main row ─────────────────────────────────────
-
-.main-row {
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 16px;
-  align-items: start;
-
-  @media (max-width: 900px) {
-    grid-template-columns: 1fr;
-  }
-}
-
-.watchlist-col {
-  min-height: 400px;
-}
-
-// ── Economic Calendar row ─────────────────────────────────────────────────
 
 .calendar-row {
   display: block;

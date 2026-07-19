@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=_lib/common.sh
 source "$SCRIPT_DIR/_lib/common.sh"
 
 cd "$(mtp_root)"
@@ -38,25 +39,34 @@ if command -v kind >/dev/null 2>&1; then
   fi
 fi
 
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/configmaps/
-kubectl apply -f k8s/secrets/
-kubectl apply -f k8s/postgres/
-kubectl apply -f k8s/redis/
-kubectl apply -f k8s/zookeeper/
-kubectl apply -f k8s/kafka/
-kubectl apply -f k8s/discovery-service/
-kubectl apply -f k8s/config-service/
-kubectl apply -f k8s/gateway-service/
-kubectl apply -f k8s/identity-service/
-kubectl apply -f k8s/market-service/
-kubectl apply -f k8s/trading-service/
-kubectl apply -f k8s/notification-service/
-kubectl apply -f k8s/reference-data-service/
-kubectl apply -f k8s/ai-service/
-kubectl apply -f k8s/alert-service/
-kubectl apply -f k8s/frontend/
-kubectl apply -f k8s/ingress.yaml
+echo "Applying Kubernetes manifests..."
+for m in \
+  k8s/namespace.yaml \
+  k8s/configmaps/ \
+  k8s/secrets/ \
+  k8s/postgres/ \
+  k8s/redis/ \
+  k8s/zookeeper/ \
+  k8s/kafka/ \
+  k8s/discovery-service/ \
+  k8s/config-service/ \
+  k8s/gateway-service/ \
+  k8s/identity-service/ \
+  k8s/market-service/ \
+  k8s/trading-service/ \
+  k8s/notification-service/ \
+  k8s/reference-data-service/ \
+  k8s/ai-service/ \
+  k8s/alert-service/ \
+  k8s/frontend/ \
+  k8s/ingress.yaml
+do
+  if [[ -e "$m" ]]; then
+    kubectl apply -f "$m"
+  else
+    echo "  WARNING: skipping missing manifest $m" >&2
+  fi
+done
 
 echo ""
 echo "Add to /etc/hosts: 127.0.0.1 mtp.local"

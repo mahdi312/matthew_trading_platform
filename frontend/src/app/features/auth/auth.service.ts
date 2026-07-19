@@ -5,32 +5,30 @@ import { environment } from '../../../environments/environment';
 import { AuthSessionService } from '../../core/auth/auth-session.service';
 import { AUTH_API } from '../../core/api/api-paths';
 
+/** Matches identity-service LoginRequest (username + password). */
 export interface LoginRequest {
-  email: string;
+  username: string;
   password: string;
 }
 
+/** Matches identity-service RegisterRequest. */
 export interface RegisterRequest {
-  email: string;
+  username: string;
   password: string;
-  username?: string;
+  displayName: string;
+  email?: string;
 }
 
 export interface AuthResponse {
   token: string;
+  expiresIn?: number;
+  userId?: number;
+  username?: string;
+  role?: string;
 }
 
 /**
- * Thin HTTP wrapper around identity-service's AuthController endpoints.
- *
- * On success, writes the returned JWT to `localStorage['mtp_auth_token']`
- * (the exact key `AuthSessionService.TOKEN_STORAGE_KEY` expects) and calls
- * `authSession.refresh()` so every signal consumer (notification bell, guards,
- * etc.) reacts immediately without a page reload.
- *
- * The notification-bell connect call is intentionally left to the call-site
- * (LoginPageComponent / RegisterPageComponent) so that the injected
- * `NotificationService` dependency stays out of this low-level service.
+ * Thin HTTP wrapper around identity-service AuthController via the Gateway.
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -52,15 +50,9 @@ export class AuthService {
   }
 
   /**
-   * Initiates the Google OAuth2 flow.
-   * Redirects the browser to the OAuth2 authorization endpoint exposed by
-   * identity-service's Spring Security config (the starting point, NOT the
-   * callback URL).  The backend redirects back with a code; identity-service
-   * exchanges it and eventually issues a JWT the same way as /api/auth/login.
+   * Starts Google OAuth2 via Spring Security (Gateway → identity-service).
    */
   initiateGoogleOAuth(): void {
-    // Spring Security registers the initiation URL at
-    // /oauth2/authorization/google which the Gateway proxies as-is.
     window.location.href = `${this.baseUrl}/oauth2/authorization/google`;
   }
 
@@ -77,7 +69,7 @@ export class AuthService {
     try {
       localStorage.setItem(AuthSessionService.TOKEN_STORAGE_KEY, token);
     } catch {
-      // localStorage unavailable — token stays in memory via signal only.
+      // localStorage unavailable
     }
     this.authSession.refresh();
   }

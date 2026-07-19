@@ -1,49 +1,109 @@
-.auth-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.auth-page {
+  position: relative;
   min-height: 100vh;
-  background: var(--mat-app-background-color, #121212);
-  padding: 16px;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+  overflow: hidden;
+  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+}
+
+.auth-backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%, color-mix(in srgb, var(--tp-accent-blue) 22%, transparent), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 90% 80%, color-mix(in srgb, var(--tp-accent-green) 12%, transparent), transparent 50%),
+    linear-gradient(165deg, var(--tp-bg-primary) 0%, var(--tp-bg-secondary) 100%);
+  pointer-events: none;
+}
+
+.auth-panel {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.auth-brand {
+  text-align: center;
+}
+
+.auth-brand__mark {
+  display: block;
+  font-size: 2.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--tp-text-primary);
+  line-height: 1.1;
+}
+
+.auth-brand__tag {
+  margin: 8px 0 0;
+  font-size: 0.95rem;
+  color: var(--tp-text-secondary);
 }
 
 .auth-card {
   width: 100%;
-  max-width: 420px;
+  border-radius: 16px !important;
+  border: 1px solid var(--tp-border) !important;
+  background: color-mix(in srgb, var(--tp-bg-card) 92%, transparent) !important;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 24px 48px color-mix(in srgb, #000 35%, transparent);
+  padding-bottom: 8px;
 
   mat-card-header {
-    margin-bottom: 16px;
+    margin-bottom: 8px;
+    padding-top: 8px;
   }
 
   mat-card-title {
-    font-size: 1.5rem;
-    font-weight: 600;
+    font-size: 1.35rem !important;
+    font-weight: 600 !important;
+  }
+
+  mat-card-subtitle {
+    margin-top: 4px !important;
+    font-size: 0.9rem !important;
+  }
+
+  mat-card-content {
+    padding-top: 8px !important;
   }
 }
 
 .google-btn {
   width: 100%;
-  display: flex;
+  height: 44px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 4px;
+  border-radius: 10px !important;
 }
 
 .divider {
   display: flex;
   align-items: center;
-  text-align: center;
-  margin: 16px 0;
-  color: var(--mat-text-secondary-color, rgba(255, 255, 255, 0.6));
-  font-size: 0.875rem;
+  margin: 18px 0 14px;
+  color: var(--tp-text-muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
 
   &::before,
   &::after {
-    flex: 1;
-    border-top: 1px solid var(--mat-divider-color, rgba(255, 255, 255, 0.12));
     content: '';
-    margin: 0 8px;
+    flex: 1;
+    border-top: 1px solid var(--tp-border);
+  }
+
+  span {
+    padding: 0 12px;
+    white-space: nowrap;
   }
 }
 
@@ -53,9 +113,12 @@
 }
 
 .submit-btn {
-  margin-top: 8px;
+  margin-top: 4px;
   height: 48px;
   font-size: 1rem;
+  font-weight: 600;
+  border-radius: 10px !important;
+  letter-spacing: 0.01em;
 
   mat-spinner {
     display: inline-block;
@@ -63,18 +126,45 @@
 }
 
 .error-msg {
-  color: var(--mat-error-color, #f44336);
+  color: var(--tp-accent-red);
   font-size: 0.875rem;
-  margin: 4px 0 8px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--tp-accent-red) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tp-accent-red) 35%, transparent);
 }
 
-.register-link {
+.dev-hint {
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--tp-bg-secondary);
+  border: 1px dashed var(--tp-border);
+  color: var(--tp-text-secondary);
+  font-size: 0.8rem;
+  text-align: center;
+
+  code {
+    color: var(--tp-accent-blue);
+    font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+    font-size: 0.85em;
+  }
+}
+
+.auth-footer {
+  width: 100%;
+  display: block;
+  text-align: center;
   font-size: 0.875rem;
-  padding: 8px 0;
+  color: var(--tp-text-secondary);
+  padding: 4px 0 8px;
 
   a {
-    color: var(--mat-primary-color, #90caf9);
+    color: var(--tp-accent-blue);
     text-decoration: none;
+    font-weight: 500;
+    margin-left: 4px;
 
     &:hover {
       text-decoration: underline;

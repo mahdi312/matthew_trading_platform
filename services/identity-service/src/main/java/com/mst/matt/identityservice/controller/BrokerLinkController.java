@@ -2,6 +2,9 @@ package com.mst.matt.identityservice.controller;
 
 import com.mst.matt.contracts.enums.BrokerType;
 import com.mst.matt.identityservice.dto.BrokerConnectRequest;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -30,9 +33,11 @@ import java.util.Map;
  * Identity-service only issues identity and stores credentials —
  * actual trading goes through {@code trading-service}.</p>
  */
+@Tag(name = "Broker Links", description = "Connect and manage broker account credentials")
+@SecurityRequirement(name = "bearer-jwt")
 @Slf4j
 @RestController
-@RequestMapping("/auth/brokers")
+@RequestMapping("/api/auth/brokers")
 public class BrokerLinkController {
 
     /**
@@ -46,6 +51,7 @@ public class BrokerLinkController {
      * @param request    API key / secret payload
      * @return 501 stub response
      */
+    @Operation(summary = "Connect a broker account via API key")
     @PostMapping("/{brokerType}/connect")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, String>> connectBroker(
@@ -78,6 +84,7 @@ public class BrokerLinkController {
      *
      * @return 501 stub response
      */
+    @Operation(summary = "List broker connections for the current user")
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, String>> listBrokerConnections() {
@@ -94,6 +101,7 @@ public class BrokerLinkController {
      * @param brokerType the broker connection to revoke
      * @return 501 stub response
      */
+    @Operation(summary = "Revoke a broker connection")
     @DeleteMapping("/{brokerType}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, String>> revokeBrokerConnection(

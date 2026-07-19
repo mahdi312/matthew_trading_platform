@@ -9,6 +9,10 @@ import com.mst.matt.identityservice.repository.AppUserRepository;
 import com.mst.matt.identityservice.repository.UserProfileRepository;
 import com.mst.matt.identityservice.service.AppSettingsService;
 import com.mst.matt.identityservice.service.ProfilePersistenceService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +45,8 @@ import java.util.stream.Collectors;
  * <p>Business logic ported from the desktop's {@code ProfileSettingsController} service calls,
  * not the JavaFX FXML binding code.</p>
  */
+@Tag(name = "User Profile", description = "User profiles, app settings, and notification preferences")
+@SecurityRequirement(name = "bearer-jwt")
 @Slf4j
 @RestController
 @RequestMapping("/api/profile")
@@ -66,6 +72,7 @@ public class ProfileController {
      * GET /api/profile
      * Returns all profiles owned by the authenticated user, most recently used first.
      */
+    @Operation(summary = "List profiles for the authenticated user")
     @GetMapping
     public List<UserProfileResponse> listProfiles(
             @AuthenticationPrincipal UserDetails principal) {
@@ -82,6 +89,7 @@ public class ProfileController {
      * POST /api/profile
      * Create a new profile for the authenticated user.
      */
+    @Operation(summary = "Create a new user profile")
     @PostMapping
     public ResponseEntity<UserProfileResponse> createProfile(
             @AuthenticationPrincipal UserDetails principal,
@@ -122,6 +130,7 @@ public class ProfileController {
      * GET /api/profile/{id}
      * Get a specific profile; must be owned by the caller.
      */
+    @Operation(summary = "Get a profile by ID")
     @GetMapping("/{id}")
     public UserProfileResponse getProfile(
             @AuthenticationPrincipal UserDetails principal,
@@ -137,6 +146,7 @@ public class ProfileController {
      * Update a specific profile; must be owned by the caller.
      * Also touches {@code lastAccessedAt} to reflect this activity.
      */
+    @Operation(summary = "Update a profile by ID")
     @PutMapping("/{id}")
     public UserProfileResponse updateProfile(
             @AuthenticationPrincipal UserDetails principal,
@@ -177,6 +187,7 @@ public class ProfileController {
      * DELETE /api/profile/{id}
      * Delete a profile owned by the caller.
      */
+    @Operation(summary = "Delete a profile by ID")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProfile(
             @AuthenticationPrincipal UserDetails principal,
@@ -195,6 +206,7 @@ public class ProfileController {
      * GET /api/profile/settings
      * Returns all app settings for the authenticated user as a key→value map.
      */
+    @Operation(summary = "Get app settings for the authenticated user")
     @GetMapping("/settings")
     public Map<String, String> getSettings(
             @AuthenticationPrincipal UserDetails principal) {
@@ -208,6 +220,7 @@ public class ProfileController {
      * Upsert one or more settings for the authenticated user.
      * The request body is {@code { "settings": { "ui.theme": "dark", ... } }}.
      */
+    @Operation(summary = "Update app settings for the authenticated user")
     @PutMapping("/settings")
     public Map<String, String> updateSettings(
             @AuthenticationPrincipal UserDetails principal,
@@ -225,6 +238,7 @@ public class ProfileController {
      * GET /api/profile/preferences
      * Returns notification preferences for the authenticated user.
      */
+    @Operation(summary = "Get notification preferences for the authenticated user")
     @GetMapping("/preferences")
     public com.mst.matt.contracts.dto.UserPreferencesDto getOwnNotificationPreferences(
             @AuthenticationPrincipal UserDetails principal) {
@@ -240,6 +254,8 @@ public class ProfileController {
      * (internal Docker/K8s network); add a service-to-service auth check here before
      * exposing this Gateway route publicly.
      */
+    @Operation(summary = "Get notification preferences by user ID (service-to-service)")
+    @SecurityRequirements
     @GetMapping("/{userId}/preferences")
     public com.mst.matt.contracts.dto.UserPreferencesDto getNotificationPreferences(
             @PathVariable Long userId) {
@@ -250,6 +266,7 @@ public class ProfileController {
      * PUT /api/profile/preferences
      * Caller updates their own notification preferences.
      */
+    @Operation(summary = "Update notification preferences for the authenticated user")
     @PutMapping("/preferences")
     public com.mst.matt.contracts.dto.UserPreferencesDto updateNotificationPreferences(
             @AuthenticationPrincipal UserDetails principal,

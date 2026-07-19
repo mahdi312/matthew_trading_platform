@@ -32,12 +32,15 @@ services:
       - "2181:2181"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "bash", "-c", "echo ruok | nc -w 2 localhost 2181 | grep imok"]
+      # ruok is not in the default 4lw whitelist on cp-zookeeper 7.5; srvr is.
+      test: ["CMD", "bash", "-c", "echo srvr | nc -w 2 localhost 2181 | grep Mode"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 15s
 
   # ── Infrastructure: Kafka ──────────────────────────────────────────────────
+  # Host port 9092 (not 9092): Windows Hyper-V often reserves 9081–9180.
   kafka:
     image: confluentinc/cp-kafka:7.5.1
     container_name: mtp-kafka
@@ -49,6 +52,7 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_DOCKER://0.0.0.0:29092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_DOCKER://kafka:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_DOCKER:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_DOCKER
@@ -62,6 +66,7 @@ services:
       interval: 15s
       timeout: 10s
       retries: 5
+      start_period: 30s
 
   # ── Infrastructure: Redis (L2 shared cache) ────────────────────────────────
   #

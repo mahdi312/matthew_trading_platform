@@ -58,12 +58,16 @@ public class SecurityConfig {
     // ── Public endpoints ──────────────────────────────────────────────────────
 
     private static final String[] PUBLIC_ENDPOINTS = {
-            "/auth/login",
-            "/auth/register",
-            "/auth/oauth2/**",          // OAuth2 callback redirect target
-            "/oauth2/**",               // Spring Security OAuth2 authorization endpoints
+            "/api/auth/login",
+            "/api/auth/register",
+            "/api/auth/oauth2/**",
+            "/auth/oauth2/**",
+            "/oauth2/**",
             "/actuator/health",
-            "/actuator/info"
+            "/actuator/info",
+            "/v3/api-docs/**",
+            "/swagger-ui/**",
+            "/swagger-ui.html"
     };
 
     // ── Security filter chain ─────────────────────────────────────────────────

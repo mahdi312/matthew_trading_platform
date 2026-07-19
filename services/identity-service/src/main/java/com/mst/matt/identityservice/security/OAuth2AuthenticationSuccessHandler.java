@@ -49,9 +49,9 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
         log.info("OAuth2 login success for userId={}", user.getId());
 
-        // Redirect to frontend with JWT in query param.
-        // In production: use a cookie or a short-lived code exchange instead.
-        String targetUrl = "/auth/oauth2/success?token=" + jwt;
+        // Redirect to the Angular SPA callback with JWT in the query string.
+        String frontendBase = System.getenv().getOrDefault("FRONTEND_BASE_URL", "http://localhost:4200");
+        String targetUrl = frontendBase.replaceAll("/$", "") + "/auth/callback?token=" + jwt;
         getRedirectStrategy().sendRedirect(request, response, targetUrl);
     }
 }

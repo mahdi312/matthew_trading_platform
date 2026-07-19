@@ -3,14 +3,15 @@
 
 $Root = Get-MtpRoot
 $Desktop = Join-Path $Root "desktop"
+if (-not (Test-Path $Desktop)) { throw "Desktop module not found: $Desktop" }
 Set-Location $Desktop
 
-Test-MtpCommand java
+Import-MtpDotEnv
+Initialize-MtpJava21
 Test-MtpCommand mvn
 
-Import-MtpDotEnv
 $env:GATEWAY_BASE_URL = if ($env:GATEWAY_BASE_URL) { $env:GATEWAY_BASE_URL } else { "http://localhost:8080" }
 
 Write-Host "Starting desktop client (Gateway: $env:GATEWAY_BASE_URL)"
 Write-Host "Prerequisite: backend + gateway running (scripts\local-backend-start.ps1)"
-mvn -q javafx:run
+Invoke-MtpMaven -q javafx:run

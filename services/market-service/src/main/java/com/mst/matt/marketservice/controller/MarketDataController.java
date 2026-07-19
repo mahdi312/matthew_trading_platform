@@ -9,6 +9,8 @@ import com.mst.matt.marketservice.service.AssetClassDetector;
 import com.mst.matt.marketservice.service.OhlcvCacheService;
 import com.mst.matt.marketservice.service.OhlcvStorageService;
 import com.mst.matt.marketservice.service.SymbolSyncService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -50,6 +52,7 @@ import java.util.List;
  * </ol>
  */
 @Slf4j
+@Tag(name = "Market Data", description = "Historical OHLCV bars and symbol catalogue")
 @RestController
 @RequestMapping("/api/market")
 @RequiredArgsConstructor
@@ -80,6 +83,7 @@ public class MarketDataController {
      * @param timeframe candle timeframe: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w (default: 1h)
      * @param limit     max bars to return (default 200, max 1000)
      */
+    @Operation(summary = "Fetch OHLCV bars for a symbol")
     @GetMapping("/ohlcv/{symbol}")
     public ResponseEntity<List<OhlcvBar>> getOhlcv(
             @PathVariable String symbol,
@@ -117,6 +121,7 @@ public class MarketDataController {
      * @param q     search query (minimum 1 character)
      * @param type  optional filter: CRYPTO | STOCK | FOREX
      */
+    @Operation(summary = "Search the symbol catalogue")
     @GetMapping("/symbols/search")
     public ResponseEntity<List<SymbolEntry>> searchSymbols(
             @RequestParam String q,
@@ -134,6 +139,7 @@ public class MarketDataController {
     /**
      * Look up a single symbol entry by its exact ticker (case-insensitive).
      */
+    @Operation(summary = "Look up a symbol by ticker")
     @GetMapping("/symbols/{symbol}")
     public ResponseEntity<List<SymbolEntry>> getSymbol(@PathVariable String symbol) {
         log.debug("GET /api/market/symbols/{}", symbol);

@@ -4,6 +4,9 @@ import com.mst.matt.tradingservice.dto.FundamentalsReportDto;
 import com.mst.matt.tradingservice.service.YearlyReportService;
 import com.mst.matt.tradingservice.service.YearlyReportService.YearlyPnlRow;
 import com.mst.matt.tradingservice.service.export.ExcelExportService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +38,8 @@ import java.util.List;
  * reference-data-service's {@code FundamentalsProvider} API over HTTP — no logic is
  * duplicated here.</p>
  */
+@Tag(name = "Reports", description = "Trade journal reports and Excel exports")
+@SecurityRequirement(name = "bearer-jwt")
 @Slf4j
 @RestController
 @RequestMapping("/api/reports")
@@ -57,6 +62,7 @@ public class ReportingController {
      * @param symbol   optional equity symbol for fundamentals context (e.g. "AAPL")
      * @param provider optional fundamentals provider override (e.g. "FINNHUB")
      */
+    @Operation(summary = "Get per-year P&L summary for the authenticated user")
     @GetMapping("/yearly")
     public YearlyReportResponse getYearlyReport(
             @RequestHeader(value = "X-User-Id", required = false, defaultValue = "0") Long userId,
@@ -88,6 +94,7 @@ public class ReportingController {
      * @param provider    optional fundamentals provider override
      * @param response    the HTTP response to stream the workbook bytes into
      */
+    @Operation(summary = "Download a multi-sheet Excel trade report")
     @GetMapping("/export.xlsx")
     public void exportExcel(
             @RequestHeader(value = "X-User-Id",    required = false, defaultValue = "0") Long userId,

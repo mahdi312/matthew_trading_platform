@@ -1,39 +1,34 @@
 <div class="dashboard-root">
 
-  <!-- ── Header ──────────────────────────────────────────────────────────── -->
   <div class="dashboard-header">
     <h1 class="dashboard-title">Dashboard</h1>
-    <button mat-icon-button matTooltip="Refresh" (click)="refresh()" [disabled]="loading()">
+    <button mat-icon-button matTooltip="Refresh" (click)="refresh()" [disabled]="loading()" type="button">
       <mat-icon>refresh</mat-icon>
     </button>
   </div>
 
-  <!-- ── Loading spinner ─────────────────────────────────────────────────── -->
   @if (loading()) {
     <div class="loading-center">
       <mat-spinner diameter="48"></mat-spinner>
     </div>
   }
 
-  <!-- ── Error banner ────────────────────────────────────────────────────── -->
   @if (error() && !loading()) {
     <div class="error-banner">
       <mat-icon>error_outline</mat-icon>
       <span>{{ error() }}</span>
-      <button mat-button (click)="refresh()">Retry</button>
+      <button mat-button type="button" (click)="refresh()">Retry</button>
     </div>
   }
 
-  <!-- ── Main content (shown once loaded) ────────────────────────────────── -->
   @if (!loading()) {
 
-    <!-- ── KPI Cards ──────────────────────────────────────────────────────── -->
     <div class="kpi-grid">
-
       <mat-card class="kpi-card">
         <mat-card-content>
           <div class="kpi-label">Total P&L</div>
-          <div class="kpi-value" [class.positive]="(stats()?.totalPnl ?? 0) >= 0"
+          <div class="kpi-value"
+               [class.positive]="(stats()?.totalPnl ?? 0) >= 0"
                [class.negative]="(stats()?.totalPnl ?? 0) < 0">
             {{ (stats()?.totalPnl ?? 0) | number:'1.2-2' }}
           </div>
@@ -62,17 +57,9 @@
           <div class="kpi-value">{{ stats()?.openPositions ?? 0 }}</div>
         </mat-card-content>
       </mat-card>
-
     </div>
 
-    <!-- ── Main row: Watchlist + Equity Curve side-by-side ──────────────────── -->
-    <div class="main-row">
-
-      <!-- Watchlist widget (left column) -->
-      <app-watchlist-widget class="watchlist-col"></app-watchlist-widget>
-
-      <!-- ── Equity Curve (right column) ──────────────────────────────────────── -->
-      <mat-card class="equity-card">
+    <mat-card class="equity-card">
       <mat-card-header>
         <mat-card-title>Equity Curve</mat-card-title>
       </mat-card-header>
@@ -82,8 +69,8 @@
             [ohlcvData]="equityBars()"
             [indicators]="equityIndicator()"
             [theme]="'dark'"
-            class="equity-chart"
-          ></app-candlestick-chart>
+            class="equity-chart">
+          </app-candlestick-chart>
         } @else {
           <div class="empty-chart-placeholder">
             <mat-icon>show_chart</mat-icon>
@@ -93,14 +80,10 @@
       </mat-card-content>
     </mat-card>
 
-    </div><!-- /.main-row -->
-
-    <!-- ── Economic Calendar widget ────────────────────────────────────── -->
     <div class="calendar-row">
       <app-economic-calendar class="calendar-widget"></app-economic-calendar>
     </div>
 
-    <!-- ── Recent Trades Table ──────────────────────────────────────────── -->
     <mat-card class="trades-card">
       <mat-card-header>
         <mat-card-title>Recent Trades</mat-card-title>
@@ -109,86 +92,58 @@
         </div>
       </mat-card-header>
       <mat-card-content>
-
         @if (recentTrades().length === 0) {
           <div class="empty-trades">
             <mat-icon>inbox</mat-icon>
             <span>No trades found. Place your first trade from the Live Trading screen.</span>
           </div>
         } @else {
-
           <table mat-table [dataSource]="recentTrades()" class="trades-table">
-
-            <!-- Symbol -->
             <ng-container matColumnDef="symbol">
               <th mat-header-cell *matHeaderCellDef>Symbol</th>
-              <td mat-cell *matCellDef="let t">
-                <strong>{{ t.symbol }}</strong>
-              </td>
+              <td mat-cell *matCellDef="let t"><strong>{{ t.symbol }}</strong></td>
             </ng-container>
-
-            <!-- Side -->
             <ng-container matColumnDef="side">
               <th mat-header-cell *matHeaderCellDef>Side</th>
               <td mat-cell *matCellDef="let t">
-                <span [class]="t.side === 'BUY' ? 'side-buy' : 'side-sell'">
-                  {{ t.side }}
-                </span>
+                <span [class]="t.side === 'BUY' ? 'side-buy' : 'side-sell'">{{ t.side }}</span>
               </td>
             </ng-container>
-
-            <!-- Entry Price -->
             <ng-container matColumnDef="entryPrice">
               <th mat-header-cell *matHeaderCellDef>Entry</th>
               <td mat-cell *matCellDef="let t">{{ t.entryPrice | number:'1.2-8' }}</td>
             </ng-container>
-
-            <!-- Exit Price -->
             <ng-container matColumnDef="exitPrice">
               <th mat-header-cell *matHeaderCellDef>Exit</th>
               <td mat-cell *matCellDef="let t">
                 {{ t.exitPrice !== null ? (t.exitPrice | number:'1.2-8') : '—' }}
               </td>
             </ng-container>
-
-            <!-- Quantity -->
             <ng-container matColumnDef="quantity">
               <th mat-header-cell *matHeaderCellDef>Qty</th>
               <td mat-cell *matCellDef="let t">{{ t.quantity | number:'1.2-8' }}</td>
             </ng-container>
-
-            <!-- P&L -->
             <ng-container matColumnDef="pnl">
               <th mat-header-cell *matHeaderCellDef>P&L</th>
               <td mat-cell *matCellDef="let t" [class]="pnlClass(t.pnl)">
                 {{ t.pnl !== null ? (t.pnl | number:'1.2-2') : '—' }}
               </td>
             </ng-container>
-
-            <!-- Status -->
             <ng-container matColumnDef="status">
               <th mat-header-cell *matHeaderCellDef>Status</th>
               <td mat-cell *matCellDef="let t">
-                <mat-chip [class]="statusClass(t.status)" disableRipple>
-                  {{ t.status }}
-                </mat-chip>
+                <mat-chip [class]="statusClass(t.status)" disableRipple>{{ t.status }}</mat-chip>
               </td>
             </ng-container>
-
-            <!-- Opened At -->
             <ng-container matColumnDef="openedAt">
               <th mat-header-cell *matHeaderCellDef>Opened</th>
               <td mat-cell *matCellDef="let t">{{ formatDate(t.openedAt) }}</td>
             </ng-container>
-
             <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
             <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="trade-row"></tr>
-
           </table>
-
         }
       </mat-card-content>
     </mat-card>
-
   }
 </div>

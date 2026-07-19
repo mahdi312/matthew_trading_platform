@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=_lib/common.sh
 source "$SCRIPT_DIR/_lib/common.sh"
 
 ROOT="$(mtp_root)"
 cd "$ROOT"
 mtp_load_dotenv
-mtp_require java mvn
+mtp_local_dev_defaults
+mtp_use_java25
+mtp_require mvn
 
 echo "Starting backend services in background (logs under scripts/logs/)..."
 echo "Prerequisite: ./scripts/local-infra-up.sh"
+echo "Kafka bootstrap: $KAFKA_BOOTSTRAP_SERVERS"
 
 for entry in "${MTP_SERVICES[@]}"; do
   IFS='|' read -r name relpath port <<< "$entry"

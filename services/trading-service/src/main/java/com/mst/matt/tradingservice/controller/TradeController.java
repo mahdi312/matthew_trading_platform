@@ -5,6 +5,9 @@ import com.mst.matt.tradingservice.model.Trade;
 import com.mst.matt.tradingservice.service.BrokerImportService;
 import com.mst.matt.tradingservice.service.TradeService;
 import com.mst.matt.tradingservice.service.TradingOrchestrationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +49,8 @@ import java.util.NoSuchElementException;
  * principal injected by the Gateway. For now it is accepted as a required
  * {@code ?userId=} query parameter or from the request body, flagged with a TODO.</p>
  */
+@Tag(name = "Trades", description = "Trade journal entries, portfolio stats, and broker CSV import")
+@SecurityRequirement(name = "bearer-jwt")
 @Slf4j
 @RestController
 @RequestMapping("/api")
@@ -72,6 +77,7 @@ public class TradeController {
      * of reading it from the request body.
      */
 
+    @Operation(summary = "Create a new trade (manual or live-broker)")
     @PostMapping("/trades")
     public ResponseEntity<TradeResponse> createTrade(
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
@@ -101,6 +107,7 @@ public class TradeController {
      * order on the live broker.  Changing {@code entryPrice} or {@code quantity}
      * on a BROKER_LIVE trade is a journal correction, not a broker order modification.</p>
      */
+    @Operation(summary = "Update an existing trade")
     @PutMapping("/trades/{id}")
     public ResponseEntity<TradeResponse> updateTrade(
             @PathVariable Long id,
@@ -142,6 +149,7 @@ public class TradeController {
      * <p>Does <em>not</em> cancel the live broker order; call {@code cancelOrder}
      * through a separate endpoint for that (future iteration).
      */
+    @Operation(summary = "Delete a trade by ID")
     @DeleteMapping("/trades/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteTrade(@PathVariable Long id) {
@@ -157,6 +165,7 @@ public class TradeController {
      * <p>Sets status to CLOSED, records exit time, and recomputes P&L.
      * Does not issue a corresponding close order to the live broker.
      */
+    @Operation(summary = "Close an open trade with an exit price")
     @PostMapping("/trades/{id}/close")
     public ResponseEntity<TradeResponse> closeTrade(
             @PathVariable Long id,
@@ -174,6 +183,7 @@ public class TradeController {
      * @param userId required query parameter — will be replaced by JWT principal
      * @param status optional filter: OPEN | CLOSED | CANCELLED
      */
+    @Operation(summary = "List all trades for a user")
     @GetMapping("/trades")
     public ResponseEntity<List<TradeResponse>> listTrades(
             @RequestParam Long userId,
@@ -188,6 +198,7 @@ public class TradeController {
 
     // ── GET /api/trades/{id} ──────────────────────────────────────────────────
 
+    @Operation(summary = "Get a single trade by ID")
     @GetMapping("/trades/{id}")
     public ResponseEntity<TradeResponse> getTrade(@PathVariable Long id) {
         log.debug("GET /api/trades/{}", id);
@@ -204,6 +215,7 @@ public class TradeController {
      *
      * @param userId required query parameter — will be replaced by JWT principal
      */
+    @Operation(summary = "Get portfolio-level statistics for a user")
     @GetMapping("/portfolio/stats")
     public ResponseEntity<PortfolioStatsResponse> getPortfolioStats(@RequestParam Long userId) {
         log.debug("GET /api/portfolio/stats userId={}", userId);
@@ -223,6 +235,7 @@ public class TradeController {
      * @param file   the multipart CSV file
      * @param userId the user to associate all imported trades with
      */
+    @Operation(summary = "Import trades from a broker CSV file")
     @PostMapping(value = "/trades/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ImportResultResponse> importTrades(
             @RequestPart("file") MultipartFile file,

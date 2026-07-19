@@ -28,7 +28,7 @@
   font-size: 36px;
   width: 36px;
   height: 36px;
-  color: #42a5f5;
+  color: var(--tp-accent-blue);
 }
 
 .page-title {
@@ -103,7 +103,7 @@
   height: 22px;
   padding: 0 6px;
   border-radius: 11px;
-  background: #42a5f5;
+  background: var(--tp-accent-blue);
   color: #fff;
   font-size: 12px;
   font-weight: 700;
@@ -111,7 +111,7 @@
 }
 
 .count-badge--fired {
-  background: #ff7043;
+  background: var(--tp-accent-orange);
 }
 
 /* ── Table ───────────────────────────────────────────────────────────────── */
@@ -120,7 +120,7 @@
 }
 
 .alert-row:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--tp-bg-hover);
 }
 
 .fired-row {
