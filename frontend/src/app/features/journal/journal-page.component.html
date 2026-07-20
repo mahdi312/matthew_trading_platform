@@ -16,7 +16,7 @@
 
     <!-- Status chip group -->
     <div class="status-chips" role="group" aria-label="Filter by status">
-      @for (s of ['ALL','OPEN','CLOSED']; track s) {
+      @for (s of statusOptions; track s) {
         <button
           type="button"
           class="status-chip"

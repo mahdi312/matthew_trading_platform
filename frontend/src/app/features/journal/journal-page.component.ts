@@ -26,7 +26,6 @@ import { TradeApiService, Trade, TradeFilter } from '../../core/api/trade-api.se
 import { SymbolSearchComponent, SymbolSearchResult } from '../../shared/symbol-search';
 import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
 import { LoadingStateComponent } from '../../shared/loading-state/loading-state.component';
-import { PriceFlashDirective } from '../../shared/directives/price-flash.directive';
 
 type StatusFilter = 'ALL' | 'OPEN' | 'CLOSED';
 
@@ -58,7 +57,6 @@ type StatusFilter = 'ALL' | 'OPEN' | 'CLOSED';
     SymbolSearchComponent,
     EmptyStateComponent,
     LoadingStateComponent,
-    PriceFlashDirective,
   ],
   templateUrl: './journal-page.component.html',
   styleUrls: ['./journal-page.component.scss'],
@@ -96,6 +94,7 @@ export class JournalPageComponent implements OnInit {
 
   readonly statusFilter = signal<StatusFilter>('ALL');
   readonly symbolFilter = signal<string>('');
+  readonly statusOptions: StatusFilter[] = ['ALL', 'OPEN', 'CLOSED'];
 
   readonly filterForm: FormGroup = this.fb.group({
     status: ['ALL'],
