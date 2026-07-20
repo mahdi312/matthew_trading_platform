@@ -1,179 +1,236 @@
-<div class="lt-root">
+<div class="lt-workspace">
 
-  <!-- ── Header ─────────────────────────────────────────────────────────── -->
-  <div class="lt-header">
-    <h1 class="lt-title">Live Trading</h1>
-    <button mat-icon-button matTooltip="Refresh positions" (click)="loadOpenPositions()">
-      <mat-icon>refresh</mat-icon>
-    </button>
+  <!-- ── Symbol bar (full width, above both panes) ─────── -->
+  <div class="lt-symbol-bar">
+    <app-symbol-search
+      placeholder="Search symbol…"
+      (symbolSelected)="onSymbolSelected($event)"
+      aria-label="Symbol search"
+    />
+    <div class="lt-symbol-info">
+      <span class="lt-symbol-name tp-mono">{{ selectedSymbol() }}</span>
+      <span class="lt-live-price tp-mono" [class.tp-bull]="priceDirection() === 'up'" [class.tp-bear]="priceDirection() === 'down'" [tpFlash]="livePrice()" aria-live="polite" aria-label="Live price: {{ livePrice() ?? '—' }}">
+        {{ livePrice() !== null ? (livePrice() | number:'1.2-8') : '—' }}
+      </span>
+    </div>
   </div>
 
-  <!-- ── Top row: chart + order form ───────────────────────────────────── -->
-  <div class="lt-top-row">
+  <!-- ── Two-pane workspace ────────────────────────────── -->
+  <div class="lt-main">
 
-    <!-- ── Chart Panel ──────────────────────────────────────────────────── -->
-    <mat-card class="chart-panel">
-      <mat-card-header>
-        <mat-card-title>
-          {{ selectedSymbol() }}
-          @if (livePrice() !== null) {
-            <span class="live-badge">LIVE</span>
-            <span class="live-price">{{ livePrice() | number:'1.2-8' }}</span>
+    <!-- Chart pane -->
+    <section class="lt-chart-pane" aria-label="Live chart">
+      @if (chartBars().length > 0) {
+        <app-candlestick-chart
+          [ohlcvData]="chartBars()"
+          [livePrice]="livePrice()"
+          [theme]="'dark'"
+          class="lt-chart"
+          aria-label="Candlestick chart for {{ selectedSymbol() }}">
+        </app-candlestick-chart>
+      } @else {
+        <div class="lt-chart-placeholder">
+          <mat-icon aria-hidden="true">candlestick_chart</mat-icon>
+          <span>Waiting for live data for <strong>{{ selectedSymbol() }}</strong>…</span>
+        </div>
+      }
+    </section>
+
+    <!-- Order ticket pane -->
+    <aside class="lt-order-pane" aria-label="Order ticket">
+
+      <!-- Broker picker -->
+      <div class="ot-section">
+        <div class="ot-label">Broker</div>
+        <div class="broker-options" role="group" aria-label="Select broker">
+          @for (b of brokers; track b.id) {
+            <button
+              type="button"
+              class="broker-btn"
+              [class.broker-btn--active]="selectedBroker() === b.id"
+              (click)="selectBroker(b.id)"
+              [attr.aria-pressed]="selectedBroker() === b.id"
+            >{{ b.label }}</button>
           }
-        </mat-card-title>
-      </mat-card-header>
-
-      <!-- Symbol Quick-Select -->
-      <div class="symbol-row">
-        @for (sym of popularSymbols; track sym) {
-          <button mat-stroked-button
-                  [class.active-symbol]="sym === selectedSymbol()"
-                  (click)="onSymbolChange(sym)">
-            {{ sym }}
-          </button>
-        }
-        <app-symbol-search
-          class="symbol-search-lt"
-          placeholder="Search symbol…"
-          (symbolSelected)="onSymbolSelected($event)">
-        </app-symbol-search>
+        </div>
       </div>
 
-      <mat-card-content>
-        @if (chartBars().length > 0) {
-          <app-candlestick-chart
-            [ohlcvData]="chartBars()"
-            [livePrice]="livePrice()"
-            [theme]="'dark'"
-            class="live-chart"
-          ></app-candlestick-chart>
-        } @else {
-          <div class="chart-placeholder">
-            <mat-icon>show_chart</mat-icon>
-            <span>Waiting for live data for <strong>{{ selectedSymbol() }}</strong>…</span>
+      <form [formGroup]="orderForm" (ngSubmit)="submitOrder()" novalidate>
+
+        <!-- BUY/SELL toggle -->
+        <div class="ot-section">
+          <div class="ot-label" id="side-label">Side</div>
+          <div class="side-toggle" role="group" aria-labelledby="side-label">
+            <button
+              type="button"
+              class="side-btn side-btn--bull"
+              [class.side-btn--active]="orderForm.get('side')?.value === 'BUY'"
+              (click)="setSide('BUY')"
+              aria-pressed="{{ orderForm.get('side')?.value === 'BUY' }}"
+            >
+              <mat-icon aria-hidden="true">arrow_upward</mat-icon>
+              BUY
+            </button>
+            <button
+              type="button"
+              class="side-btn side-btn--bear"
+              [class.side-btn--active]="orderForm.get('side')?.value === 'SELL'"
+              (click)="setSide('SELL')"
+              aria-pressed="{{ orderForm.get('side')?.value === 'SELL' }}"
+            >
+              <mat-icon aria-hidden="true">arrow_downward</mat-icon>
+              SELL
+            </button>
+          </div>
+        </div>
+
+        <!-- Order type -->
+        <div class="ot-section">
+          <div class="ot-label" id="type-label">Type</div>
+          <div class="type-toggle" role="group" aria-labelledby="type-label">
+            @for (t of ['SPOT','FUTURES']; track t) {
+              <button
+                type="button"
+                class="type-btn"
+                [class.type-btn--active]="orderForm.get('type')?.value === t"
+                (click)="setType(t)"
+                [attr.aria-pressed]="orderForm.get('type')?.value === t"
+              >{{ t }}</button>
+            }
+          </div>
+        </div>
+
+        <!-- Entry price -->
+        <div class="ot-section">
+          <label class="ot-label" for="ot-price">Entry Price</label>
+          <div class="ot-input-wrap">
+            <input
+              id="ot-price"
+              class="ot-input tp-mono"
+              type="number"
+              formControlName="price"
+              step="any"
+              min="0"
+              placeholder="0.00"
+              [attr.aria-invalid]="orderForm.get('price')?.invalid && orderForm.get('price')?.touched"
+            />
+            @if (livePrice() !== null) {
+              <button type="button" class="use-market-btn" (click)="useMarketPrice()" matTooltip="Use live market price" aria-label="Use live market price">
+                <mat-icon>bolt</mat-icon>
+              </button>
+            }
+          </div>
+          @if (orderForm.get('price')?.invalid && orderForm.get('price')?.touched) {
+            <span class="ot-error" role="alert">Enter a valid price</span>
+          }
+        </div>
+
+        <!-- Quantity -->
+        <div class="ot-section">
+          <label class="ot-label" for="ot-qty">Quantity</label>
+          <input
+            id="ot-qty"
+            class="ot-input tp-mono"
+            type="number"
+            formControlName="quantity"
+            step="any"
+            min="0"
+            placeholder="0.000"
+            [attr.aria-invalid]="orderForm.get('quantity')?.invalid && orderForm.get('quantity')?.touched"
+          />
+          @if (orderForm.get('quantity')?.invalid && orderForm.get('quantity')?.touched) {
+            <span class="ot-error" role="alert">Enter a valid quantity</span>
+          }
+        </div>
+
+        <!-- Notes -->
+        <div class="ot-section">
+          <label class="ot-label" for="ot-notes">Notes <span class="ot-optional">(optional)</span></label>
+          <textarea
+            id="ot-notes"
+            class="ot-textarea"
+            formControlName="notes"
+            rows="2"
+            placeholder="Reasoning, stop-loss level, etc."
+          ></textarea>
+        </div>
+
+        <!-- Live order preview -->
+        @if (investedAmount() !== null) {
+          <div class="ot-preview" aria-label="Order preview">
+            <div class="ot-preview__row">
+              <span>Invested</span>
+              <span class="tp-mono">≈ {{ investedAmount()! | number:'1.2-2' }}</span>
+            </div>
           </div>
         }
-      </mat-card-content>
-    </mat-card>
 
-    <!-- ── Order Entry Form ─────────────────────────────────────────────── -->
-    <mat-card class="order-panel">
-      <mat-card-header>
-        <mat-card-title>New Order</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <form [formGroup]="orderForm" (ngSubmit)="submitOrder()" class="order-form">
+        <!-- Submit -->
+        <button
+          type="submit"
+          class="ot-submit"
+          [class.ot-submit--bull]="orderForm.get('side')?.value === 'BUY'"
+          [class.ot-submit--bear]="orderForm.get('side')?.value === 'SELL'"
+          [disabled]="orderForm.invalid || submitting()"
+          [attr.aria-busy]="submitting()"
+        >
+          @if (submitting()) {
+            <span class="ot-spinner" aria-hidden="true"></span>
+            Placing order…
+          } @else {
+            <mat-icon aria-hidden="true">{{ orderForm.get('side')?.value === 'BUY' ? 'arrow_upward' : 'arrow_downward' }}</mat-icon>
+            {{ orderForm.get('side')?.value === 'BUY' ? 'Buy' : 'Sell' }} {{ selectedSymbol() }}
+          }
+        </button>
 
-          <!-- Broker -->
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Broker</mat-label>
-            <mat-select [value]="selectedBroker()" (valueChange)="selectedBroker.set($event)">
-              @for (b of brokers; track b.id) {
-                <mat-option [value]="b.id">{{ b.label }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-
-          <!-- Side -->
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Side</mat-label>
-            <mat-select formControlName="side">
-              <mat-option value="BUY">BUY</mat-option>
-              <mat-option value="SELL">SELL</mat-option>
-            </mat-select>
-          </mat-form-field>
-
-          <!-- Order Type -->
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Order Type</mat-label>
-            <mat-select formControlName="type">
-              <mat-option value="SPOT">SPOT</mat-option>
-              <mat-option value="FUTURES">FUTURES</mat-option>
-            </mat-select>
-          </mat-form-field>
-
-          <!-- Entry Price -->
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Entry Price</mat-label>
-            <input matInput type="number" formControlName="price"
-                   [placeholder]="livePrice() !== null ? (livePrice()!.toString()) : '0.00'" />
-            <mat-error>Enter a valid price</mat-error>
-          </mat-form-field>
-
-          <!-- Quantity -->
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Quantity</mat-label>
-            <input matInput type="number" step="any" formControlName="quantity" placeholder="0.00" />
-            <mat-error>Enter a valid quantity</mat-error>
-          </mat-form-field>
-
-          <!-- Notes -->
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Notes (optional)</mat-label>
-            <textarea matInput formControlName="notes" rows="2"></textarea>
-          </mat-form-field>
-
-          <button mat-flat-button color="primary" type="submit"
-                  class="submit-btn"
-                  [disabled]="orderForm.invalid || submitting()">
-            @if (submitting()) {
-              <mat-spinner diameter="20" class="inline-spinner"></mat-spinner>
-            } @else {
-              Place Order
-            }
-          </button>
-
-        </form>
-      </mat-card-content>
-    </mat-card>
-
+      </form>
+    </aside>
   </div>
 
-  <!-- ── Open Positions Table ───────────────────────────────────────────── -->
-  <mat-card class="positions-card">
-    <mat-card-header>
-      <mat-card-title>Open Positions</mat-card-title>
-    </mat-card-header>
-    <mat-card-content>
+  <!-- ── Open positions strip ───────────────────────────── -->
+  <section class="lt-positions" aria-label="Open positions">
+    <div class="lt-positions__header">
+      <h2 class="lt-positions__title">Open Positions</h2>
+      <button mat-icon-button type="button" (click)="loadOpenPositions()" matTooltip="Refresh positions" aria-label="Refresh open positions">
+        <mat-icon>refresh</mat-icon>
+      </button>
+    </div>
 
-      @if (loadingPositions()) {
-        <div class="loading-row"><mat-spinner diameter="32"></mat-spinner></div>
-      } @else if (openPositions().length === 0) {
-        <div class="empty-row">
-          <mat-icon>inbox</mat-icon>
-          <span>No open positions.</span>
-        </div>
-      } @else {
-        <table class="positions-table">
-          <thead>
-            <tr>
-              <th>#</th><th>Symbol</th><th>Side</th><th>Type</th>
-              <th>Entry</th><th>Qty</th><th>Unrealised P&L</th><th>Opened</th><th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (t of openPositions(); track t.id) {
-              <tr>
-                <td>{{ t.id }}</td>
-                <td><strong>{{ t.symbol }}</strong></td>
-                <td><span [class]="t.side === 'BUY' ? 'side-buy' : 'side-sell'">{{ t.side }}</span></td>
-                <td>{{ t.type }}</td>
-                <td>{{ t.entryPrice | number:'1.2-8' }}</td>
-                <td>{{ t.quantity | number:'1.2-8' }}</td>
-                <td [class]="pnlClass(t.pnl)">{{ t.pnl !== null ? (t.pnl | number:'1.2-2') : '—' }}</td>
-                <td>{{ t.openedAt | date:'mediumDate' }}</td>
-                <td>
-                  <button mat-stroked-button color="warn" (click)="closePosition(t)">
-                    Close at {{ livePrice() !== null ? (livePrice()! | number:'1.2-2') : 'mkt' }}
-                  </button>
-                </td>
-              </tr>
+    @if (loadingPositions()) {
+      <app-loading-state variant="rows" [rows]="2" [showHeader]="false"/>
+    } @else if (openPositions().length === 0) {
+      <app-empty-state
+        icon="radio_button_unchecked"
+        headline="No open positions"
+        body="Your active trades will appear here after you place an order.">
+      </app-empty-state>
+    } @else {
+      <div class="positions-list" role="list">
+        @for (pos of openPositions(); track pos.id) {
+          <div class="position-row" role="listitem">
+            <span class="pos-symbol tp-mono">{{ pos.symbol }}</span>
+            <span class="side-badge" [class]="pos.side === 'BUY' ? 'side-badge--bull' : 'side-badge--bear'">{{ pos.side }}</span>
+            <span class="pos-entry tp-mono text-secondary">@ {{ pos.entryPrice | number:'1.2-8' }}</span>
+            <span class="pos-qty tp-mono text-secondary">× {{ pos.quantity | number:'1.4-8' }}</span>
+            @if (livePrice() !== null && selectedSymbol() === pos.symbol) {
+              <span class="pos-upnl tp-mono" [tpFlash]="unrealizedPnl(pos)" [class]="unrealizedPnl(pos) !== null && unrealizedPnl(pos)! >= 0 ? 'tp-bull' : 'tp-bear'" aria-live="polite">
+                {{ formatUnrealizedPnl(pos) }}
+              </span>
             }
-          </tbody>
-        </table>
-      }
-
-    </mat-card-content>
-  </mat-card>
+            <button
+              type="button"
+              class="pos-close-btn"
+              (click)="closePosition(pos)"
+              matTooltip="Close position at market price"
+              aria-label="Close {{ pos.symbol }} position"
+            >
+              <mat-icon>close</mat-icon>
+              Close
+            </button>
+          </div>
+        }
+      </div>
+    }
+  </section>
 
 </div>
