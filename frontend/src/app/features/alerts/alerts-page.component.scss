@@ -1,76 +1,58 @@
-:host {
-  display: block;
-}
-
-.alerts-page {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 24px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+.alerts-root {
+  padding: 24px;
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.header-icon {
-  font-size: 36px;
-  width: 36px;
-  height: 36px;
-  color: var(--tp-accent-blue);
-}
-
-.page-title {
-  margin: 0;
-  font-family: 'IBM Plex Serif', Georgia, serif;
-  font-size: 1.65rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.page-subtitle {
-  margin: 0.15rem 0 0;
-  color: var(--tp-text-secondary, #8b949e);
-  font-size: 0.9rem;
-}
-
-/* ── Loading / error ─────────────────────────────────────────────────────── */
-.center-spinner {
-  display: flex;
-  justify-content: center;
-  padding: 48px 0;
-}
-
-.error-card mat-card-content {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-/* ── Create form ─────────────────────────────────────────────────────────── */
-.create-card mat-card-title {
+.header-actions {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
+/* ── Create panel ─────────────────────────────────────────────────────────── */
+.create-panel {
+  background: var(--tp-bg-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--tp-radius-lg);
+  padding: 18px 20px;
+}
+
+.create-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.create-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--tp-text-primary);
+}
+
 .alert-form {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 12px;
-  align-items: flex-start;
-  padding-top: 12px;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+
+  app-symbol-search {
+    flex: 1;
+    min-width: 220px;
+  }
+}
+
+.form-row--split {
+  flex-wrap: wrap;
 }
 
 .form-field {
@@ -78,109 +60,235 @@
 }
 
 .form-field--wide {
-  flex: 2 1 320px;
+  flex: 1 1 100%;
+}
+
+/* Live sentence preview */
+.preview-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--tp-radius-md);
+  background: color-mix(in srgb, var(--brass-500) 8%, var(--tp-bg-secondary));
+  border: 1px solid color-mix(in srgb, var(--brass-500) 22%, var(--hairline));
+  color: var(--tp-text-primary);
+  font-size: 13px;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.preview-icon {
+  color: var(--brass-500);
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.preview-text {
+  line-height: 1.4;
 }
 
 .form-actions {
   display: flex;
   align-items: center;
+  gap: 8px;
   padding-top: 4px;
 }
 
-/* ── List cards ──────────────────────────────────────────────────────────── */
-.list-card mat-card-title {
+/* ── Section headers ─────────────────────────────────────────────────────── */
+.alerts-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+}
+
+.section-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 16px;
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tp-text-primary);
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    color: var(--paper-600);
+  }
 }
 
-.count-badge {
+.count-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 22px;
-  height: 22px;
+  height: 20px;
   padding: 0 6px;
-  border-radius: 11px;
-  background: var(--tp-accent-blue);
-  color: #fff;
-  font-size: 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--brass-500) 16%, var(--tp-bg-card));
+  color: var(--brass-400);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
   font-weight: 700;
-  margin-left: 4px;
 }
 
-.count-badge--fired {
-  background: var(--tp-accent-orange);
+.count-pill--muted {
+  background: var(--tp-bg-active);
+  color: var(--tp-text-muted);
 }
 
-/* ── Table ───────────────────────────────────────────────────────────────── */
-.alerts-table {
-  width: 100%;
+/* ── Card grid ────────────────────────────────────────────────────────────── */
+.alerts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
 }
 
-.alert-row:hover {
-  background: var(--tp-bg-hover);
+.alerts-grid--history {
+  opacity: 0.85;
 }
 
-.fired-row {
-  opacity: 0.7;
-}
-
-.message-text {
-  font-size: 13px;
-  opacity: 0.8;
-  max-width: 200px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: inline-block;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 4px;
-  justify-content: flex-end;
-}
-
-/* ── Inline edit fields ──────────────────────────────────────────────────── */
-.inline-field {
-  width: 130px;
-
-  /* Tighten spacing so the row doesn't jump */
-  ::ng-deep .mat-mdc-form-field-subscript-wrapper {
-    display: none;
-  }
-}
-
-/* ── Empty state ─────────────────────────────────────────────────────────── */
-.empty-state {
+.alert-card {
+  background: var(--tp-bg-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--tp-radius-lg);
+  padding: 16px;
   display: flex;
   flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.15s ease;
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--brass-500) 30%, var(--hairline));
+  }
+}
+
+.alert-card--editing {
+  border-color: var(--brass-500);
+}
+
+.alert-card--fired {
+  background: color-mix(in srgb, var(--tp-bg-secondary) 40%, var(--tp-bg-card));
+}
+
+.alert-card__top {
+  display: flex;
   align-items: center;
-  padding: 32px 0;
-  opacity: 0.5;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.alert-card__symbol {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--tp-text-primary);
+}
+
+.alert-card__sentence {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--tp-text-primary);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.alert-card__message {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--tp-text-secondary);
+  font-style: italic;
 
   mat-icon {
-    font-size: 48px;
-    width: 48px;
-    height: 48px;
+    font-size: 15px;
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    margin-top: 1px;
   }
+}
 
-  p {
-    margin-top: 8px;
-    font-size: 14px;
+.alert-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hairline);
+}
+
+.alert-card__created {
+  font-size: 11px;
+}
+
+.alert-card__actions {
+  display: flex;
+  gap: 2px;
+}
+
+.delete-btn:hover {
+  color: var(--bear-400) !important;
+}
+
+/* ── Status pill ──────────────────────────────────────────────────────────── */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: var(--tp-radius-sm);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+
+  mat-icon {
+    font-size: 13px;
+    width: 13px;
+    height: 13px;
   }
+}
+
+/* ── Inline edit form ─────────────────────────────────────────────────────── */
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.edit-field {
+  width: 100%;
+
+  .mat-mdc-form-field-subscript-wrapper { display: none; }
+}
+
+.edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .alert-form {
-    flex-direction: column;
-  }
+  .alerts-root { padding: 16px; }
 
-  .form-field,
-  .form-field--wide {
-    flex: 1 1 100%;
+  .form-row { flex-direction: column; }
+
+  .alerts-grid {
+    grid-template-columns: 1fr;
   }
 }
