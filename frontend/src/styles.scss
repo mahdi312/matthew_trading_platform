@@ -1,11 +1,14 @@
 /* ============================================================
    Global Styles — Trading Intelligence Platform (Angular)
+   "Ink and Brass" trading-terminal identity
 
-   Single design system:
-     --tp-*     app tokens (parity with JavaFX desktop palettes)
-     --mat-sys-* remapped to --tp-* so Material MDC surfaces
-                 (tables, tabs, sidenav, menus) never fight the theme
+   Design token hierarchy:
+     Primitive tokens  : --ink-*, --brass-*, --teal-*, --bull-*, --bear-*, --paper-*, --hairline
+     Semantic tokens   : --tp-*   (functional aliases consumed by components)
+     Material bridge   : --mat-sys-* → --tp-* (MDC surfaces inherit theme with zero component changes)
    ============================================================ */
+
+@use '@angular/material' as mat;
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -18,39 +21,79 @@ html, body {
   font-family: 'IBM Plex Sans', 'Segoe UI', 'SF Pro Display', 'Helvetica Neue', sans-serif;
   font-size: 13px;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ── Dark theme (default) ──────────────────────────────────── */
 html, html.theme-dark {
-  --tp-bg-primary: #0d1117;
-  --tp-bg-secondary: #161b22;
-  --tp-bg-card: #1c2128;
-  --tp-bg-hover: #21262d;
-  --tp-bg-active: #2d333b;
+  /* ── Primitive palette ─────────────────────────────────── */
+  --ink-950: #0A0D12;
+  --ink-900: #12151C;
+  --ink-800: #1B2029;
+  --ink-700: #242A35;
+  --ink-600: #2E3542;
 
-  --tp-accent-blue: #388bfd;
-  --tp-accent-green: #3fb950;
-  --tp-accent-red: #f85149;
-  --tp-accent-yellow: #d29922;
+  --brass-500: #D4A24C;
+  --brass-400: #E0B563;
+  --brass-300: #ECC980;
+
+  --teal-400: #34D6C4;
+  --teal-300: #5DE4D4;
+
+  --bull-500: #2FBE7A;
+  --bull-400: #45CC8C;
+  --bear-500: #F0555A;
+  --bear-400: #F47378;
+
+  --paper-100: #EDEFF3;
+  --paper-300: #B8BEC8;
+  --paper-400: #8A93A6;
+  --paper-600: #545C6B;
+
+  --hairline: #2A303C;
+
+  /* ── Semantic tp-* tokens ──────────────────────────────── */
+  --tp-bg-primary:    var(--ink-950);
+  --tp-bg-secondary:  var(--ink-900);
+  --tp-bg-card:       var(--ink-800);
+  --tp-bg-hover:      var(--ink-700);
+  --tp-bg-active:     var(--ink-600);
+
+  --tp-accent-primary:   var(--brass-500);
+  --tp-accent-primary-light: var(--brass-400);
+  --tp-accent-secondary: var(--teal-400);
+
+  /* Legacy blue kept for backward-compat with existing references */
+  --tp-accent-blue:   var(--brass-500);
+  --tp-accent-green:  var(--bull-500);
+  --tp-accent-red:    var(--bear-500);
+  --tp-accent-yellow: var(--brass-400);
+  --tp-accent-teal:   var(--teal-400);
+  --tp-accent-orange: var(--brass-300);
   --tp-accent-purple: #bc8cff;
-  --tp-accent-orange: #e3b341;
 
-  --tp-text-primary: #e6edf3;
-  --tp-text-secondary: #8b949e;
-  --tp-text-muted: #484f58;
+  --tp-bull: var(--bull-500);
+  --tp-bull-light: var(--bull-400);
+  --tp-bear: var(--bear-500);
+  --tp-bear-light: var(--bear-400);
 
-  --tp-border: #30363d;
-  --tp-border-focus: #388bfd;
+  --tp-text-primary:   var(--paper-100);
+  --tp-text-secondary: var(--paper-400);
+  --tp-text-muted:     var(--paper-600);
 
-  --tp-candle-bull: #3fb950;
-  --tp-candle-bear: #f85149;
+  --tp-border:       var(--hairline);
+  --tp-border-focus: var(--brass-500);
+
+  --tp-candle-bull: var(--bull-500);
+  --tp-candle-bear: var(--bear-500);
 
   --tp-radius-sm: 6px;
   --tp-radius-md: 10px;
-  --tp-radius-lg: 14px;
-  --tp-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  --tp-radius-lg: 16px;
+  --tp-shadow: 0 8px 28px rgba(0, 0, 0, 0.50);
+  --tp-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.65);
 
-  /* Bridge Material M3 → MTP tokens (fixes white tables / panels) */
+  /* ── Material M3 → MTP bridge ──────────────────────────── */
   --mat-sys-background: var(--tp-bg-primary);
   --mat-sys-on-background: var(--tp-text-primary);
   --mat-sys-surface: var(--tp-bg-card);
@@ -67,53 +110,95 @@ html, html.theme-dark {
   --mat-sys-inverse-on-surface: var(--tp-bg-primary);
   --mat-sys-outline: var(--tp-border);
   --mat-sys-outline-variant: var(--tp-border);
-  --mat-sys-primary: var(--tp-accent-blue);
-  --mat-sys-on-primary: #ffffff;
-  --mat-sys-primary-container: color-mix(in srgb, var(--tp-accent-blue) 22%, var(--tp-bg-card));
-  --mat-sys-on-primary-container: var(--tp-text-primary);
-  --mat-sys-secondary: var(--tp-text-secondary);
+  --mat-sys-primary: var(--brass-500);
+  --mat-sys-on-primary: #0A0D12;
+  --mat-sys-primary-container: color-mix(in srgb, var(--brass-500) 18%, var(--tp-bg-card));
+  --mat-sys-on-primary-container: var(--brass-400);
+  --mat-sys-secondary: var(--teal-400);
   --mat-sys-on-secondary: var(--tp-bg-primary);
   --mat-sys-secondary-container: var(--tp-bg-active);
   --mat-sys-on-secondary-container: var(--tp-text-primary);
   --mat-sys-tertiary: var(--tp-accent-purple);
   --mat-sys-on-tertiary: #ffffff;
-  --mat-sys-error: var(--tp-accent-red);
+  --mat-sys-error: var(--bear-500);
   --mat-sys-on-error: #ffffff;
-  --mat-sys-error-container: color-mix(in srgb, var(--tp-accent-red) 18%, var(--tp-bg-card));
-  --mat-sys-on-error-container: var(--tp-accent-red);
+  --mat-sys-error-container: color-mix(in srgb, var(--bear-500) 18%, var(--tp-bg-card));
+  --mat-sys-on-error-container: var(--bear-400);
 
   background-color: var(--tp-bg-primary);
   color: var(--tp-text-primary);
   color-scheme: dark;
 }
 
-/* ── Light theme ───────────────────────────────────────────── */
+/* ── Light theme (tonal inverse of ink-brass, same identity) ── */
 html.theme-light {
-  --tp-bg-primary: #f6f8fa;
-  --tp-bg-secondary: #ffffff;
-  --tp-bg-card: #ffffff;
-  --tp-bg-hover: #f3f4f6;
-  --tp-bg-active: #e8eaed;
+  /* ── Primitive palette (light inverse) ─────────────────── */
+  --ink-950: #F4F6F8;
+  --ink-900: #FFFFFF;
+  --ink-800: #FFFFFF;
+  --ink-700: #EFF1F4;
+  --ink-600: #E5E8ED;
 
-  --tp-accent-blue: #0969da;
-  --tp-accent-green: #1a7f37;
-  --tp-accent-red: #cf222e;
-  --tp-accent-yellow: #9a6700;
+  --brass-500: #9C6F1A;
+  --brass-400: #B5842E;
+  --brass-300: #CF9A44;
+
+  --teal-400: #1A9E91;
+  --teal-300: #25B5A7;
+
+  --bull-500: #1A7F4F;
+  --bull-400: #259966;
+  --bear-500: #C73237;
+  --bear-400: #D94A4F;
+
+  --paper-100: #1A1F2A;
+  --paper-300: #444C5A;
+  --paper-400: #5E6878;
+  --paper-600: #9199A8;
+
+  --hairline: #D6DAE0;
+
+  /* ── Semantic tp-* tokens ──────────────────────────────── */
+  --tp-bg-primary:    var(--ink-950);
+  --tp-bg-secondary:  var(--ink-900);
+  --tp-bg-card:       var(--ink-800);
+  --tp-bg-hover:      var(--ink-700);
+  --tp-bg-active:     var(--ink-600);
+
+  --tp-accent-primary:   var(--brass-500);
+  --tp-accent-primary-light: var(--brass-400);
+  --tp-accent-secondary: var(--teal-400);
+
+  --tp-accent-blue:   var(--brass-500);
+  --tp-accent-green:  var(--bull-500);
+  --tp-accent-red:    var(--bear-500);
+  --tp-accent-yellow: var(--brass-400);
+  --tp-accent-teal:   var(--teal-400);
+  --tp-accent-orange: var(--brass-300);
   --tp-accent-purple: #8250df;
-  --tp-accent-orange: #bc4c00;
 
-  --tp-text-primary: #1f2328;
-  --tp-text-secondary: #57606a;
-  --tp-text-muted: #8c959f;
+  --tp-bull: var(--bull-500);
+  --tp-bull-light: var(--bull-400);
+  --tp-bear: var(--bear-500);
+  --tp-bear-light: var(--bear-400);
 
-  --tp-border: #d0d7de;
-  --tp-border-focus: #0969da;
+  --tp-text-primary:   var(--paper-100);
+  --tp-text-secondary: var(--paper-400);
+  --tp-text-muted:     var(--paper-600);
 
-  --tp-candle-bull: #1a7f37;
-  --tp-candle-bear: #cf222e;
+  --tp-border:       var(--hairline);
+  --tp-border-focus: var(--brass-500);
 
-  --tp-shadow: 0 8px 24px rgba(31, 35, 40, 0.08);
+  --tp-candle-bull: var(--bull-500);
+  --tp-candle-bear: var(--bear-500);
 
+  --tp-radius-sm: 6px;
+  --tp-radius-md: 10px;
+  --tp-radius-lg: 16px;
+  --tp-shadow: 0 4px 16px rgba(26, 31, 42, 0.10);
+  --tp-shadow-lg: 0 10px 32px rgba(26, 31, 42, 0.18);
+
+  /* ── Material M3 → MTP bridge (light) ──────────────────── */
   --mat-sys-background: var(--tp-bg-primary);
   --mat-sys-on-background: var(--tp-text-primary);
   --mat-sys-surface: var(--tp-bg-card);
@@ -126,31 +211,196 @@ html.theme-light {
   --mat-sys-surface-container-highest: var(--tp-bg-active);
   --mat-sys-on-surface: var(--tp-text-primary);
   --mat-sys-on-surface-variant: var(--tp-text-secondary);
-  --mat-sys-inverse-surface: #24292f;
-  --mat-sys-inverse-on-surface: #f6f8fa;
+  --mat-sys-inverse-surface: #1A1F2A;
+  --mat-sys-inverse-on-surface: #F4F6F8;
   --mat-sys-outline: var(--tp-border);
   --mat-sys-outline-variant: var(--tp-border);
-  --mat-sys-primary: var(--tp-accent-blue);
+  --mat-sys-primary: var(--brass-500);
   --mat-sys-on-primary: #ffffff;
-  --mat-sys-primary-container: #ddf4ff;
-  --mat-sys-on-primary-container: #0550ae;
-  --mat-sys-secondary: var(--tp-text-secondary);
+  --mat-sys-primary-container: color-mix(in srgb, var(--brass-500) 12%, #ffffff);
+  --mat-sys-on-primary-container: var(--brass-500);
+  --mat-sys-secondary: var(--teal-400);
   --mat-sys-on-secondary: #ffffff;
   --mat-sys-secondary-container: var(--tp-bg-active);
   --mat-sys-on-secondary-container: var(--tp-text-primary);
   --mat-sys-tertiary: var(--tp-accent-purple);
   --mat-sys-on-tertiary: #ffffff;
-  --mat-sys-error: var(--tp-accent-red);
+  --mat-sys-error: var(--bear-500);
   --mat-sys-on-error: #ffffff;
-  --mat-sys-error-container: #ffebe9;
-  --mat-sys-on-error-container: var(--tp-accent-red);
+  --mat-sys-error-container: color-mix(in srgb, var(--bear-500) 10%, #ffffff);
+  --mat-sys-on-error-container: var(--bear-500);
 
   background-color: var(--tp-bg-primary);
   color: var(--tp-text-primary);
   color-scheme: light;
 }
 
-/* ── Shared utilities ──────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════
+   Typography
+   ═══════════════════════════════════════════════════════════ */
+
+/* Display / headings → Space Grotesk */
+h1, h2, h3, h4, .tp-display, .tp-heading {
+  font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--tp-text-primary);
+  margin: 0;
+}
+
+h1 { font-size: 2rem;    line-height: 1.2; }
+h2 { font-size: 1.5rem;  line-height: 1.3; }
+h3 { font-size: 1.25rem; line-height: 1.35; }
+h4 { font-size: 1rem;    line-height: 1.4; }
+
+/* Numeric data — IBM Plex Mono, tabular-nums */
+.tp-mono,
+.tp-num,
+.tp-price,
+.tp-pnl,
+[class*="tp-price"],
+[class*="tp-pnl"] {
+  font-family: 'IBM Plex Mono', 'Courier New', monospace;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Ticker Marquee Component
+   ═══════════════════════════════════════════════════════════ */
+
+app-ticker-marquee {
+  display: block;
+  width: 100%;
+}
+
+.tp-marquee {
+  height: 30px;
+  overflow: hidden;
+  background: var(--tp-bg-secondary);
+  border-bottom: 1px solid var(--hairline);
+  position: relative;
+  cursor: default;
+  user-select: none;
+}
+
+.tp-marquee__track {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 100%;
+  animation: marquee-scroll 60s linear infinite;
+  white-space: nowrap;
+  width: max-content;
+}
+
+.tp-marquee:hover .tp-marquee__track {
+  animation-play-state: paused;
+}
+
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* Reduced-motion: freeze into a static scrollable row */
+@media (prefers-reduced-motion: reduce) {
+  .tp-marquee {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+  }
+  .tp-marquee__track {
+    animation: none;
+    width: max-content;
+  }
+}
+
+.tp-marquee__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px;
+  border-right: 1px solid var(--hairline);
+  height: 100%;
+  font-size: 11.5px;
+  line-height: 30px;
+}
+
+.tp-marquee__symbol {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
+  font-size: 11.5px;
+  color: var(--tp-text-primary);
+  letter-spacing: 0.03em;
+}
+
+.tp-marquee__price {
+  font-family: 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--tp-text-primary);
+}
+
+.tp-marquee__arrow {
+  font-size: 10px;
+  width: 10px;
+  height: 10px;
+  line-height: 1;
+}
+
+.tp-marquee__change {
+  font-family: 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+}
+
+.tp-marquee__item--bull .tp-marquee__arrow,
+.tp-marquee__item--bull .tp-marquee__change {
+  color: var(--bull-500);
+}
+
+.tp-marquee__item--bear .tp-marquee__arrow,
+.tp-marquee__item--bear .tp-marquee__change {
+  color: var(--bear-500);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Live-update flash micro-interaction
+   Brief background flash when a live value changes
+   ═══════════════════════════════════════════════════════════ */
+
+@keyframes flash-bull {
+  0%   { background-color: color-mix(in srgb, var(--bull-500) 28%, transparent); }
+  100% { background-color: transparent; }
+}
+
+@keyframes flash-bear {
+  0%   { background-color: color-mix(in srgb, var(--bear-500) 28%, transparent); }
+  100% { background-color: transparent; }
+}
+
+.tp-flash-bull {
+  animation: flash-bull 500ms ease-out forwards;
+}
+
+.tp-flash-bear {
+  animation: flash-bear 500ms ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tp-flash-bull,
+  .tp-flash-bear {
+    animation: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Shared utility classes
+   ═══════════════════════════════════════════════════════════ */
+
 .card {
   background-color: var(--tp-bg-card);
   border: 1px solid var(--tp-border);
@@ -160,20 +410,40 @@ html.theme-light {
 }
 
 .card:hover {
-  border-color: color-mix(in srgb, var(--tp-accent-blue) 40%, var(--tp-border));
+  border-color: color-mix(in srgb, var(--brass-500) 40%, var(--tp-border));
 }
 
-.text-primary { color: var(--tp-text-primary); }
+.text-primary   { color: var(--tp-text-primary); }
 .text-secondary { color: var(--tp-text-secondary); }
-.text-muted { color: var(--tp-text-muted); }
-.text-green { color: var(--tp-accent-green); }
-.text-red { color: var(--tp-accent-red); }
-.text-blue { color: var(--tp-accent-blue); }
-.text-yellow { color: var(--tp-accent-yellow); }
+.text-muted     { color: var(--tp-text-muted); }
+.text-bull      { color: var(--tp-bull); }
+.text-bear      { color: var(--tp-bear); }
+.text-brass     { color: var(--brass-500); }
+.text-teal      { color: var(--teal-400); }
 
-/* ── Page patterns (use across feature pages) ──────────────── */
+/* Legacy aliases */
+.text-green  { color: var(--tp-bull); }
+.text-red    { color: var(--tp-bear); }
+.text-blue   { color: var(--brass-500); }
+.text-yellow { color: var(--brass-400); }
+
+/* P&L color utilities — reserved for gain/loss meaning ONLY */
+.tp-bull { color: var(--tp-bull) !important; }
+.tp-bear { color: var(--tp-bear) !important; }
+
+.tp-bull-bg {
+  background-color: color-mix(in srgb, var(--bull-500) 14%, transparent);
+  color: var(--bull-400) !important;
+}
+
+.tp-bear-bg {
+  background-color: color-mix(in srgb, var(--bear-500) 14%, transparent);
+  color: var(--bear-400) !important;
+}
+
+/* ── Page patterns ──────────────────────────────────────── */
 .page-shell {
-  max-width: 1200px;
+  max-width: 1280px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -195,41 +465,42 @@ html.theme-light {
 }
 
 .page-header .header-icon {
-  font-size: 32px;
-  width: 32px;
-  height: 32px;
-  color: var(--tp-accent-blue);
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+  color: var(--brass-500);
 }
 
 .page-header .page-title {
   margin: 0;
-  font-size: 1.5rem;
+  font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
+  font-size: 1.4rem;
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--tp-text-primary);
-  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
 }
 
 .page-header .page-subtitle {
   margin: 2px 0 0;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--tp-text-secondary);
 }
 
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
 }
 
+/* ── Empty & loading state slots ───────────────────────── */
 .empty-state,
 .tp-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 48px 16px;
+  gap: 12px;
+  padding: 56px 16px;
   color: var(--tp-text-secondary);
   text-align: center;
 
@@ -237,7 +508,7 @@ html.theme-light {
     font-size: 48px;
     width: 48px;
     height: 48px;
-    opacity: 0.45;
+    color: var(--paper-600);
   }
 }
 
@@ -247,16 +518,79 @@ html.theme-light {
   gap: 10px;
   padding: 12px 16px;
   border-radius: var(--tp-radius-md);
-  border: 1px solid color-mix(in srgb, var(--tp-accent-red) 35%, var(--tp-border));
-  background: color-mix(in srgb, var(--tp-accent-red) 12%, var(--tp-bg-card));
+  border: 1px solid color-mix(in srgb, var(--bear-500) 35%, var(--tp-border));
+  background: color-mix(in srgb, var(--bear-500) 10%, var(--tp-bg-card));
   color: var(--tp-text-primary);
+  font-size: 13px;
+
+  mat-icon {
+    color: var(--bear-500);
+    flex-shrink: 0;
+  }
 }
 
-.tp-alert mat-icon {
-  color: var(--tp-accent-red);
+/* ── Brass primary actions ──────────────────────────────── */
+.tp-btn-primary {
+  background: var(--brass-500) !important;
+  color: #0A0D12 !important;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 600;
+  border-radius: var(--tp-radius-md) !important;
+
+  &:hover {
+    background: var(--brass-400) !important;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--brass-500) !important;
+    outline-offset: 2px;
+  }
 }
 
-/* ── Angular Material — surfaces & chrome ──────────────────── */
+/* ── Status chip helpers ───────────────────────────────── */
+.chip-open {
+  background: color-mix(in srgb, var(--brass-500) 15%, var(--tp-bg-card)) !important;
+  color: var(--brass-400) !important;
+  border: 1px solid color-mix(in srgb, var(--brass-500) 30%, transparent) !important;
+}
+
+.chip-closed {
+  background: var(--tp-bg-active) !important;
+  color: var(--tp-text-muted) !important;
+  border: 1px solid var(--tp-border) !important;
+}
+
+.chip-active {
+  background: color-mix(in srgb, var(--brass-500) 15%, var(--tp-bg-card)) !important;
+  color: var(--brass-400) !important;
+  border: 1px solid color-mix(in srgb, var(--brass-500) 30%, transparent) !important;
+}
+
+.chip-fired-bull {
+  background: color-mix(in srgb, var(--bull-500) 15%, var(--tp-bg-card)) !important;
+  color: var(--bull-400) !important;
+  border: 1px solid color-mix(in srgb, var(--bull-500) 30%, transparent) !important;
+}
+
+.chip-fired-bear {
+  background: color-mix(in srgb, var(--bear-500) 15%, var(--tp-bg-card)) !important;
+  color: var(--bear-400) !important;
+  border: 1px solid color-mix(in srgb, var(--bear-500) 30%, transparent) !important;
+}
+
+.chip-disabled {
+  background: var(--tp-bg-active) !important;
+  color: var(--paper-600) !important;
+  border: 1px solid var(--tp-border) !important;
+}
+
+/* ══════════════════════════════════════════════════════════
+   Angular Material — surfaces & chrome overrides
+   (bridge feeds these via --mat-sys-* above; overrides here
+    handle components that don't fully respect system tokens)
+   ══════════════════════════════════════════════════════════ */
+
+/* ── Cards ─────────────────────────────────────────────── */
 .mat-mdc-card {
   background-color: var(--tp-bg-card) !important;
   color: var(--tp-text-primary) !important;
@@ -267,14 +601,16 @@ html.theme-light {
 
 .mat-mdc-card-title {
   color: var(--tp-text-primary) !important;
-  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif !important;
+  font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
 }
 
 .mat-mdc-card-subtitle {
   color: var(--tp-text-secondary) !important;
 }
 
-/* Tables — kill light azure-blue row surfaces */
+/* ── Tables ─────────────────────────────────────────────── */
 .mat-mdc-table,
 table.mat-mdc-table {
   background: transparent !important;
@@ -290,40 +626,43 @@ table.mat-mdc-table {
 
 .mat-mdc-header-cell {
   color: var(--tp-text-secondary) !important;
+  border-bottom: 1px solid var(--tp-border) !important;
   border-bottom-color: var(--tp-border) !important;
-  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif !important;
-  font-size: 12px !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+  font-size: 11px !important;
   font-weight: 600 !important;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
 }
 
 .mat-mdc-cell,
 .mat-mdc-footer-cell {
   color: var(--tp-text-primary) !important;
   border-bottom-color: var(--tp-border) !important;
-  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+  font-size: 13px !important;
 }
 
 .mat-mdc-row:hover .mat-mdc-cell {
   background: var(--tp-bg-hover) !important;
 }
 
+/* ── Form fields ────────────────────────────────────────── */
 .mat-mdc-form-field {
   --mdc-outlined-text-field-input-text-color: var(--tp-text-primary);
   --mdc-outlined-text-field-label-text-color: var(--tp-text-secondary);
   --mdc-outlined-text-field-hover-label-text-color: var(--tp-text-primary);
-  --mdc-outlined-text-field-focus-label-text-color: var(--tp-accent-blue);
+  --mdc-outlined-text-field-focus-label-text-color: var(--brass-500);
   --mdc-outlined-text-field-outline-color: var(--tp-border);
-  --mdc-outlined-text-field-hover-outline-color: var(--tp-text-muted);
-  --mdc-outlined-text-field-focus-outline-color: var(--tp-accent-blue);
-  --mdc-outlined-text-field-caret-color: var(--tp-accent-blue);
-  --mat-form-field-focus-select-arrow-color: var(--tp-accent-blue);
+  --mdc-outlined-text-field-hover-outline-color: var(--paper-600);
+  --mdc-outlined-text-field-focus-outline-color: var(--brass-500);
+  --mdc-outlined-text-field-caret-color: var(--brass-500);
+  --mat-form-field-focus-select-arrow-color: var(--brass-500);
 }
 
 .mat-mdc-form-field .mat-mdc-input-element {
   color: var(--tp-text-primary) !important;
-  caret-color: var(--tp-accent-blue);
+  caret-color: var(--brass-500);
 }
 
 .mat-mdc-form-field .mat-mdc-form-field-focus-overlay {
@@ -336,7 +675,7 @@ table.mat-mdc-table {
 }
 
 .mat-mdc-form-field.mat-focused .mdc-floating-label {
-  color: var(--tp-accent-blue) !important;
+  color: var(--brass-500) !important;
 }
 
 .mat-mdc-form-field input::placeholder,
@@ -345,17 +684,20 @@ table.mat-mdc-table {
   opacity: 1;
 }
 
+/* ── Selects / autocomplete / menus ────────────────────── */
 .mat-mdc-select-panel,
 .mat-mdc-autocomplete-panel,
 .mat-mdc-menu-panel {
   background: var(--tp-bg-card) !important;
   color: var(--tp-text-primary) !important;
-  border: 1px solid var(--tp-border);
+  border: 1px solid var(--tp-border) !important;
   border-radius: var(--tp-radius-md) !important;
+  box-shadow: var(--tp-shadow) !important;
 }
 
 .mat-mdc-option {
   color: var(--tp-text-primary) !important;
+  font-size: 13px !important;
 }
 
 .mat-mdc-option.mdc-list-item--selected:not(.mdc-list-item--disabled) {
@@ -366,12 +708,13 @@ table.mat-mdc-table {
   background: var(--tp-bg-hover) !important;
 }
 
+/* ── Tabs ───────────────────────────────────────────────── */
 .mat-mdc-tab-group,
 .mat-mdc-tab-header {
-  --mdc-tab-indicator-active-indicator-color: var(--tp-accent-blue);
-  --mat-tab-header-active-label-text-color: var(--tp-accent-blue);
-  --mat-tab-header-active-focus-label-text-color: var(--tp-accent-blue);
-  --mat-tab-header-active-hover-label-text-color: var(--tp-accent-blue);
+  --mdc-tab-indicator-active-indicator-color: var(--brass-500);
+  --mat-tab-header-active-label-text-color: var(--brass-500);
+  --mat-tab-header-active-focus-label-text-color: var(--brass-500);
+  --mat-tab-header-active-hover-label-text-color: var(--brass-400);
   --mat-tab-header-inactive-label-text-color: var(--tp-text-secondary);
   --mat-tab-header-inactive-hover-label-text-color: var(--tp-text-primary);
   --mat-tab-header-inactive-focus-label-text-color: var(--tp-text-primary);
@@ -386,6 +729,7 @@ table.mat-mdc-table {
   color: var(--tp-text-primary);
 }
 
+/* ── Drawers / sidenav ──────────────────────────────────── */
 .mat-drawer-container,
 .mat-sidenav-container {
   background: var(--tp-bg-primary) !important;
@@ -405,17 +749,20 @@ table.mat-mdc-table {
   color: var(--tp-text-primary) !important;
 }
 
+/* ── Lists ──────────────────────────────────────────────── */
 .mat-mdc-list-base,
 .mat-mdc-list-item,
 .mat-mdc-list-item .mdc-list-item__primary-text {
   color: var(--tp-text-primary) !important;
 }
 
+/* ── Expansion panels ───────────────────────────────────── */
 .mat-expansion-panel {
   background: var(--tp-bg-card) !important;
   color: var(--tp-text-primary) !important;
 }
 
+/* ── Chips ──────────────────────────────────────────────── */
 .mat-mdc-chip {
   --mdc-chip-label-text-color: var(--tp-text-primary);
   --mdc-chip-elevated-container-color: var(--tp-bg-active);
@@ -427,12 +774,23 @@ table.mat-mdc-table {
   color: var(--tp-text-primary) !important;
 }
 
+/* ── Icon buttons ───────────────────────────────────────── */
 .mat-mdc-icon-button {
   color: var(--tp-text-secondary) !important;
+
+  &:hover {
+    color: var(--tp-text-primary) !important;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--brass-500) !important;
+    outline-offset: 2px;
+  }
 }
 
+/* ── Text / outlined / raised buttons ──────────────────── */
 .mat-mdc-button:not(.mat-mdc-button-disabled) {
-  --mdc-text-button-label-text-color: var(--tp-accent-blue);
+  --mdc-text-button-label-text-color: var(--brass-500);
 }
 
 .mat-mdc-outlined-button {
@@ -442,15 +800,26 @@ table.mat-mdc-table {
   color: var(--tp-text-primary) !important;
 }
 
+/* Primary filled button → brass */
 .mat-mdc-unelevated-button.mat-primary,
 .mat-mdc-raised-button.mat-primary,
 .mat-mdc-fab.mat-primary {
-  --mdc-filled-button-container-color: var(--tp-accent-blue);
-  --mdc-filled-button-label-text-color: #ffffff;
-  --mdc-protected-button-container-color: var(--tp-accent-blue);
-  --mdc-protected-button-label-text-color: #ffffff;
-  background-color: var(--tp-accent-blue) !important;
-  color: #fff !important;
+  --mdc-filled-button-container-color: var(--brass-500);
+  --mdc-filled-button-label-text-color: #0A0D12;
+  --mdc-protected-button-container-color: var(--brass-500);
+  --mdc-protected-button-label-text-color: #0A0D12;
+  background-color: var(--brass-500) !important;
+  color: #0A0D12 !important;
+  font-weight: 600 !important;
+
+  &:hover {
+    background-color: var(--brass-400) !important;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--brass-500) !important;
+    outline-offset: 2px;
+  }
 }
 
 .mat-mdc-raised-button:not(.mat-primary):not(.mat-accent):not(.mat-warn):not(.mat-mdc-button-disabled) {
@@ -458,25 +827,38 @@ table.mat-mdc-table {
   color: var(--tp-text-primary) !important;
 }
 
+/* Focus ring on all interactive elements */
+:focus-visible {
+  outline: 2px solid var(--brass-500);
+  outline-offset: 2px;
+}
+
+/* ── Progress bars ──────────────────────────────────────── */
 .mat-mdc-progress-bar {
-  --mdc-linear-progress-active-indicator-color: var(--tp-accent-blue);
+  --mdc-linear-progress-active-indicator-color: var(--brass-500);
   --mdc-linear-progress-track-color: var(--tp-bg-active);
 }
 
+/* ── Snackbars ──────────────────────────────────────────── */
 .mat-mdc-snack-bar-container {
   --mdc-snackbar-container-color: var(--tp-bg-active);
   --mdc-snackbar-supporting-text-color: var(--tp-text-primary);
 }
 
+/* ── Dialogs ────────────────────────────────────────────── */
 .mat-mdc-dialog-container .mdc-dialog__surface {
   background: var(--tp-bg-card) !important;
   color: var(--tp-text-primary) !important;
-  border: 1px solid var(--tp-border);
+  border: 1px solid var(--tp-border) !important;
+  box-shadow: var(--tp-shadow-lg) !important;
 }
 
+/* ── Datepickers ────────────────────────────────────────── */
 .mat-datepicker-content {
   background: var(--tp-bg-card) !important;
   color: var(--tp-text-primary) !important;
+  border: 1px solid var(--tp-border) !important;
+  box-shadow: var(--tp-shadow) !important;
 }
 
 .mat-calendar {
@@ -484,10 +866,47 @@ table.mat-mdc-table {
   color: var(--tp-text-primary) !important;
 }
 
-/* Scrollbars */
+.mat-calendar-body-selected {
+  background-color: var(--brass-500) !important;
+  color: #0A0D12 !important;
+}
+
+/* ── Tooltips ───────────────────────────────────────────── */
+.mdc-tooltip__surface {
+  background: var(--ink-700) !important;
+  color: var(--paper-100) !important;
+  border: 1px solid var(--hairline) !important;
+  font-size: 11.5px !important;
+}
+
+/* ── Paginator ──────────────────────────────────────────── */
+.mat-mdc-paginator {
+  background: transparent !important;
+  color: var(--tp-text-secondary) !important;
+}
+
+.mat-mdc-paginator-range-label {
+  color: var(--tp-text-secondary) !important;
+}
+
+/* ── Slide toggle ───────────────────────────────────────── */
+.mat-mdc-slide-toggle {
+  --mdc-switch-selected-handle-color: var(--brass-500);
+  --mdc-switch-selected-track-color: color-mix(in srgb, var(--brass-500) 40%, transparent);
+}
+
+/* ── Spinners ───────────────────────────────────────────── */
+.mat-mdc-progress-spinner {
+  --mdc-circular-progress-active-indicator-color: var(--brass-500);
+}
+
+/* ══════════════════════════════════════════════════════════
+   Scrollbars
+   ══════════════════════════════════════════════════════════ */
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -500,5 +919,14 @@ table.mat-mdc-table {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--tp-text-muted);
+  background: var(--paper-600);
+}
+
+/* ══════════════════════════════════════════════════════════
+   Selection
+   ══════════════════════════════════════════════════════════ */
+
+::selection {
+  background-color: color-mix(in srgb, var(--brass-500) 30%, transparent);
+  color: var(--paper-100);
 }

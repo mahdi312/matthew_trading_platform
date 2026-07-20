@@ -1,0 +1,20 @@
+@if (items().length > 0) {
+  <div class="tp-marquee" role="marquee" aria-label="Live watchlist prices">
+    <div class="tp-marquee__track">
+      @for (item of displayItems(); track $index) {
+        <span class="tp-marquee__item" [class]="'tp-marquee__item--' + direction(item)">
+          <span class="tp-marquee__symbol">{{ item.symbol }}</span>
+          <span class="tp-marquee__price">{{ formatPrice(item.price) }}</span>
+          @if (direction(item) !== 'neutral') {
+            <span class="tp-marquee__arrow" aria-hidden="true">
+              {{ direction(item) === 'bull' ? '▲' : '▼' }}
+            </span>
+          }
+          @if (changePercent(item) !== null) {
+            <span class="tp-marquee__change">{{ formatChange(changePercent(item)) }}</span>
+          }
+        </span>
+      }
+    </div>
+  </div>
+}
