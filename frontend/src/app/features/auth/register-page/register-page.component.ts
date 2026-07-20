@@ -1,13 +1,8 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import { AuthService } from '../auth.service';
 import { NotificationService } from '../../../core/notification/notification.service';
@@ -25,17 +20,13 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
     CommonModule,
     ReactiveFormsModule,
     RouterLink,
-    MatCardModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatButtonModule,
     MatIconModule,
-    MatProgressSpinnerModule,
   ],
   templateUrl: './register-page.component.html',
-  styleUrls: ['./register-page.component.scss'],
+  styleUrls: ['../login-page/login-page.component.scss', './register-page.component.scss'],
 })
 export class RegisterPageComponent {
+  readonly Math = Math;
   private readonly auth = inject(AuthService);
   private readonly notification = inject(NotificationService);
   private readonly router = inject(Router);
@@ -56,6 +47,24 @@ export class RegisterPageComponent {
   readonly errorMessage = signal<string | null>(null);
   readonly hidePassword = signal(true);
   readonly hideConfirm = signal(true);
+
+  /** 0–4 strength score derived from the password field */
+  readonly passwordStrength = computed<number>(() => {
+    const pwd: string = this.form.get('password')?.value ?? '';
+    if (!pwd) return 0;
+    let score = 0;
+    if (pwd.length >= 8) score++;
+    if (pwd.length >= 12) score++;
+    if (/[A-Z]/.test(pwd) && /[a-z]/.test(pwd)) score++;
+    if (/\d/.test(pwd)) score++;
+    if (/[^A-Za-z0-9]/.test(pwd)) score++;
+    return Math.min(score, 4);
+  });
+
+  readonly strengthLabel = computed<string>(() => {
+    const s = this.passwordStrength();
+    return ['', 'Weak', 'Fair', 'Good', 'Strong'][s] ?? '';
+  });
 
   onSubmit(): void {
     if (this.form.invalid || this.loading()) return;
@@ -78,9 +87,14 @@ export class RegisterPageComponent {
         },
         error: (err) => {
           this.loading.set(false);
-          this.errorMessage.set(
-            err?.error?.error ?? err?.error?.message ?? 'Registration failed. Please try again.'
-          );
+          const msg: string = err?.error?.error ?? err?.error?.message ?? '';
+          if (msg.toLowerCase().includes('exist') || msg.toLowerCase().includes('taken')) {
+            this.errorMessage.set('That username is already taken — try a different one.');
+          } else if (msg.toLowerCase().includes('email')) {
+            this.errorMessage.set('That email is already registered — try signing in instead.');
+          } else {
+            this.errorMessage.set(msg || 'Registration failed. Please try again.');
+          }
         },
       });
   }
