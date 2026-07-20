@@ -2,7 +2,8 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { CHARTS_API, INDICATORS_API } from '../../core/api/api-paths';
+import { CHARTS_API, INDICATORS_API, MARKET_API } from '../../core/api/api-paths';
+import type { OhlcvBar } from '../../shared/chart-library';
 import {
   ApiChartDrawing,
   DrawingLayout,
@@ -17,6 +18,9 @@ import {
  * HTTP client for ChartingModule — wraps all market-service chart endpoints.
  *
  * Endpoints consumed (all Gateway-routed via environment.gatewayBaseUrl):
+ *
+ * Historical OHLCV:
+ *   GET    /api/market/ohlcv/:symbol?timeframe=X&limit=Y
  *
  * Drawings:
  *   GET    /api/charts/drawings?symbol=X[&layoutId=Y]
@@ -41,6 +45,22 @@ import {
 export class ChartingApiService {
   private readonly http = inject(HttpClient);
   private readonly base = environment.gatewayBaseUrl;
+
+  // ── Historical OHLCV ──────────────────────────────────────────────────────
+
+  /**
+   * GET /api/market/ohlcv/:symbol?timeframe=X&limit=Y
+   * Returns historical candlestick bars for the symbol/timeframe combination.
+   */
+  getOhlcv(symbol: string, timeframe = '1h', limit = 200): Observable<OhlcvBar[]> {
+    const params = new HttpParams()
+      .set('timeframe', timeframe)
+      .set('limit', limit.toString());
+    return this.http.get<OhlcvBar[]>(
+      `${this.base}${MARKET_API}/ohlcv/${encodeURIComponent(symbol)}`,
+      { params }
+    );
+  }
 
   // ── Drawings ──────────────────────────────────────────────────────────────
 

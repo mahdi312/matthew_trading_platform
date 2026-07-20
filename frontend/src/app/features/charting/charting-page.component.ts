@@ -24,13 +24,19 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatExpansionModule } from '@angular/material/expansion';
+import { MatDialogModule, MatDialog } from '@angular/material/dialog';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { Subscription } from 'rxjs';
 
 import { CandlestickChartComponent } from '../../shared/chart-library/candlestick-chart/candlestick-chart.component';
 import { SymbolSearchComponent, SymbolSearchResult } from '../../shared/symbol-search';
-import { DrawingChangedEvent, ChartDrawing } from '../../shared/chart-library/models/drawing.model';
+import { DrawingChangedEvent, ChartDrawing, DrawingToolType } from '../../shared/chart-library/models/drawing.model';
 import { IndicatorSeries } from '../../shared/chart-library/models/indicator-series.model';
 import { OhlcvBar } from '../../shared/chart-library/models/ohlcv.model';
+import { PriceFlashDirective } from '../../shared/directives/price-flash.directive';
+import { LoadingStateComponent } from '../../shared/loading-state/loading-state.component';
+import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
 
 import { ChartingApiService } from './charting-api.service';
 import { MarketDataSocketService } from '../../core/api/market-data-socket.service';
@@ -42,9 +48,6 @@ import {
   isStockFundamentals,
   isCryptoTokenomics,
   isForexMacro,
-  CompanyFundamentalsDto,
-  CryptoTokenomicsDto,
-  ForexMacroIndicatorsDto,
 } from './fundamentals-api.service';
 import {
   ApiChartDrawing,
@@ -54,20 +57,39 @@ import {
   SaveDrawingRequest,
 } from './charting.models';
 
+/** Available timeframes for the candlestick chart. */
+export interface Timeframe {
+  value: string;
+  label: string;
+}
+
+/** Available bar-count presets. */
+export interface BarCountOption {
+  value: number;
+  label: string;
+}
+
+/** Drawing tool descriptor for the left rail. */
+export interface DrawingToolItem {
+  type: DrawingToolType | null;
+  icon: string;
+  tooltip: string;
+}
+
 /**
- * Full-screen charting workspace.
+ * Full-screen charting workspace — Prompt 7.
  *
- * Features:
- *  1. Symbol selector — switches the active chart, subscriptions, and persisted state.
- *  2. CandlestickChartComponent — receives OHLCV from live WebSocket feed,
- *     persisted drawings from market-service, and computed indicator series.
- *  3. Drawing persistence — on `(drawingChanged)`, creates/updates/deletes drawings
- *     via ChartingApiService (/api/charts/drawings).
- *  4. Layout management — save/load named layouts; updates GlobalDrawingSettings.
- *  5. Indicator panel — lists enabled indicator configs; toggle, add, remove.
- *     Triggers /api/indicators/{symbol}/compute to refresh computed series.
+ * Layout: chart canvas fills the entire viewport.
+ * - Slim top strip: symbol picker, timeframe selector, bar-count control.
+ * - Collapsible left tool rail: drawing tools as icon buttons (not a dropdown).
+ * - Collapsible right indicator panel: active indicator configs with toggle +
+ *   color swatch; add-indicator buttons; layout switcher dropdown.
+ * - GlobalDrawingSettings.theme drives CandlestickChartComponent's theme input.
+ * - Every drawing action emits (drawingChanged) → persisted via ChartingApiService.
+ * - Layout save/load: save-as-new-layout + set-as-default via GlobalDrawingSettings.
+ * - flash directive applied to live price readout.
  *
- * Route: /charting  (behind authGuard)
+ * Route: /charting  (behind authGuard, full-bleed — no shell padding/marquee)
  */
 @Component({
   selector: 'app-charting-page',
@@ -91,8 +113,14 @@ import {
     MatTooltipModule,
     MatSlideToggleModule,
     MatExpansionModule,
+    MatDialogModule,
+    MatMenuModule,
+    MatButtonToggleModule,
     CandlestickChartComponent,
     SymbolSearchComponent,
+    PriceFlashDirective,
+    LoadingStateComponent,
+    EmptyStateComponent,
   ],
   templateUrl: './charting-page.component.html',
   styleUrls: ['./charting-page.component.scss'],
@@ -104,56 +132,102 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
   private readonly route            = inject(ActivatedRoute);
   private readonly watchlistApi     = inject(WatchlistApiService);
   private readonly fundamentalsApi  = inject(FundamentalsApiService);
+  private readonly dialog           = inject(MatDialog);
 
   // Expose type guards to the template
   readonly isStockFundamentals = isStockFundamentals;
   readonly isCryptoTokenomics  = isCryptoTokenomics;
   readonly isForexMacro        = isForexMacro;
 
-  // ── State ─────────────────────────────────────────────────────────────────
+  // ── Timeframes ────────────────────────────────────────────────────────────
+
+  readonly timeframes: Timeframe[] = [
+    { value: '1m',  label: '1m'  },
+    { value: '5m',  label: '5m'  },
+    { value: '15m', label: '15m' },
+    { value: '30m', label: '30m' },
+    { value: '1h',  label: '1H'  },
+    { value: '4h',  label: '4H'  },
+    { value: '1d',  label: '1D'  },
+    { value: '1w',  label: '1W'  },
+  ];
+
+  readonly barCountOptions: BarCountOption[] = [
+    { value: 50,   label: '50'   },
+    { value: 100,  label: '100'  },
+    { value: 200,  label: '200'  },
+    { value: 500,  label: '500'  },
+  ];
+
+  readonly activeTimeframe  = signal<string>('1h');
+  readonly activeBarCount   = signal<number>(200);
+
+  // ── Drawing tool rail ─────────────────────────────────────────────────────
+
+  readonly drawingTools: DrawingToolItem[] = [
+    { type: null,              icon: 'mouse',                tooltip: 'Pointer / select'           },
+    { type: 'TREND_LINE',      icon: 'show_chart',           tooltip: 'Trend line'                 },
+    { type: 'FIBONACCI',       icon: 'format_list_numbered', tooltip: 'Fibonacci retracement'      },
+    { type: 'RECTANGLE',       icon: 'crop_square',          tooltip: 'Rectangle'                  },
+    { type: 'HORIZONTAL_LINE', icon: 'horizontal_rule',      tooltip: 'Horizontal line'            },
+    { type: 'VERTICAL_LINE',   icon: 'vertical_distribute',  tooltip: 'Vertical line'              },
+  ];
+
+  /** Active drawing tool driven by the left rail — bound to CandlestickChartComponent via selectDrawingTool(). */
+  readonly activeDrawingTool = signal<DrawingToolType | null>(null);
+
+  /** Whether the left drawing tool rail is collapsed (icon-only when expanded; hidden when collapsed). */
+  readonly toolRailOpen = signal(true);
+
+  // ── Right panel state ─────────────────────────────────────────────────────
+
+  readonly sidenavOpen        = signal(true);
+  readonly addingToWatchlist  = signal(false);
+
+  // ── Symbol & layout ───────────────────────────────────────────────────────
 
   readonly activeSymbol       = signal<string>('BTCUSDT');
   readonly activeLayoutId     = signal<string | null>(null);
   readonly chartTheme         = signal<'dark' | 'light'>('dark');
-  readonly sidenavOpen        = signal(true);
-  readonly addingToWatchlist  = signal(false);
 
-  // ── Fundamentals / Company Info panel ─────────────────────────────────────
+  // ── Fundamentals panel ────────────────────────────────────────────────────
 
-  /** Currently selected asset class for fundamentals lookup. */
   readonly fundamentalsAssetClass = signal<AssetClass>('CRYPTO');
-
-  /** Whether the fundamentals panel is expanded. */
   readonly fundamentalsPanelOpen  = signal(false);
-
-  /** Fundamentals data for the active symbol. */
   readonly fundamentals           = signal<FundamentalsPayload | null>(null);
-
-  /** Loading / error state for the fundamentals panel. */
   readonly loadingFundamentals    = signal(false);
   readonly fundamentalsError      = signal<string | null>(null);
 
-  /** Live OHLCV bars from the market WebSocket. */
+  // ── Chart data ────────────────────────────────────────────────────────────
+
   readonly chartBars        = signal<OhlcvBar[]>([]);
   readonly livePrice        = signal<number | null>(null);
-
-  /** Drawings loaded from /api/charts/drawings, then kept in sync locally. */
   readonly drawings         = signal<ChartDrawing[]>([]);
-
-  /** Indicator series computed by market-service. */
   readonly indicatorSeries  = signal<IndicatorSeries[]>([]);
-
-  /** Saved layouts for the active symbol. */
   readonly layouts          = signal<DrawingLayout[]>([]);
-
-  /** Indicator configs for the active symbol. */
   readonly indicatorConfigs = signal<IndicatorConfig[]>([]);
 
-  // ── Loading flags ─────────────────────────────────────────────────────────
+  // ── Loading / error flags ─────────────────────────────────────────────────
 
+  readonly loadingBars        = signal(false);
   readonly loadingDrawings    = signal(false);
   readonly loadingIndicators  = signal(false);
   readonly savingLayout       = signal(false);
+  readonly errorBars          = signal<string | null>(null);
+
+  // ── New layout dialog state ───────────────────────────────────────────────
+
+  readonly showLayoutDialog   = signal(false);
+  readonly newLayoutName      = signal('');
+
+  // ── Computed helpers ──────────────────────────────────────────────────────
+
+  /** Label for the active layout button in the toolbar. */
+  readonly activeLayoutLabel = computed(() => {
+    const id = this.activeLayoutId();
+    if (!id) return 'No layout';
+    return this.layouts().find((l) => l.id === id)?.name ?? 'Layout';
+  });
 
   // ── Available indicator types ─────────────────────────────────────────────
 
@@ -185,7 +259,6 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
-    // Support ?symbol=XYZ query param (e.g. from watchlist row clicks)
     const qpSym = this.route.snapshot.queryParamMap.get('symbol');
     const initial = qpSym ? qpSym.toUpperCase().trim() : this.activeSymbol();
     this.activateSymbol(initial);
@@ -207,12 +280,10 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
     this.activateSymbol(symbol);
   }
 
-  /** Called by SymbolSearchComponent's (symbolSelected) event. */
   onSymbolSelected(result: SymbolSearchResult): void {
     this.onSymbolChange(result.ticker);
   }
 
-  /** Add the currently active symbol to the user's watchlist. */
   addToWatchlist(): void {
     if (this.addingToWatchlist()) return;
     this.addingToWatchlist.set(true);
@@ -228,8 +299,31 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
     });
   }
 
+  // ── Timeframe / bar-count ─────────────────────────────────────────────────
+
+  onTimeframeChange(tf: string): void {
+    this.activeTimeframe.set(tf);
+    this.loadHistoricalBars();
+  }
+
+  onBarCountChange(count: number): void {
+    this.activeBarCount.set(count);
+    this.loadHistoricalBars();
+  }
+
+  // ── Drawing tool rail ─────────────────────────────────────────────────────
+
+  setDrawingTool(tool: DrawingToolType | null): void {
+    this.activeDrawingTool.set(tool);
+  }
+
+  toggleToolRail(): void {
+    this.toolRailOpen.update((v) => !v);
+  }
+
+  // ── Core activation ───────────────────────────────────────────────────────
+
   private activateSymbol(symbol: string): void {
-    // Unsubscribe previous symbol.
     if (this.currentSymbol) {
       this.tickSub?.unsubscribe();
       this.marketSocket.unsubscribeSymbol(this.currentSymbol);
@@ -242,15 +336,19 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
     this.drawings.set([]);
     this.indicatorSeries.set([]);
     this.activeLayoutId.set(null);
+    this.errorBars.set(null);
 
-    // Reset fundamentals so the panel re-fetches for the new symbol.
+    // Reset fundamentals panel when symbol changes.
     this.fundamentals.set(null);
     this.fundamentalsError.set(null);
     if (this.fundamentalsPanelOpen()) {
       this.loadFundamentals();
     }
 
-    // Subscribe to live feed.
+    // 1. Fetch historical bars first, then subscribe to live ticks.
+    this.loadHistoricalBars();
+
+    // 2. Subscribe to live WebSocket ticks.
     this.marketSocket.subscribeSymbol(symbol);
     this.tickSub = this.marketSocket.ticks$(symbol).subscribe((tick) => {
       this.livePrice.set(tick.price);
@@ -262,22 +360,50 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
             ...last,
             close:  tick.price,
             high:   Math.max(last.high, tick.price),
-            low:    Math.min(last.low,  tick.price),
+            low:    Math.min(last.low, tick.price),
             volume: last.volume + tick.volume,
           };
           return updated;
         }
         return [
           ...bars.slice(-499),
-          { timestamp: tick.timestamp, open: tick.price, high: tick.price, low: tick.price, close: tick.price, volume: tick.volume },
+          {
+            timestamp: tick.timestamp,
+            open: tick.price, high: tick.price,
+            low:  tick.price, close: tick.price,
+            volume: tick.volume,
+          },
         ];
       });
     });
 
-    // Load server-side state for this symbol.
+    // 3. Load server-side state.
     this.loadDrawings();
     this.loadLayouts();
     this.loadIndicatorConfigs();
+  }
+
+  // ── Historical bar loading ────────────────────────────────────────────────
+
+  private loadHistoricalBars(): void {
+    this.loadingBars.set(true);
+    this.errorBars.set(null);
+
+    this.chartingApi.getOhlcv(
+      this.activeSymbol(),
+      this.activeTimeframe(),
+      this.activeBarCount()
+    ).subscribe({
+      next: (bars) => {
+        this.chartBars.set(bars);
+        this.loadingBars.set(false);
+      },
+      error: () => {
+        // Historical bars are best-effort; live ticks still populate the chart.
+        this.loadingBars.set(false);
+        this.errorBars.set('Could not load historical bars — live feed active.');
+      },
+    });
   }
 
   // ── Drawing persistence ───────────────────────────────────────────────────
@@ -293,10 +419,6 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  /**
-   * Called when CandlestickChartComponent emits `(drawingChanged)`.
-   * Maps the presentation-layer event to an API save/delete call.
-   */
   onDrawingChanged(event: DrawingChangedEvent): void {
     if (event.action === 'created') {
       const req: SaveDrawingRequest = {
@@ -311,7 +433,6 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
       };
       this.chartingApi.createDrawing(req).subscribe({
         next: (saved) => {
-          // Replace the locally-generated id with the server-assigned one.
           this.drawings.update((list) =>
             list.map((d) => (d.id === event.drawing.id ? { ...d, id: saved.id } : d))
           );
@@ -330,7 +451,7 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
   private loadLayouts(): void {
     this.chartingApi.getLayouts(this.activeSymbol()).subscribe({
       next: (layouts) => this.layouts.set(layouts),
-      error: () => {}, // non-critical
+      error: () => {},
     });
   }
 
@@ -339,18 +460,30 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
     this.loadDrawings();
   }
 
-  saveNewLayout(): void {
-    const name = prompt('Layout name:')?.trim();
+  /** Opens the inline "save as new layout" mini-form. */
+  openLayoutDialog(): void {
+    this.newLayoutName.set('');
+    this.showLayoutDialog.set(true);
+  }
+
+  cancelLayoutDialog(): void {
+    this.showLayoutDialog.set(false);
+    this.newLayoutName.set('');
+  }
+
+  confirmSaveLayout(): void {
+    const name = this.newLayoutName().trim();
     if (!name) return;
 
     this.savingLayout.set(true);
+    this.showLayoutDialog.set(false);
+
     this.chartingApi.createLayout({ name, symbol: this.activeSymbol(), isGlobal: false }).subscribe({
       next: (layout) => {
         this.layouts.update((l) => [...l, layout]);
         this.activeLayoutId.set(layout.id);
         this.snack.open(`Layout "${layout.name}" saved.`, 'OK', { duration: 3000 });
         this.savingLayout.set(false);
-        // Persist current drawings into the new layout.
         this.persistDrawingsToLayout(layout.id);
       },
       error: () => {
@@ -381,7 +514,6 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** Re-saves all currently displayed drawings under a new layout id. */
   private persistDrawingsToLayout(layoutId: string): void {
     for (const drawing of this.drawings()) {
       const req: SaveDrawingRequest = {
@@ -425,7 +557,7 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
           }))
         );
       },
-      error: () => {}, // compute failure is non-critical; chart shows without overlays
+      error: () => {},
     });
   }
 
@@ -443,7 +575,7 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
       next: (saved) => {
         this.indicatorConfigs.update((c) => [...c, saved]);
         this.computeIndicators();
-        this.snack.open(`${type} indicator added.`, 'OK', { duration: 2000 });
+        this.snack.open(`${type} added.`, 'OK', { duration: 2000 });
       },
       error: () => this.snack.open('Failed to add indicator.', 'Close', { duration: 3000 }),
     });
@@ -500,23 +632,19 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
 
   // ── Fundamentals panel ────────────────────────────────────────────────────
 
-  /** Toggle the Company Info / Fundamentals panel open/closed. */
   toggleFundamentalsPanel(): void {
     const opening = !this.fundamentalsPanelOpen();
     this.fundamentalsPanelOpen.set(opening);
-    // Load fundamentals when first opened (or if the symbol has changed since last load).
     if (opening && !this.fundamentals()) {
       this.loadFundamentals();
     }
   }
 
-  /** Called when the user changes asset class in the panel selector. */
   onFundamentalsAssetClassChange(cls: AssetClass): void {
     this.fundamentalsAssetClass.set(cls);
     this.loadFundamentals();
   }
 
-  /** Fetch fundamentals from reference-data-service for the active symbol. */
   loadFundamentals(): void {
     this.loadingFundamentals.set(true);
     this.fundamentalsError.set(null);
@@ -541,10 +669,24 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
       });
   }
 
-  /**
-   * Helper: format large numbers (market cap, revenue, etc.) to a readable string.
-   * e.g. 1_234_567_890 → "$1.23B"
-   */
+  // ── Theme ─────────────────────────────────────────────────────────────────
+
+  toggleTheme(): void {
+    const next = this.chartTheme() === 'dark' ? 'light' : 'dark';
+    this.chartTheme.set(next);
+    this.chartingApi.updateGlobalSettings({ theme: next }).subscribe();
+  }
+
+  // ── UI helpers ────────────────────────────────────────────────────────────
+
+  toggleSidenav(): void {
+    this.sidenavOpen.update((v) => !v);
+  }
+
+  layoutLabel(id: string): string {
+    return this.layouts().find((l) => l.id === id)?.name ?? id;
+  }
+
   formatLargeNumber(value: number | null | undefined, prefix = ''): string {
     if (value == null) return '—';
     const abs = Math.abs(value);
@@ -555,32 +697,14 @@ export class ChartingPageComponent implements OnInit, OnDestroy {
     return `${prefix}${value.toFixed(2)}`;
   }
 
-  /** Format a ratio/percentage field (e.g. 0.12 → "12.0%"). */
   formatPct(value: number | null | undefined): string {
     if (value == null) return '—';
     return (value * 100).toFixed(1) + '%';
   }
 
-  /** Return a string or '—' for null values. */
   orDash(value: string | number | null | undefined): string {
     if (value == null) return '—';
     return String(value);
-  }
-
-  // ── UI helpers ────────────────────────────────────────────────────────────
-
-  toggleSidenav(): void {
-    this.sidenavOpen.update((v) => !v);
-  }
-
-  toggleTheme(): void {
-    const next = this.chartTheme() === 'dark' ? 'light' : 'dark';
-    this.chartTheme.set(next);
-    this.chartingApi.updateGlobalSettings({ theme: next }).subscribe();
-  }
-
-  layoutLabel(id: string): string {
-    return this.layouts().find((l) => l.id === id)?.name ?? id;
   }
 
   trackById(_: number, item: { id: string }): string { return item.id; }

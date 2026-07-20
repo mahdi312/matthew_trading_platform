@@ -1,506 +1,638 @@
-<mat-sidenav-container class="charting-container" [hasBackdrop]="false">
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Charting Workspace — Prompt 7
+     Full-bleed layout (shell drops padding for /charting).
+     Structure:
+       .charting-root
+         .chart-top-strip          ← slim symbol / timeframe / controls bar
+         .chart-workspace
+           .tool-rail              ← collapsible left drawing-tool rail
+           .chart-main             ← chart + fundamentals row
+           .chart-sidenav-panel    ← collapsible right indicator/layout panel
+     ════════════════════════════════════════════════════════════════════════ -->
 
-  <!-- ── Right sidenav — indicator & layout panel ──────────────────────── -->
-  <mat-sidenav #sidenav mode="side" position="end" [opened]="sidenavOpen()" class="charting-sidenav">
+<div class="charting-root">
 
-    <div class="sidenav-header">
-      <span class="sidenav-title">Chart Tools</span>
-      <button mat-icon-button (click)="toggleSidenav()" matTooltip="Hide panel">
-        <mat-icon>chevron_right</mat-icon>
+  <!-- ── TOP STRIP ──────────────────────────────────────────────────────── -->
+  <div class="chart-top-strip">
+
+    <!-- Left: tool-rail toggle + symbol group -->
+    <div class="strip-left">
+      <!-- Toggle left tool rail -->
+      <button mat-icon-button
+              class="rail-toggle-btn"
+              [matTooltip]="toolRailOpen() ? 'Hide drawing tools' : 'Show drawing tools'"
+              (click)="toggleToolRail()">
+        <mat-icon>{{ toolRailOpen() ? 'chevron_left' : 'architecture' }}</mat-icon>
       </button>
-    </div>
 
-    <mat-divider></mat-divider>
-
-    <!-- ── Layouts section ─────────────────────────────────────────────── -->
-    <div class="sidenav-section">
-      <div class="section-header">
-        <span>Layouts</span>
-        <button mat-icon-button matTooltip="Save new layout"
-                [disabled]="savingLayout()"
-                (click)="saveNewLayout()">
-          <mat-icon>add</mat-icon>
-        </button>
-      </div>
-
-      @if (layouts().length === 0) {
-        <p class="empty-hint">No layouts saved. Draw on the chart, then click + to save.</p>
-      } @else {
-        <mat-list dense>
-          @for (layout of layouts(); track layout.id) {
-            <mat-list-item
-              [class.active-layout]="layout.id === activeLayoutId()"
-              (click)="switchLayout(layout.id)"
-              class="layout-item">
-              <span matListItemTitle>{{ layout.name }}</span>
-              <span matListItemLine class="layout-symbol">{{ layout.symbol }}</span>
-              @if (layout.id === activeLayoutId()) {
-                <button mat-icon-button matTooltip="Set as default"
-                        (click)="setDefaultLayout(); $event.stopPropagation()">
-                  <mat-icon>star</mat-icon>
-                </button>
-              }
-            </mat-list-item>
-          }
-        </mat-list>
-      }
-    </div>
-
-    <mat-divider></mat-divider>
-
-    <!-- ── Indicators section ───────────────────────────────────────────── -->
-    <div class="sidenav-section">
-      <div class="section-header">
-        <span>Indicators</span>
-      </div>
-
-      <!-- Add indicator buttons -->
-      <div class="indicator-buttons">
-        @for (ind of indicatorTypes; track ind.type) {
-          <button mat-stroked-button (click)="addIndicator(ind.type, ind.subPane)"
-                  class="add-ind-btn">
-            + {{ ind.label }}
-          </button>
-        }
-      </div>
-
-      <!-- Active indicator configs -->
-      @if (loadingIndicators()) {
-        <div class="loading-row"><mat-spinner diameter="24"></mat-spinner></div>
-      } @else if (indicatorConfigs().length > 0) {
-        <mat-divider style="margin: 8px 0"></mat-divider>
-        <mat-list dense>
-          @for (cfg of indicatorConfigs(); track cfg.id) {
-            <mat-list-item class="indicator-item">
-              <span class="ind-dot" [style.background]="cfg.color"></span>
-              <span matListItemTitle>{{ cfg.type }}</span>
-              <div class="ind-actions">
-                <mat-slide-toggle
-                  [checked]="cfg.enabled"
-                  (change)="toggleIndicator(cfg)"
-                  color="primary">
-                </mat-slide-toggle>
-                <button mat-icon-button (click)="removeIndicator(cfg)"
-                        matTooltip="Remove">
-                  <mat-icon>close</mat-icon>
-                </button>
-              </div>
-            </mat-list-item>
-          }
-        </mat-list>
-      }
-    </div>
-
-  </mat-sidenav>
-
-  <!-- ── Main chart content ─────────────────────────────────────────────── -->
-  <mat-sidenav-content class="charting-content">
-
-    <!-- ── Top toolbar ──────────────────────────────────────────────────── -->
-    <div class="chart-toolbar">
-
-      <!-- Symbol selector -->
-      <div class="symbol-group">
+      <!-- Popular symbols quick-pick -->
+      <div class="symbol-quick-pick" role="group" aria-label="Quick symbol select">
         @for (sym of popularSymbols; track sym) {
-          <button mat-stroked-button
-                  [class.active-sym]="sym === activeSymbol()"
+          <button mat-button
+                  class="sym-btn"
+                  [class.sym-btn--active]="sym === activeSymbol()"
                   (click)="onSymbolChange(sym)">
             {{ sym }}
           </button>
         }
-        <app-symbol-search
-          class="symbol-search-inline"
-          placeholder="Search symbol…"
-          (symbolSelected)="onSymbolSelected($event)">
-        </app-symbol-search>
-        <!-- Add current symbol to watchlist -->
-        <button mat-icon-button
-                matTooltip="Add {{ activeSymbol() }} to watchlist"
-                (click)="addToWatchlist()"
-                [disabled]="addingToWatchlist()">
-          <mat-icon>{{ addingToWatchlist() ? 'hourglass_empty' : 'star_border' }}</mat-icon>
-        </button>
       </div>
 
-      <!-- Right controls -->
-      <div class="toolbar-right">
-        <!-- Live price badge -->
-        @if (livePrice() !== null) {
-          <span class="live-price-badge">
-            {{ activeSymbol() }}&nbsp;
-            <strong>{{ livePrice() | number:'1.2-6' }}</strong>
-            <span class="live-dot">●</span>LIVE
-          </span>
-        }
+      <!-- Full symbol search -->
+      <app-symbol-search
+        class="symbol-search-strip"
+        placeholder="Symbol…"
+        (symbolSelected)="onSymbolSelected($event)">
+      </app-symbol-search>
 
-        <!-- Active layout label -->
+      <!-- Watchlist add -->
+      <button mat-icon-button
+              class="watchlist-btn"
+              [matTooltip]="'Add ' + activeSymbol() + ' to watchlist'"
+              [disabled]="addingToWatchlist()"
+              (click)="addToWatchlist()">
+        <mat-icon>{{ addingToWatchlist() ? 'hourglass_empty' : 'star_border' }}</mat-icon>
+      </button>
+    </div>
+
+    <!-- Center: timeframe selector -->
+    <div class="strip-center">
+      <div class="timeframe-group" role="group" aria-label="Timeframe">
+        @for (tf of timeframes; track tf.value) {
+          <button mat-button
+                  class="tf-btn"
+                  [class.tf-btn--active]="tf.value === activeTimeframe()"
+                  (click)="onTimeframeChange(tf.value)">
+            {{ tf.label }}
+          </button>
+        }
+      </div>
+
+      <!-- Bar count -->
+      <div class="bar-count-group">
+        <mat-select
+          class="bar-count-select"
+          [value]="activeBarCount()"
+          (valueChange)="onBarCountChange($event)"
+          panelClass="dark-select-panel"
+          aria-label="Bar count">
+          @for (opt of barCountOptions; track opt.value) {
+            <mat-option [value]="opt.value">{{ opt.label }} bars</mat-option>
+          }
+        </mat-select>
+      </div>
+    </div>
+
+    <!-- Right: price + layout + theme + fundamentals + panel toggle -->
+    <div class="strip-right">
+
+      <!-- Live price with flash -->
+      @if (livePrice() !== null) {
+        <span class="live-price"
+              [tpFlash]="livePrice()">
+          <span class="live-price__symbol">{{ activeSymbol() }}</span>
+          <span class="live-price__value">{{ livePrice() | number:'1.2-6' }}</span>
+          <span class="live-price__dot" aria-hidden="true">●</span>
+          <span class="live-price__label">LIVE</span>
+        </span>
+      }
+
+      <!-- Layout switcher dropdown -->
+      <button mat-stroked-button
+              class="layout-menu-btn"
+              [matMenuTriggerFor]="layoutMenu"
+              matTooltip="Layouts"
+              [disabled]="savingLayout()">
+        <mat-icon>layers</mat-icon>
+        <span class="layout-menu-label">
+          {{ activeLayoutId() ? activeLayoutLabel() : 'Layouts' }}
+        </span>
+        <mat-icon class="layout-chevron">arrow_drop_down</mat-icon>
+      </button>
+
+      <mat-menu #layoutMenu="matMenu" class="charting-menu">
+        <!-- Save as new layout action -->
+        <button mat-menu-item (click)="openLayoutDialog()">
+          <mat-icon>add</mat-icon>
+          Save as new layout…
+        </button>
+
         @if (activeLayoutId()) {
-          <mat-chip disableRipple class="layout-chip">
-            <mat-icon>layers</mat-icon>&nbsp;{{ layoutLabel(activeLayoutId()!) }}
-          </mat-chip>
+          <button mat-menu-item (click)="setDefaultLayout()">
+            <mat-icon>star</mat-icon>
+            Set as default
+          </button>
         }
 
-        <!-- Theme toggle -->
-        <button mat-icon-button [matTooltip]="chartTheme() === 'dark' ? 'Switch to light' : 'Switch to dark'"
+        @if (layouts().length > 0) {
+          <mat-divider></mat-divider>
+          @for (layout of layouts(); track layout.id) {
+            <button mat-menu-item
+                    [class.layout-item--active]="layout.id === activeLayoutId()"
+                    (click)="switchLayout(layout.id)">
+              <mat-icon>{{ layout.id === activeLayoutId() ? 'check' : 'layers' }}</mat-icon>
+              {{ layout.name }}
+              <span class="layout-item__symbol">{{ layout.symbol }}</span>
+            </button>
+          }
+        } @else {
+          <button mat-menu-item disabled>
+            <mat-icon>info_outline</mat-icon>
+            No layouts saved yet
+          </button>
+        }
+      </mat-menu>
+
+      <!-- Theme toggle -->
+      <button mat-icon-button
+              class="strip-icon-btn"
+              [matTooltip]="chartTheme() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+              (click)="toggleTheme()">
+        <mat-icon>{{ chartTheme() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
+      </button>
+
+      <!-- Company Info / Fundamentals toggle -->
+      <button mat-icon-button
+              class="strip-icon-btn"
+              [class.strip-icon-btn--active]="fundamentalsPanelOpen()"
+              matTooltip="Company Info / Fundamentals"
+              (click)="toggleFundamentalsPanel()">
+        <mat-icon>info_outline</mat-icon>
+      </button>
+
+      <!-- Right panel (indicators/layouts) toggle -->
+      <button mat-icon-button
+              class="strip-icon-btn"
+              [class.strip-icon-btn--active]="sidenavOpen()"
+              matTooltip="Toggle indicators panel"
+              (click)="toggleSidenav()">
+        <mat-icon>tune</mat-icon>
+      </button>
+    </div>
+
+  </div><!-- /.chart-top-strip -->
+
+  <!-- ── SAVE LAYOUT INLINE DIALOG ──────────────────────────────────────── -->
+  @if (showLayoutDialog()) {
+    <div class="layout-dialog-backdrop" (click)="cancelLayoutDialog()">
+      <div class="layout-dialog" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-label="Save layout">
+        <h3 class="layout-dialog__title">Save as new layout</h3>
+        <mat-form-field appearance="outline" class="layout-dialog__field">
+          <mat-label>Layout name</mat-label>
+          <input matInput
+                 [ngModel]="newLayoutName()"
+                 (ngModelChange)="newLayoutName.set($event)"
+                 placeholder="e.g. BTC Support Zones"
+                 (keydown.enter)="confirmSaveLayout()"
+                 (keydown.escape)="cancelLayoutDialog()"
+                 maxlength="60"
+                 autofocus>
+        </mat-form-field>
+        <div class="layout-dialog__actions">
+          <button mat-button (click)="cancelLayoutDialog()">Cancel</button>
+          <button mat-flat-button
+                  class="layout-dialog__save-btn"
+                  [disabled]="!newLayoutName().trim() || savingLayout()"
+                  (click)="confirmSaveLayout()">
+            @if (savingLayout()) {
+              <mat-progress-spinner diameter="16" mode="indeterminate"></mat-progress-spinner>
+            } @else {
+              Save
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ── WORKSPACE (tool rail + chart + right panel) ─────────────────────── -->
+  <div class="chart-workspace">
+
+    <!-- ── LEFT DRAWING TOOL RAIL ──────────────────────────────────────── -->
+    <div class="tool-rail" [class.tool-rail--open]="toolRailOpen()" role="toolbar" aria-label="Drawing tools">
+      @if (toolRailOpen()) {
+        <div class="tool-rail__label">Draw</div>
+
+        <!-- Drawing tools -->
+        @for (tool of drawingTools; track tool.type) {
+          <button mat-icon-button
+                  class="tool-btn"
+                  [class.tool-btn--active]="activeDrawingTool() === tool.type"
+                  [matTooltip]="tool.tooltip"
+                  matTooltipPosition="right"
+                  (click)="setDrawingTool(tool.type)">
+            <mat-icon>{{ tool.icon }}</mat-icon>
+          </button>
+        }
+
+        <div class="tool-rail__divider"></div>
+        <div class="tool-rail__label">View</div>
+
+        <!-- Theme toggle shortcut in rail -->
+        <button mat-icon-button
+                class="tool-btn"
+                [matTooltip]="chartTheme() === 'dark' ? 'Light theme' : 'Dark theme'"
+                matTooltipPosition="right"
                 (click)="toggleTheme()">
           <mat-icon>{{ chartTheme() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
         </button>
-
-        <!-- Company Info toggle -->
-        <button mat-icon-button
-                matTooltip="Company Info / Fundamentals"
-                (click)="toggleFundamentalsPanel()"
-                [class.active-panel-btn]="fundamentalsPanelOpen()">
-          <mat-icon>info_outline</mat-icon>
-        </button>
-
-        <!-- Panel toggle -->
-        <button mat-icon-button matTooltip="Toggle panel" (click)="toggleSidenav()">
-          <mat-icon>tune</mat-icon>
-        </button>
-      </div>
-
-    </div>
-
-    <!-- ── Chart + Fundamentals row ─────────────────────────────────────── -->
-    <div class="chart-and-info-row">
-
-      <!-- ── Chart area ──────────────────────────────────────────────────── -->
-      <div class="chart-area">
-        @if (loadingDrawings()) {
-          <div class="chart-overlay-spinner">
-            <mat-spinner diameter="40"></mat-spinner>
-          </div>
-        }
-
-        @if (chartBars().length > 0) {
-          <app-candlestick-chart
-            [ohlcvData]="chartBars()"
-            [indicators]="indicatorSeries()"
-            [drawings]="drawings()"
-            [theme]="chartTheme()"
-            [livePrice]="livePrice()"
-            (drawingChanged)="onDrawingChanged($event)"
-            class="main-chart"
-          ></app-candlestick-chart>
-        } @else {
-          <div class="chart-placeholder">
-            <mat-icon>candlestick_chart</mat-icon>
-            <span>Connecting to live feed for <strong>{{ activeSymbol() }}</strong>…</span>
-            <small>Bars will appear as market data arrives via WebSocket.</small>
-          </div>
-        }
-      </div>
-
-      <!-- ── Company Info / Fundamentals side panel ─────────────────────── -->
-      @if (fundamentalsPanelOpen()) {
-        <aside class="fundamentals-panel">
-
-          <div class="fund-panel-header">
-            <mat-icon class="fund-header-icon">business</mat-icon>
-            <span class="fund-panel-title">Company Info</span>
-            <button mat-icon-button class="fund-close-btn"
-                    matTooltip="Close"
-                    (click)="toggleFundamentalsPanel()">
-              <mat-icon>close</mat-icon>
-            </button>
-          </div>
-
-          <!-- Asset class selector -->
-          <div class="fund-asset-selector">
-            <span class="fund-label">Asset class</span>
-            <div class="asset-class-chips">
-              <button
-                mat-stroked-button
-                [class.asset-chip-active]="fundamentalsAssetClass() === 'STOCK'"
-                (click)="onFundamentalsAssetClassChange('STOCK')">
-                Stock
-              </button>
-              <button
-                mat-stroked-button
-                [class.asset-chip-active]="fundamentalsAssetClass() === 'CRYPTO'"
-                (click)="onFundamentalsAssetClassChange('CRYPTO')">
-                Crypto
-              </button>
-              <button
-                mat-stroked-button
-                [class.asset-chip-active]="fundamentalsAssetClass() === 'FOREX'"
-                (click)="onFundamentalsAssetClassChange('FOREX')">
-                Forex
-              </button>
-            </div>
-          </div>
-
-          <!-- Refresh button -->
-          <div class="fund-refresh-row">
-            <button mat-button (click)="loadFundamentals()" [disabled]="loadingFundamentals()">
-              <mat-icon>refresh</mat-icon> Refresh
-            </button>
-            <span class="fund-symbol-label">{{ activeSymbol() }}</span>
-          </div>
-
-          <mat-divider></mat-divider>
-
-          <!-- Loading -->
-          @if (loadingFundamentals()) {
-            <div class="fund-loading">
-              <mat-spinner diameter="32"></mat-spinner>
-              <span>Loading fundamentals…</span>
-            </div>
-          }
-
-          <!-- Error -->
-          @if (fundamentalsError() && !loadingFundamentals()) {
-            <div class="fund-error">
-              <mat-icon color="warn">error_outline</mat-icon>
-              <span>{{ fundamentalsError() }}</span>
-            </div>
-          }
-
-          <!-- ── STOCK shape ──────────────────────────────────────────── -->
-          @if (fundamentals() && !loadingFundamentals() && isStockFundamentals(fundamentals()!)) {
-            <div class="fund-content">
-              <div class="fund-company-name">
-                {{ $any(fundamentals()).companyName }}
-              </div>
-              <div class="fund-subtitle">
-                {{ orDash($any(fundamentals()).exchange) }}
-                · {{ orDash($any(fundamentals()).sector) }}
-                · {{ orDash($any(fundamentals()).country) }}
-              </div>
-              <mat-divider class="fund-divider"></mat-divider>
-
-              <mat-accordion multi class="fund-accordion">
-
-                <!-- Valuation -->
-                <mat-expansion-panel>
-                  <mat-expansion-panel-header>
-                    <mat-panel-title>Valuation</mat-panel-title>
-                  </mat-expansion-panel-header>
-                  <div class="fund-kv-grid">
-                    <span class="fund-k">Market Cap</span>
-                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).marketCap, '$') }}</span>
-                    <span class="fund-k">P/E (TTM)</span>
-                    <span class="fund-v">{{ orDash($any(fundamentals()).peRatioTtm) }}</span>
-                    <span class="fund-k">P/E (Fwd)</span>
-                    <span class="fund-v">{{ orDash($any(fundamentals()).peRatioForward) }}</span>
-                    <span class="fund-k">Price/Book</span>
-                    <span class="fund-v">{{ orDash($any(fundamentals()).priceToBook) }}</span>
-                    <span class="fund-k">EV/EBITDA</span>
-                    <span class="fund-v">{{ orDash($any(fundamentals()).evToEbitda) }}</span>
-                  </div>
-                </mat-expansion-panel>
-
-                <!-- Income -->
-                <mat-expansion-panel>
-                  <mat-expansion-panel-header>
-                    <mat-panel-title>Income</mat-panel-title>
-                  </mat-expansion-panel-header>
-                  <div class="fund-kv-grid">
-                    <span class="fund-k">Revenue</span>
-                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).revenueAnnual, '$') }}</span>
-                    <span class="fund-k">Rev. Growth YoY</span>
-                    <span class="fund-v">{{ formatPct($any(fundamentals()).revenueGrowthYoy) }}</span>
-                    <span class="fund-k">Gross Margin</span>
-                    <span class="fund-v">{{ formatPct($any(fundamentals()).grossMargin) }}</span>
-                    <span class="fund-k">Net Margin</span>
-                    <span class="fund-v">{{ formatPct($any(fundamentals()).netMargin) }}</span>
-                    <span class="fund-k">EPS (TTM)</span>
-                    <span class="fund-v">{{ orDash($any(fundamentals()).epsDilutedTtm) }}</span>
-                  </div>
-                </mat-expansion-panel>
-
-                <!-- Balance Sheet -->
-                <mat-expansion-panel>
-                  <mat-expansion-panel-header>
-                    <mat-panel-title>Balance Sheet</mat-panel-title>
-                  </mat-expansion-panel-header>
-                  <div class="fund-kv-grid">
-                    <span class="fund-k">Total Assets</span>
-                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).totalAssets, '$') }}</span>
-                    <span class="fund-k">Total Debt</span>
-                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).totalDebt, '$') }}</span>
-                    <span class="fund-k">Cash &amp; Equiv.</span>
-                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).cashAndEquivalents, '$') }}</span>
-                    <span class="fund-k">D/E Ratio</span>
-                    <span class="fund-v">{{ orDash($any(fundamentals()).debtToEquity) }}</span>
-                    <span class="fund-k">Current Ratio</span>
-                    <span class="fund-v">{{ orDash($any(fundamentals()).currentRatio) }}</span>
-                  </div>
-                </mat-expansion-panel>
-
-                <!-- Analyst -->
-                <mat-expansion-panel>
-                  <mat-expansion-panel-header>
-                    <mat-panel-title>Analyst Consensus</mat-panel-title>
-                  </mat-expansion-panel-header>
-                  <div class="fund-kv-grid">
-                    <span class="fund-k">Recommendation</span>
-                    <span class="fund-v">{{ orDash($any(fundamentals()).analystRecommendation) }}</span>
-                    <span class="fund-k">Target Price</span>
-                    <span class="fund-v">{{ orDash($any(fundamentals()).targetPriceMean) }}</span>
-                    <span class="fund-k">Analysts</span>
-                    <span class="fund-v">{{ orDash($any(fundamentals()).analystCount) }}</span>
-                    <span class="fund-k">Div. Yield</span>
-                    <span class="fund-v">{{ formatPct($any(fundamentals()).dividendYield) }}</span>
-                  </div>
-                </mat-expansion-panel>
-
-              </mat-accordion>
-            </div>
-          }
-
-          <!-- ── CRYPTO shape ────────────────────────────────────────── -->
-          @if (fundamentals() && !loadingFundamentals() && isCryptoTokenomics(fundamentals()!)) {
-            <div class="fund-content">
-              <div class="fund-company-name">
-                {{ $any(fundamentals()).name }}
-              </div>
-              <div class="fund-subtitle" *ngIf="$any(fundamentals()).description">
-                {{ $any(fundamentals()).description | slice:0:120 }}…
-              </div>
-              <mat-divider class="fund-divider"></mat-divider>
-
-              <mat-accordion multi class="fund-accordion">
-
-                <!-- Market -->
-                <mat-expansion-panel>
-                  <mat-expansion-panel-header>
-                    <mat-panel-title>Market</mat-panel-title>
-                  </mat-expansion-panel-header>
-                  <div class="fund-kv-grid">
-                    <span class="fund-k">Market Cap</span>
-                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).marketCapUsd, '$') }}</span>
-                    <span class="fund-k">FDV</span>
-                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).fullyDilutedValuationUsd, '$') }}</span>
-                    <span class="fund-k">Volume 24h</span>
-                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).volume24hUsd, '$') }}</span>
-                    <span class="fund-k">Rank</span>
-                    <span class="fund-v">#{{ orDash($any(fundamentals()).marketCapRank) }}</span>
-                    <span class="fund-k">ATH</span>
-                    <span class="fund-v">{{ orDash($any(fundamentals()).athUsd) }}</span>
-                    <span class="fund-k">From ATH</span>
-                    <span class="fund-v">{{ formatPct($any(fundamentals()).athChangePercent) }}</span>
-                  </div>
-                </mat-expansion-panel>
-
-                <!-- Supply -->
-                <mat-expansion-panel>
-                  <mat-expansion-panel-header>
-                    <mat-panel-title>Supply</mat-panel-title>
-                  </mat-expansion-panel-header>
-                  <div class="fund-kv-grid">
-                    <span class="fund-k">Circulating</span>
-                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).circulatingSupply) }}</span>
-                    <span class="fund-k">Total</span>
-                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).totalSupply) }}</span>
-                    <span class="fund-k">Max</span>
-                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).maxSupply) }}</span>
-                    <span class="fund-k">Inflation/yr</span>
-                    <span class="fund-v">{{ formatPct($any(fundamentals()).inflationRateYearly) }}</span>
-                  </div>
-                </mat-expansion-panel>
-
-                <!-- On-chain -->
-                <mat-expansion-panel>
-                  <mat-expansion-panel-header>
-                    <mat-panel-title>On-Chain / Network</mat-panel-title>
-                  </mat-expansion-panel-header>
-                  <div class="fund-kv-grid">
-                    <span class="fund-k">Active Addresses (24h)</span>
-                    <span class="fund-v">{{ orDash($any(fundamentals()).activeAddresses24h) }}</span>
-                    <span class="fund-k">Transactions (24h)</span>
-                    <span class="fund-v">{{ orDash($any(fundamentals()).transactions24h) }}</span>
-                    <span class="fund-k">TVL</span>
-                    <span class="fund-v">{{ formatLargeNumber($any(fundamentals()).tvlUsd, '$') }}</span>
-                    <span class="fund-k">Stake Ratio</span>
-                    <span class="fund-v">{{ formatPct($any(fundamentals()).stakeRatio) }}</span>
-                  </div>
-                </mat-expansion-panel>
-
-              </mat-accordion>
-            </div>
-          }
-
-          <!-- ── FOREX shape ─────────────────────────────────────────── -->
-          @if (fundamentals() && !loadingFundamentals() && isForexMacro(fundamentals()!)) {
-            <div class="fund-content">
-              <div class="fund-company-name">
-                {{ $any(fundamentals()).symbol }}
-              </div>
-              <div class="fund-subtitle">
-                {{ orDash($any(fundamentals()).baseCurrency) }} /
-                {{ orDash($any(fundamentals()).quoteCurrency) }}
-                · {{ orDash($any(fundamentals()).country) }}
-              </div>
-              <mat-divider class="fund-divider"></mat-divider>
-
-              <mat-accordion multi class="fund-accordion">
-
-                <!-- FX rates -->
-                <mat-expansion-panel>
-                  <mat-expansion-panel-header>
-                    <mat-panel-title>Exchange Rate</mat-panel-title>
-                  </mat-expansion-panel-header>
-                  <div class="fund-kv-grid">
-                    <span class="fund-k">Spot Rate</span>
-                    <span class="fund-v">{{ orDash($any(fundamentals()).spotRate) }}</span>
-                    <span class="fund-k">52W High</span>
-                    <span class="fund-v">{{ orDash($any(fundamentals()).weekHigh52) }}</span>
-                    <span class="fund-k">52W Low</span>
-                    <span class="fund-v">{{ orDash($any(fundamentals()).weekLow52) }}</span>
-                    <span class="fund-k">PPP Fair Value</span>
-                    <span class="fund-v">{{ orDash($any(fundamentals()).pppFairValue) }}</span>
-                  </div>
-                </mat-expansion-panel>
-
-                <!-- Macro -->
-                <mat-expansion-panel>
-                  <mat-expansion-panel-header>
-                    <mat-panel-title>Macro Indicators</mat-panel-title>
-                  </mat-expansion-panel-header>
-                  <div class="fund-kv-grid">
-                    <span class="fund-k">CB Rate</span>
-                    <span class="fund-v">{{ formatPct($any(fundamentals()).centralBankRate) }}</span>
-                    <span class="fund-k">CPI YoY</span>
-                    <span class="fund-v">{{ formatPct($any(fundamentals()).cpiYoy) }}</span>
-                    <span class="fund-k">Core CPI YoY</span>
-                    <span class="fund-v">{{ formatPct($any(fundamentals()).coreCpiYoy) }}</span>
-                    <span class="fund-k">GDP Growth YoY</span>
-                    <span class="fund-v">{{ formatPct($any(fundamentals()).gdpGrowthYoy) }}</span>
-                    <span class="fund-k">Unemployment</span>
-                    <span class="fund-v">{{ formatPct($any(fundamentals()).unemploymentRate) }}</span>
-                  </div>
-                </mat-expansion-panel>
-
-              </mat-accordion>
-            </div>
-          }
-
-          <!-- Empty state: data loaded but no matching shape found -->
-          @if (fundamentals() && !loadingFundamentals()
-               && !isStockFundamentals(fundamentals()!)
-               && !isCryptoTokenomics(fundamentals()!)
-               && !isForexMacro(fundamentals()!)) {
-            <div class="fund-error">
-              <mat-icon>help_outline</mat-icon>
-              <span>Unrecognised response shape from server.</span>
-            </div>
-          }
-
-          <!-- Initial state: panel opened but not yet loaded -->
-          @if (!fundamentals() && !loadingFundamentals() && !fundamentalsError()) {
-            <div class="fund-empty">
-              <mat-icon>analytics</mat-icon>
-              <span>Select asset class above and click Refresh.</span>
-            </div>
-          }
-
-        </aside>
       }
+    </div><!-- /.tool-rail -->
 
-    </div><!-- /.chart-and-info-row -->
+    <!-- ── CHART MAIN AREA ─────────────────────────────────────────────── -->
+    <div class="chart-main">
 
-  </mat-sidenav-content>
+      <!-- Chart + Fundamentals panel row -->
+      <div class="chart-and-info-row">
 
-</mat-sidenav-container>
+        <!-- Chart area -->
+        <div class="chart-area">
+
+          <!-- Loading overlay while fetching historical bars -->
+          @if (loadingBars() && chartBars().length === 0) {
+            <div class="chart-loading-overlay">
+              <app-loading-state variant="card" [rows]="3"></app-loading-state>
+              <p class="chart-loading-label">Loading {{ activeTimeframe() }} bars for {{ activeSymbol() }}…</p>
+            </div>
+          }
+
+          <!-- Chart (show once bars or live feed arrives) -->
+          @if (chartBars().length > 0) {
+            <app-candlestick-chart
+              [ohlcvData]="chartBars()"
+              [indicators]="indicatorSeries()"
+              [drawings]="drawings()"
+              [theme]="chartTheme()"
+              [livePrice]="livePrice()"
+              (drawingChanged)="onDrawingChanged($event)"
+              class="main-chart">
+            </app-candlestick-chart>
+          }
+
+          <!-- Empty / connecting state -->
+          @if (chartBars().length === 0 && !loadingBars()) {
+            <div class="chart-empty">
+              <app-empty-state
+                icon="candlestick_chart"
+                headline="Connecting to market feed"
+                [body]="'Waiting for ' + activeSymbol() + ' · ' + activeTimeframe() + ' data…'">
+              </app-empty-state>
+              @if (errorBars()) {
+                <p class="chart-error-note">{{ errorBars() }}</p>
+              }
+            </div>
+          }
+
+          <!-- Drawings loading spinner (non-blocking overlay) -->
+          @if (loadingDrawings() && chartBars().length > 0) {
+            <div class="drawings-loading-badge">
+              <mat-progress-spinner diameter="14" mode="indeterminate"></mat-progress-spinner>
+              <span>Loading drawings…</span>
+            </div>
+          }
+        </div><!-- /.chart-area -->
+
+        <!-- ── FUNDAMENTALS SIDE PANEL ─────────────────────────────────── -->
+        @if (fundamentalsPanelOpen()) {
+          <aside class="fundamentals-panel" aria-label="Company / asset fundamentals">
+
+            <div class="fund-header">
+              <mat-icon class="fund-header__icon">business</mat-icon>
+              <span class="fund-header__title">Company Info</span>
+              <button mat-icon-button class="fund-header__close"
+                      matTooltip="Close"
+                      (click)="toggleFundamentalsPanel()">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+
+            <!-- Asset class selector -->
+            <div class="fund-asset-selector">
+              <span class="fund-label">Asset class</span>
+              <div class="fund-asset-chips">
+                @for (cls of [['STOCK','Stock'],['CRYPTO','Crypto'],['FOREX','Forex']]; track cls[0]) {
+                  <button mat-stroked-button
+                          class="fund-asset-btn"
+                          [class.fund-asset-btn--active]="fundamentalsAssetClass() === cls[0]"
+                          (click)="onFundamentalsAssetClassChange($any(cls[0]))">
+                    {{ cls[1] }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <!-- Refresh row -->
+            <div class="fund-refresh-row">
+              <button mat-button (click)="loadFundamentals()" [disabled]="loadingFundamentals()">
+                <mat-icon>refresh</mat-icon> Refresh
+              </button>
+              <span class="fund-symbol-label">{{ activeSymbol() }}</span>
+            </div>
+
+            <mat-divider></mat-divider>
+
+            @if (loadingFundamentals()) {
+              <app-loading-state variant="card" [rows]="4"></app-loading-state>
+            }
+
+            @if (fundamentalsError() && !loadingFundamentals()) {
+              <div class="fund-error">
+                <mat-icon color="warn">error_outline</mat-icon>
+                <span>{{ fundamentalsError() }}</span>
+              </div>
+            }
+
+            <!-- STOCK shape -->
+            @if (fundamentals() && !loadingFundamentals() && isStockFundamentals(fundamentals()!)) {
+              <div class="fund-content">
+                <div class="fund-company-name">{{ $any(fundamentals()).companyName }}</div>
+                <div class="fund-subtitle">
+                  {{ orDash($any(fundamentals()).exchange) }} · {{ orDash($any(fundamentals()).sector) }} · {{ orDash($any(fundamentals()).country) }}
+                </div>
+                <mat-divider class="fund-divider"></mat-divider>
+                <mat-accordion multi class="fund-accordion">
+                  <mat-expansion-panel>
+                    <mat-expansion-panel-header><mat-panel-title>Valuation</mat-panel-title></mat-expansion-panel-header>
+                    <div class="fund-kv-grid">
+                      <span class="fund-k">Market Cap</span><span class="fund-v">{{ formatLargeNumber($any(fundamentals()).marketCap, '$') }}</span>
+                      <span class="fund-k">P/E (TTM)</span><span class="fund-v">{{ orDash($any(fundamentals()).peRatioTtm) }}</span>
+                      <span class="fund-k">P/E (Fwd)</span><span class="fund-v">{{ orDash($any(fundamentals()).peRatioForward) }}</span>
+                      <span class="fund-k">Price/Book</span><span class="fund-v">{{ orDash($any(fundamentals()).priceToBook) }}</span>
+                      <span class="fund-k">EV/EBITDA</span><span class="fund-v">{{ orDash($any(fundamentals()).evToEbitda) }}</span>
+                    </div>
+                  </mat-expansion-panel>
+                  <mat-expansion-panel>
+                    <mat-expansion-panel-header><mat-panel-title>Income</mat-panel-title></mat-expansion-panel-header>
+                    <div class="fund-kv-grid">
+                      <span class="fund-k">Revenue</span><span class="fund-v">{{ formatLargeNumber($any(fundamentals()).revenueAnnual, '$') }}</span>
+                      <span class="fund-k">Rev. Growth YoY</span><span class="fund-v">{{ formatPct($any(fundamentals()).revenueGrowthYoy) }}</span>
+                      <span class="fund-k">Gross Margin</span><span class="fund-v">{{ formatPct($any(fundamentals()).grossMargin) }}</span>
+                      <span class="fund-k">Net Margin</span><span class="fund-v">{{ formatPct($any(fundamentals()).netMargin) }}</span>
+                      <span class="fund-k">EPS (TTM)</span><span class="fund-v">{{ orDash($any(fundamentals()).epsDilutedTtm) }}</span>
+                    </div>
+                  </mat-expansion-panel>
+                  <mat-expansion-panel>
+                    <mat-expansion-panel-header><mat-panel-title>Balance Sheet</mat-panel-title></mat-expansion-panel-header>
+                    <div class="fund-kv-grid">
+                      <span class="fund-k">Total Assets</span><span class="fund-v">{{ formatLargeNumber($any(fundamentals()).totalAssets, '$') }}</span>
+                      <span class="fund-k">Total Debt</span><span class="fund-v">{{ formatLargeNumber($any(fundamentals()).totalDebt, '$') }}</span>
+                      <span class="fund-k">Cash &amp; Equiv.</span><span class="fund-v">{{ formatLargeNumber($any(fundamentals()).cashAndEquivalents, '$') }}</span>
+                      <span class="fund-k">D/E Ratio</span><span class="fund-v">{{ orDash($any(fundamentals()).debtToEquity) }}</span>
+                      <span class="fund-k">Current Ratio</span><span class="fund-v">{{ orDash($any(fundamentals()).currentRatio) }}</span>
+                    </div>
+                  </mat-expansion-panel>
+                  <mat-expansion-panel>
+                    <mat-expansion-panel-header><mat-panel-title>Analyst Consensus</mat-panel-title></mat-expansion-panel-header>
+                    <div class="fund-kv-grid">
+                      <span class="fund-k">Recommendation</span><span class="fund-v">{{ orDash($any(fundamentals()).analystRecommendation) }}</span>
+                      <span class="fund-k">Target Price</span><span class="fund-v">{{ orDash($any(fundamentals()).targetPriceMean) }}</span>
+                      <span class="fund-k">Analysts</span><span class="fund-v">{{ orDash($any(fundamentals()).analystCount) }}</span>
+                      <span class="fund-k">Div. Yield</span><span class="fund-v">{{ formatPct($any(fundamentals()).dividendYield) }}</span>
+                    </div>
+                  </mat-expansion-panel>
+                </mat-accordion>
+              </div>
+            }
+
+            <!-- CRYPTO shape -->
+            @if (fundamentals() && !loadingFundamentals() && isCryptoTokenomics(fundamentals()!)) {
+              <div class="fund-content">
+                <div class="fund-company-name">{{ $any(fundamentals()).name }}</div>
+                @if ($any(fundamentals()).description) {
+                  <div class="fund-subtitle">{{ $any(fundamentals()).description | slice:0:120 }}…</div>
+                }
+                <mat-divider class="fund-divider"></mat-divider>
+                <mat-accordion multi class="fund-accordion">
+                  <mat-expansion-panel>
+                    <mat-expansion-panel-header><mat-panel-title>Market</mat-panel-title></mat-expansion-panel-header>
+                    <div class="fund-kv-grid">
+                      <span class="fund-k">Market Cap</span><span class="fund-v">{{ formatLargeNumber($any(fundamentals()).marketCapUsd, '$') }}</span>
+                      <span class="fund-k">FDV</span><span class="fund-v">{{ formatLargeNumber($any(fundamentals()).fullyDilutedValuationUsd, '$') }}</span>
+                      <span class="fund-k">Volume 24h</span><span class="fund-v">{{ formatLargeNumber($any(fundamentals()).volume24hUsd, '$') }}</span>
+                      <span class="fund-k">Rank</span><span class="fund-v">#{{ orDash($any(fundamentals()).marketCapRank) }}</span>
+                      <span class="fund-k">ATH</span><span class="fund-v">{{ orDash($any(fundamentals()).athUsd) }}</span>
+                      <span class="fund-k">From ATH</span><span class="fund-v">{{ formatPct($any(fundamentals()).athChangePercent) }}</span>
+                    </div>
+                  </mat-expansion-panel>
+                  <mat-expansion-panel>
+                    <mat-expansion-panel-header><mat-panel-title>Supply</mat-panel-title></mat-expansion-panel-header>
+                    <div class="fund-kv-grid">
+                      <span class="fund-k">Circulating</span><span class="fund-v">{{ formatLargeNumber($any(fundamentals()).circulatingSupply) }}</span>
+                      <span class="fund-k">Total</span><span class="fund-v">{{ formatLargeNumber($any(fundamentals()).totalSupply) }}</span>
+                      <span class="fund-k">Max</span><span class="fund-v">{{ formatLargeNumber($any(fundamentals()).maxSupply) }}</span>
+                      <span class="fund-k">Inflation/yr</span><span class="fund-v">{{ formatPct($any(fundamentals()).inflationRateYearly) }}</span>
+                    </div>
+                  </mat-expansion-panel>
+                  <mat-expansion-panel>
+                    <mat-expansion-panel-header><mat-panel-title>On-Chain / Network</mat-panel-title></mat-expansion-panel-header>
+                    <div class="fund-kv-grid">
+                      <span class="fund-k">Active Addresses 24h</span><span class="fund-v">{{ orDash($any(fundamentals()).activeAddresses24h) }}</span>
+                      <span class="fund-k">Transactions 24h</span><span class="fund-v">{{ orDash($any(fundamentals()).transactions24h) }}</span>
+                      <span class="fund-k">TVL</span><span class="fund-v">{{ formatLargeNumber($any(fundamentals()).tvlUsd, '$') }}</span>
+                      <span class="fund-k">Stake Ratio</span><span class="fund-v">{{ formatPct($any(fundamentals()).stakeRatio) }}</span>
+                    </div>
+                  </mat-expansion-panel>
+                </mat-accordion>
+              </div>
+            }
+
+            <!-- FOREX shape -->
+            @if (fundamentals() && !loadingFundamentals() && isForexMacro(fundamentals()!)) {
+              <div class="fund-content">
+                <div class="fund-company-name">{{ $any(fundamentals()).symbol }}</div>
+                <div class="fund-subtitle">
+                  {{ orDash($any(fundamentals()).baseCurrency) }} / {{ orDash($any(fundamentals()).quoteCurrency) }} · {{ orDash($any(fundamentals()).country) }}
+                </div>
+                <mat-divider class="fund-divider"></mat-divider>
+                <mat-accordion multi class="fund-accordion">
+                  <mat-expansion-panel>
+                    <mat-expansion-panel-header><mat-panel-title>Exchange Rate</mat-panel-title></mat-expansion-panel-header>
+                    <div class="fund-kv-grid">
+                      <span class="fund-k">Spot Rate</span><span class="fund-v">{{ orDash($any(fundamentals()).spotRate) }}</span>
+                      <span class="fund-k">52W High</span><span class="fund-v">{{ orDash($any(fundamentals()).weekHigh52) }}</span>
+                      <span class="fund-k">52W Low</span><span class="fund-v">{{ orDash($any(fundamentals()).weekLow52) }}</span>
+                      <span class="fund-k">PPP Fair Value</span><span class="fund-v">{{ orDash($any(fundamentals()).pppFairValue) }}</span>
+                    </div>
+                  </mat-expansion-panel>
+                  <mat-expansion-panel>
+                    <mat-expansion-panel-header><mat-panel-title>Macro Indicators</mat-panel-title></mat-expansion-panel-header>
+                    <div class="fund-kv-grid">
+                      <span class="fund-k">CB Rate</span><span class="fund-v">{{ formatPct($any(fundamentals()).centralBankRate) }}</span>
+                      <span class="fund-k">CPI YoY</span><span class="fund-v">{{ formatPct($any(fundamentals()).cpiYoy) }}</span>
+                      <span class="fund-k">Core CPI YoY</span><span class="fund-v">{{ formatPct($any(fundamentals()).coreCpiYoy) }}</span>
+                      <span class="fund-k">GDP Growth YoY</span><span class="fund-v">{{ formatPct($any(fundamentals()).gdpGrowthYoy) }}</span>
+                      <span class="fund-k">Unemployment</span><span class="fund-v">{{ formatPct($any(fundamentals()).unemploymentRate) }}</span>
+                    </div>
+                  </mat-expansion-panel>
+                </mat-accordion>
+              </div>
+            }
+
+            <!-- Unrecognised shape -->
+            @if (fundamentals() && !loadingFundamentals()
+                 && !isStockFundamentals(fundamentals()!)
+                 && !isCryptoTokenomics(fundamentals()!)
+                 && !isForexMacro(fundamentals()!)) {
+              <div class="fund-error">
+                <mat-icon>help_outline</mat-icon>
+                <span>Unrecognised response shape from server.</span>
+              </div>
+            }
+
+            <!-- Initial state -->
+            @if (!fundamentals() && !loadingFundamentals() && !fundamentalsError()) {
+              <div class="fund-empty">
+                <mat-icon>analytics</mat-icon>
+                <span>Select asset class above and click Refresh.</span>
+              </div>
+            }
+
+          </aside><!-- /.fundamentals-panel -->
+        }
+
+      </div><!-- /.chart-and-info-row -->
+    </div><!-- /.chart-main -->
+
+    <!-- ── RIGHT INDICATOR / LAYOUT PANEL ─────────────────────────────── -->
+    <aside class="chart-sidenav-panel"
+           [class.chart-sidenav-panel--open]="sidenavOpen()"
+           aria-label="Chart indicators and layouts">
+
+      @if (sidenavOpen()) {
+        <div class="panel-header">
+          <span class="panel-title">Chart Tools</span>
+          <button mat-icon-button
+                  matTooltip="Hide panel"
+                  class="panel-close-btn"
+                  (click)="toggleSidenav()">
+            <mat-icon>chevron_right</mat-icon>
+          </button>
+        </div>
+
+        <mat-divider></mat-divider>
+
+        <!-- ── Indicators section ───────────────────────────────── -->
+        <div class="panel-section">
+          <div class="panel-section-header">
+            <span>Indicators</span>
+          </div>
+
+          <!-- Add indicator buttons (overlay / oscillator grouping) -->
+          <div class="ind-add-group">
+            <span class="ind-add-group__label">Overlay</span>
+            <div class="ind-add-row">
+              @for (ind of indicatorTypes; track ind.type) {
+                @if (!ind.subPane) {
+                  <button mat-stroked-button
+                          class="ind-add-btn"
+                          (click)="addIndicator(ind.type, ind.subPane)">
+                    + {{ ind.label }}
+                  </button>
+                }
+              }
+            </div>
+            <span class="ind-add-group__label">Oscillator</span>
+            <div class="ind-add-row">
+              @for (ind of indicatorTypes; track ind.type) {
+                @if (ind.subPane) {
+                  <button mat-stroked-button
+                          class="ind-add-btn"
+                          (click)="addIndicator(ind.type, ind.subPane)">
+                    + {{ ind.label }}
+                  </button>
+                }
+              }
+            </div>
+          </div>
+
+          <!-- Active indicator configs list -->
+          @if (loadingIndicators()) {
+            <div class="panel-loading">
+              <mat-progress-spinner diameter="20" mode="indeterminate"></mat-progress-spinner>
+            </div>
+          } @else if (indicatorConfigs().length > 0) {
+            <mat-divider class="panel-divider"></mat-divider>
+            <div class="ind-config-list">
+              @for (cfg of indicatorConfigs(); track cfg.id) {
+                <div class="ind-config-row">
+                  <!-- Color swatch -->
+                  <span class="ind-swatch"
+                        [style.background]="cfg.color"
+                        [matTooltip]="cfg.type + ' color'"
+                        aria-hidden="true"></span>
+                  <!-- Type label -->
+                  <span class="ind-name">{{ cfg.type }}</span>
+                  <!-- Sub-pane badge -->
+                  @if (cfg.subPane) {
+                    <span class="ind-badge">OSC</span>
+                  }
+                  <!-- Toggle -->
+                  <mat-slide-toggle
+                    class="ind-toggle"
+                    [checked]="cfg.enabled"
+                    (change)="toggleIndicator(cfg)"
+                    [attr.aria-label]="'Toggle ' + cfg.type">
+                  </mat-slide-toggle>
+                  <!-- Remove -->
+                  <button mat-icon-button
+                          class="ind-remove-btn"
+                          (click)="removeIndicator(cfg)"
+                          [matTooltip]="'Remove ' + cfg.type">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+              }
+            </div>
+          } @else {
+            <p class="panel-empty-hint">No indicators added. Use the buttons above.</p>
+          }
+        </div><!-- /.panel-section (Indicators) -->
+
+        <mat-divider></mat-divider>
+
+        <!-- ── Layouts section ──────────────────────────────────── -->
+        <div class="panel-section">
+          <div class="panel-section-header">
+            <span>Layouts</span>
+            <button mat-icon-button
+                    matTooltip="Save current drawings as new layout"
+                    [disabled]="savingLayout()"
+                    (click)="openLayoutDialog()">
+              <mat-icon>add</mat-icon>
+            </button>
+          </div>
+
+          @if (layouts().length === 0) {
+            <p class="panel-empty-hint">
+              No layouts saved yet. Draw on the chart, then press + to save.
+            </p>
+          } @else {
+            <div class="layout-list">
+              @for (layout of layouts(); track layout.id) {
+                <div class="layout-list-item"
+                     [class.layout-list-item--active]="layout.id === activeLayoutId()"
+                     (click)="switchLayout(layout.id)"
+                     role="button"
+                     tabindex="0"
+                     (keydown.enter)="switchLayout(layout.id)">
+                  <div class="layout-list-item__body">
+                    <span class="layout-list-item__name">{{ layout.name }}</span>
+                    <span class="layout-list-item__sym">{{ layout.symbol }}</span>
+                  </div>
+                  @if (layout.id === activeLayoutId()) {
+                    <button mat-icon-button
+                            class="layout-list-item__default-btn"
+                            matTooltip="Set as default"
+                            (click)="setDefaultLayout(); $event.stopPropagation()">
+                      <mat-icon>star_border</mat-icon>
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div><!-- /.panel-section (Layouts) -->
+      }
+    </aside><!-- /.chart-sidenav-panel -->
+
+  </div><!-- /.chart-workspace -->
+</div><!-- /.charting-root -->
