@@ -1,149 +1,206 @@
-<div class="dashboard-root">
+<div class="dashboard-root page-shell">
 
-  <div class="dashboard-header">
-    <h1 class="dashboard-title">Dashboard</h1>
-    <button mat-icon-button matTooltip="Refresh" (click)="refresh()" [disabled]="loading()" type="button">
+  <!-- ── Page header ─────────────────────────────────────── -->
+  <header class="page-header">
+    <div class="header-left">
+      <mat-icon class="header-icon" aria-hidden="true">dashboard</mat-icon>
+      <div>
+        <h1 class="page-title">Dashboard</h1>
+        <p class="page-subtitle">Portfolio overview</p>
+      </div>
+    </div>
+    <button mat-icon-button matTooltip="Refresh data" (click)="refresh()" [disabled]="loading()" type="button" aria-label="Refresh dashboard">
       <mat-icon>refresh</mat-icon>
     </button>
-  </div>
+  </header>
 
+  <!-- ── Loading state ───────────────────────────────────── -->
   @if (loading()) {
-    <div class="loading-center">
-      <mat-spinner diameter="48"></mat-spinner>
-    </div>
+    <app-loading-state variant="kpi" [rows]="4"/>
+    <app-loading-state variant="card" [rows]="1"/>
+    <app-loading-state variant="rows" [rows]="5"/>
   }
 
+  <!-- ── Error state ─────────────────────────────────────── -->
   @if (error() && !loading()) {
-    <div class="error-banner">
-      <mat-icon>error_outline</mat-icon>
+    <div class="tp-alert" role="alert">
+      <mat-icon aria-hidden="true">error_outline</mat-icon>
       <span>{{ error() }}</span>
-      <button mat-button type="button" (click)="refresh()">Retry</button>
+      <button mat-button type="button" (click)="refresh()" aria-label="Retry loading dashboard">Retry</button>
     </div>
   }
 
   @if (!loading()) {
+    <!-- ── KPI row ───────────────────────────────────────── -->
+    <div class="kpi-grid" role="list" aria-label="Portfolio KPIs">
 
-    <div class="kpi-grid">
-      <mat-card class="kpi-card">
-        <mat-card-content>
-          <div class="kpi-label">Total P&L</div>
-          <div class="kpi-value"
-               [class.positive]="(stats()?.totalPnl ?? 0) >= 0"
-               [class.negative]="(stats()?.totalPnl ?? 0) < 0">
-            {{ (stats()?.totalPnl ?? 0) | number:'1.2-2' }}
-          </div>
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card class="kpi-card">
-        <mat-card-content>
-          <div class="kpi-label">Win Rate</div>
-          <div class="kpi-value positive">
-            {{ (stats()?.winRate ?? 0) | percent:'1.1-1' }}
-          </div>
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card class="kpi-card">
-        <mat-card-content>
-          <div class="kpi-label">Total Trades</div>
-          <div class="kpi-value">{{ stats()?.tradeCount ?? 0 }}</div>
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card class="kpi-card">
-        <mat-card-content>
-          <div class="kpi-label">Open Positions</div>
-          <div class="kpi-value">{{ stats()?.openPositions ?? 0 }}</div>
-        </mat-card-content>
-      </mat-card>
-    </div>
-
-    <mat-card class="equity-card">
-      <mat-card-header>
-        <mat-card-title>Equity Curve</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        @if (equityBars().length > 0) {
-          <app-candlestick-chart
-            [ohlcvData]="equityBars()"
-            [indicators]="equityIndicator()"
-            [theme]="'dark'"
-            class="equity-chart">
-          </app-candlestick-chart>
-        } @else {
-          <div class="empty-chart-placeholder">
-            <mat-icon>show_chart</mat-icon>
-            <span>No equity data available yet.</span>
-          </div>
-        }
-      </mat-card-content>
-    </mat-card>
-
-    <div class="calendar-row">
-      <app-economic-calendar class="calendar-widget"></app-economic-calendar>
-    </div>
-
-    <mat-card class="trades-card">
-      <mat-card-header>
-        <mat-card-title>Recent Trades</mat-card-title>
-        <div class="card-header-actions">
-          <a mat-button routerLink="/journal" color="primary">View All</a>
+      <!-- Total P&L — colored card based on sign -->
+      <div class="kpi-card" [class.kpi-card--bull]="totalPnl >= 0" [class.kpi-card--bear]="totalPnl < 0" role="listitem">
+        <div class="kpi-card__label">
+          <mat-icon aria-hidden="true">{{ totalPnl >= 0 ? 'trending_up' : 'trending_down' }}</mat-icon>
+          Total P&L
         </div>
-      </mat-card-header>
-      <mat-card-content>
-        @if (recentTrades().length === 0) {
-          <div class="empty-trades">
-            <mat-icon>inbox</mat-icon>
-            <span>No trades found. Place your first trade from the Live Trading screen.</span>
-          </div>
-        } @else {
-          <table mat-table [dataSource]="recentTrades()" class="trades-table">
+        <div class="kpi-card__value tp-mono" [class]="totalPnlClass" [tpFlash]="totalPnl" aria-label="Total P&L: {{ formatPnl(totalPnl) }}">
+          {{ formatPnl(totalPnl) }}
+        </div>
+        <div class="kpi-card__sub">Realised + unrealised</div>
+      </div>
+
+      <!-- Win Rate -->
+      <div class="kpi-card" role="listitem">
+        <div class="kpi-card__label">
+          <mat-icon aria-hidden="true">emoji_events</mat-icon>
+          Win Rate
+        </div>
+        <div class="kpi-card__value tp-mono" aria-label="Win rate: {{ (stats()?.winRate ?? 0) | percent:'1.1-1' }}">
+          {{ (stats()?.winRate ?? 0) | percent:'1.1-1' }}
+        </div>
+        <div class="kpi-card__sub">Closed trades</div>
+      </div>
+
+      <!-- Total Trades -->
+      <div class="kpi-card" role="listitem">
+        <div class="kpi-card__label">
+          <mat-icon aria-hidden="true">receipt_long</mat-icon>
+          Trades
+        </div>
+        <div class="kpi-card__value tp-mono" aria-label="{{ stats()?.tradeCount ?? 0 }} total trades">
+          {{ stats()?.tradeCount ?? 0 }}
+        </div>
+        <div class="kpi-card__sub">Total logged</div>
+      </div>
+
+      <!-- Open Positions -->
+      <div class="kpi-card" [class.kpi-card--active]="(stats()?.openPositions ?? 0) > 0" role="listitem">
+        <div class="kpi-card__label">
+          <mat-icon aria-hidden="true">radio_button_checked</mat-icon>
+          Open
+        </div>
+        <div class="kpi-card__value tp-mono" aria-label="{{ stats()?.openPositions ?? 0 }} open positions">
+          {{ stats()?.openPositions ?? 0 }}
+        </div>
+        <div class="kpi-card__sub">Active positions</div>
+      </div>
+
+    </div>
+
+    <!-- ── Equity curve ──────────────────────────────────── -->
+    <div class="equity-panel">
+      <div class="equity-panel__header">
+        <h2 class="equity-panel__title">Equity Curve</h2>
+        <!-- Range filter segmented control -->
+        <div class="range-filters" role="group" aria-label="Equity curve time range">
+          @for (range of rangeOptions; track range) {
+            <button
+              type="button"
+              class="range-btn"
+              [class.range-btn--active]="activeRange() === range"
+              (click)="setRange(range)"
+              [attr.aria-pressed]="activeRange() === range"
+            >{{ range }}</button>
+          }
+        </div>
+      </div>
+
+      @if (filteredEquityBars().length > 0) {
+        <app-candlestick-chart
+          [ohlcvData]="filteredEquityBars()"
+          [indicators]="equityIndicator()"
+          [theme]="'dark'"
+          class="equity-chart"
+          aria-label="Equity curve chart">
+        </app-candlestick-chart>
+      } @else {
+        <div class="equity-empty">
+          <mat-icon aria-hidden="true">show_chart</mat-icon>
+          <span>No equity data yet for this period</span>
+        </div>
+      }
+    </div>
+
+    <!-- ── Recent trades ─────────────────────────────────── -->
+    <div class="trades-panel">
+      <div class="trades-panel__header">
+        <h2 class="trades-panel__title">Recent Trades</h2>
+        <a mat-button routerLink="/journal" class="view-all-link" aria-label="View all trades in Journal">
+          View all <mat-icon>arrow_forward</mat-icon>
+        </a>
+      </div>
+
+      @if (recentTrades().length === 0) {
+        <app-empty-state
+          icon="receipt_long"
+          headline="No trades logged yet"
+          body="Start by logging your first trade from the Live Trading screen."
+          actionLabel="Log a Trade"
+          (action)="null">
+        </app-empty-state>
+      } @else {
+        <div class="trades-table-wrap">
+          <table mat-table [dataSource]="recentTrades()" class="trades-table" aria-label="Recent trades">
+
             <ng-container matColumnDef="symbol">
               <th mat-header-cell *matHeaderCellDef>Symbol</th>
-              <td mat-cell *matCellDef="let t"><strong>{{ t.symbol }}</strong></td>
+              <td mat-cell *matCellDef="let t" class="tp-mono font-bold">{{ t.symbol }}</td>
             </ng-container>
+
             <ng-container matColumnDef="side">
               <th mat-header-cell *matHeaderCellDef>Side</th>
               <td mat-cell *matCellDef="let t">
-                <span [class]="t.side === 'BUY' ? 'side-buy' : 'side-sell'">{{ t.side }}</span>
+                <span class="side-badge" [class]="t.side === 'BUY' ? 'side-badge--bull' : 'side-badge--bear'">
+                  {{ t.side }}
+                </span>
               </td>
             </ng-container>
+
             <ng-container matColumnDef="entryPrice">
               <th mat-header-cell *matHeaderCellDef>Entry</th>
-              <td mat-cell *matCellDef="let t">{{ t.entryPrice | number:'1.2-8' }}</td>
+              <td mat-cell *matCellDef="let t" class="tp-mono">{{ t.entryPrice | number:'1.2-8' }}</td>
             </ng-container>
+
             <ng-container matColumnDef="exitPrice">
               <th mat-header-cell *matHeaderCellDef>Exit</th>
-              <td mat-cell *matCellDef="let t">
+              <td mat-cell *matCellDef="let t" class="tp-mono">
                 {{ t.exitPrice !== null ? (t.exitPrice | number:'1.2-8') : '—' }}
               </td>
             </ng-container>
+
             <ng-container matColumnDef="quantity">
               <th mat-header-cell *matHeaderCellDef>Qty</th>
-              <td mat-cell *matCellDef="let t">{{ t.quantity | number:'1.2-8' }}</td>
+              <td mat-cell *matCellDef="let t" class="tp-mono">{{ t.quantity | number:'1.2-4' }}</td>
             </ng-container>
+
             <ng-container matColumnDef="pnl">
               <th mat-header-cell *matHeaderCellDef>P&L</th>
-              <td mat-cell *matCellDef="let t" [class]="pnlClass(t.pnl)">
-                {{ t.pnl !== null ? (t.pnl | number:'1.2-2') : '—' }}
+              <td mat-cell *matCellDef="let t" [class]="pnlClass(t.pnl)" [tpFlash]="t.pnl">
+                {{ formatPnl(t.pnl) }}
               </td>
             </ng-container>
+
             <ng-container matColumnDef="status">
               <th mat-header-cell *matHeaderCellDef>Status</th>
               <td mat-cell *matCellDef="let t">
-                <mat-chip [class]="statusClass(t.status)" disableRipple>{{ t.status }}</mat-chip>
+                <span class="status-chip" [class]="statusClass(t.status)">{{ t.status }}</span>
               </td>
             </ng-container>
+
             <ng-container matColumnDef="openedAt">
               <th mat-header-cell *matHeaderCellDef>Opened</th>
-              <td mat-cell *matCellDef="let t">{{ formatDate(t.openedAt) }}</td>
+              <td mat-cell *matCellDef="let t" class="tp-mono text-secondary">{{ formatDate(t.openedAt) }}</td>
             </ng-container>
+
             <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
             <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="trade-row"></tr>
           </table>
-        }
-      </mat-card-content>
-    </mat-card>
+        </div>
+      }
+    </div>
+
+    <!-- ── Economic calendar ─────────────────────────────── -->
+    <div class="calendar-panel">
+      <h2 class="calendar-panel__title">Economic Calendar</h2>
+      <app-economic-calendar class="calendar-widget"></app-economic-calendar>
+    </div>
+
   }
 </div>
