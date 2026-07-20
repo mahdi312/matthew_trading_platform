@@ -45,7 +45,7 @@
   </mat-card>
 
   <!-- Tabs -->
-  <mat-tab-group animationDuration="200ms" class="ai-tabs">
+  <mat-tab-group animationDuration="200ms" class="ai-tabs" [selectedIndex]="selectedTabIndex()" (selectedIndexChange)="selectedTabIndex.set($event)">
 
     <!-- ── Tab 1: Market Summary ──────────────────────────────────────── -->
     <mat-tab>
@@ -56,41 +56,55 @@
 
       <div class="tab-content">
 
-        <!-- Loading -->
-        <div *ngIf="loadingSummary()" class="loading-section">
-          <mat-spinner diameter="48"></mat-spinner>
-          <p class="loading-hint">Asking the AI — this may take a few seconds…</p>
-        </div>
+        <!-- Loading — purpose-built rotating status line, not a generic spinner -->
+        @if (loadingSummary()) {
+          <div class="ai-loading-section" aria-live="polite">
+            <div class="ai-loading-lines">
+              <div class="ai-skel-line ai-skel-line--80"></div>
+              <div class="ai-skel-line ai-skel-line--95"></div>
+              <div class="ai-skel-line ai-skel-line--60"></div>
+            </div>
+            <p class="ai-loading-status">
+              <mat-icon class="ai-loading-icon" aria-hidden="true">psychology</mat-icon>
+              {{ statusLineText() }}
+            </p>
+          </div>
+        }
 
-        <!-- Error -->
-        <div *ngIf="summaryError() && !loadingSummary()" class="error-section">
-          <mat-icon color="warn">error_outline</mat-icon>
-          <span>{{ summaryError() }}</span>
-          <button mat-button color="primary" (click)="fetchSummary()">Retry</button>
-        </div>
+        <!-- Distinct AI-unavailable error state — not the generic empty state -->
+        @if (summaryError() && !loadingSummary()) {
+          <div class="tp-alert ai-error-alert" role="alert">
+            <mat-icon aria-hidden="true">smart_toy</mat-icon>
+            <span>{{ summaryError() }}</span>
+            <button mat-button type="button" (click)="fetchSummary()">Retry</button>
+          </div>
+        }
 
         <!-- Summary card -->
-        <ng-container *ngIf="summary() && !loadingSummary()">
+        @if (summary() && !loadingSummary()) {
           <mat-card class="result-card">
             <mat-card-header>
               <mat-card-title>
-                <span class="symbol-label">{{ summary()!.symbol }}</span>
+                <span class="symbol-label tp-mono">{{ summary()!.symbol }}</span>
                 — AI Market Summary
               </mat-card-title>
               <mat-card-subtitle>
-                Generated {{ summary()!.generatedAt | date:'medium' }}
+                Generated {{ relativeGeneratedAt(summary()!.generatedAt) }}
               </mat-card-subtitle>
             </mat-card-header>
             <mat-card-content>
 
               <div class="sentiment-row">
-                <mat-chip [color]="sentimentColor(summary()!.sentiment)" highlighted>
-                  <mat-icon matChipAvatar>{{ sentimentIcon(summary()!.sentiment) }}</mat-icon>
+                <span class="sentiment-badge" [class]="'sentiment-' + summary()!.sentiment.toLowerCase()">
+                  <mat-icon aria-hidden="true">{{ sentimentIcon(summary()!.sentiment) }}</mat-icon>
                   {{ summary()!.sentiment }}
-                </mat-chip>
-                <span class="confidence-label">
-                  Confidence: <strong>{{ confidencePct(summary()!.confidence) }}</strong>
                 </span>
+                <div class="confidence-bar-wrap confidence-bar-wrap--inline">
+                  <span class="conf-label">Confidence {{ confidencePct(summary()!.confidence) }}</span>
+                  <div class="confidence-bar">
+                    <div class="confidence-fill" [style.width.%]="summary()!.confidence * 100"></div>
+                  </div>
+                </div>
               </div>
 
               <mat-divider class="divider"></mat-divider>
@@ -99,18 +113,21 @@
 
             </mat-card-content>
             <mat-card-actions>
-              <button mat-button (click)="fetchSummary()">
-                <mat-icon>refresh</mat-icon> Refresh
+              <button mat-button type="button" (click)="fetchSummary()">
+                <mat-icon aria-hidden="true">refresh</mat-icon> Refresh
               </button>
             </mat-card-actions>
           </mat-card>
-        </ng-container>
+        }
 
         <!-- Empty / initial state -->
-        <div *ngIf="!loadingSummary() && !summary() && !summaryError()" class="empty-section">
-          <mat-icon>psychology</mat-icon>
-          <p>Select a symbol above and click Analyse.</p>
-        </div>
+        @if (!loadingSummary() && !summary() && !summaryError()) {
+          <app-empty-state
+            icon="psychology"
+            headline="No summary yet"
+            body="Select a symbol above and click Analyse to get an AI-generated market summary.">
+          </app-empty-state>
+        }
 
       </div>
     </mat-tab>
@@ -124,71 +141,111 @@
 
       <div class="tab-content">
 
-        <!-- Loading -->
-        <div *ngIf="loadingSignals()" class="loading-section">
-          <mat-spinner diameter="48"></mat-spinner>
-          <p class="loading-hint">Generating signals…</p>
-        </div>
+        <!-- Loading — staged skeleton cards, purpose-built for LLM latency -->
+        @if (loadingSignals()) {
+          <div class="ai-loading-section" aria-live="polite">
+            <div class="signals-grid">
+              @for (_ of [1, 2, 3]; track $index) {
+                <div class="signal-skel-card">
+                  <div class="ai-skel-line ai-skel-line--40"></div>
+                  <div class="ai-skel-line ai-skel-line--90"></div>
+                  <div class="ai-skel-line ai-skel-line--70"></div>
+                </div>
+              }
+            </div>
+            <p class="ai-loading-status">
+              <mat-icon class="ai-loading-icon" aria-hidden="true">psychology</mat-icon>
+              {{ statusLineText() }}
+            </p>
+          </div>
+        }
 
-        <!-- Error -->
-        <div *ngIf="signalsError() && !loadingSignals()" class="error-section">
-          <mat-icon color="warn">error_outline</mat-icon>
-          <span>{{ signalsError() }}</span>
-          <button mat-button color="primary" (click)="fetchSignals()">Retry</button>
-        </div>
+        <!-- Distinct AI-unavailable error state -->
+        @if (signalsError() && !loadingSignals()) {
+          <div class="tp-alert ai-error-alert" role="alert">
+            <mat-icon aria-hidden="true">smart_toy</mat-icon>
+            <span>{{ signalsError() }}</span>
+            <button mat-button type="button" (click)="fetchSignals()">Retry</button>
+          </div>
+        }
 
         <!-- Signal list -->
-        <ng-container *ngIf="!loadingSignals() && signals().length > 0">
+        @if (!loadingSignals() && signals().length > 0) {
           <div class="signals-grid">
-            <mat-card
-              *ngFor="let sig of signals(); trackBy: trackById"
-              class="signal-card"
-              [class.signal-buy]="sig.type === 'BUY'"
-              [class.signal-sell]="sig.type === 'SELL'"
-              [class.signal-hold]="sig.type === 'HOLD'">
-              <mat-card-header>
-                <mat-card-title>
-                  <mat-chip [color]="signalColor(sig.type)" highlighted>
-                    <mat-icon matChipAvatar>{{ signalIcon(sig.type) }}</mat-icon>
+            @for (sig of signals(); track sig.id) {
+              <div
+                class="signal-card"
+                [class.signal-buy]="sig.type === 'BUY'"
+                [class.signal-sell]="sig.type === 'SELL'"
+                [class.signal-hold]="sig.type === 'HOLD'">
+
+                <div class="signal-card__top">
+                  <span class="signal-badge" [class]="'signal-badge--' + sig.type.toLowerCase()">
+                    <mat-icon aria-hidden="true">{{ signalIcon(sig.type) }}</mat-icon>
                     {{ sig.type }}
-                  </mat-chip>
-                  <span class="signal-symbol">{{ sig.symbol }}</span>
-                </mat-card-title>
-                <mat-card-subtitle>{{ sig.generatedAt | date:'medium' }}</mat-card-subtitle>
-              </mat-card-header>
-              <mat-card-content>
-                <p class="reasoning-text">{{ sig.reasoning }}</p>
-                <div class="signal-meta" *ngIf="sig.targetPrice || sig.stopLoss">
-                  <span *ngIf="sig.targetPrice">
-                    <mat-icon class="meta-icon">flag</mat-icon>
-                    Target: <strong>{{ sig.targetPrice | number:'1.2-8' }}</strong>
                   </span>
-                  <span *ngIf="sig.stopLoss">
-                    <mat-icon class="meta-icon stop-icon">block</mat-icon>
-                    Stop: <strong>{{ sig.stopLoss | number:'1.2-8' }}</strong>
-                  </span>
+                  <span class="signal-symbol tp-mono">{{ sig.symbol }}</span>
                 </div>
+                <span class="signal-generated text-secondary">{{ relativeGeneratedAt(sig.generatedAt) }}</span>
+
+                <!-- Verdict-first: confidence is always visible, reasoning is opt-in -->
                 <div class="confidence-bar-wrap">
                   <span class="conf-label">Confidence {{ confidencePct(sig.confidence) }}</span>
                   <div class="confidence-bar">
                     <div class="confidence-fill" [style.width.%]="sig.confidence * 100"></div>
                   </div>
                 </div>
-              </mat-card-content>
-            </mat-card>
+
+                <!-- Mini risk/reward strip — only when at least one of target/stop is present -->
+                @if (sig.targetPrice || sig.stopLoss) {
+                  <div class="risk-reward-strip">
+                    @if (sig.targetPrice) {
+                      <div class="rr-cell rr-cell--target">
+                        <mat-icon class="meta-icon" aria-hidden="true">flag</mat-icon>
+                        <span class="rr-label">Target</span>
+                        <span class="rr-value tp-mono">{{ sig.targetPrice | number:'1.2-8' }}</span>
+                      </div>
+                    }
+                    @if (sig.stopLoss) {
+                      <div class="rr-cell rr-cell--stop">
+                        <mat-icon class="meta-icon stop-icon" aria-hidden="true">block</mat-icon>
+                        <span class="rr-label">Stop</span>
+                        <span class="rr-value tp-mono">{{ sig.stopLoss | number:'1.2-8' }}</span>
+                      </div>
+                    }
+                  </div>
+                }
+
+                <!-- Reasoning collapsed by default — "why?" on demand -->
+                <button
+                  type="button"
+                  class="why-toggle"
+                  (click)="toggleReasoning(sig.id)"
+                  [attr.aria-expanded]="isReasoningExpanded(sig.id)">
+                  <mat-icon aria-hidden="true">{{ isReasoningExpanded(sig.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                  {{ isReasoningExpanded(sig.id) ? 'Hide reasoning' : 'Why?' }}
+                </button>
+                @if (isReasoningExpanded(sig.id)) {
+                  <p class="reasoning-text">{{ sig.reasoning }}</p>
+                }
+              </div>
+            }
           </div>
           <div class="refresh-row">
-            <button mat-button (click)="fetchSignals()">
-              <mat-icon>refresh</mat-icon> Refresh Signals
+            <button mat-button type="button" (click)="fetchSignals()">
+              <mat-icon aria-hidden="true">refresh</mat-icon> Refresh Signals
             </button>
           </div>
-        </ng-container>
+        }
 
         <!-- Empty -->
-        <div *ngIf="!loadingSignals() && signals().length === 0 && !signalsError()" class="empty-section">
-          <mat-icon>signal_cellular_alt</mat-icon>
-          <p>No signals yet. Select a symbol and click Analyse.</p>
-        </div>
+        @if (!loadingSignals() && signals().length === 0 && !signalsError()) {
+          <app-empty-state
+            icon="signal_cellular_alt"
+            headline="No signals yet"
+            body="Select a symbol and click Analyse to generate AI trade signals.">
+          </app-empty-state>
+        }
 
       </div>
     </mat-tab>
@@ -202,11 +259,20 @@
 
       <div class="tab-content">
 
+        <!-- Hand-off banner — shown when arriving via Journal's "Ask AI" action -->
+        @if (critiqueFromJournal()) {
+          <div class="handoff-banner">
+            <mat-icon aria-hidden="true">link</mat-icon>
+            <span>Reviewing trade <strong>#{{ critiqueForm.value.tradeId }}</strong> ({{ critiqueForm.value.symbol }}) from your Journal.</span>
+            <button mat-button type="button" (click)="clearJournalHandoff()">Critique a different trade</button>
+          </div>
+        }
+
         <!-- Input form -->
         <mat-card class="critique-form-card">
           <mat-card-header>
             <mat-card-title>
-              <mat-icon>edit_note</mat-icon>
+              <mat-icon aria-hidden="true">edit_note</mat-icon>
               Submit a trade for AI critique
             </mat-card-title>
           </mat-card-header>
@@ -255,7 +321,7 @@
                   color="primary"
                   type="submit"
                   [disabled]="critiqueForm.invalid || loadingCritique()">
-                  <mat-icon>send</mat-icon>
+                  <mat-icon aria-hidden="true">send</mat-icon>
                   {{ loadingCritique() ? 'Analysing…' : 'Get AI Critique' }}
                 </button>
               </div>
@@ -264,51 +330,68 @@
           </mat-card-content>
         </mat-card>
 
-        <!-- Loading -->
-        <div *ngIf="loadingCritique()" class="loading-section">
-          <mat-spinner diameter="48"></mat-spinner>
-          <p class="loading-hint">Analysing your trade — this may take a few seconds…</p>
-        </div>
+        <!-- Loading — purpose-built, matches the summary/signals loading language -->
+        @if (loadingCritique()) {
+          <div class="ai-loading-section" aria-live="polite">
+            <div class="ai-loading-lines">
+              <div class="ai-skel-line ai-skel-line--80"></div>
+              <div class="ai-skel-line ai-skel-line--60"></div>
+            </div>
+            <p class="ai-loading-status">
+              <mat-icon class="ai-loading-icon" aria-hidden="true">psychology</mat-icon>
+              Analysing your trade…
+            </p>
+          </div>
+        }
 
-        <!-- Error -->
-        <div *ngIf="critiqueError() && !loadingCritique()" class="error-section">
-          <mat-icon color="warn">error_outline</mat-icon>
-          <span>{{ critiqueError() }}</span>
-        </div>
+        <!-- Distinct AI-unavailable error state -->
+        @if (critiqueError() && !loadingCritique()) {
+          <div class="tp-alert ai-error-alert" role="alert">
+            <mat-icon aria-hidden="true">smart_toy</mat-icon>
+            <span>{{ critiqueError() }}</span>
+            <button mat-button type="button" (click)="onCritiqueSubmit()">Retry</button>
+          </div>
+        }
 
         <!-- Critique result -->
-        <mat-card *ngIf="critique() && !loadingCritique()" class="result-card">
-          <mat-card-header>
-            <mat-card-title>
-              <mat-icon>psychology</mat-icon>
-              AI Critique — Trade {{ critique()!.tradeId }}
-            </mat-card-title>
-            <mat-card-subtitle>{{ critique()!.generatedAt | date:'medium' }}</mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
+        @if (critique() && !loadingCritique()) {
+          <mat-card class="result-card">
+            <mat-card-header>
+              <mat-card-title>
+                <mat-icon aria-hidden="true">psychology</mat-icon>
+                AI Critique — Trade {{ critique()!.tradeId }}
+              </mat-card-title>
+              <mat-card-subtitle>Generated {{ relativeGeneratedAt(critique()!.generatedAt) }}</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
 
-            <div class="rating-row">
-              <div class="rating-badge" [class]="'rating-' + ratingColor(critique()!.rating)">
-                {{ critique()!.rating }}
+              <div class="rating-row">
+                <span class="rating-badge" [class]="'rating-' + ratingColor(critique()!.rating)">
+                  {{ critique()!.rating }}
+                </span>
               </div>
-            </div>
 
-            <mat-divider class="divider"></mat-divider>
+              <mat-divider class="divider"></mat-divider>
 
-            <p class="critique-text">{{ critique()!.critique }}</p>
+              <p class="critique-text">{{ critique()!.critique }}</p>
 
-            <div *ngIf="(critique()?.suggestions?.length ?? 0) > 0" class="suggestions">
-              <h4>Suggestions</h4>
-              <mat-list>
-                <mat-list-item *ngFor="let sug of critique()!.suggestions">
-                  <mat-icon matListItemIcon>lightbulb</mat-icon>
-                  <span matListItemTitle>{{ sug }}</span>
-                </mat-list-item>
-              </mat-list>
-            </div>
+              @if ((critique()?.suggestions?.length ?? 0) > 0) {
+                <div class="suggestions">
+                  <h4>Suggestions</h4>
+                  <ul class="suggestion-list">
+                    @for (sug of critique()!.suggestions; track sug) {
+                      <li>
+                        <mat-icon aria-hidden="true">lightbulb</mat-icon>
+                        <span>{{ sug }}</span>
+                      </li>
+                    }
+                  </ul>
+                </div>
+              }
 
-          </mat-card-content>
-        </mat-card>
+            </mat-card-content>
+          </mat-card>
+        }
 
       </div>
     </mat-tab>

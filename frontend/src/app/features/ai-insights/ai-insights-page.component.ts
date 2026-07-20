@@ -7,7 +7,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -20,11 +20,12 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTabsModule } from '@angular/material/tabs';
-import { MatListModule } from '@angular/material/list';
 import { MatBadgeModule } from '@angular/material/badge';
 
 import { AiInsightsApiService } from './ai-insights-api.service';
 import { NewsApiService, NewsArticleDto } from './news-api.service';
+import { TradeApiService } from '../../core/api/trade-api.service';
+import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
 import {
   AiSummary,
   AiSignal,
@@ -65,8 +66,8 @@ import {
     MatSnackBarModule,
     MatDividerModule,
     MatTabsModule,
-    MatListModule,
     MatBadgeModule,
+    EmptyStateComponent,
   ],
   templateUrl: './ai-insights-page.component.html',
   styleUrls: ['./ai-insights-page.component.scss'],
@@ -74,8 +75,10 @@ import {
 export class AiInsightsPageComponent implements OnInit {
   private readonly api     = inject(AiInsightsApiService);
   private readonly newsApi = inject(NewsApiService);
+  private readonly tradeApi = inject(TradeApiService);
   private readonly snack   = inject(MatSnackBar);
   private readonly fb      = inject(FormBuilder);
+  private readonly route   = inject(ActivatedRoute);
 
   // ── Symbol selector ───────────────────────────────────────────────────────
 
@@ -84,11 +87,17 @@ export class AiInsightsPageComponent implements OnInit {
 
   readonly popularSymbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT'];
 
+  /** Selected tab index — auto-switched to the Critique tab (2) on a Journal "Ask AI" hand-off. */
+  readonly selectedTabIndex = signal(0);
+
   // ── Summary tab ───────────────────────────────────────────────────────────
 
   readonly loadingSummary = signal(false);
   readonly summary        = signal<AiSummary | null>(null);
   readonly summaryError   = signal<string | null>(null);
+
+  /** Rotating "the AI is thinking" status line, cycled while a summary request is in flight. */
+  readonly summaryStatusLine = signal(0);
 
   // ── Signals tab ───────────────────────────────────────────────────────────
 
@@ -96,11 +105,17 @@ export class AiInsightsPageComponent implements OnInit {
   readonly signals        = signal<AiSignal[]>([]);
   readonly signalsError   = signal<string | null>(null);
 
+  /** ids of signal cards whose reasoning has been expanded via "why?" */
+  readonly expandedReasoning = signal<Set<string>>(new Set());
+
   // ── Journal critique tab ──────────────────────────────────────────────────
 
   readonly loadingCritique  = signal(false);
   readonly critique         = signal<JournalCritique | null>(null);
   readonly critiqueError    = signal<string | null>(null);
+
+  /** True when this critique request arrived pre-filled from Journal's "Ask AI" hand-off. */
+  readonly critiqueFromJournal = signal(false);
 
   // ── Latest News tab ───────────────────────────────────────────────────────
 
@@ -120,12 +135,81 @@ export class AiInsightsPageComponent implements OnInit {
     notes:      [''],
   });
 
+  /** Rotating status lines shown while an LLM request is in flight — a first-class loading design, not a spinner. */
+  private readonly statusLines = [
+    'Reading the market…',
+    'Weighing recent price action…',
+    'Cross-checking sentiment…',
+    'Drafting the summary…',
+  ];
+  private statusLineTimer: ReturnType<typeof setInterval> | null = null;
+
+  private startStatusRotation(): void {
+    this.summaryStatusLine.set(0);
+    this.stopStatusRotation();
+    this.statusLineTimer = setInterval(() => {
+      this.summaryStatusLine.update(i => (i + 1) % this.statusLines.length);
+    }, 1800);
+  }
+
+  private stopStatusRotation(): void {
+    if (this.statusLineTimer) {
+      clearInterval(this.statusLineTimer);
+      this.statusLineTimer = null;
+    }
+  }
+
+  statusLineText(): string {
+    return this.statusLines[this.summaryStatusLine()];
+  }
+
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
     this.fetchSummary();
     this.fetchSignals();
     this.fetchNews();
+    this.applyJournalHandoff();
+  }
+
+  /**
+   * Journal's "Ask AI" action navigates here with `?tradeId=&symbol=` query params.
+   * When present: pre-fill the critique form from the trade (fetched fresh so we have
+   * entry/exit/side/notes, not just the id+symbol carried in the URL), switch to the
+   * Journal Critique tab, and submit automatically so the user lands on a result.
+   */
+  private applyJournalHandoff(): void {
+    const params = this.route.snapshot.queryParamMap;
+    const tradeId = params.get('tradeId');
+    const symbolParam = params.get('symbol');
+    if (!tradeId) return;
+
+    this.critiqueFromJournal.set(true);
+    this.selectedTabIndex.set(2); // Journal Critique tab
+
+    if (symbolParam) {
+      this.critiqueForm.patchValue({ tradeId, symbol: symbolParam.toUpperCase() });
+    } else {
+      this.critiqueForm.patchValue({ tradeId });
+    }
+
+    this.tradeApi.getTrade(Number(tradeId)).subscribe({
+      next: (trade) => {
+        this.critiqueForm.patchValue({
+          tradeId:    String(trade.id),
+          symbol:     trade.symbol,
+          side:       trade.side === 'SELL' ? 'SELL' : 'BUY',
+          entryPrice: trade.entryPrice,
+          exitPrice:  trade.exitPrice,
+          notes:      trade.notes ?? '',
+        });
+        this.onCritiqueSubmit();
+      },
+      error: (err) => {
+        // Non-fatal — the form is still usable with the id/symbol we already have from the URL.
+        console.warn('[AiInsights] could not fetch trade context for hand-off', err);
+      },
+    });
   }
 
   // ── Symbol change ─────────────────────────────────────────────────────────
@@ -151,12 +235,18 @@ export class AiInsightsPageComponent implements OnInit {
     this.loadingSummary.set(true);
     this.summaryError.set(null);
     this.summary.set(null);
+    this.startStatusRotation();
 
     this.api.getSummary(this.symbol()).subscribe({
-      next:  (data) => { this.summary.set(data);  this.loadingSummary.set(false); },
-      error: (err)  => {
-        this.summaryError.set('Failed to load AI summary. The service may be unavailable.');
+      next:  (data) => {
+        this.summary.set(data);
         this.loadingSummary.set(false);
+        this.stopStatusRotation();
+      },
+      error: (err)  => {
+        this.summaryError.set('The AI service didn\u2019t respond. It may be unavailable right now — try again in a moment.');
+        this.loadingSummary.set(false);
+        this.stopStatusRotation();
         console.error('[AiInsights] summary error', err);
       },
     });
@@ -172,11 +262,24 @@ export class AiInsightsPageComponent implements OnInit {
     this.api.getSignals(this.symbol()).subscribe({
       next:  (data) => { this.signals.set(data); this.loadingSignals.set(false); },
       error: (err)  => {
-        this.signalsError.set('Failed to load AI signals.');
+        this.signalsError.set('The AI service didn\u2019t respond. It may be unavailable right now — try again in a moment.');
         this.loadingSignals.set(false);
         console.error('[AiInsights] signals error', err);
       },
     });
+  }
+
+  /** Toggle the "why?" expand for a given signal's reasoning text. */
+  toggleReasoning(signalId: string): void {
+    this.expandedReasoning.update(set => {
+      const next = new Set(set);
+      if (next.has(signalId)) next.delete(signalId); else next.add(signalId);
+      return next;
+    });
+  }
+
+  isReasoningExpanded(signalId: string): boolean {
+    return this.expandedReasoning().has(signalId);
   }
 
   // ── Journal critique ──────────────────────────────────────────────────────
@@ -202,11 +305,18 @@ export class AiInsightsPageComponent implements OnInit {
         this.loadingCritique.set(false);
       },
       error: (err) => {
-        this.critiqueError.set('Failed to get AI critique. Please try again.');
+        this.critiqueError.set('The AI service didn\u2019t respond. It may be unavailable right now — try again in a moment.');
         this.loadingCritique.set(false);
         console.error('[AiInsights] critique error', err);
       },
     });
+  }
+
+  /** Clears the Journal hand-off context so the tab reverts to a manual critique form. */
+  clearJournalHandoff(): void {
+    this.critiqueFromJournal.set(false);
+    this.critique.set(null);
+    this.critiqueForm.reset({ tradeId: '', symbol: '', side: 'BUY', entryPrice: null, exitPrice: null, notes: '' });
   }
 
   // ── News ──────────────────────────────────────────────────────────────────
@@ -245,6 +355,24 @@ export class AiInsightsPageComponent implements OnInit {
     if (diffH < 1)    return `${Math.round(diffMs / 60_000)}m ago`;
     if (diffH < 24)   return `${Math.round(diffH)}h ago`;
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  /**
+   * Relative "Generated X minutes ago" phrasing for LLM output — since the summary/critique
+   * text can go stale, an absolute timestamp alone under-communicates that.
+   */
+  relativeGeneratedAt(iso: string | null): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const diffMs = Date.now() - d.getTime();
+    if (diffMs < 0) return 'just now';
+    const diffMin = Math.floor(diffMs / 60_000);
+    if (diffMin < 1)  return 'just now';
+    if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24)   return `${diffH} hour${diffH === 1 ? '' : 's'} ago`;
+    const diffD = Math.floor(diffH / 24);
+    return `${diffD} day${diffD === 1 ? '' : 's'} ago`;
   }
 
   sentimentLabelColor(label: string | null): string {
