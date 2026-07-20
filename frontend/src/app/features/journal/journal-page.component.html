@@ -1,119 +1,131 @@
-<div class="journal-root">
+<div class="journal-root page-shell">
 
-  <!-- ── Header ──────────────────────────────────────────────────────────── -->
-  <div class="journal-header">
-    <h1 class="journal-title">Trade Journal</h1>
-    <button mat-icon-button matTooltip="Refresh" (click)="loadTrades()">
-      <mat-icon>refresh</mat-icon>
+  <!-- ── Page header ─────────────────────────────────────── -->
+  <header class="page-header">
+    <div class="header-left">
+      <mat-icon class="header-icon" aria-hidden="true">book</mat-icon>
+      <div>
+        <h1 class="page-title">Journal</h1>
+        <p class="page-subtitle">Trade history & review</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Persistent filter bar ────────────────────────────── -->
+  <div class="filter-bar" [formGroup]="filterForm" aria-label="Trade filters">
+
+    <!-- Status chip group -->
+    <div class="status-chips" role="group" aria-label="Filter by status">
+      @for (s of ['ALL','OPEN','CLOSED']; track s) {
+        <button
+          type="button"
+          class="status-chip"
+          [class.status-chip--active]="currentStatus() === s"
+          (click)="setStatus(s)"
+          [attr.aria-pressed]="currentStatus() === s"
+        >{{ s }}</button>
+      }
+    </div>
+
+    <!-- Symbol search -->
+    <app-symbol-search
+      placeholder="Filter by symbol…"
+      (symbolSelected)="onSymbolSelected($event)"
+      aria-label="Filter by symbol"
+    />
+
+    <!-- Date range -->
+    <div class="date-range">
+      <mat-form-field appearance="outline" class="date-field">
+        <mat-label>From</mat-label>
+        <input matInput [matDatepicker]="fromPicker" formControlName="from" aria-label="Start date"/>
+        <mat-datepicker-toggle matIconSuffix [for]="fromPicker"></mat-datepicker-toggle>
+        <mat-datepicker #fromPicker></mat-datepicker>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="date-field">
+        <mat-label>To</mat-label>
+        <input matInput [matDatepicker]="toPicker" formControlName="to" aria-label="End date"/>
+        <mat-datepicker-toggle matIconSuffix [for]="toPicker"></mat-datepicker-toggle>
+        <mat-datepicker #toPicker></mat-datepicker>
+      </mat-form-field>
+    </div>
+
+    <!-- Clear filters -->
+    <button
+      mat-icon-button
+      type="button"
+      matTooltip="Clear all filters"
+      aria-label="Clear all filters"
+      (click)="filterForm.reset({ status: 'ALL', symbol: '', from: null, to: null })"
+      [disabled]="!hasActiveFilter()"
+    >
+      <mat-icon>filter_alt_off</mat-icon>
     </button>
   </div>
 
-  <!-- ── Filter Panel ────────────────────────────────────────────────────── -->
-  <mat-card class="filter-card">
-    <mat-card-content>
-      <form [formGroup]="filterForm" class="filter-form" (ngSubmit)="applyFilter()">
-
-        <!-- Status -->
-        <mat-form-field appearance="outline">
-          <mat-label>Status</mat-label>
-          <mat-select formControlName="status">
-            <mat-option value="ALL">All</mat-option>
-            <mat-option value="OPEN">Open</mat-option>
-            <mat-option value="CLOSED">Closed</mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <!-- Symbol -->
-        <mat-form-field appearance="outline">
-          <mat-label>Symbol</mat-label>
-          <input matInput formControlName="symbol" placeholder="e.g. BTCUSDT" />
-        </mat-form-field>
-
-        <!-- Date From -->
-        <mat-form-field appearance="outline">
-          <mat-label>From</mat-label>
-          <input matInput [matDatepicker]="fromPicker" formControlName="from" />
-          <mat-datepicker-toggle matSuffix [for]="fromPicker"></mat-datepicker-toggle>
-          <mat-datepicker #fromPicker></mat-datepicker>
-        </mat-form-field>
-
-        <!-- Date To -->
-        <mat-form-field appearance="outline">
-          <mat-label>To</mat-label>
-          <input matInput [matDatepicker]="toPicker" formControlName="to" />
-          <mat-datepicker-toggle matSuffix [for]="toPicker"></mat-datepicker-toggle>
-          <mat-datepicker #toPicker></mat-datepicker>
-        </mat-form-field>
-
-        <div class="filter-actions">
-          <button mat-flat-button color="primary" type="submit">Apply</button>
-          <button mat-button type="button" (click)="clearFilter()">Clear</button>
-        </div>
-
-      </form>
-    </mat-card-content>
-  </mat-card>
-
-  <!-- ── Error Banner ────────────────────────────────────────────────────── -->
+  <!-- ── Error ─────────────────────────────────────────────── -->
   @if (error()) {
-    <div class="error-banner">
-      <mat-icon>error_outline</mat-icon>
+    <div class="tp-alert" role="alert">
+      <mat-icon aria-hidden="true">error_outline</mat-icon>
       <span>{{ error() }}</span>
-      <button mat-button (click)="loadTrades()">Retry</button>
+      <button mat-button type="button" (click)="loadTrades()">Retry</button>
     </div>
   }
 
-  <!-- ── Trades Table ─────────────────────────────────────────────────────── -->
-  <mat-card class="trades-card">
-    <mat-card-content>
+  <!-- ── Table panel ───────────────────────────────────────── -->
+  <div class="trades-panel">
 
-      @if (loading()) {
-        <div class="loading-center"><mat-spinner diameter="40"></mat-spinner></div>
-      } @else if (trades().length === 0) {
-        <div class="empty-state">
-          <mat-icon>inbox</mat-icon>
-          <span>No trades match your filters.</span>
-        </div>
+    @if (loading()) {
+      <app-loading-state variant="rows" [rows]="8" [cols]="6"/>
+    } @else if (trades().length === 0) {
+      @if (hasActiveFilter()) {
+        <app-empty-state
+          icon="search_off"
+          headline="No trades match these filters"
+          body="Try adjusting your status, symbol, or date range.">
+        </app-empty-state>
       } @else {
-
-        <table mat-table [dataSource]="trades()" class="journal-table">
-
-          <!-- # -->
-          <ng-container matColumnDef="id">
-            <th mat-header-cell *matHeaderCellDef>#</th>
-            <td mat-cell *matCellDef="let t">{{ t.id }}</td>
-          </ng-container>
+        <app-empty-state
+          icon="receipt_long"
+          headline="No trades logged yet"
+          body="Start tracking your performance by logging trades from the Live Trading screen.">
+        </app-empty-state>
+      }
+    } @else {
+      <div class="table-wrap">
+        <table mat-table [dataSource]="trades()" class="journal-table" aria-label="Trade journal">
 
           <!-- Symbol -->
           <ng-container matColumnDef="symbol">
             <th mat-header-cell *matHeaderCellDef>Symbol</th>
-            <td mat-cell *matCellDef="let t"><strong>{{ t.symbol }}</strong></td>
+            <td mat-cell *matCellDef="let t" class="tp-mono font-bold">{{ t.symbol }}</td>
           </ng-container>
 
           <!-- Side -->
           <ng-container matColumnDef="side">
             <th mat-header-cell *matHeaderCellDef>Side</th>
             <td mat-cell *matCellDef="let t">
-              <span [class]="t.side === 'BUY' ? 'side-buy' : 'side-sell'">{{ t.side }}</span>
+              <span class="side-badge" [class]="t.side === 'BUY' ? 'side-badge--bull' : 'side-badge--bear'">{{ t.side }}</span>
             </td>
           </ng-container>
 
           <!-- Type -->
           <ng-container matColumnDef="type">
             <th mat-header-cell *matHeaderCellDef>Type</th>
-            <td mat-cell *matCellDef="let t">{{ t.type }}</td>
+            <td mat-cell *matCellDef="let t" class="text-secondary small-text">{{ t.type }}</td>
           </ng-container>
 
           <!-- Entry Price -->
           <ng-container matColumnDef="entryPrice">
             <th mat-header-cell *matHeaderCellDef>Entry</th>
-            <td mat-cell *matCellDef="let t">{{ t.entryPrice | number:'1.2-8' }}</td>
+            <td mat-cell *matCellDef="let t" class="tp-mono">{{ t.entryPrice | number:'1.2-8' }}</td>
           </ng-container>
 
           <!-- Exit Price -->
           <ng-container matColumnDef="exitPrice">
             <th mat-header-cell *matHeaderCellDef>Exit</th>
-            <td mat-cell *matCellDef="let t">
+            <td mat-cell *matCellDef="let t" class="tp-mono text-secondary">
               {{ t.exitPrice !== null ? (t.exitPrice | number:'1.2-8') : '—' }}
             </td>
           </ng-container>
@@ -121,87 +133,99 @@
           <!-- Quantity -->
           <ng-container matColumnDef="quantity">
             <th mat-header-cell *matHeaderCellDef>Qty</th>
-            <td mat-cell *matCellDef="let t">{{ t.quantity | number:'1.2-8' }}</td>
+            <td mat-cell *matCellDef="let t" class="tp-mono">{{ t.quantity | number:'1.2-4' }}</td>
           </ng-container>
 
           <!-- P&L -->
           <ng-container matColumnDef="pnl">
             <th mat-header-cell *matHeaderCellDef>P&L</th>
-            <td mat-cell *matCellDef="let t" [class]="pnlClass(t.pnl)">
-              {{ t.pnl !== null ? (t.pnl | number:'1.2-2') : '—' }}
-            </td>
+            <td mat-cell *matCellDef="let t" [class]="pnlClass(t.pnl)">{{ formatPnl(t.pnl) }}</td>
           </ng-container>
 
           <!-- Status -->
           <ng-container matColumnDef="status">
             <th mat-header-cell *matHeaderCellDef>Status</th>
             <td mat-cell *matCellDef="let t">
-              <mat-chip [class]="t.status === 'OPEN' ? 'chip-open' : 'chip-closed'" disableRipple>
-                {{ t.status }}
-              </mat-chip>
+              <span class="status-chip-cell" [class]="t.status === 'OPEN' ? 'chip-open' : 'chip-closed'">{{ t.status }}</span>
             </td>
           </ng-container>
 
           <!-- Opened At -->
           <ng-container matColumnDef="openedAt">
             <th mat-header-cell *matHeaderCellDef>Opened</th>
-            <td mat-cell *matCellDef="let t">{{ formatDate(t.openedAt) }}</td>
+            <td mat-cell *matCellDef="let t" class="tp-mono text-secondary small-text">{{ formatDate(t.openedAt) }}</td>
           </ng-container>
 
           <!-- Closed At -->
           <ng-container matColumnDef="closedAt">
             <th mat-header-cell *matHeaderCellDef>Closed</th>
-            <td mat-cell *matCellDef="let t">{{ formatDate(t.closedAt) }}</td>
+            <td mat-cell *matCellDef="let t" class="tp-mono text-secondary small-text">{{ formatDate(t.closedAt) }}</td>
+          </ng-container>
+
+          <!-- Broker -->
+          <ng-container matColumnDef="broker">
+            <th mat-header-cell *matHeaderCellDef>Broker</th>
+            <td mat-cell *matCellDef="let t" class="text-secondary small-text">{{ t.broker ?? '—' }}</td>
           </ng-container>
 
           <!-- Actions -->
           <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef>Actions</th>
+            <th mat-header-cell *matHeaderCellDef></th>
             <td mat-cell *matCellDef="let t">
               <div class="row-actions">
                 @if (t.status === 'OPEN') {
-                  <button mat-icon-button color="warn"
-                          matTooltip="Close trade"
-                          [disabled]="closingId() === t.id"
-                          (click)="closeTrade(t)">
-                    @if (closingId() === t.id) {
-                      <mat-spinner diameter="18"></mat-spinner>
-                    } @else {
-                      <mat-icon>close</mat-icon>
-                    }
+                  <button
+                    mat-icon-button
+                    type="button"
+                    matTooltip="Close position"
+                    aria-label="Close trade {{ t.id }}"
+                    [disabled]="closingId() === t.id"
+                    (click)="closeTrade(t)"
+                  >
+                    <mat-icon>close</mat-icon>
                   </button>
                 }
-                <button mat-icon-button
-                        matTooltip="Delete trade"
-                        [disabled]="deletingId() === t.id"
-                        (click)="deleteTrade(t)">
-                  @if (deletingId() === t.id) {
-                    <mat-spinner diameter="18"></mat-spinner>
-                  } @else {
-                    <mat-icon>delete_outline</mat-icon>
-                  }
+                @if (t.status === 'CLOSED') {
+                  <button
+                    mat-icon-button
+                    type="button"
+                    matTooltip="Ask AI for critique"
+                    aria-label="Ask AI about trade {{ t.id }}"
+                    class="ask-ai-btn"
+                    (click)="askAI(t)"
+                  >
+                    <mat-icon>psychology</mat-icon>
+                  </button>
+                }
+                <button
+                  mat-icon-button
+                  type="button"
+                  matTooltip="Delete trade"
+                  aria-label="Delete trade {{ t.id }}"
+                  [disabled]="deletingId() === t.id"
+                  class="delete-btn"
+                  (click)="deleteTrade(t)"
+                >
+                  <mat-icon>delete_outline</mat-icon>
                 </button>
               </div>
             </td>
           </ng-container>
 
-          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
           <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="trade-row"></tr>
-
         </table>
+      </div>
 
-        <!-- Paginator -->
-        <mat-paginator
-          [length]="totalCount()"
-          [pageSize]="pageSize()"
-          [pageIndex]="pageIndex()"
-          [pageSizeOptions]="[10, 20, 50, 100]"
-          (page)="onPage($event)"
-          showFirstLastButtons
-        ></mat-paginator>
-
-      }
-    </mat-card-content>
-  </mat-card>
-
+      <!-- Paginator -->
+      <mat-paginator
+        [length]="totalCount()"
+        [pageSize]="pageSize()"
+        [pageIndex]="pageIndex()"
+        [pageSizeOptions]="[10, 20, 50]"
+        (page)="onPage($event)"
+        aria-label="Trade journal pagination">
+      </mat-paginator>
+    }
+  </div>
 </div>
