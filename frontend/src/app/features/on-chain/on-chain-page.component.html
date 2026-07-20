@@ -35,84 +35,89 @@
               (ngModelChange)="nftSearch.set($event)"
               placeholder="Name, symbol, chain…">
           </mat-form-field>
+
+          <mat-form-field appearance="outline" class="chain-field">
+            <mat-label>Chain</mat-label>
+            <mat-select [ngModel]="nftChain()" (ngModelChange)="nftChain.set($event)">
+              <mat-option value="ALL">All chains</mat-option>
+              @for (c of nftChains(); track c) {
+                <mat-option [value]="c">{{ c }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <div class="sort-toggle">
+            <button mat-stroked-button class="sort-btn" [class.sort-btn--active]="nftSort() === 'floor'" (click)="setNftSort('floor')">Floor price</button>
+            <button mat-stroked-button class="sort-btn" [class.sort-btn--active]="nftSort() === 'chain'" (click)="setNftSort('chain')">Chain</button>
+          </div>
+
           <button mat-icon-button matTooltip="Refresh" (click)="loadNft()">
             <mat-icon>refresh</mat-icon>
           </button>
         </div>
 
         <!-- Loading -->
-        <div *ngIf="loadingNft()" class="center-spinner">
-          <mat-spinner diameter="48"></mat-spinner>
-        </div>
+        @if (loadingNft()) {
+          <app-loading-state variant="rows" [rows]="4" [cols]="4"/>
+        }
 
         <!-- Error -->
-        <div *ngIf="nftError() && !loadingNft()" class="error-row">
-          <mat-icon color="warn">error_outline</mat-icon>
-          {{ nftError() }}
-          <button mat-button (click)="loadNft()">Retry</button>
-        </div>
+        @if (nftError() && !loadingNft()) {
+          <div class="tp-alert" role="alert">
+            <mat-icon aria-hidden="true">error_outline</mat-icon>
+            <span>{{ nftError() }}</span>
+            <button mat-button type="button" (click)="loadNft()">Retry</button>
+          </div>
+        }
 
         <!-- Empty -->
-        <div *ngIf="!loadingNft() && !nftError() && nftFiltered().length === 0" class="empty-state">
-          <mat-icon>image_not_supported</mat-icon>
-          <p>No collections found.</p>
-        </div>
+        @if (!loadingNft() && !nftError() && nftFiltered().length === 0) {
+          <app-empty-state
+            icon="image_not_supported"
+            headline="No collections found"
+            body="Try a different search term or chain filter.">
+          </app-empty-state>
+        }
 
-        <!-- Table -->
-        <div class="table-wrapper" *ngIf="!loadingNft() && nftFiltered().length > 0">
-          <table mat-table [dataSource]="nftFiltered()" class="data-table">
-
-            <ng-container matColumnDef="name">
-              <th mat-header-cell *matHeaderCellDef>Collection</th>
-              <td mat-cell *matCellDef="let row">
-                <div class="collection-name">
-                  <img *ngIf="row.imageUrl" [src]="row.imageUrl" class="nft-thumb" [alt]="row.name">
-                  <div>
+        <!-- Card grid — NFT data is inherently visual, imageUrl deserves a real card -->
+        @if (!loadingNft() && nftFiltered().length > 0) {
+          <div class="nft-grid" role="list">
+            @for (row of nftFiltered(); track row.id) {
+              <div class="nft-card" role="listitem">
+                <div class="nft-card__image-wrap">
+                  @if (row.imageUrl) {
+                    <img [src]="row.imageUrl" class="nft-card__image" [alt]="row.name">
+                  } @else {
+                    <div class="nft-card__image-fallback">
+                      <mat-icon aria-hidden="true">image</mat-icon>
+                    </div>
+                  }
+                  <span class="chain-badge">{{ row.chain }}</span>
+                </div>
+                <div class="nft-card__body">
+                  <div class="nft-card__title">
                     <strong>{{ row.name }}</strong>
                     <span class="sub-label">{{ row.symbol }}</span>
                   </div>
+                  <div class="nft-card__primary-stats">
+                    <div class="stat">
+                      <span class="stat-label">Floor</span>
+                      <span class="stat-value tp-mono">{{ row.floorPrice !== null ? (row.floorPrice | number:'1.2-4') + ' ETH' : '—' }}</span>
+                    </div>
+                    <div class="stat">
+                      <span class="stat-label">Vol 24h</span>
+                      <span class="stat-value tp-mono">{{ usdLabel(row.volume24h) }}</span>
+                    </div>
+                  </div>
+                  <div class="nft-card__secondary-stats">
+                    <span>{{ row.itemCount !== null ? (row.itemCount | number) : 'Not available' }} items</span>
+                    <span>{{ row.ownerCount !== null ? (row.ownerCount | number) : 'Not available' }} owners</span>
+                  </div>
                 </div>
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="chain">
-              <th mat-header-cell *matHeaderCellDef>Chain</th>
-              <td mat-cell *matCellDef="let row">
-                <mat-chip>{{ row.chain }}</mat-chip>
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="floorPrice">
-              <th mat-header-cell *matHeaderCellDef>Floor</th>
-              <td mat-cell *matCellDef="let row">
-                {{ row.floorPrice !== null ? (row.floorPrice | number:'1.2-4') + ' ETH' : '—' }}
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="volume24h">
-              <th mat-header-cell *matHeaderCellDef>Vol 24h</th>
-              <td mat-cell *matCellDef="let row">{{ usdLabel(row.volume24h) }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="itemCount">
-              <th mat-header-cell *matHeaderCellDef>Items</th>
-              <td mat-cell *matCellDef="let row">{{ row.itemCount !== null ? (row.itemCount | number) : '—' }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="ownerCount">
-              <th mat-header-cell *matHeaderCellDef>Owners</th>
-              <td mat-cell *matCellDef="let row">{{ row.ownerCount !== null ? (row.ownerCount | number) : '—' }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="marketCap">
-              <th mat-header-cell *matHeaderCellDef>Mkt Cap</th>
-              <td mat-cell *matCellDef="let row">{{ usdLabel(row.marketCap) }}</td>
-            </ng-container>
-
-            <tr mat-header-row *matHeaderRowDef="nftColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: nftColumns;" class="data-row"></tr>
-          </table>
-        </div>
+              </div>
+            }
+          </div>
+        }
 
       </div>
     </mat-tab>
@@ -138,74 +143,86 @@
               (ngModelChange)="defiSearch.set($event)"
               placeholder="Protocol, token, chain…">
           </mat-form-field>
+          <div class="sort-toggle">
+            <button mat-stroked-button class="sort-btn" [class.sort-btn--active]="defiSort() === 'tvl'" (click)="setDefiSort('tvl')">TVL</button>
+            <button mat-stroked-button class="sort-btn" [class.sort-btn--active]="defiSort() === 'apy'" (click)="setDefiSort('apy')">APY</button>
+          </div>
+
           <button mat-icon-button matTooltip="Refresh" (click)="loadDefi()">
             <mat-icon>refresh</mat-icon>
           </button>
         </div>
 
         <!-- Loading -->
-        <div *ngIf="loadingDefi()" class="center-spinner">
-          <mat-spinner diameter="48"></mat-spinner>
-        </div>
+        @if (loadingDefi()) {
+          <app-loading-state variant="rows" [rows]="5" [cols]="7"/>
+        }
 
         <!-- Error -->
-        <div *ngIf="defiError() && !loadingDefi()" class="error-row">
-          <mat-icon color="warn">error_outline</mat-icon>
-          {{ defiError() }}
-          <button mat-button (click)="loadDefi()">Retry</button>
-        </div>
+        @if (defiError() && !loadingDefi()) {
+          <div class="tp-alert" role="alert">
+            <mat-icon aria-hidden="true">error_outline</mat-icon>
+            <span>{{ defiError() }}</span>
+            <button mat-button type="button" (click)="loadDefi()">Retry</button>
+          </div>
+        }
 
         <!-- Empty -->
-        <div *ngIf="!loadingDefi() && !defiError() && defiFiltered().length === 0" class="empty-state">
-          <mat-icon>water_drop</mat-icon>
-          <p>No DeFi pools found.</p>
-        </div>
+        @if (!loadingDefi() && !defiError() && defiFiltered().length === 0) {
+          <app-empty-state
+            icon="water_drop"
+            headline="No DeFi pools found"
+            body="Try a different search term.">
+          </app-empty-state>
+        }
 
-        <!-- Table -->
-        <div class="table-wrapper" *ngIf="!loadingDefi() && defiFiltered().length > 0">
-          <table mat-table [dataSource]="defiFiltered()" class="data-table">
+        <!-- Table — comparative numeric data reads better as a table than cards -->
+        @if (!loadingDefi() && defiFiltered().length > 0) {
+          <div class="table-wrapper">
+            <table mat-table [dataSource]="defiFiltered()" class="data-table">
 
-            <ng-container matColumnDef="protocol">
-              <th mat-header-cell *matHeaderCellDef>Protocol</th>
-              <td mat-cell *matCellDef="let row"><strong>{{ row.protocol }}</strong></td>
-            </ng-container>
+              <ng-container matColumnDef="protocol">
+                <th mat-header-cell *matHeaderCellDef>Protocol</th>
+                <td mat-cell *matCellDef="let row"><strong>{{ row.protocol || 'Not available' }}</strong></td>
+              </ng-container>
 
-            <ng-container matColumnDef="chain">
-              <th mat-header-cell *matHeaderCellDef>Chain</th>
-              <td mat-cell *matCellDef="let row">
-                <mat-chip>{{ row.chain }}</mat-chip>
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="chain">
+                <th mat-header-cell *matHeaderCellDef>Chain</th>
+                <td mat-cell *matCellDef="let row">
+                  <span class="chain-badge chain-badge--table">{{ row.chain || 'Not available' }}</span>
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="pair">
-              <th mat-header-cell *matHeaderCellDef>Pair</th>
-              <td mat-cell *matCellDef="let row">{{ pairLabel(row) }}</td>
-            </ng-container>
+              <ng-container matColumnDef="pair">
+                <th mat-header-cell *matHeaderCellDef>Pair</th>
+                <td mat-cell *matCellDef="let row">{{ pairLabel(row) }}</td>
+              </ng-container>
 
-            <ng-container matColumnDef="feeTier">
-              <th mat-header-cell *matHeaderCellDef>Fee</th>
-              <td mat-cell *matCellDef="let row">{{ feeTierLabel(row.feeTier) }}</td>
-            </ng-container>
+              <ng-container matColumnDef="feeTier">
+                <th mat-header-cell *matHeaderCellDef>Fee</th>
+                <td mat-cell *matCellDef="let row" class="number-cell">{{ feeTierLabel(row.feeTier) }}</td>
+              </ng-container>
 
-            <ng-container matColumnDef="tvl">
-              <th mat-header-cell *matHeaderCellDef>TVL</th>
-              <td mat-cell *matCellDef="let row" class="number-cell">{{ usdLabel(row.tvl) }}</td>
-            </ng-container>
+              <ng-container matColumnDef="tvl">
+                <th mat-header-cell *matHeaderCellDef>TVL</th>
+                <td mat-cell *matCellDef="let row" class="number-cell">{{ usdLabel(row.tvl) }}</td>
+              </ng-container>
 
-            <ng-container matColumnDef="volume24h">
-              <th mat-header-cell *matHeaderCellDef>Vol 24h</th>
-              <td mat-cell *matCellDef="let row" class="number-cell">{{ usdLabel(row.volume24h) }}</td>
-            </ng-container>
+              <ng-container matColumnDef="volume24h">
+                <th mat-header-cell *matHeaderCellDef>Vol 24h</th>
+                <td mat-cell *matCellDef="let row" class="number-cell">{{ usdLabel(row.volume24h) }}</td>
+              </ng-container>
 
-            <ng-container matColumnDef="apy">
-              <th mat-header-cell *matHeaderCellDef>APY</th>
-              <td mat-cell *matCellDef="let row" class="apy-cell">{{ apyLabel(row.apy) }}</td>
-            </ng-container>
+              <ng-container matColumnDef="apy">
+                <th mat-header-cell *matHeaderCellDef>APY</th>
+                <td mat-cell *matCellDef="let row" class="apy-cell number-cell">{{ apyLabel(row.apy) }}</td>
+              </ng-container>
 
-            <tr mat-header-row *matHeaderRowDef="defiColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: defiColumns;" class="data-row"></tr>
-          </table>
-        </div>
+              <tr mat-header-row *matHeaderRowDef="defiColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: defiColumns;" class="data-row"></tr>
+            </table>
+          </div>
+        }
 
       </div>
     </mat-tab>

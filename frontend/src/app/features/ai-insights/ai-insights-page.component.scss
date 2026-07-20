@@ -125,6 +125,82 @@
   }
 }
 
+/* ── AI purpose-built loading sequence ───────────────────────────────────── */
+/* LLM calls are meaningfully slower than everything else in the app — this
+   is a staged skeleton + rotating status line, not a generic spinner,
+   so the user feels the system working rather than frozen. */
+.ai-loading-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px 0 8px;
+}
+
+.ai-loading-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@keyframes ai-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+.ai-skel-line {
+  height: 12px;
+  border-radius: 4px;
+  background: var(--tp-bg-active);
+  animation: ai-pulse 1.5s ease-in-out infinite;
+}
+
+.ai-skel-line--40 { width: 40%; }
+.ai-skel-line--60 { width: 60%; }
+.ai-skel-line--70 { width: 70%; }
+.ai-skel-line--80 { width: 80%; }
+.ai-skel-line--90 { width: 90%; }
+.ai-skel-line--95 { width: 95%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-skel-line { animation: none; opacity: 0.6; }
+}
+
+.ai-loading-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--tp-text-secondary);
+}
+
+.ai-loading-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--tp-accent-purple);
+  animation: ai-pulse 1.5s ease-in-out infinite;
+}
+
+.signal-skel-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--tp-radius-md);
+  border: 1px solid var(--tp-border);
+  background: var(--tp-bg-card);
+}
+
+/* ── AI-unavailable error state — distinct from generic empty state ─────── */
+.ai-error-alert {
+  justify-content: flex-start;
+
+  button {
+    margin-left: auto;
+  }
+}
+
 /* ── Result card ─────────────────────────────────────────────────────────── */
 .result-card {
   width: 100%;
@@ -138,13 +214,39 @@
 .sentiment-row {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 18px;
   margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .confidence-label {
   font-size: 13px;
   opacity: 0.7;
+}
+
+/* ── Sentiment badge — bull/bear/neutral, reserved for this meaning only ── */
+.sentiment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+}
+
+.sentiment-bullish { background: color-mix(in srgb, var(--bull-500) 18%, transparent); color: var(--bull-400); }
+.sentiment-bearish { background: color-mix(in srgb, var(--bear-500) 18%, transparent); color: var(--bear-400); }
+.sentiment-neutral { background: var(--tp-bg-active); color: var(--tp-text-secondary); }
+
+.confidence-bar-wrap--inline {
+  flex: 1;
+  min-width: 160px;
+  max-width: 260px;
 }
 
 .divider {
@@ -165,41 +267,109 @@
 }
 
 .signal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--tp-radius-md);
+  border: 1px solid var(--tp-border);
   border-left: 4px solid transparent;
+  background: var(--tp-bg-card);
 }
 
-.signal-buy  { border-left-color: var(--tp-accent-blue); }
-.signal-sell { border-left-color: var(--tp-accent-red); }
-.signal-hold { border-left-color: var(--tp-accent-yellow); }
+.signal-buy  { border-left-color: var(--bull-500); }
+.signal-sell { border-left-color: var(--bear-500); }
+.signal-hold { border-left-color: var(--brass-400); }
+
+.signal-card__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.signal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+
+  mat-icon { font-size: 14px; width: 14px; height: 14px; }
+}
+
+.signal-badge--buy  { background: color-mix(in srgb, var(--bull-500) 18%, transparent); color: var(--bull-400); }
+.signal-badge--sell { background: color-mix(in srgb, var(--bear-500) 18%, transparent); color: var(--bear-400); }
+.signal-badge--hold { background: color-mix(in srgb, var(--brass-400) 18%, transparent); color: var(--brass-300); }
 
 .signal-symbol {
   font-size: 14px;
   font-weight: 600;
-  margin-left: 8px;
+}
+
+.signal-generated {
+  font-size: 11px;
+  margin-top: -6px;
 }
 
 .reasoning-text {
   font-size: 13px;
   line-height: 1.55;
-  margin-bottom: 10px;
+  margin: 0;
+  opacity: 0.85;
 }
 
-.signal-meta {
+/* ── "why?" reasoning expand toggle — verdict-first, explanation on demand ── */
+.why-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tp-accent-teal);
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+  &:hover { text-decoration: underline; }
+}
+
+/* ── Mini risk/reward strip — target + stop shown together ──────────────── */
+.risk-reward-strip {
   display: flex;
-  gap: 16px;
-  font-size: 13px;
-  margin-bottom: 10px;
-
-  .meta-icon {
-    font-size: 14px;
-    vertical-align: middle;
-    color: var(--tp-accent-green);
-  }
-
-  .stop-icon {
-    color: var(--tp-accent-red);
-  }
+  gap: 12px;
+  flex-wrap: wrap;
 }
+
+.rr-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--tp-radius-sm, 6px);
+  background: var(--tp-bg-active);
+  font-size: 12px;
+
+  .meta-icon { font-size: 14px; width: 14px; height: 14px; color: var(--tp-accent-blue); }
+  .stop-icon { color: var(--bear-500); }
+}
+
+.rr-label {
+  opacity: 0.6;
+}
+
+.rr-value {
+  font-weight: 700;
+}
+
+.rr-cell--target .rr-value { color: var(--brass-400); }
+.rr-cell--stop .rr-value   { color: var(--bear-400); }
 
 .confidence-bar-wrap {
   display: flex;
@@ -261,9 +431,9 @@
   letter-spacing: 0.5px;
 }
 
-.rating-good    { background: #1b5e20; color: #a5d6a7; }
-.rating-average { background: #e65100; color: #ffe0b2; }
-.rating-poor    { background: #b71c1c; color: #ffcdd2; }
+.rating-good    { background: color-mix(in srgb, var(--bull-500) 20%, transparent); color: var(--bull-400); }
+.rating-average { background: color-mix(in srgb, var(--brass-400) 20%, transparent); color: var(--brass-300); }
+.rating-poor    { background: color-mix(in srgb, var(--bear-500) 20%, transparent); color: var(--bear-400); }
 
 .critique-text {
   white-space: pre-wrap;
@@ -275,6 +445,47 @@
   margin: 12px 0 6px;
   font-size: 14px;
   opacity: 0.8;
+}
+
+.suggestion-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+
+    mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      color: var(--brass-400);
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+  }
+}
+
+/* ── Journal hand-off banner ──────────────────────────────────────────────── */
+.handoff-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--tp-radius-md);
+  background: color-mix(in srgb, var(--teal-400) 12%, var(--tp-bg-card));
+  border: 1px solid color-mix(in srgb, var(--teal-400) 30%, var(--tp-border));
+  font-size: 13px;
+
+  mat-icon { color: var(--teal-400); flex-shrink: 0; }
+  button { margin-left: auto; }
 }
 
 /* ── Latest News tab ─────────────────────────────────────────────────────── */

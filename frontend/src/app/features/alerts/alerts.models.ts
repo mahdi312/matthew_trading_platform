@@ -32,3 +32,17 @@ export interface SaveAlertRequest {
   targetValue: number;
   message:     string | null;
 }
+
+/**
+ * Plain-English labels for each condition, used both in the selector and in
+ * the live sentence preview — never show the enum verbatim to the user.
+ */
+export const CONDITION_OPTIONS: { value: AlertCondition; label: string; phrase: string }[] = [
+  { value: 'ABOVE',         label: 'Price rises above',  phrase: 'rises above' },
+  { value: 'BELOW',         label: 'Price falls below',  phrase: 'falls below' },
+  { value: 'CROSSES_ABOVE', label: 'Crosses above',      phrase: 'crosses above' },
+  { value: 'CROSSES_BELOW', label: 'Crosses below',      phrase: 'crosses below' },
+];
+
+/** Bullish conditions — a fired alert on one of these is a "bullish" trigger. */
+export const BULLISH_CONDITIONS: AlertCondition[] = ['ABOVE', 'CROSSES_ABOVE'];

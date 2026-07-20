@@ -8,38 +8,33 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { MatCardModule } from '@angular/material/card';
-import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatDialogModule, MatDialog } from '@angular/material/dialog';
-import { MatDividerModule } from '@angular/material/divider';
-import { MatBadgeModule } from '@angular/material/badge';
 
 import { AlertsApiService } from './alerts-api.service';
-import { PriceAlert, SaveAlertRequest, AlertCondition, AlertStatus } from './alerts.models';
+import {
+  PriceAlert,
+  SaveAlertRequest,
+  AlertCondition,
+  AlertStatus,
+  CONDITION_OPTIONS,
+  BULLISH_CONDITIONS,
+} from './alerts.models';
+import { SymbolSearchComponent, SymbolSearchResult } from '../../shared/symbol-search';
+import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
+import { LoadingStateComponent } from '../../shared/loading-state/loading-state.component';
 
 /**
- * AlertsModule — full CRUD UI for price alert management.
+ * AlertsModule — full alert *management* CRUD UI (create / edit / delete / history).
  *
- * This is alert *management* (create / edit / delete / list), NOT live delivery.
- * Live delivery is handled by the existing NotificationBellComponent which
- * subscribes to the STOMP topic — that component is NOT changed here.
- *
- * Features:
- *  1. Alert list showing all user alerts with symbol, condition, target, status.
- *  2. Inline create form to add a new PriceAlert.
- *  3. Edit mode per row — update target value, condition, message.
- *  4. Delete with confirmation.
- *  5. Status badge (ACTIVE / FIRED / DISABLED) with visual distinction.
- *  6. History section that separates fired alerts from active ones.
+ * This is deliberately separate from live delivery, which is owned entirely by
+ * the existing NotificationBellComponent (STOMP push when an alert fires) —
+ * nothing here duplicates that subscription or delivery logic.
  *
  * Route: /alerts  (behind authGuard)
  */
@@ -51,20 +46,16 @@ import { PriceAlert, SaveAlertRequest, AlertCondition, AlertStatus } from './ale
     FormsModule,
     ReactiveFormsModule,
     RouterModule,
-    MatCardModule,
-    MatTableModule,
     MatButtonModule,
     MatIconModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
-    MatProgressSpinnerModule,
-    MatChipsModule,
     MatTooltipModule,
     MatSnackBarModule,
-    MatDialogModule,
-    MatDividerModule,
-    MatBadgeModule,
+    SymbolSearchComponent,
+    EmptyStateComponent,
+    LoadingStateComponent,
   ],
   templateUrl: './alerts-page.component.html',
   styleUrls: ['./alerts-page.component.scss'],
@@ -82,20 +73,29 @@ export class AlertsPageComponent implements OnInit {
 
   readonly alerts   = signal<PriceAlert[]>([]);
 
-  /** Derived: active (non-fired) alerts */
+  /** Show/hide the create form panel. */
+  readonly createOpen = signal(false);
+
+  /** Derived: active + disabled alerts — what the user is currently watching for. */
   readonly activeAlerts = computed(() =>
-    this.alerts().filter(a => a.status === 'ACTIVE' || a.status === 'DISABLED')
+    this.alerts()
+      .filter(a => a.status === 'ACTIVE' || a.status === 'DISABLED')
+      .sort((a, b) => (a.status === b.status ? 0 : a.status === 'ACTIVE' ? -1 : 1))
   );
 
-  /** Derived: fired alerts (history) */
+  /** Derived: fired alerts — history, most recent first. */
   readonly firedAlerts = computed(() =>
-    this.alerts().filter(a => a.status === 'FIRED')
+    this.alerts()
+      .filter(a => a.status === 'FIRED')
+      .sort((a, b) => new Date(b.firedAt ?? 0).getTime() - new Date(a.firedAt ?? 0).getTime())
   );
 
-  /** Currently edited alert id, or null when creating */
+  /** Currently edited alert id, or null when not editing. */
   readonly editingId = signal<string | null>(null);
 
   // ── Form ──────────────────────────────────────────────────────────────────
+
+  readonly conditions = CONDITION_OPTIONS;
 
   readonly createForm: FormGroup = this.fb.group({
     symbol:      ['', [Validators.required, Validators.minLength(2)]],
@@ -111,24 +111,26 @@ export class AlertsPageComponent implements OnInit {
     message:     [''],
   });
 
-  // ── Table columns ─────────────────────────────────────────────────────────
+  /** Signal mirror of the create form's raw values — updated on every keystroke so the preview re-renders. */
+  private readonly createFormValue = signal<{ symbol: string; condition: AlertCondition; targetValue: number | null }>({
+    symbol: '', condition: 'ABOVE', targetValue: null,
+  });
 
-  readonly activeColumns = ['symbol', 'condition', 'targetValue', 'status', 'message', 'createdAt', 'actions'];
-  readonly historyColumns = ['symbol', 'condition', 'targetValue', 'firedAt', 'message'];
-
-  // ── Condition options ─────────────────────────────────────────────────────
-
-  readonly conditions: { value: AlertCondition; label: string }[] = [
-    { value: 'ABOVE',         label: 'Price >' },
-    { value: 'BELOW',         label: 'Price <' },
-    { value: 'CROSSES_ABOVE', label: 'Crosses Above' },
-    { value: 'CROSSES_BELOW', label: 'Crosses Below' },
-  ];
+  /** Live-readable sentence preview of the create form, e.g. "Alert me when BTCUSDT crosses above $72,000". */
+  readonly createPreview = computed(() => this.buildPreview(this.createFormValue()));
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
     this.loadAlerts();
+    // Keep the sentence preview reactive as the user types.
+    this.createForm.valueChanges.subscribe((v) => {
+      this.createFormValue.set({
+        symbol: (v.symbol ?? '').toUpperCase().trim(),
+        condition: v.condition,
+        targetValue: v.targetValue,
+      });
+    });
   }
 
   // ── Data loading ──────────────────────────────────────────────────────────
@@ -151,6 +153,19 @@ export class AlertsPageComponent implements OnInit {
 
   // ── Create ────────────────────────────────────────────────────────────────
 
+  openCreateForm(): void {
+    this.createOpen.set(true);
+  }
+
+  closeCreateForm(): void {
+    this.createOpen.set(false);
+    this.createForm.reset({ symbol: '', condition: 'ABOVE', targetValue: null, message: '' });
+  }
+
+  onCreateSymbolSelected(result: SymbolSearchResult): void {
+    this.createForm.patchValue({ symbol: result.ticker });
+  }
+
   onCreateSubmit(): void {
     if (this.createForm.invalid) return;
     this.saving.set(true);
@@ -165,8 +180,8 @@ export class AlertsPageComponent implements OnInit {
     this.api.createAlert(req).subscribe({
       next: (created) => {
         this.alerts.update(list => [created, ...list]);
-        this.createForm.reset({ condition: 'ABOVE' });
         this.saving.set(false);
+        this.closeCreateForm();
         this.snack.open(`Alert for ${created.symbol} created.`, 'OK', { duration: 3000 });
       },
       error: (err) => {
@@ -219,10 +234,36 @@ export class AlertsPageComponent implements OnInit {
     });
   }
 
+  // ── Toggle active/disabled (optimistic) ──────────────────────────────────
+
+  toggleStatus(alert: PriceAlert): void {
+    const nextStatus: AlertStatus = alert.status === 'DISABLED' ? 'ACTIVE' : 'DISABLED';
+
+    // Optimistic UI — flip immediately, reconcile on response.
+    this.alerts.update(list => list.map(a => a.id === alert.id ? { ...a, status: nextStatus } : a));
+
+    this.api.updateAlert(alert.id, {
+      symbol:      alert.symbol,
+      condition:   alert.condition,
+      targetValue: alert.targetValue,
+      message:     alert.message,
+      status:      nextStatus,
+    } as SaveAlertRequest & { status: AlertStatus }).subscribe({
+      next: (updated) => {
+        this.alerts.update(list => list.map(a => a.id === updated.id ? updated : a));
+      },
+      error: () => {
+        // Reconcile — revert the optimistic flip.
+        this.alerts.update(list => list.map(a => a.id === alert.id ? alert : a));
+        this.snack.open('Failed to update alert status.', 'Close', { duration: 4000 });
+      },
+    });
+  }
+
   // ── Delete ────────────────────────────────────────────────────────────────
 
   onDelete(alert: PriceAlert): void {
-    if (!confirm(`Delete alert for ${alert.symbol} @ ${alert.targetValue}?`)) return;
+    if (!confirm(`Delete alert for ${alert.symbol} @ ${alert.targetValue}?\n\nThis cannot be undone.`)) return;
 
     this.api.deleteAlert(alert.id).subscribe({
       next: () => {
@@ -238,26 +279,43 @@ export class AlertsPageComponent implements OnInit {
 
   // ── UI helpers ────────────────────────────────────────────────────────────
 
-  statusColor(status: AlertStatus): string {
-    switch (status) {
-      case 'ACTIVE':   return 'primary';
-      case 'FIRED':    return 'accent';
-      case 'DISABLED': return 'warn';
-      default:         return '';
-    }
+  /** Builds the readable sentence for a given symbol/condition/target combo. */
+  buildPreview(v: { symbol: string; condition: AlertCondition; targetValue: number | null }): string {
+    if (!v.symbol || !v.targetValue) return 'Fill in the fields above to preview your alert.';
+    const phrase = this.conditions.find(c => c.value === v.condition)?.phrase ?? v.condition;
+    return `Alert me when ${v.symbol} ${phrase} $${this.formatTarget(v.targetValue)}`;
   }
 
-  statusIcon(status: AlertStatus): string {
-    switch (status) {
-      case 'ACTIVE':   return 'notifications_active';
-      case 'FIRED':    return 'notifications';
-      case 'DISABLED': return 'notifications_off';
-      default:         return 'notifications';
-    }
+  private formatTarget(n: number): string {
+    return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 8 });
   }
 
   conditionLabel(c: AlertCondition): string {
     return this.conditions.find(x => x.value === c)?.label ?? c;
+  }
+
+  /** Full sentence for a persisted alert row, e.g. "BTCUSDT crosses above $72,000". */
+  alertSentence(alert: PriceAlert): string {
+    const phrase = this.conditions.find(c => c.value === alert.condition)?.phrase ?? alert.condition;
+    return `${alert.symbol} ${phrase} $${this.formatTarget(alert.targetValue)}`;
+  }
+
+  /** Whether a fired alert's trigger was bullish (rose/crossed above) or bearish. */
+  isBullishCondition(c: AlertCondition): boolean {
+    return BULLISH_CONDITIONS.includes(c);
+  }
+
+  statusChipClass(alert: PriceAlert): string {
+    if (alert.status === 'ACTIVE')   return 'chip-active';
+    if (alert.status === 'DISABLED') return 'chip-disabled';
+    // FIRED — color by trigger direction
+    return this.isBullishCondition(alert.condition) ? 'chip-fired-bull' : 'chip-fired-bear';
+  }
+
+  statusIcon(alert: PriceAlert): string {
+    if (alert.status === 'ACTIVE')   return 'notifications_active';
+    if (alert.status === 'DISABLED') return 'notifications_off';
+    return this.isBullishCondition(alert.condition) ? 'trending_up' : 'trending_down';
   }
 
   trackById(_: number, item: { id: string }): string { return item.id; }

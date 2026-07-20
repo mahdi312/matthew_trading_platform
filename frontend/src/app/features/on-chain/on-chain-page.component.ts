@@ -14,15 +14,15 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatChipsModule } from '@angular/material/chips';
+import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
-import { MatSortModule } from '@angular/material/sort';
 
 import { OnChainApiService } from './on-chain-api.service';
 import { NftCollection, DefiPool } from './on-chain.models';
+import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
+import { LoadingStateComponent } from '../../shared/loading-state/loading-state.component';
 
 /**
  * OnChainModule — two views: NFT collections & DeFi liquidity pools.
@@ -52,12 +52,12 @@ import { NftCollection, DefiPool } from './on-chain.models';
     MatIconModule,
     MatFormFieldModule,
     MatInputModule,
-    MatProgressSpinnerModule,
-    MatChipsModule,
+    MatSelectModule,
     MatTooltipModule,
     MatSnackBarModule,
     MatTabsModule,
-    MatSortModule,
+    EmptyStateComponent,
+    LoadingStateComponent,
   ],
   templateUrl: './on-chain-page.component.html',
   styleUrls: ['./on-chain-page.component.scss'],
@@ -72,15 +72,33 @@ export class OnChainPageComponent implements OnInit {
   readonly nftError    = signal<string | null>(null);
   readonly nftRaw      = signal<NftCollection[]>([]);
   readonly nftSearch   = signal('');
+  readonly nftChain    = signal<string>('ALL');
+  /** Sort key for the NFT card grid — chain (alpha) or floor price (desc). */
+  readonly nftSort     = signal<'chain' | 'floor'>('floor');
+
+  readonly nftChains = computed(() =>
+    Array.from(new Set(this.nftRaw().map(c => c.chain))).sort()
+  );
 
   readonly nftFiltered = computed(() => {
     const q = this.nftSearch().toLowerCase();
-    if (!q) return this.nftRaw();
-    return this.nftRaw().filter(c =>
-      c.name.toLowerCase().includes(q) ||
-      c.symbol.toLowerCase().includes(q) ||
-      c.chain.toLowerCase().includes(q)
-    );
+    const chain = this.nftChain();
+    let list = this.nftRaw();
+    if (chain !== 'ALL') list = list.filter(c => c.chain === chain);
+    if (q) {
+      list = list.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        c.symbol.toLowerCase().includes(q) ||
+        c.chain.toLowerCase().includes(q)
+      );
+    }
+    const sorted = [...list];
+    if (this.nftSort() === 'chain') {
+      sorted.sort((a, b) => a.chain.localeCompare(b.chain) || a.name.localeCompare(b.name));
+    } else {
+      sorted.sort((a, b) => (b.floorPrice ?? -Infinity) - (a.floorPrice ?? -Infinity));
+    }
+    return sorted;
   });
 
   // ── DeFi state ────────────────────────────────────────────────────────────
@@ -89,22 +107,35 @@ export class OnChainPageComponent implements OnInit {
   readonly defiError   = signal<string | null>(null);
   readonly defiRaw     = signal<DefiPool[]>([]);
   readonly defiSearch  = signal('');
+  /** Sort key for the DeFi table — defaults to TVL descending per the spec. */
+  readonly defiSort    = signal<'tvl' | 'apy'>('tvl');
 
   readonly defiFiltered = computed(() => {
     const q = this.defiSearch().toLowerCase();
-    if (!q) return this.defiRaw();
-    return this.defiRaw().filter(p =>
-      p.protocol.toLowerCase().includes(q) ||
-      p.token0Symbol.toLowerCase().includes(q) ||
-      p.token1Symbol.toLowerCase().includes(q) ||
-      p.chain.toLowerCase().includes(q)
-    );
+    let list = this.defiRaw();
+    if (q) {
+      list = list.filter(p =>
+        p.protocol.toLowerCase().includes(q) ||
+        p.token0Symbol.toLowerCase().includes(q) ||
+        p.token1Symbol.toLowerCase().includes(q) ||
+        p.chain.toLowerCase().includes(q)
+      );
+    }
+    const sorted = [...list];
+    if (this.defiSort() === 'apy') {
+      sorted.sort((a, b) => (b.apy ?? -Infinity) - (a.apy ?? -Infinity));
+    } else {
+      sorted.sort((a, b) => (b.tvl ?? -Infinity) - (a.tvl ?? -Infinity));
+    }
+    return sorted;
   });
 
-  // ── Table columns ─────────────────────────────────────────────────────────
+  // ── Table columns (DeFi only — NFT is now a card grid) ─────────────────────
 
-  readonly nftColumns  = ['name', 'chain', 'floorPrice', 'volume24h', 'itemCount', 'ownerCount', 'marketCap'];
   readonly defiColumns = ['protocol', 'chain', 'pair', 'feeTier', 'tvl', 'volume24h', 'apy'];
+
+  setNftSort(s: 'chain' | 'floor'): void { this.nftSort.set(s); }
+  setDefiSort(s: 'tvl' | 'apy'): void { this.defiSort.set(s); }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -146,6 +177,7 @@ export class OnChainPageComponent implements OnInit {
   // ── UI helpers ────────────────────────────────────────────────────────────
 
   pairLabel(pool: DefiPool): string {
+    if (!pool.token0Symbol || !pool.token1Symbol) return 'Not available';
     return `${pool.token0Symbol} / ${pool.token1Symbol}`;
   }
 
