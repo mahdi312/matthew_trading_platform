@@ -13,6 +13,7 @@ import {NotificationBellComponent} from '../../shared/notification-bell/notifica
 import {NotificationService} from '../notification/notification.service';
 import {ToolsPanelService, ToolsPanelTab} from '../tools/tools-panel.service';
 import {WatchlistWidgetComponent} from '../../features/dashboard/watchlist-widget/watchlist-widget.component';
+import {TickerMarqueeComponent} from '../../shared/ticker-marquee/ticker-marquee.component';
 
 interface NavItem {
   path: string;
@@ -34,6 +35,7 @@ interface NavItem {
     MatTooltipModule,
     NotificationBellComponent,
     WatchlistWidgetComponent,
+    TickerMarqueeComponent,
   ],
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.scss',
@@ -63,7 +65,7 @@ export class AppShellComponent {
 
   readonly isAdmin = computed(() => this.authSession.hasRole('ROLE_ADMIN'));
 
-  /** Full-bleed layouts (chart terminal) drop page padding. */
+  /** Full-bleed layouts (chart terminal) drop page padding and hide marquee. */
   readonly flushContent = toSignal(
     this.router.events.pipe(
       filter((e): e is NavigationEnd => e instanceof NavigationEnd),

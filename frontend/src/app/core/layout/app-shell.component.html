@@ -1,12 +1,13 @@
 <div [class.theme-dark]="activeTheme() === 'dark'" [class.theme-light]="activeTheme() === 'light'" class="app-shell">
 
-  <!-- ── Left nav ─────────────────────────────────────────── -->
-  <nav [class.sidebar-expanded]="sidebarExpanded()" class="sidebar">
+  <!-- ── Left nav rail (desktop) ──────────────────────────── -->
+  <nav [class.sidebar-expanded]="sidebarExpanded()" class="sidebar" aria-label="Main navigation">
 
     <div class="sidebar-header">
       <button
         (click)="toggleSidebar()"
         [matTooltip]="sidebarExpanded() ? 'Collapse' : 'Expand'"
+        matTooltipPosition="right"
         aria-label="Toggle sidebar"
         class="toggle-btn"
         mat-icon-button
@@ -19,17 +20,18 @@
       }
     </div>
 
-    <ul class="nav-list" role="navigation">
+    <ul class="nav-list" role="list">
       @for (item of visibleNavItems; track item.path) {
-        <li>
+        <li class="nav-list__item">
           <a
             class="nav-item"
             [routerLink]="item.path"
             routerLinkActive="nav-item--active"
             [matTooltip]="!sidebarExpanded() ? item.label : ''"
             matTooltipPosition="right"
+            [attr.aria-label]="item.label"
           >
-            <mat-icon class="nav-icon">{{ item.icon }}</mat-icon>
+            <mat-icon class="nav-icon" aria-hidden="true">{{ item.icon }}</mat-icon>
             @if (sidebarExpanded()) {
               <span class="nav-label">{{ item.label }}</span>
             }
@@ -43,7 +45,7 @@
         (click)="toggleTheme()"
         [matTooltip]="(activeTheme() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')"
         aria-label="Toggle theme"
-        class="theme-toggle-btn"
+        class="sidebar-icon-btn"
         mat-icon-button
         matTooltipPosition="right"
         type="button"
@@ -59,7 +61,7 @@
         (click)="logout()"
         matTooltip="Sign out"
         aria-label="Sign out"
-        class="theme-toggle-btn"
+        class="sidebar-icon-btn"
         mat-icon-button
         matTooltipPosition="right"
         type="button"
@@ -70,10 +72,11 @@
 
   </nav>
 
-  <!-- ── Main area ───────────────────────────────────────── -->
+  <!-- ── Main area ─────────────────────────────────────────── -->
   <div class="main-area">
 
-    <header class="top-toolbar">
+    <header class="top-toolbar" role="banner">
+      <span class="toolbar-brand" aria-hidden="true">MTP</span>
       <span class="toolbar-spacer"></span>
       <button
         mat-stroked-button
@@ -82,14 +85,20 @@
         (click)="toggleTools()"
         [class.tools-toggle-btn--active]="tools.open()"
         [matTooltip]="tools.open() ? 'Hide tools panel' : 'Show tools panel'"
+        aria-label="Toggle tools panel"
       >
         <mat-icon>handyman</mat-icon>
-        Tools
+        <span class="tools-btn-label">Tools</span>
       </button>
       <app-notification-bell/>
     </header>
 
-    <main class="page-content" [class.page-content--flush]="flushContent()">
+    <!-- Ticker Marquee — hidden on /charting (full-bleed), shown everywhere else -->
+    @if (!flushContent()) {
+      <app-ticker-marquee aria-label="Live watchlist prices"/>
+    }
+
+    <main class="page-content" [class.page-content--flush]="flushContent()" role="main">
       <router-outlet/>
     </main>
 
@@ -100,6 +109,7 @@
     class="tools-panel"
     [class.tools-panel--open]="tools.open()"
     [attr.aria-hidden]="!tools.open()"
+    aria-label="Tools panel"
   >
     <div class="tools-panel-inner">
       <div class="tools-tabs" role="tablist">
@@ -111,7 +121,7 @@
           [attr.aria-selected]="tools.activeTab() === 'watchlist'"
           (click)="selectTool('watchlist')"
         >
-          <mat-icon>star</mat-icon>
+          <mat-icon aria-hidden="true">star</mat-icon>
           Watchlist
         </button>
         <button
@@ -119,6 +129,7 @@
           type="button"
           class="tools-close"
           matTooltip="Close tools panel"
+          aria-label="Close tools panel"
           (click)="tools.closePanel()"
         >
           <mat-icon>chevron_right</mat-icon>
@@ -144,11 +155,27 @@
         type="button"
         matTooltip="Watchlist"
         matTooltipPosition="left"
+        aria-label="Open watchlist"
         (click)="selectTool('watchlist')"
       >
         <mat-icon>star</mat-icon>
       </button>
     </aside>
   }
+
+  <!-- ── Bottom tab bar (mobile ≤768px) ───────────────────── -->
+  <nav class="bottom-tab-bar" aria-label="Mobile navigation">
+    @for (item of visibleNavItems; track item.path) {
+      <a
+        class="bottom-tab"
+        [routerLink]="item.path"
+        routerLinkActive="bottom-tab--active"
+        [attr.aria-label]="item.label"
+      >
+        <mat-icon class="bottom-tab__icon" aria-hidden="true">{{ item.icon }}</mat-icon>
+        <span class="bottom-tab__label">{{ item.label }}</span>
+      </a>
+    }
+  </nav>
 
 </div>
