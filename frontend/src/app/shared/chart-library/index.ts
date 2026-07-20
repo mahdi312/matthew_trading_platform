@@ -22,6 +22,7 @@
  */
 
 export { CandlestickChartComponent } from './candlestick-chart/candlestick-chart.component';
+export { BarChartComponent } from './bar-chart/bar-chart.component';
 
 // Models
 export type { OhlcvBar } from './models/ohlcv.model';
@@ -36,3 +37,4 @@ export type {
   DrawingPoint,
   DrawingAction,
 } from './models/drawing.model';
+export type { BarChartDatum } from './models/bar-chart-datum.model';
