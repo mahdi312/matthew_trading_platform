@@ -1,5 +1,5 @@
 # Stop Java processes listening on MTP service ports.
-. "$PSScriptRoot\_lib\common.ps1"
+. (Join-Path $PSScriptRoot "_lib/common.ps1")
 
 Write-Host "Stopping local backend services..."
 foreach ($svc in Get-MtpServices) {

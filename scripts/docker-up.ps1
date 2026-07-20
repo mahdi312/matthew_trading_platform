@@ -1,5 +1,5 @@
 # Build and start the full stack with Docker Compose.
-. "$PSScriptRoot\_lib\common.ps1"
+. (Join-Path $PSScriptRoot "_lib/common.ps1")
 
 $Root = Get-MtpRoot
 Set-Location $Root

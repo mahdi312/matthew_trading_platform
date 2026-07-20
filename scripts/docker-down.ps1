@@ -1,5 +1,5 @@
 # Stop and remove Docker Compose stack (keeps volumes).
-. "$PSScriptRoot\_lib\common.ps1"
+. (Join-Path $PSScriptRoot "_lib/common.ps1")
 
 Test-MtpCommand docker
 Write-Host "Stopping Docker Compose stack..."

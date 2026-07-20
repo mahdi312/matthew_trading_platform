@@ -1,5 +1,5 @@
 # Start all Spring Boot services in separate PowerShell windows (local dev).
-. "$PSScriptRoot\_lib\common.ps1"
+. (Join-Path $PSScriptRoot "_lib/common.ps1")
 
 $Root = Get-MtpRoot
 Set-Location $Root
@@ -9,7 +9,7 @@ Initialize-MtpJava25
 Test-MtpCommand mvn
 
 Write-Host "Starting backend services (each in its own window)..."
-Write-Host "Prerequisite: run scripts\local-infra-up.ps1 first."
+Write-Host "Prerequisite: run scripts/local-infra-up.ps1 first."
 Write-Host "Kafka bootstrap: $env:KAFKA_BOOTSTRAP_SERVERS"
 Write-Host ""
 
@@ -23,4 +23,4 @@ foreach ($svc in $services) {
 Write-Host ""
 Write-Host "Verify Eureka: http://localhost:8761"
 Write-Host "API Gateway:   http://localhost:8080"
-Write-Host "Stop all:      scripts\local-backend-stop.ps1"
+Write-Host "Stop all:      scripts/local-backend-stop.ps1"

@@ -1,5 +1,5 @@
 # Stop local infrastructure containers.
-. "$PSScriptRoot\_lib\common.ps1"
+. (Join-Path $PSScriptRoot "_lib/common.ps1")
 
 Test-MtpCommand docker
 $Root = Get-MtpRoot

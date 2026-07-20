@@ -1,5 +1,5 @@
 # Start Angular dev server (ng serve).
-. "$PSScriptRoot\_lib\common.ps1"
+. (Join-Path $PSScriptRoot "_lib/common.ps1")
 
 $Root = Get-MtpRoot
 $Frontend = Join-Path $Root "frontend"

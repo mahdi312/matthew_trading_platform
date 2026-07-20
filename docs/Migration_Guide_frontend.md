@@ -66,7 +66,10 @@ Do these before any feature module — everything below depends on them.
 **Goal:** Right now nothing in the app can make an authenticated REST call. Fix that once, globally.
 
 **Prompt:**
-
+npm install-scripts approve @parcel/watcher@2.5.6
+npm install-scripts approve esbuild@0.28.1
+npm install-scripts approve lmdb@3.5.1
+npm install-scripts approve msgpackr-extract@3.0.4
 > In `frontend/`:
 >
 > 1. Add to `package.json`: `@angular/material`, `@angular/cdk`, `echarts`, `ngx-echarts` (or a thin wrapper

@@ -1,8 +1,33 @@
-# Shared helpers for MTP PowerShell run scripts.
+# Shared helpers for MTP PowerShell run scripts (Windows / macOS / Linux via pwsh).
 $ErrorActionPreference = "Stop"
 
+function Test-MtpIsWindows {
+    if ($PSVersionTable.PSVersion.Major -ge 6) {
+        return [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+            [System.Runtime.InteropServices.OSPlatform]::Windows)
+    }
+    return $true
+}
+
+function Get-MtpPathSeparator {
+    return [System.IO.Path]::PathSeparator
+}
+
+function Get-MtpJavaExeName {
+    if (Test-MtpIsWindows) { return "java.exe" }
+    return "java"
+}
+
 function Get-MtpRoot {
-    return (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+    return (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
+}
+
+function Get-MtpLogsDir {
+    $dir = Join-Path (Get-MtpRoot) "scripts/logs"
+    if (-not (Test-Path $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+    return $dir
 }
 
 function Assert-MtpLastExitCode {
@@ -19,7 +44,7 @@ function Import-MtpDotEnv {
         $example = Join-Path $Root ".env.example"
         if (Test-Path $example) {
             Copy-Item $example $envFile
-            Write-Host "Created .env from .env.example — fill in API keys before production use."
+            Write-Host "Created .env from .env.example -- fill in API keys before production use."
         }
     }
     if (Test-Path $envFile) {
@@ -59,9 +84,20 @@ function Get-MtpPreferredShell {
 
 function Get-MtpJavaMajorVersion {
     param([string]$JavaHome)
-    $javaExe = if ($JavaHome) { Join-Path $JavaHome "bin\java.exe" } else { "java" }
+    $javaExe = if ($JavaHome) {
+        Join-Path $JavaHome (Join-Path "bin" (Get-MtpJavaExeName))
+    } else {
+        "java"
+    }
     if ($JavaHome -and -not (Test-Path $javaExe)) { return $null }
-    $out = & $javaExe -version 2>&1 | Out-String
+    # java -version writes to stderr; keep ErrorActionPreference from aborting.
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $out = & $javaExe -version 2>&1 | ForEach-Object { "$_" } | Out-String
+    } finally {
+        $ErrorActionPreference = $prevEap
+    }
     if ($out -match 'version "(\d+)') { return [int]$Matches[1] }
     return $null
 }
@@ -72,33 +108,61 @@ function Find-MtpJdkHome {
     if ($env:MTP_JAVA_HOME) { [void]$candidates.Add($env:MTP_JAVA_HOME) }
     if ($env:JAVA_HOME) { [void]$candidates.Add($env:JAVA_HOME) }
 
-    $patterns = @(
-        "D:\java\jdk-$MinMajor"
-        "D:\java\jdk-$MinMajor*"
-        "C:\Program Files\Microsoft\jdk-$MinMajor*"
-        "C:\Program Files\Eclipse Adoptium\jdk-$MinMajor*"
-        "C:\Program Files\Temurin\jdk-$MinMajor*"
-        "C:\Program Files\Java\jdk-$MinMajor*"
-        "C:\Program Files\Zulu\zulu-$MinMajor*"
-        "C:\Program Files\BellSoft\LibericaJDK-$MinMajor*"
-        "$env:USERPROFILE\.jdks\jdk-$MinMajor*"
-        "$env:USERPROFILE\.jdks\temurin-$MinMajor*"
-    )
-    if ($MinMajor -eq 21) {
-        $patterns += @(
-            "D:\java\jdk-21"
-            "D:\java\jdk-21.0.11"
-            "D:\java\.jdk-21.0.11.intellij"
-        )
+    $patterns = [System.Collections.Generic.List[string]]::new()
+
+    if (Test-MtpIsWindows) {
+        @(
+            "D:\java\jdk-$MinMajor"
+            "D:\java\jdk-$MinMajor*"
+            "C:\Program Files\Microsoft\jdk-$MinMajor*"
+            "C:\Program Files\Eclipse Adoptium\jdk-$MinMajor*"
+            "C:\Program Files\Temurin\jdk-$MinMajor*"
+            "C:\Program Files\Java\jdk-$MinMajor*"
+            "C:\Program Files\Zulu\zulu-$MinMajor*"
+            "C:\Program Files\BellSoft\LibericaJDK-$MinMajor*"
+            (Join-Path $env:USERPROFILE ".jdks\jdk-$MinMajor*")
+            (Join-Path $env:USERPROFILE ".jdks\temurin-$MinMajor*")
+        ) | ForEach-Object { [void]$patterns.Add($_) }
+
+        if ($MinMajor -eq 21) {
+            @(
+                "D:\java\jdk-21"
+                "D:\java\jdk-21.0.11"
+                "D:\java\.jdk-21.0.11.intellij"
+            ) | ForEach-Object { [void]$patterns.Add($_) }
+        }
+    } else {
+        @(
+            "/usr/lib/jvm/temurin-$MinMajor-jdk*"
+            "/usr/lib/jvm/java-$MinMajor-openjdk*"
+            "/usr/lib/jvm/jdk-$MinMajor*"
+            (Join-Path $HOME ".jdks/jdk-$MinMajor*")
+            (Join-Path $HOME ".jdks/temurin-$MinMajor*")
+            "/opt/homebrew/opt/openjdk@$MinMajor"
+            "/usr/local/opt/openjdk@$MinMajor"
+        ) | ForEach-Object { [void]$patterns.Add($_) }
     }
+
     foreach ($pattern in $patterns) {
         Get-Item -Path $pattern -ErrorAction SilentlyContinue | ForEach-Object {
             [void]$candidates.Add($_.FullName)
         }
     }
+
+    if (-not (Test-MtpIsWindows)) {
+        Get-ChildItem -Path "/Library/Java/JavaVirtualMachines" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like "*$MinMajor*" } |
+            ForEach-Object {
+                $home = Join-Path $_.FullName "Contents/Home"
+                if (Test-Path $home) { [void]$candidates.Add($home) }
+            }
+    }
+
+    $javaName = Get-MtpJavaExeName
     foreach ($jdkHome in $candidates) {
         if (-not $jdkHome) { continue }
-        if (-not (Test-Path (Join-Path $jdkHome "bin\java.exe"))) { continue }
+        $javaPath = Join-Path $jdkHome (Join-Path "bin" $javaName)
+        if (-not (Test-Path $javaPath)) { continue }
         $major = Get-MtpJavaMajorVersion -JavaHome $jdkHome
         if ($null -ne $major -and $major -ge $MinMajor) { return $jdkHome }
     }
@@ -116,16 +180,18 @@ function Initialize-MtpJava {
 JDK $MinMajor+ is required for $Purpose.
 Install a matching JDK, then either:
   - set JAVA_HOME (or MTP_JAVA_HOME) to that JDK, or
-  - install under D:\java\jdk-$MinMajor
+  - install under a standard path (e.g. /usr/lib/jvm/temurin-$MinMajor-jdk, D:\java\jdk-$MinMajor)
 "@
     }
     $env:JAVA_HOME = $jdk
     $jdkBin = Join-Path $jdk "bin"
+    $sep = Get-MtpPathSeparator
+    $staleJava = 'Oracle[/\\]Java[/\\]javapath|java8path'
     $parts = @($jdkBin) + @(
-        $env:Path -split ';' |
-            Where-Object { $_ -and $_ -ne $jdkBin -and $_ -notmatch 'Oracle\\Java\\javapath|java8path' }
+        $env:Path -split [regex]::Escape($sep) |
+            Where-Object { $_ -and $_ -ne $jdkBin -and $_ -notmatch $staleJava }
     )
-    $env:Path = ($parts -join ';')
+    $env:Path = ($parts -join $sep)
     $major = Get-MtpJavaMajorVersion -JavaHome $jdk
     Write-Host "Using JDK $major at $jdk"
 }
@@ -151,16 +217,16 @@ function Invoke-MtpMaven {
 function Get-MtpServices {
     $root = Get-MtpRoot
     return @(
-        @{ Name = "discovery-service";      Path = Join-Path $root "infra\discovery-service";         Port = 8761; Order = 1 }
-        @{ Name = "config-service";         Path = Join-Path $root "infra\config-service";            Port = 8888; Order = 2 }
-        @{ Name = "gateway-service";        Path = Join-Path $root "infra\gateway-service";           Port = 8080; Order = 3 }
-        @{ Name = "identity-service";       Path = Join-Path $root "services\identity-service";       Port = 8081; Order = 4 }
-        @{ Name = "market-service";         Path = Join-Path $root "services\market-service";         Port = 8082; Order = 5 }
-        @{ Name = "trading-service";        Path = Join-Path $root "services\trading-service";        Port = 8083; Order = 6 }
-        @{ Name = "notification-service";   Path = Join-Path $root "services\notification-service";   Port = 8084; Order = 7 }
-        @{ Name = "reference-data-service"; Path = Join-Path $root "services\reference-data-service"; Port = 8085; Order = 8 }
-        @{ Name = "ai-service";             Path = Join-Path $root "services\ai-service";             Port = 8089; Order = 9 }
-        @{ Name = "alert-service";          Path = Join-Path $root "services\alert-service";          Port = 8087; Order = 10 }
+        @{ Name = "discovery-service";      Path = Join-Path $root "infra/discovery-service";         Port = 8761; Order = 1 }
+        @{ Name = "config-service";         Path = Join-Path $root "infra/config-service";            Port = 8888; Order = 2 }
+        @{ Name = "gateway-service";        Path = Join-Path $root "infra/gateway-service";           Port = 8080; Order = 3 }
+        @{ Name = "identity-service";       Path = Join-Path $root "services/identity-service";       Port = 8081; Order = 4 }
+        @{ Name = "market-service";         Path = Join-Path $root "services/market-service";         Port = 8082; Order = 5 }
+        @{ Name = "trading-service";        Path = Join-Path $root "services/trading-service";        Port = 8083; Order = 6 }
+        @{ Name = "notification-service";   Path = Join-Path $root "services/notification-service";   Port = 8084; Order = 7 }
+        @{ Name = "reference-data-service"; Path = Join-Path $root "services/reference-data-service"; Port = 8085; Order = 8 }
+        @{ Name = "ai-service";             Path = Join-Path $root "services/ai-service";             Port = 8089; Order = 9 }
+        @{ Name = "alert-service";          Path = Join-Path $root "services/alert-service";          Port = 8087; Order = 10 }
     )
 }
 
@@ -177,6 +243,11 @@ function Start-MtpServiceWindow {
         throw "Service path not found: $Path"
     }
 
+    if (-not (Test-MtpIsWindows)) {
+        Start-MtpServiceBackground -Name $Name -Path $Path -Port $Port
+        return
+    }
+
     $title = "MTP: $Name (:$Port)"
     $shell = Get-MtpPreferredShell
     # Double single-quotes for safe embedding inside -Command strings.
@@ -184,8 +255,7 @@ function Start-MtpServiceWindow {
     $safeTitle = $title.Replace("'", "''")
     $safeJavaHome = $env:JAVA_HOME.Replace("'", "''")
 
-    # Bake concrete JAVA_HOME into PATH. Do NOT use `"$env:JAVA_HOME\bin"` —
-    # nested quotes are stripped when Start-Process passes -Command and break parsing.
+    # Bake concrete JAVA_HOME into PATH. Do NOT nest env expansion in -Command strings.
     $cmd = @(
         "`$env:JAVA_HOME = '$safeJavaHome'"
         "`$env:Path = '$safeJavaHome" + "\bin;' + `$env:Path"
@@ -201,15 +271,58 @@ function Start-MtpServiceWindow {
     Write-Host "  -> $Name on port $Port ($(Split-Path $shell -Leaf))"
 }
 
+function Start-MtpServiceBackground {
+    param(
+        [string]$Name,
+        [string]$Path,
+        [int]$Port
+    )
+    $logs = Get-MtpLogsDir
+    $logFile = Join-Path $logs "$Name.log"
+    $pidFile = Join-Path $logs "$Name.pid"
+    $javaHome = $env:JAVA_HOME
+    $sep = Get-MtpPathSeparator
+    $env:Path = "$(Join-Path $javaHome 'bin')$sep$env:Path"
+
+    $proc = Start-Process -FilePath "mvn" `
+        -WorkingDirectory $Path `
+        -ArgumentList @("spring-boot:run", "-q") `
+        -RedirectStandardOutput $logFile `
+        -RedirectStandardError $logFile `
+        -PassThru `
+        -NoNewWindow
+
+    Set-Content -Path $pidFile -Value $proc.Id -Encoding ascii
+    Write-Host "  -> $Name on port $Port (log: $logFile)"
+}
+
 function Stop-MtpPort {
     param([int]$Port)
-    $connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-    foreach ($conn in $connections) {
-        $proc = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
-        if ($proc -and $proc.ProcessName -match 'java|javaw') {
-            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
-            Write-Host "  stopped $($proc.ProcessName) on port $Port"
+
+    if (Test-MtpIsWindows) {
+        $connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+        foreach ($conn in $connections) {
+            $proc = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
+            if ($proc -and $proc.ProcessName -match 'java|javaw') {
+                Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+                Write-Host "  stopped $($proc.ProcessName) on port $Port"
+            }
         }
+        return
+    }
+
+    $pids = @()
+    if (Get-Command lsof -ErrorAction SilentlyContinue) {
+        $pids = @(lsof -ti "tcp:$Port" -sTCP:LISTEN 2>$null)
+    } elseif (Get-Command ss -ErrorAction SilentlyContinue) {
+        $ssOut = ss -lptn "sport = :$Port" 2>$null
+        foreach ($line in $ssOut) {
+            if ($line -match 'pid=(\d+)') { $pids += [int]$Matches[1] }
+        }
+    }
+    foreach ($pid in ($pids | Select-Object -Unique)) {
+        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+        Write-Host "  stopped pid $pid on port $Port"
     }
 }
 
@@ -225,7 +338,7 @@ function Wait-MtpDockerHealthy {
         do {
             $status = docker compose ps $Service --format "{{.Health}}" 2>$null
             if ($status -eq "healthy") { return $true }
-            # Containers without a healthcheck report empty — treat running as OK.
+            # Containers without a healthcheck report empty -- treat running as OK.
             if (-not $status) {
                 $state = docker compose ps $Service --format "{{.State}}" 2>$null
                 if ($state -eq "running") { return $true }
@@ -242,9 +355,9 @@ function Wait-MtpDockerHealthy {
 function Invoke-MtpDockerCompose {
     <#
     .SYNOPSIS
-      Run `docker compose` with an explicit argument array.
+      Run docker compose with an explicit argument array.
       Callers MUST pass an array (e.g. @('up','-d','postgres')).
-      Do NOT use remaining-args style `Invoke-MtpDockerCompose up -d ...` —
+      Do NOT use remaining-args style Invoke-MtpDockerCompose up -d ... --
       PowerShell treats -d as a function parameter and drops it, so compose
       attaches to logs instead of running detached.
     #>

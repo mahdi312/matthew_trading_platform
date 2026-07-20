@@ -2,7 +2,7 @@
 
 One-click helpers for local, Docker, and Kubernetes environments.
 
-**Java:** microservices require **JDK 25+**. `build-all` and `local-backend-start` auto-detect `JAVA_HOME` (`MTP_JAVA_HOME`, existing `JAVA_HOME` if ≥25, or `D:\java\jdk-25` / Temurin paths). Desktop uses **JDK 21**. Service windows launch with `pwsh -NoProfile` (falls back to `powershell`) so a broken profile (e.g. missing `DockerCompletion`) cannot break startups.
+**Java:** microservices require **JDK 25+**. `build-all` and `local-backend-start` auto-detect `JAVA_HOME` (`MTP_JAVA_HOME`, existing `JAVA_HOME` if >=25, or common Windows/macOS/Linux install paths). Desktop uses **JDK 21**. On Windows, service windows launch with `pwsh -NoProfile` (falls back to `powershell`); on macOS/Linux (`pwsh`), services start in the background with logs under `scripts/logs/`.
 
 **Ports (Windows):** Postgres host **5432**, Kafka host **9092** (avoids Hyper-V reserved ranges). Compose-internal ports are unchanged.
 

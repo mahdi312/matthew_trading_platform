@@ -1,5 +1,5 @@
 # Start Postgres, Redis, ZooKeeper, and Kafka via Docker Compose.
-. "$PSScriptRoot\_lib\common.ps1"
+. (Join-Path $PSScriptRoot "_lib/common.ps1")
 
 $Root = Get-MtpRoot
 Set-Location $Root
@@ -14,7 +14,7 @@ foreach ($svc in @("postgres", "redis", "zookeeper", "kafka")) {
     if (Wait-MtpDockerHealthy $svc 180) {
         Write-Host "  $svc is healthy"
     } else {
-        Write-Warning "$svc did not report healthy within timeout — check: docker compose logs $svc"
+        Write-Warning "$svc did not report healthy within timeout -- check: docker compose logs $svc"
     }
 }
 

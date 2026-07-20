@@ -1,5 +1,5 @@
 # Build all Maven modules (contracts + infra + services). Requires JDK 25+.
-. "$PSScriptRoot\_lib\common.ps1"
+. (Join-Path $PSScriptRoot "_lib/common.ps1")
 
 $Root = Get-MtpRoot
 Set-Location $Root
