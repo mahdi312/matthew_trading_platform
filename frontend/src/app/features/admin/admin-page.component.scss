@@ -1,68 +1,41 @@
 :host { display: block; }
 
 .admin-page {
-  max-width: 1200px;
-  margin: 0 auto;
   padding: 24px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-/* ── Header ─────────────────────────────────────────────────────────────── */
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.header-icon {
-  font-size: 36px;
-  width: 36px;
-  height: 36px;
-  color: var(--tp-accent-red);
-}
-
-.page-title {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--tp-text-primary);
-  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
-}
-.page-subtitle {
-  margin: 2px 0 0;
-  font-size: 13px;
-  color: var(--tp-text-secondary);
 }
 
 /* ── Role notice ─────────────────────────────────────────────────────────── */
-.role-notice mat-card-content {
+.role-notice {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 13px;
+  padding: 10px 14px;
+  border-radius: var(--tp-radius-md);
+  background: color-mix(in srgb, var(--brass-500) 6%, var(--tp-bg-card));
+  border: 1px solid color-mix(in srgb, var(--brass-500) 18%, var(--hairline));
+  color: var(--tp-text-secondary);
+  font-size: 12.5px;
+
+  mat-icon {
+    color: var(--brass-500);
+    flex-shrink: 0;
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+
+  strong {
+    color: var(--tp-text-primary);
+  }
 }
 
 code {
   background: var(--tp-bg-active);
   padding: 2px 6px;
   border-radius: 4px;
-  font-size: 12px;
-  color: var(--tp-accent-blue);
-}
-
-/* ── Loading / error ─────────────────────────────────────────────────────── */
-.center-spinner { display: flex; justify-content: center; padding: 48px 0; }
-
-.error-card mat-card-content {
-  display: flex; align-items: center; gap: 10px;
+  font-size: 11.5px;
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--brass-400);
 }
 
 /* ── Toolbar ─────────────────────────────────────────────────────────────── */
@@ -70,24 +43,111 @@ code {
   display: flex;
   align-items: center;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
-.search-field { flex: 0 0 320px; }
+.search-field {
+  flex: 0 0 300px;
+
+  .mat-mdc-form-field-subscript-wrapper {
+    display: none;
+  }
+}
+
+.status-chips {
+  display: flex;
+  gap: 2px;
+  background: var(--tp-bg-secondary);
+  border: 1px solid var(--hairline);
+  border-radius: var(--tp-radius-sm);
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.status-chip {
+  background: none;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 3px;
+  color: var(--tp-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s;
+  white-space: nowrap;
+
+  &:hover {
+    background: var(--tp-bg-hover);
+    color: var(--tp-text-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--brass-500);
+    outline-offset: -1px;
+  }
+}
+
+.status-chip--active {
+  background: color-mix(in srgb, var(--brass-500) 18%, var(--tp-bg-active)) !important;
+  color: var(--brass-400) !important;
+}
 
 .user-count {
-  font-size: 13px;
-  opacity: 0.6;
+  font-size: 12.5px;
+  color: var(--tp-text-secondary);
+  margin-left: auto;
 }
 
 /* ── Table ───────────────────────────────────────────────────────────────── */
-.table-wrapper { overflow-x: auto; }
-
-.users-table {
-  width: 100%;
-  min-width: 700px;
+.table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--tp-radius-lg);
 }
 
-.user-row:hover { background: var(--tp-bg-hover); }
+.data-table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+
+  thead th {
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--tp-text-secondary);
+    border-bottom: 1px solid var(--hairline);
+    background: var(--tp-bg-secondary);
+  }
+
+  tbody td {
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--tp-text-primary);
+    border-bottom: 1px solid var(--hairline);
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+.user-row:hover td {
+  background: var(--tp-bg-hover);
+}
+
+.user-row--editing td {
+  background: color-mix(in srgb, var(--brass-500) 6%, transparent);
+}
+
+.actions-col {
+  width: 96px;
+}
 
 /* User name cell */
 .user-name-cell {
@@ -97,7 +157,7 @@ code {
 
 .display-name {
   font-size: 11px;
-  opacity: 0.55;
+  color: var(--tp-text-secondary);
 }
 
 /* Role chips */
@@ -108,9 +168,16 @@ code {
 }
 
 .role-chip {
-  font-size: 11px;
-  height: 22px;
-  line-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 10px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  background: var(--tp-bg-active);
+  color: var(--tp-text-secondary);
+  border: 1px solid var(--hairline);
 }
 
 .role-edit-chips {
@@ -120,31 +187,92 @@ code {
 }
 
 .role-toggle-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 10.5px;
+  font-weight: 600;
   cursor: pointer;
-  font-size: 11px;
-  height: 26px;
-  opacity: 0.5;
-  transition: opacity 0.15s;
+  border: 1px solid var(--hairline);
+  background: var(--tp-bg-card);
+  color: var(--tp-text-secondary);
+  opacity: 0.6;
+  transition: opacity 0.15s, background 0.15s, color 0.15s, border-color 0.15s;
+
+  mat-icon {
+    font-size: 12px;
+    width: 12px;
+    height: 12px;
+  }
+
+  &:hover {
+    opacity: 0.85;
+  }
 
   &.selected {
     opacity: 1;
-    background: color-mix(in srgb, var(--tp-accent-blue) 25%, var(--tp-bg-card));
+    background: color-mix(in srgb, var(--brass-500) 20%, var(--tp-bg-card));
+    color: var(--brass-400);
+    border-color: color-mix(in srgb, var(--brass-500) 40%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--brass-500);
+    outline-offset: 1px;
   }
 }
 
 /* Status select in edit mode */
-.status-select {
-  width: 120px;
+.status-select-field {
+  width: 130px;
+
+  .mat-mdc-form-field-subscript-wrapper {
+    display: none;
+  }
+}
+
+/* Status pill — traffic-light styling lives in styles.scss (.chip-status-*) */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: var(--tp-radius-sm);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+
+  mat-icon {
+    font-size: 13px;
+    width: 13px;
+    height: 13px;
+  }
 }
 
 /* Action buttons */
 .action-buttons {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   justify-content: flex-end;
+}
+
+.delete-btn:hover {
+  color: var(--bear-400) !important;
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
+  .admin-page {
+    padding: 16px;
+  }
+
   .search-field { flex: 1 1 auto; }
+
+  .user-count {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
 }

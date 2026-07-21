@@ -584,6 +584,26 @@ app-ticker-marquee {
   border: 1px solid var(--tp-border) !important;
 }
 
+/* Admin user-status chips — a neutral traffic-light set, deliberately NOT
+   the bull/bear pair (those are reserved for gain/loss meaning only). */
+.chip-status-active {
+  background: color-mix(in srgb, var(--teal-400) 15%, var(--tp-bg-card)) !important;
+  color: var(--teal-400) !important;
+  border: 1px solid color-mix(in srgb, var(--teal-400) 30%, transparent) !important;
+}
+
+.chip-status-pending {
+  background: var(--tp-bg-active) !important;
+  color: var(--tp-text-secondary) !important;
+  border: 1px solid var(--tp-border) !important;
+}
+
+.chip-status-suspended {
+  background: color-mix(in srgb, var(--tp-accent-purple) 18%, var(--tp-bg-card)) !important;
+  color: var(--tp-accent-purple) !important;
+  border: 1px solid color-mix(in srgb, var(--tp-accent-purple) 35%, transparent) !important;
+}
+
 /* ══════════════════════════════════════════════════════════
    Angular Material — surfaces & chrome overrides
    (bridge feeds these via --mat-sys-* above; overrides here

@@ -4,73 +4,98 @@
   width: 100%;
 }
 
+/* Chrome-free — no card borders, no padding fighting the embedding page's
+   own layout. Background honors the app's dark theme by default but stays
+   a clean, uncluttered fill (no toolbar, no sidebar, no marquee). */
 .embed-root {
-  --embed-bg: #0f1419;
-  --embed-fg: #e8eef5;
-  --embed-muted: #8b9aab;
-  --embed-accent: #3d9cfd;
+  --embed-bg: #0A0D12;
+  --embed-fg: #EDEFF3;
+  --embed-muted: #8A93A6;
+  --embed-accent: #D4A24C;
   --embed-border: rgba(255, 255, 255, 0.08);
 
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
-  background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(61, 156, 253, 0.18), transparent 55%),
-    radial-gradient(900px 500px at 90% 0%, rgba(45, 212, 191, 0.1), transparent 50%),
-    var(--embed-bg);
+  background: var(--embed-bg);
   color: var(--embed-fg);
   font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  overflow: hidden;
 }
 
 .embed-root.theme-light {
-  --embed-bg: #f4f7fb;
-  --embed-fg: #15202b;
-  --embed-muted: #5b6b7c;
+  --embed-bg: #F4F6F8;
+  --embed-fg: #1A1F2A;
+  --embed-muted: #5E6878;
+  --embed-accent: #9C6F1A;
   --embed-border: rgba(15, 20, 25, 0.08);
-}
-
-.embed-chrome {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-  padding: 0.65rem 1rem;
-  border-bottom: 1px solid var(--embed-border);
-}
-
-.brand {
-  font-family: 'IBM Plex Serif', Georgia, serif;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--embed-accent);
-}
-
-.meta {
-  font-size: 0.85rem;
-  color: var(--embed-muted);
 }
 
 .chart-host {
   flex: 1;
   min-height: 0;
-  padding: 0.25rem;
 }
 
+/* ── Loading / error / empty states — centered, plain-language ─────────── */
 .state {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
+  gap: 0.65rem;
+  padding: 1.5rem;
+  text-align: center;
   color: var(--embed-muted);
 }
 
-.state.error {
-  color: #f07178;
+.state--error {
+  color: var(--embed-fg);
+}
+
+.state--error mat-icon {
+  color: #F0555A;
+}
+
+.state p {
+  margin: 0;
+  font-size: 0.9rem;
+  max-width: 280px;
+  line-height: 1.5;
 }
 
 .state mat-icon {
   font-size: 2rem;
   width: 2rem;
   height: 2rem;
+}
+
+/* ── Corner attribution mark — small, unobtrusive, always present ──────── */
+.embed-attribution {
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--embed-muted);
+  background: color-mix(in srgb, var(--embed-bg) 70%, transparent);
+  pointer-events: none;
+  user-select: none;
+  z-index: 2;
+}
+
+.embed-attribution__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--embed-accent);
+  flex-shrink: 0;
 }

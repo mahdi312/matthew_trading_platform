@@ -1,23 +1,19 @@
 <div class="embed-root" [class.theme-light]="theme() === 'light'">
-  <header class="embed-chrome">
-    <span class="brand">MTP Chart</span>
-    <span class="meta">{{ title() }}</span>
-  </header>
 
   @if (loading()) {
-    <div class="state">
-      <mat-spinner diameter="40"></mat-spinner>
-      <p>Loading market data…</p>
+    <div aria-live="polite" class="state" role="status">
+      <mat-spinner diameter="36"></mat-spinner>
+      <p>Loading chart…</p>
     </div>
   } @else if (error()) {
-    <div class="state error">
-      <mat-icon>lock</mat-icon>
+    <div class="state state--error" role="alert">
+      <mat-icon aria-hidden="true">link_off</mat-icon>
       <p>{{ error() }}</p>
     </div>
   } @else if (bars().length === 0) {
-    <div class="state">
-      <mat-icon>show_chart</mat-icon>
-      <p>No candles returned for {{ symbol() }}.</p>
+    <div class="state" role="status">
+      <mat-icon aria-hidden="true">show_chart</mat-icon>
+      <p>No chart data available for {{ symbol() }}.</p>
     </div>
   } @else {
     <div class="chart-host">
@@ -28,4 +24,11 @@
       ></app-candlestick-chart>
     </div>
   }
+
+  <!-- Tiny, unobtrusive attribution — present enough to identify the
+       platform, small enough to never compete with the chart itself. -->
+  <div aria-hidden="true" class="embed-attribution">
+    <span class="embed-attribution__dot"></span>
+    MTP
+  </div>
 </div>
