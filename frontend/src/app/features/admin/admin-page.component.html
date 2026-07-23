@@ -1,209 +1,226 @@
 <div class="admin-page page-shell">
 
-  <!-- ── Page header ─────────────────────────────────────── -->
+  <!-- Header -->
   <header class="page-header">
     <div class="header-left">
-      <mat-icon aria-hidden="true" class="header-icon">admin_panel_settings</mat-icon>
+      <mat-icon class="header-icon" aria-hidden="true">admin_panel_settings</mat-icon>
       <div>
         <h1 class="page-title">Admin — User Management</h1>
         <p class="page-subtitle">Manage user accounts, roles, and access</p>
       </div>
     </div>
-    <button (click)="loadUsers()" aria-label="Refresh users" mat-icon-button matTooltip="Refresh" type="button">
+    <button mat-icon-button type="button" matTooltip="Refresh" aria-label="Refresh users" (click)="loadUsers()">
       <mat-icon>refresh</mat-icon>
     </button>
   </header>
 
-  <!-- ── Role notice ─────────────────────────────────────── -->
+  <!-- Role notice banner -->
   <div class="role-notice" role="note">
     <mat-icon aria-hidden="true">security</mat-icon>
-    <span>Visible only to <strong>ROLE_ADMIN</strong> users — route access is enforced by <code>adminGuard</code>, not just this nav link.</span>
+    <span>
+      This area is visible only to <strong>ROLE_ADMIN</strong> users — enforced by
+      <code>adminGuard</code> at the route level, not just a hidden nav link. Mutating
+      actions here affect other people's accounts; every one asks for explicit confirmation.
+    </span>
   </div>
 
-  <!-- ── Loading ──────────────────────────────────────────── -->
+  <!-- Loading -->
   @if (loading()) {
-    <app-loading-state [cols]="6" [rows]="6" variant="rows"/>
+    <app-loading-state variant="rows" [rows]="6" [cols]="6" />
   }
 
-  <!-- ── Error ────────────────────────────────────────────── -->
+  <!-- Error -->
   @if (error() && !loading()) {
     <div class="tp-alert" role="alert">
       <mat-icon aria-hidden="true">error_outline</mat-icon>
       <span>{{ error() }}</span>
-      <button (click)="loadUsers()" mat-button type="button">Retry</button>
+      <button mat-button type="button" (click)="loadUsers()">Retry</button>
     </div>
   }
 
   @if (!loading() && !error()) {
 
-    <!-- ── Toolbar: search + status filter ─────────────────── -->
+    <!-- Toolbar: search + status filter -->
     <div class="toolbar">
       <mat-form-field appearance="outline" class="search-field">
         <mat-label>Search users</mat-label>
-        <mat-icon matPrefix>search</mat-icon>
+        <mat-icon matPrefix aria-hidden="true">search</mat-icon>
         <input
           matInput
           [ngModel]="search()"
-          (ngModelChange)="search.set($event)"
-          aria-label="Search users"
+          (ngModelChange)="onSearchChange($event)"
           placeholder="Username, email, display name…">
       </mat-form-field>
 
-      <div aria-label="Filter by status" class="status-chips" role="group">
-        @for (s of statusFilterOptions; track s) {
-          <button
-            (click)="setStatusFilter(s)"
-            [class.status-chip--active]="statusFilter() === s"
-            class="status-chip"
-            type="button">
-            {{ s === 'ALL' ? 'All' : s }}
-          </button>
-        }
-      </div>
+      <mat-form-field appearance="outline" class="status-filter-field">
+        <mat-label>Status</mat-label>
+        <mat-select [ngModel]="statusFilter()" (ngModelChange)="onStatusFilterChange($event)">
+          <mat-option value="ALL">All statuses</mat-option>
+          @for (s of allStatuses; track s) {
+            <mat-option [value]="s">{{ s }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
 
-      <span class="user-count">{{ users().length }} user{{ users().length === 1 ? '' : 's' }}</span>
+      <span class="user-count">{{ filteredUsers().length }} of {{ usersRaw().length }} user(s)</span>
     </div>
 
-    <!-- ── Empty ────────────────────────────────────────────── -->
-    @if (users().length === 0) {
-      @if (hasActiveFilter()) {
-        <app-empty-state
-          (action)="clearFilters()"
-          actionLabel="Clear filters"
-          body="Try a different search term or status filter."
-          headline="No users match these filters"
-          icon="search_off">
-        </app-empty-state>
-      } @else {
-        <app-empty-state
-          body="Registered users will appear here once they sign up."
-          headline="No users found"
-          icon="group_off">
-        </app-empty-state>
-      }
+    @if (usersRaw().length === 0) {
+      <app-empty-state
+        icon="people_outline"
+        headline="No users yet"
+        body="Users will appear here once accounts are registered." />
+    } @else if (filteredUsers().length === 0) {
+      <app-empty-state
+        icon="search_off"
+        headline="No users match these filters"
+        body="Try a different search term or clear the status filter."
+        actionLabel="Clear filters"
+        (action)="clearFilters()" />
     } @else {
 
-      <!-- ── Table ────────────────────────────────────────────── -->
+      <!-- Table -->
       <div class="table-wrapper">
-        <table class="data-table users-table">
-          <thead>
-          <tr>
-            <th>Username</th>
-            <th>Email</th>
-            <th>Roles</th>
-            <th>Status</th>
-            <th>Created</th>
-            <th>Last Login</th>
-            <th class="actions-col"></th>
-          </tr>
-          </thead>
-          <tbody>
-            @for (row of users(); track row.id) {
-              <tr [class.user-row--editing]="editingId() === row.id" class="user-row">
+        <table mat-table [dataSource]="pagedUsers()" class="users-table">
 
-                <!-- Username -->
-                <td>
-                  <div class="user-name-cell">
-                    <strong>{{ row.username }}</strong>
-                    @if (row.displayName) {
-                      <span class="display-name">{{ row.displayName }}</span>
-                    }
-                  </div>
-                </td>
+          <!-- Username -->
+          <ng-container matColumnDef="username">
+            <th mat-header-cell *matHeaderCellDef>User</th>
+            <td mat-cell *matCellDef="let row">
+              <div class="user-name-cell">
+                <strong class="tp-mono">{{ row.username }}</strong>
+                @if (row.displayName) {
+                  <span class="display-name">{{ row.displayName }}</span>
+                }
+              </div>
+            </td>
+          </ng-container>
 
-                <!-- Email -->
-                <td>{{ row.email }}</td>
+          <!-- Email -->
+          <ng-container matColumnDef="email">
+            <th mat-header-cell *matHeaderCellDef>Email</th>
+            <td mat-cell *matCellDef="let row">{{ row.email }}</td>
+          </ng-container>
 
-                <!-- Roles -->
-                <td>
-                  @if (editingId() !== row.id) {
-                    <div class="role-chips">
-                      @for (r of row.roles; track r) {
-                        <span class="role-chip">{{ roleLabel(r) }}</span>
-                      }
-                    </div>
-                  } @else {
-                    <div aria-label="Edit roles" class="role-edit-chips" role="group">
-                      @for (r of allRoles; track r) {
-                        <button
-                          (click)="toggleEditRole(r)"
-                          [class.selected]="isRoleSelected(r)"
-                          class="role-toggle-chip"
-                          type="button">
-                          @if (isRoleSelected(r)) {
-                            <mat-icon aria-hidden="true">check</mat-icon>
-                          }
-                          {{ roleLabel(r) }}
-                        </button>
-                      }
-                    </div>
+          <!-- Roles -->
+          <ng-container matColumnDef="roles">
+            <th mat-header-cell *matHeaderCellDef>Roles</th>
+            <td mat-cell *matCellDef="let row">
+              <!-- View mode -->
+              @if (editingId() !== row.id) {
+                <div class="role-chips">
+                  @for (r of row.roles; track r) {
+                    <span class="role-chip">{{ roleLabel(r) }}</span>
                   }
-                </td>
-
-                <!-- Status -->
-                <td>
-                  @if (editingId() !== row.id) {
-                    <span [class]="statusChipClass(row.status)" class="status-pill">
-                      <mat-icon aria-hidden="true">{{ statusIcon(row.status) }}</mat-icon>
-                      {{ row.status }}
-                    </span>
-                  } @else {
-                    <mat-form-field appearance="outline" class="status-select-field">
-                      <mat-select [(ngModel)]="editStatus">
-                        @for (s of allStatuses; track s) {
-                          <mat-option [value]="s">{{ s }}</mat-option>
-                        }
-                      </mat-select>
-                    </mat-form-field>
+                </div>
+              } @else {
+                <!-- Edit mode -->
+                <div class="role-edit-chips" role="group" aria-label="Edit roles">
+                  @for (r of allRoles; track r) {
+                    <button
+                      type="button"
+                      class="role-toggle-chip"
+                      [class.role-toggle-chip--selected]="isRoleSelected(r)"
+                      [attr.aria-pressed]="isRoleSelected(r)"
+                      (click)="toggleEditRole(r)">
+                      @if (isRoleSelected(r)) {
+                        <mat-icon aria-hidden="true">check</mat-icon>
+                      }
+                      {{ roleLabel(r) }}
+                    </button>
                   }
-                </td>
+                </div>
+              }
+            </td>
+          </ng-container>
 
-                <!-- Created -->
-                <td>
-                  <span [title]="exactTime(row.createdAt)">{{ relativeTime(row.createdAt) }}</span>
-                </td>
-
-                <!-- Last Login -->
-                <td>
-                  <span [title]="exactTime(row.lastLoginAt)">{{ relativeTime(row.lastLoginAt) }}</span>
-                </td>
-
-                <!-- Actions -->
-                <td class="actions-col">
-                  <div class="action-buttons">
-                    @if (editingId() !== row.id) {
-                      <button (click)="startEdit(row)" [attr.aria-label]="'Edit ' + row.username" mat-icon-button
-                              matTooltip="Edit roles / status" type="button">
-                        <mat-icon>edit</mat-icon>
-                      </button>
-                      <button (click)="deleteUser(row)" [attr.aria-label]="'Delete ' + row.username" class="delete-btn" mat-icon-button
-                              matTooltip="Delete user" type="button">
-                        <mat-icon>delete</mat-icon>
-                      </button>
-                    } @else {
-                      <button
-                        (click)="saveEdit(row)"
-                        [disabled]="mutatingId() === row.id"
-                        aria-label="Save changes"
-                        color="primary"
-                        mat-icon-button
-                        matTooltip="Save changes"
-                        type="button">
-                        <mat-icon>check</mat-icon>
-                      </button>
-                      <button (click)="cancelEdit()" aria-label="Cancel editing" mat-icon-button matTooltip="Cancel"
-                              type="button">
-                        <mat-icon>close</mat-icon>
-                      </button>
+          <!-- Status -->
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Status</th>
+            <td mat-cell *matCellDef="let row">
+              <!-- View mode -->
+              @if (editingId() !== row.id) {
+                <span [class]="statusChipClass(row.status)">
+                  <mat-icon aria-hidden="true">{{ statusIcon(row.status) }}</mat-icon>
+                  {{ row.status }}
+                </span>
+              } @else {
+                <!-- Edit mode -->
+                <mat-form-field appearance="outline" class="status-select">
+                  <mat-label>Status</mat-label>
+                  <mat-select [(ngModel)]="editStatus" aria-label="Edit user status">
+                    @for (s of allStatuses; track s) {
+                      <mat-option [value]="s">{{ s }}</mat-option>
                     }
-                  </div>
-                </td>
-              </tr>
-            }
-          </tbody>
+                  </mat-select>
+                </mat-form-field>
+              }
+            </td>
+          </ng-container>
+
+          <!-- Created -->
+          <ng-container matColumnDef="createdAt">
+            <th mat-header-cell *matHeaderCellDef>Created</th>
+            <td mat-cell *matCellDef="let row">
+              <span class="relative-time" [matTooltip]="row.createdAt | date:'medium'">
+                {{ relativeTime(row.createdAt) }}
+              </span>
+            </td>
+          </ng-container>
+
+          <!-- Last Login -->
+          <ng-container matColumnDef="lastLoginAt">
+            <th mat-header-cell *matHeaderCellDef>Last Login</th>
+            <td mat-cell *matCellDef="let row">
+              <span
+                class="relative-time"
+                [matTooltip]="row.lastLoginAt ? (row.lastLoginAt | date:'medium') : 'Never signed in'">
+                {{ relativeTime(row.lastLoginAt) }}
+              </span>
+            </td>
+          </ng-container>
+
+          <!-- Actions -->
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef></th>
+            <td mat-cell *matCellDef="let row">
+              <div class="action-buttons">
+                <!-- View mode -->
+                @if (editingId() !== row.id) {
+                  <button mat-icon-button type="button" matTooltip="Edit roles / status" [attr.aria-label]="'Edit ' + row.username" (click)="startEdit(row)">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <button mat-icon-button type="button" class="delete-btn" matTooltip="Delete user" [attr.aria-label]="'Delete ' + row.username" (click)="deleteUser(row)">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                } @else {
+                  <!-- Edit mode -->
+                  <button mat-icon-button type="button" class="save-btn" matTooltip="Save" [attr.aria-label]="'Save changes to ' + row.username" (click)="saveEdit(row)">
+                    <mat-icon>check</mat-icon>
+                  </button>
+                  <button mat-icon-button type="button" matTooltip="Cancel" aria-label="Cancel editing" (click)="cancelEdit()">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                }
+              </div>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="columns"></tr>
+          <tr mat-row *matRowDef="let row; columns: columns;" class="user-row"></tr>
         </table>
       </div>
 
+      <mat-paginator
+        [length]="filteredUsers().length"
+        [pageIndex]="pageIndex()"
+        [pageSize]="pageSize()"
+        [pageSizeOptions]="[10, 25, 50]"
+        (page)="onPage($event)"
+        aria-label="Select page of users">
+      </mat-paginator>
+
     }
+
   }
 </div>

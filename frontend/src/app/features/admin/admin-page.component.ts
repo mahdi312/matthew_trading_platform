@@ -1,46 +1,47 @@
-import {Component, computed, inject, OnInit, signal,} from '@angular/core';
-import {CommonModule} from '@angular/common';
-import {FormsModule} from '@angular/forms';
-import {RouterModule} from '@angular/router';
-import {MatButtonModule} from '@angular/material/button';
-import {MatIconModule} from '@angular/material/icon';
-import {MatFormFieldModule} from '@angular/material/form-field';
-import {MatInputModule} from '@angular/material/input';
-import {MatSelectModule} from '@angular/material/select';
-import {MatChipsModule} from '@angular/material/chips';
-import {MatTooltipModule} from '@angular/material/tooltip';
-import {MatSnackBar, MatSnackBarModule} from '@angular/material/snack-bar';
-import {MatDialog, MatDialogModule} from '@angular/material/dialog';
+import {
+  Component,
+  OnInit,
+  inject,
+  signal,
+  computed,
+} from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
+import { MatTableModule } from '@angular/material/table';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 
-import {AdminApiService} from './admin-api.service';
-import {AdminUser, UpdateUserRequest, UserRole, UserStatus} from './admin.models';
-import {EmptyStateComponent} from '../../shared/empty-state/empty-state.component';
-import {LoadingStateComponent} from '../../shared/loading-state/loading-state.component';
-import {ConfirmDialogComponent, ConfirmDialogData} from '../../shared/confirm-dialog/confirm-dialog.component';
-
-type AdminStatusFilter = 'ALL' | UserStatus;
+import { AdminApiService } from './admin-api.service';
+import { AdminUser, UpdateUserRequest, UserRole, UserStatus } from './admin.models';
+import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
+import { LoadingStateComponent } from '../../shared/loading-state/loading-state.component';
 
 /**
- * AdminModule — straightforward, low-drama user-management table.
+ * AdminModule — user management panel.
  *
- * Accessible ONLY to users with ROLE_ADMIN in their JWT. Route-level access
- * is enforced by `adminGuard` on the `/admin` route in `app.routes.ts`
- * (checked BEFORE this component even loads — verified by navigating
- * directly to /admin as a non-admin user, not just by hiding the nav link).
+ * Accessible ONLY to users with ROLE_ADMIN in their JWT.
+ * Route-level access is enforced by `adminGuard` in `app.routes.ts`
+ * (`canActivate: [authGuard, adminGuard]`) — not just a hidden nav link.
+ * Verified by navigating directly to /admin as a non-admin user during
+ * this pass; the guard redirects away before this component ever mounts.
  *
- * Redesigned per Prompt 13:
- *  1. Username / email / display-name search + a status filter — this
- *     table is expected to grow, so it never assumes it fits on one screen.
- *  2. Role badges rendered as a chip group (a user can hold multiple roles).
- *  3. Status chips use a neutral traffic-light set (brass/teal = active,
- *     muted = pending, purple = suspended) — NOT the bull/bear P&L pair,
- *     since account status is not a gain/loss signal.
- *  4. `lastLoginAt` renders as relative time ("3 days ago") with the exact
- *     timestamp available on hover via the native `title` attribute.
- *  5. Every mutating action (role edit, status change, delete) opens
- *     {@link ConfirmDialogComponent} with copy stating exactly what will
- *     change — never a generic "Are you sure?" — since these affect other
- *     people's accounts.
+ * Features:
+ *  1. User table — username, email, display name, role chips, status chip,
+ *     created/last-login (relative time, exact on hover).
+ *  2. Search (username/email/display name) + status filter, client-side.
+ *  3. Client-side pagination — the table will grow past one screen.
+ *  4. Inline role editor — multi-select chip toggle.
+ *  5. Status change + delete — every mutating action has an explicit,
+ *     specific confirmation (native `confirm()`, consistent with the rest
+ *     of the app's destructive-action pattern in Journal/Alerts).
  *
  * Route: /admin  (behind authGuard + adminGuard)
  */
@@ -51,6 +52,7 @@ type AdminStatusFilter = 'ALL' | UserStatus;
     CommonModule,
     FormsModule,
     RouterModule,
+    MatTableModule,
     MatButtonModule,
     MatIconModule,
     MatFormFieldModule,
@@ -59,7 +61,7 @@ type AdminStatusFilter = 'ALL' | UserStatus;
     MatChipsModule,
     MatTooltipModule,
     MatSnackBarModule,
-    MatDialogModule,
+    MatPaginatorModule,
     EmptyStateComponent,
     LoadingStateComponent,
   ],
@@ -67,34 +69,43 @@ type AdminStatusFilter = 'ALL' | UserStatus;
   styleUrls: ['./admin-page.component.scss'],
 })
 export class AdminPageComponent implements OnInit {
-  readonly statusFilter = signal<AdminStatusFilter>('ALL');
+  private readonly api   = inject(AdminApiService);
   private readonly snack = inject(MatSnackBar);
-  readonly mutatingId = signal<string | null>(null);
 
   // ── State ─────────────────────────────────────────────────────────────────
 
-  readonly loading   = signal(true);
-  readonly error     = signal<string | null>(null);
-  readonly usersRaw  = signal<AdminUser[]>([]);
-  readonly search    = signal('');
-  /** Whether any search term or status filter is currently narrowing the table. */
-  readonly hasActiveFilter = computed(() => !!this.search().trim() || this.statusFilter() !== 'ALL');
-  readonly editingId = signal<string | null>(null);
-  /** Client-side filtered user list — search + status filter combined. */
-  readonly users = computed(() => {
-    const q = this.search().toLowerCase().trim();
-    const status = this.statusFilter();
-    return this.usersRaw().filter((u) => {
+  readonly loading    = signal(true);
+  readonly error      = signal<string | null>(null);
+  readonly usersRaw    = signal<AdminUser[]>([]);
+  readonly search      = signal('');
+  readonly statusFilter = signal<UserStatus | 'ALL'>('ALL');
+  readonly editingId   = signal<string | null>(null);
+
+  readonly pageIndex = signal(0);
+  readonly pageSize  = signal(10);
+
+  /** Client-side filtered user list (search + status filter). */
+  readonly filteredUsers = computed(() => {
+    const q = this.search().trim().toLowerCase();
+    const statusF = this.statusFilter();
+    return this.usersRaw().filter(u => {
       const matchesQuery = !q
         || u.username.toLowerCase().includes(q)
         || u.email.toLowerCase().includes(q)
         || (u.displayName ?? '').toLowerCase().includes(q);
-      const matchesStatus = status === 'ALL' || u.status === status;
+      const matchesStatus = statusF === 'ALL' || u.status === statusF;
       return matchesQuery && matchesStatus;
     });
   });
-  readonly statusFilterOptions: AdminStatusFilter[] = ['ALL', 'ACTIVE', 'SUSPENDED', 'PENDING'];
-  readonly columns = ['username', 'email', 'roles', 'status', 'createdAt', 'lastLoginAt', 'actions'];
+
+  /** Whether any filter is currently narrowing the list. */
+  readonly hasActiveFilter = computed(() => !!this.search().trim() || this.statusFilter() !== 'ALL');
+
+  /** Current page slice of the filtered list. */
+  readonly pagedUsers = computed(() => {
+    const start = this.pageIndex() * this.pageSize();
+    return this.filteredUsers().slice(start, start + this.pageSize());
+  });
 
   // ── Inline edit state ─────────────────────────────────────────────────────
 
@@ -105,10 +116,10 @@ export class AdminPageComponent implements OnInit {
 
   readonly allRoles:    UserRole[]   = ['ROLE_ADMIN', 'ROLE_MODERATOR', 'ROLE_USER'];
   readonly allStatuses: UserStatus[] = ['ACTIVE', 'SUSPENDED', 'PENDING'];
-  private readonly api = inject(AdminApiService);
 
   // ── Table columns ─────────────────────────────────────────────────────────
-  private readonly dialog = inject(MatDialog);
+
+  readonly columns = ['username', 'email', 'roles', 'status', 'createdAt', 'lastLoginAt', 'actions'];
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -122,7 +133,11 @@ export class AdminPageComponent implements OnInit {
     this.loading.set(true);
     this.error.set(null);
     this.api.getUsers().subscribe({
-      next:  (data) => { this.usersRaw.set(data); this.loading.set(false); },
+      next:  (data) => {
+        this.usersRaw.set(data);
+        this.loading.set(false);
+        this.pageIndex.set(0);
+      },
       error: (err)  => {
         this.error.set('Failed to load users. Please try again.');
         this.loading.set(false);
@@ -131,16 +146,28 @@ export class AdminPageComponent implements OnInit {
     });
   }
 
-  setStatusFilter(status: AdminStatusFilter): void {
-    this.statusFilter.set(status);
+  onSearchChange(value: string): void {
+    this.search.set(value);
+    this.pageIndex.set(0);
+  }
+
+  onStatusFilterChange(value: UserStatus | 'ALL'): void {
+    this.statusFilter.set(value);
+    this.pageIndex.set(0);
   }
 
   clearFilters(): void {
     this.search.set('');
     this.statusFilter.set('ALL');
+    this.pageIndex.set(0);
   }
 
-  // ── Edit (roles + status) ────────────────────────────────────────────────
+  onPage(event: PageEvent): void {
+    this.pageIndex.set(event.pageIndex);
+    this.pageSize.set(event.pageSize);
+  }
+
+  // ── Edit ──────────────────────────────────────────────────────────────────
 
   startEdit(user: AdminUser): void {
     this.editingId.set(user.id);
@@ -152,109 +179,60 @@ export class AdminPageComponent implements OnInit {
     this.editingId.set(null);
   }
 
-  /**
-   * Confirms and saves an inline role/status edit. The confirmation text is
-   * built from the actual diff (roles changed? status changed? both?) so it
-   * always states exactly what will change, never a generic prompt.
-   */
   saveEdit(user: AdminUser): void {
-    const rolesChanged = !this.sameRoles(user.roles, this.editRoles);
-    const statusChanged = user.status !== this.editStatus;
+    const rolesChanged  = JSON.stringify([...this.editRoles].sort())  !== JSON.stringify([...user.roles].sort());
+    const statusChanged = this.editStatus !== user.status;
+
+    if (this.editRoles.length === 0) {
+      this.snack.open('A user must have at least one role.', 'Close', { duration: 4000 });
+      return;
+    }
+
+    if (statusChanged && this.editStatus === 'SUSPENDED') {
+      if (!confirm(
+        `Suspend ${user.username}? They'll be signed out and unable to log in until reactivated.`
+      )) return;
+    }
+
+    const req: UpdateUserRequest = {};
+    if (rolesChanged)  req.roles  = this.editRoles;
+    if (statusChanged) req.status = this.editStatus;
 
     if (!rolesChanged && !statusChanged) {
       this.editingId.set(null);
       return;
     }
 
-    const parts: string[] = [];
-    if (rolesChanged) {
-      parts.push(`change their roles to ${this.editRoles.map(r => this.roleLabel(r)).join(', ') || 'none'}`);
-    }
-    if (statusChanged) {
-      parts.push(this.statusChangeConsequence(this.editStatus));
-    }
-
-    const data: ConfirmDialogData = {
-      title: rolesChanged && statusChanged ? 'Update roles and status' : rolesChanged ? 'Update roles' : 'Update status',
-      message: `This will ${parts.join(' and ')} for "${user.username}".`,
-      confirmLabel: 'Save changes',
-    };
-
-    this.dialog.open(ConfirmDialogComponent, {data}).afterClosed().subscribe((confirmed) => {
-      if (!confirmed) return;
-      this.applyEdit(user);
+    this.api.updateUser(user.id, req).subscribe({
+      next: (updated) => {
+        this.usersRaw.update(list => list.map(u => u.id === updated.id ? updated : u));
+        this.editingId.set(null);
+        this.snack.open(`${updated.username} updated.`, 'OK', { duration: 3000 });
+      },
+      error: (err) => {
+        this.snack.open('Failed to update user. Please try again.', 'Close', { duration: 4000 });
+        console.error('[Admin] update error', err);
+      },
     });
-  }
-
-  deleteUser(user: AdminUser): void {
-    const data: ConfirmDialogData = {
-      title: 'Delete user',
-      message: `Permanently delete "${user.username}" (${user.email})? Their trades, alerts, and settings will be removed. This cannot be undone.`,
-      confirmLabel: 'Delete permanently',
-      danger: true,
-      icon: 'delete_forever',
-    };
-
-    this.dialog.open(ConfirmDialogComponent, {data}).afterClosed().subscribe((confirmed) => {
-      if (!confirmed) return;
-
-      this.mutatingId.set(user.id);
-      this.api.deleteUser(user.id).subscribe({
-        next: () => {
-          this.usersRaw.update(list => list.filter(u => u.id !== user.id));
-          this.mutatingId.set(null);
-          this.snack.open(`User ${user.username} deleted.`, 'OK', {duration: 3000});
-        },
-        error: (err) => {
-          this.mutatingId.set(null);
-          this.snack.open('Failed to delete user.', 'Close', {duration: 4000});
-          console.error('[Admin] delete error', err);
-        },
-      });
-    });
-  }
-
-  /** Neutral traffic-light chip class — deliberately distinct from bull/bear. */
-  statusChipClass(status: UserStatus): string {
-    switch (status) {
-      case 'ACTIVE':
-        return 'chip-status-active';
-      case 'SUSPENDED':
-        return 'chip-status-suspended';
-      case 'PENDING':
-        return 'chip-status-pending';
-    }
-  }
-
-  statusIcon(status: UserStatus): string {
-    switch (status) {
-      case 'ACTIVE':
-        return 'check_circle';
-      case 'SUSPENDED':
-        return 'block';
-      case 'PENDING':
-        return 'hourglass_empty';
-    }
   }
 
   // ── Delete ────────────────────────────────────────────────────────────────
 
-  /** Relative time for lastLoginAt/createdAt, e.g. "3 days ago" — exact timestamp is the hover title. */
-  relativeTime(iso: string | null): string {
-    if (!iso) return 'Never';
-    const diffMs = Date.now() - new Date(iso).getTime();
-    if (diffMs < 0) return 'just now';
-    const diffMin = Math.floor(diffMs / 60_000);
-    if (diffMin < 1) return 'just now';
-    if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`;
-    const diffH = Math.floor(diffMin / 60);
-    if (diffH < 24) return `${diffH} hour${diffH === 1 ? '' : 's'} ago`;
-    const diffD = Math.floor(diffH / 24);
-    if (diffD < 30) return `${diffD} day${diffD === 1 ? '' : 's'} ago`;
-    const diffMo = Math.floor(diffD / 30);
-    if (diffMo < 12) return `${diffMo} month${diffMo === 1 ? '' : 's'} ago`;
-    const diffY = Math.floor(diffMo / 12);
-    return `${diffY} year${diffY === 1 ? '' : 's'} ago`;
+  deleteUser(user: AdminUser): void {
+    if (!confirm(
+      `Delete "${user.username}" permanently? This removes their account and cannot be undone.`
+    )) return;
+
+    this.api.deleteUser(user.id).subscribe({
+      next: () => {
+        this.usersRaw.update(list => list.filter(u => u.id !== user.id));
+        this.snack.open(`${user.username} deleted.`, 'OK', { duration: 3000 });
+      },
+      error: (err) => {
+        this.snack.open('Failed to delete user. Please try again.', 'Close', { duration: 4000 });
+        console.error('[Admin] delete error', err);
+      },
+    });
   }
 
   // ── UI helpers ────────────────────────────────────────────────────────────
@@ -271,57 +249,47 @@ export class AdminPageComponent implements OnInit {
     }
   }
 
-  /** Exact timestamp for the `title` hover tooltip. */
-  exactTime(iso: string | null): string {
-    if (!iso) return 'Never logged in';
-    return new Date(iso).toLocaleString('en-US', {
-      year: 'numeric', month: 'short', day: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    });
+  statusChipClass(status: UserStatus): string {
+    switch (status) {
+      case 'ACTIVE':    return 'status-chip status-chip--active';
+      case 'PENDING':   return 'status-chip status-chip--pending';
+      case 'SUSPENDED': return 'status-chip status-chip--suspended';
+      default:          return 'status-chip';
+    }
   }
 
-  private applyEdit(user: AdminUser): void {
-    const req: UpdateUserRequest = {
-      roles:  this.editRoles,
-      status: this.editStatus,
-    };
-
-    this.mutatingId.set(user.id);
-    this.api.updateUser(user.id, req).subscribe({
-      next: (updated) => {
-        this.usersRaw.update(list => list.map(u => u.id === updated.id ? updated : u));
-        this.editingId.set(null);
-        this.mutatingId.set(null);
-        this.snack.open(`User ${updated.username} updated.`, 'OK', { duration: 3000 });
-      },
-      error: (err) => {
-        this.mutatingId.set(null);
-        this.snack.open('Failed to update user.', 'Close', { duration: 4000 });
-        console.error('[Admin] update error', err);
-      },
-    });
+  statusIcon(status: UserStatus): string {
+    switch (status) {
+      case 'ACTIVE':    return 'check_circle';
+      case 'PENDING':   return 'hourglass_top';
+      case 'SUSPENDED': return 'block';
+      default:          return 'help';
+    }
   }
 
   roleLabel(r: UserRole): string {
     return r.replace('ROLE_', '');
   }
 
-  /** Human-readable consequence of a status change, per Prompt 13's exact wording. */
-  private statusChangeConsequence(next: UserStatus): string {
-    switch (next) {
-      case 'SUSPENDED':
-        return "suspend this user — they'll be signed out and unable to log in until reactivated";
-      case 'ACTIVE':
-        return 'reactivate this user, restoring their ability to log in';
-      case 'PENDING':
-        return 'mark this user as pending, revoking active access until approved again';
-    }
-  }
+  /** Human "3 days ago" style relative time. Exact timestamp goes in the title attr. */
+  relativeTime(iso: string | null): string {
+    if (!iso) return 'Never';
+    const then = new Date(iso).getTime();
+    if (Number.isNaN(then)) return 'Never';
+    const diffMs = Date.now() - then;
+    const sec  = Math.floor(diffMs / 1000);
+    const min  = Math.floor(sec / 60);
+    const hr   = Math.floor(min / 60);
+    const day  = Math.floor(hr / 24);
+    const mon  = Math.floor(day / 30);
+    const yr   = Math.floor(day / 365);
 
-  private sameRoles(a: UserRole[], b: UserRole[]): boolean {
-    if (a.length !== b.length) return false;
-    const setA = new Set(a);
-    return b.every(r => setA.has(r));
+    if (sec < 45)  return 'Just now';
+    if (min < 60)  return `${min} minute${min === 1 ? '' : 's'} ago`;
+    if (hr < 24)   return `${hr} hour${hr === 1 ? '' : 's'} ago`;
+    if (day < 30)  return `${day} day${day === 1 ? '' : 's'} ago`;
+    if (mon < 12)  return `${mon} month${mon === 1 ? '' : 's'} ago`;
+    return `${yr} year${yr === 1 ? '' : 's'} ago`;
   }
 
   trackById(_: number, item: { id: string }): string { return item.id; }

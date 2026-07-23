@@ -1,324 +1,390 @@
-<div class="settings-page">
+<div class="settings-page page-shell">
 
   <!-- Header -->
-  <div class="page-header">
-    <mat-icon class="header-icon">manage_accounts</mat-icon>
-    <div>
-      <h1 class="page-title">Settings</h1>
-      <p class="page-subtitle">Profile &amp; application preferences</p>
+  <header class="page-header">
+    <div class="header-left">
+      <mat-icon class="header-icon" aria-hidden="true">manage_accounts</mat-icon>
+      <div>
+        <h1 class="page-title">Settings</h1>
+        <p class="page-subtitle">Profile, notifications, and connected broker accounts</p>
+      </div>
     </div>
-  </div>
+  </header>
 
   <!-- Loading -->
-  <div *ngIf="loading()" class="center-spinner">
-    <mat-spinner diameter="48"></mat-spinner>
-  </div>
+  @if (loading()) {
+    <app-loading-state variant="card" />
+  }
 
   <!-- Error -->
-  <mat-card *ngIf="error() && !loading()" class="error-card">
-    <mat-card-content>
-      <mat-icon color="warn">error_outline</mat-icon>
-      {{ error() }}
-    </mat-card-content>
-  </mat-card>
+  @if (error() && !loading()) {
+    <div class="tp-alert" role="alert">
+      <mat-icon aria-hidden="true">error_outline</mat-icon>
+      <span>{{ error() }}</span>
+      <button mat-button type="button" (click)="retryLoadProfile()">Retry</button>
+    </div>
+  }
 
-  <ng-container *ngIf="!loading() && profile()">
+  @if (!loading() && profile()) {
 
-    <!-- ── Read-only account info ─────────────────────────────────────── -->
-    <mat-card class="section-card">
-      <mat-card-header>
-        <mat-card-title>
-          <mat-icon>account_circle</mat-icon>
-          Account
-        </mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <div class="info-grid">
-          <div class="info-item">
-            <span class="info-label">Username</span>
-            <span class="info-value">{{ profile()!.username }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">Email</span>
-            <span class="info-value">{{ profile()!.email }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">Member since</span>
-            <span class="info-value">{{ profile()!.createdAt | date:'mediumDate' }}</span>
-          </div>
-        </div>
-      </mat-card-content>
-    </mat-card>
+    <mat-tab-group class="settings-tabs" animationDuration="150ms">
 
-    <!-- ── Editable profile form ──────────────────────────────────────── -->
-    <mat-card class="section-card">
-      <mat-card-header>
-        <mat-card-title>
-          <mat-icon>edit</mat-icon>
-          Profile
-        </mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <form [formGroup]="form" (ngSubmit)="onSave()" class="settings-form">
+      <!-- ══════════════════════════════════════════════════════════ -->
+      <!-- Tab 1 — Profile                                            -->
+      <!-- ══════════════════════════════════════════════════════════ -->
+      <mat-tab label="Profile">
+        <div class="tab-panel">
 
-          <mat-form-field appearance="outline" class="form-field">
-            <mat-label>Display Name</mat-label>
-            <input matInput formControlName="displayName" placeholder="How you appear in the UI">
-          </mat-form-field>
+          <!-- Read-only account info -->
+          <section class="settings-section" aria-label="Account information">
+            <h2 class="section-title">
+              <mat-icon aria-hidden="true">badge</mat-icon>
+              Account
+              <span class="readonly-badge">Read-only</span>
+            </h2>
 
-          <mat-form-field appearance="outline" class="form-field">
-            <mat-label>Avatar URL</mat-label>
-            <input matInput formControlName="avatarUrl" placeholder="https://…">
-          </mat-form-field>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">Username</span>
+                <span class="info-value tp-mono">{{ profile()!.username }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Email</span>
+                <span class="info-value">{{ profile()!.email }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Member since</span>
+                <span class="info-value">{{ profile()!.createdAt | date:'mediumDate' }}</span>
+              </div>
+            </div>
+          </section>
 
-          <mat-form-field appearance="outline" class="form-field">
-            <mat-label>Timezone</mat-label>
-            <mat-select formControlName="timezone">
-              <mat-option *ngFor="let tz of timezones" [value]="tz">{{ tz }}</mat-option>
-            </mat-select>
-          </mat-form-field>
+          <!-- Editable profile form -->
+          <section class="settings-section" aria-label="Editable profile fields">
+            <h2 class="section-title">
+              <mat-icon aria-hidden="true">edit</mat-icon>
+              Profile
+            </h2>
 
-          <mat-form-field appearance="outline" class="form-field">
-            <mat-label>Currency</mat-label>
-            <mat-select formControlName="currency">
-              <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
-            </mat-select>
-          </mat-form-field>
+            <form [formGroup]="form" (ngSubmit)="onSave()" class="settings-form" novalidate>
 
-          <mat-divider class="divider"></mat-divider>
+              <div class="form-row form-row--split">
+                <mat-form-field appearance="outline" class="form-field">
+                  <mat-label>Display Name</mat-label>
+                  <input matInput formControlName="displayName" placeholder="How you appear in the UI">
+                </mat-form-field>
 
-          <div class="form-actions">
-            <button
-              mat-raised-button
-              color="primary"
-              type="submit"
-              [disabled]="form.invalid || saving()">
-              <mat-icon>save</mat-icon>
-              {{ saving() ? 'Saving…' : 'Save Changes' }}
-            </button>
-          </div>
-
-        </form>
-      </mat-card-content>
-    </mat-card>
-
-    <!-- ── Notification preferences ───────────────────────────────────── -->
-    <mat-card class="section-card">
-      <mat-card-header>
-        <mat-card-title>
-          <mat-icon>notifications</mat-icon>
-          Notifications
-        </mat-card-title>
-        <mat-card-subtitle>
-          Choose how you receive price alerts and trade updates.
-        </mat-card-subtitle>
-      </mat-card-header>
-      <mat-card-content>
-
-        <div *ngIf="notificationsLoading()" class="center-spinner">
-          <mat-spinner diameter="32"></mat-spinner>
-        </div>
-
-        <div *ngIf="notificationsError() && !notificationsLoading()" class="inline-error">
-          <mat-icon color="warn">error_outline</mat-icon>
-          {{ notificationsError() }}
-        </div>
-
-        <form
-          *ngIf="!notificationsLoading() && !notificationsError()"
-          [formGroup]="notificationsForm"
-          (ngSubmit)="onSaveNotifications()"
-          class="settings-form">
-
-          <div class="toggle-row">
-            <mat-slide-toggle formControlName="inAppEnabled" color="primary">
-              In-app notifications
-            </mat-slide-toggle>
-            <p class="toggle-hint">Toast and notification bell inside the app.</p>
-          </div>
-
-          <div class="toggle-row">
-            <mat-slide-toggle formControlName="emailEnabled" color="primary">
-              Email notifications
-            </mat-slide-toggle>
-          </div>
-
-          <mat-form-field appearance="outline" class="form-field">
-            <mat-label>Email address override</mat-label>
-            <input
-              matInput
-              type="email"
-              formControlName="email"
-              placeholder="Leave blank to use your account email">
-            <mat-hint>Used when email notifications are enabled.</mat-hint>
-          </mat-form-field>
-
-          <div class="toggle-row">
-            <mat-slide-toggle formControlName="telegramEnabled" color="primary">
-              Telegram notifications
-            </mat-slide-toggle>
-          </div>
-
-          <mat-form-field appearance="outline" class="form-field">
-            <mat-label>Telegram chat ID</mat-label>
-            <input
-              matInput
-              formControlName="telegramChatId"
-              placeholder="Numeric chat id from @userinfobot or /start">
-            <mat-hint>Required for Telegram delivery — send /start to the bot first.</mat-hint>
-          </mat-form-field>
-
-          <mat-divider class="divider"></mat-divider>
-
-          <div class="form-actions">
-            <button
-              mat-raised-button
-              color="primary"
-              type="submit"
-              [disabled]="notificationsForm.invalid || notificationsSaving()">
-              <mat-icon>save</mat-icon>
-              {{ notificationsSaving() ? 'Saving…' : 'Save Notifications' }}
-            </button>
-          </div>
-
-        </form>
-      </mat-card-content>
-    </mat-card>
-
-    <!-- ── Connected Accounts (broker linking) ────────────────────────── -->
-    <mat-card class="section-card">
-      <mat-card-header>
-        <mat-card-title>
-          <mat-icon>link</mat-icon>
-          Connected Accounts
-        </mat-card-title>
-        <mat-card-subtitle>
-          Link your broker API keys so the platform can execute trades on your behalf.
-          Keys are stored encrypted and are never returned in any API response.
-        </mat-card-subtitle>
-      </mat-card-header>
-      <mat-card-content>
-
-        <!-- Backend-stubbed informational notice -->
-        <div *ngIf="brokerBackendStubbed()" class="broker-stub-notice">
-          <mat-icon class="notice-icon">info</mat-icon>
-          <div>
-            <strong>Broker linking is coming soon.</strong>
-            The credential storage backend is not yet active. You can fill in your keys now,
-            but they will not be persisted until the feature is fully deployed.
-            No data is stored while this notice is visible.
-          </div>
-        </div>
-
-        <!-- Broker cards grid -->
-        <div class="broker-grid">
-          <mat-card
-            *ngFor="let broker of brokers"
-            class="broker-card"
-            [class.broker-connected]="brokerConnected[broker.type]"
-            [class.broker-unavailable]="!broker.available">
-
-            <!-- Broker header -->
-            <mat-card-header>
-              <mat-icon mat-card-avatar class="broker-icon">{{ broker.icon }}</mat-icon>
-              <mat-card-title class="broker-title">
-                {{ broker.label }}
-                <span *ngIf="!broker.available" class="coming-soon-badge">Coming soon</span>
-              </mat-card-title>
-              <mat-card-subtitle>{{ broker.description }}</mat-card-subtitle>
-            </mat-card-header>
-
-            <mat-card-content>
-
-              <!-- Connected state -->
-              <div *ngIf="brokerConnected[broker.type]" class="connected-status">
-                <mat-icon class="connected-icon">check_circle</mat-icon>
-                <span>Connected</span>
+                <mat-form-field appearance="outline" class="form-field">
+                  <mat-label>Avatar URL</mat-label>
+                  <input matInput formControlName="avatarUrl" placeholder="https://…">
+                </mat-form-field>
               </div>
 
-              <!-- Not connected + available: show API key form -->
-              <ng-container *ngIf="!brokerConnected[broker.type] && broker.available">
-                <form
-                  [formGroup]="brokerForms[broker.type]"
-                  (ngSubmit)="onBrokerConnect(broker)"
-                  class="broker-form"
-                  autocomplete="off">
+              @if (avatarPreviewUrl) {
+                <div class="avatar-preview-row">
+                  <img
+                    class="avatar-preview"
+                    [src]="avatarPreviewUrl"
+                    alt="Avatar preview"
+                    referrerpolicy="no-referrer"
+                    onerror="this.style.visibility='hidden'">
+                  <span class="avatar-preview-hint">Live preview of your avatar URL</span>
+                </div>
+              }
 
-                  <mat-form-field appearance="outline" class="broker-field">
-                    <mat-label>API Key</mat-label>
+              <div class="form-row form-row--split">
+                <mat-form-field appearance="outline" class="form-field">
+                  <mat-label>Timezone</mat-label>
+                  <mat-select formControlName="timezone">
+                    @for (tz of timezones; track tz) {
+                      <mat-option [value]="tz">{{ tz }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="form-field">
+                  <mat-label>Currency</mat-label>
+                  <mat-select formControlName="currency">
+                    @for (c of currencies; track c.code) {
+                      <mat-option [value]="c.code">{{ c.symbol }} &nbsp;{{ c.code }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              </div>
+
+              <div class="form-actions">
+                <button
+                  mat-flat-button
+                  class="tp-btn-primary"
+                  type="submit"
+                  [disabled]="form.invalid || saving()">
+                  <mat-icon aria-hidden="true">save</mat-icon>
+                  {{ saving() ? 'Saving…' : 'Save Profile' }}
+                </button>
+              </div>
+
+            </form>
+          </section>
+
+        </div>
+      </mat-tab>
+
+      <!-- ══════════════════════════════════════════════════════════ -->
+      <!-- Tab 2 — Notifications                                      -->
+      <!-- ══════════════════════════════════════════════════════════ -->
+      <mat-tab label="Notifications">
+        <div class="tab-panel">
+          <section class="settings-section" aria-label="Notification preferences">
+            <h2 class="section-title">
+              <mat-icon aria-hidden="true">notifications</mat-icon>
+              Notification Channels
+            </h2>
+            <p class="section-subtitle">
+              Each channel is independent — turn on email alerts without Telegram, or vice-versa.
+            </p>
+
+            @if (notificationsLoading()) {
+              <app-loading-state variant="card" />
+            }
+
+            @if (notificationsError() && !notificationsLoading()) {
+              <div class="tp-alert" role="alert">
+                <mat-icon aria-hidden="true">error_outline</mat-icon>
+                <span>{{ notificationsError() }}</span>
+              </div>
+            }
+
+            @if (!notificationsLoading() && !notificationsError()) {
+              <form
+                [formGroup]="notificationsForm"
+                (ngSubmit)="onSaveNotifications()"
+                class="settings-form"
+                novalidate>
+
+                <div class="channel-row">
+                  <div class="channel-row__label">
+                    <mat-icon aria-hidden="true">smartphone</mat-icon>
+                    <div>
+                      <span class="channel-name">In-app notifications</span>
+                      <span class="channel-hint">Toast and notification bell inside the app.</span>
+                    </div>
+                  </div>
+                  <mat-slide-toggle formControlName="inAppEnabled" [aria-label]="'Toggle in-app notifications'" />
+                </div>
+
+                <div class="channel-row">
+                  <div class="channel-row__label">
+                    <mat-icon aria-hidden="true">mail</mat-icon>
+                    <div>
+                      <span class="channel-name">Email notifications</span>
+                      <span class="channel-hint">Sent to the address below when enabled.</span>
+                    </div>
+                  </div>
+                  <mat-slide-toggle formControlName="emailEnabled" [aria-label]="'Toggle email notifications'" />
+                </div>
+
+                @if (notificationsForm.value.emailEnabled) {
+                  <mat-form-field appearance="outline" class="form-field form-field--indented">
+                    <mat-label>Email address override</mat-label>
                     <input
                       matInput
-                      formControlName="apiKey"
-                      placeholder="Paste your exchange API key"
-                      autocomplete="off">
-                    <mat-error>API key is required</mat-error>
+                      type="email"
+                      formControlName="email"
+                      placeholder="Leave blank to use your account email">
+                    <mat-hint>Used only when email notifications are enabled.</mat-hint>
                   </mat-form-field>
+                }
 
-                  <!--
-                    apiSecret is always type="password" — it must be treated as a
-                    secret regardless of what the backend expects.
-                    NEVER log or console.print this value.
-                  -->
-                  <mat-form-field appearance="outline" class="broker-field">
-                    <mat-label>API Secret</mat-label>
+                <div class="channel-row">
+                  <div class="channel-row__label">
+                    <mat-icon aria-hidden="true">send</mat-icon>
+                    <div>
+                      <span class="channel-name">Telegram notifications</span>
+                      <span class="channel-hint">Delivered via the platform's Telegram bot.</span>
+                    </div>
+                  </div>
+                  <mat-slide-toggle formControlName="telegramEnabled" [aria-label]="'Toggle Telegram notifications'" />
+                </div>
+
+                @if (notificationsForm.value.telegramEnabled) {
+                  <mat-form-field appearance="outline" class="form-field form-field--indented">
+                    <mat-label>Telegram chat ID</mat-label>
                     <input
                       matInput
-                      type="password"
-                      formControlName="apiSecret"
-                      placeholder="Paste your exchange API secret"
-                      autocomplete="new-password">
-                    <mat-hint>Stored encrypted · never shown again after saving</mat-hint>
-                    <mat-error>API secret is required</mat-error>
+                      formControlName="telegramChatId"
+                      placeholder="Numeric chat id from @userinfobot or /start">
+                    <mat-hint>
+                      Don't know your chat ID? Message the platform bot with /start, or forward a
+                      message to @userinfobot to see your numeric ID.
+                    </mat-hint>
                   </mat-form-field>
+                }
 
-                  <mat-form-field appearance="outline" class="broker-field">
-                    <mat-label>Label (optional)</mat-label>
-                    <input
-                      matInput
-                      formControlName="label"
-                      placeholder="e.g. My Main BitUnix Account">
-                  </mat-form-field>
+                <div class="form-actions">
+                  <button
+                    mat-flat-button
+                    class="tp-btn-primary"
+                    type="submit"
+                    [disabled]="notificationsForm.invalid || notificationsSaving()">
+                    <mat-icon aria-hidden="true">save</mat-icon>
+                    {{ notificationsSaving() ? 'Saving…' : 'Save Notifications' }}
+                  </button>
+                </div>
 
-                  <div class="broker-form-actions">
-                    <button
-                      mat-raised-button
-                      color="primary"
-                      type="submit"
-                      [disabled]="brokerForms[broker.type].invalid || brokerSubmitting[broker.type]">
-                      <mat-icon>link</mat-icon>
-                      {{ brokerSubmitting[broker.type] ? 'Connecting…' : 'Connect' }}
-                    </button>
+              </form>
+            }
+          </section>
+        </div>
+      </mat-tab>
+
+      <!-- ══════════════════════════════════════════════════════════ -->
+      <!-- Tab 3 — Connected Accounts                                 -->
+      <!-- ══════════════════════════════════════════════════════════ -->
+      <mat-tab label="Connected Accounts">
+        <div class="tab-panel">
+          <section class="settings-section" aria-label="Connected broker accounts">
+            <h2 class="section-title">
+              <mat-icon aria-hidden="true">link</mat-icon>
+              Connected Accounts
+            </h2>
+            <p class="section-subtitle">
+              Link your broker API keys so the platform can execute trades on your behalf.
+              Keys are stored encrypted and are never returned in any API response.
+            </p>
+
+            <!-- Backend-stubbed informational notice -->
+            @if (brokerBackendStubbed()) {
+              <div class="broker-stub-notice">
+                <mat-icon class="notice-icon" aria-hidden="true">info</mat-icon>
+                <div>
+                  <strong>Broker linking is coming soon.</strong>
+                  The credential storage backend is not yet active. You can fill in your keys now,
+                  but they will not be persisted until the feature is fully deployed.
+                  No data is stored while this notice is visible.
+                </div>
+              </div>
+            }
+
+            <!-- Broker cards grid -->
+            <div class="broker-grid">
+              @for (broker of brokers; track broker.type) {
+                <div
+                  class="broker-card"
+                  [class.broker-card--connected]="brokerConnected[broker.type]"
+                  [class.broker-card--unavailable]="!broker.available">
+
+                  <div class="broker-card__header">
+                    <div class="broker-card__icon-wrap">
+                      <mat-icon class="broker-card__icon" aria-hidden="true">{{ broker.icon }}</mat-icon>
+                    </div>
+                    <div class="broker-card__title-block">
+                      <div class="broker-card__title-row">
+                        <span class="broker-card__title">{{ broker.label }}</span>
+                        @if (!broker.available) {
+                          <span class="coming-soon-badge">Coming soon</span>
+                        }
+                      </div>
+                      <span class="broker-card__desc">{{ broker.description }}</span>
+                    </div>
                   </div>
 
-                </form>
-              </ng-container>
+                  <!-- Connected state -->
+                  @if (brokerConnected[broker.type]) {
+                    <div class="connected-status">
+                      <mat-icon class="connected-icon" aria-hidden="true">check_circle</mat-icon>
+                      <span>Connected</span>
+                      @if (brokerMaskedKey[broker.type]) {
+                        <span class="masked-key tp-mono">{{ brokerMaskedKey[broker.type] }}</span>
+                      }
+                    </div>
+                    <div class="broker-card__actions">
+                      <button
+                        mat-stroked-button
+                        color="warn"
+                        type="button"
+                        (click)="onBrokerDisconnect(broker)"
+                        [disabled]="brokerSubmitting[broker.type]">
+                        <mat-icon aria-hidden="true">link_off</mat-icon>
+                        {{ brokerSubmitting[broker.type] ? 'Disconnecting…' : 'Disconnect' }}
+                      </button>
+                    </div>
+                  }
 
-              <!-- Not connected + unavailable -->
-              <div *ngIf="!brokerConnected[broker.type] && !broker.available" class="unavailable-hint">
-                <mat-icon>lock_clock</mat-icon>
-                <span>Not yet available — check back in a future release.</span>
-              </div>
+                  <!-- Not connected + available: show API key form -->
+                  @if (!brokerConnected[broker.type] && broker.available) {
+                    <form
+                      [formGroup]="brokerForms[broker.type]"
+                      (ngSubmit)="onBrokerConnect(broker)"
+                      class="broker-form"
+                      autocomplete="off">
 
-            </mat-card-content>
+                      <mat-form-field appearance="outline" class="broker-field">
+                        <mat-label>API Key</mat-label>
+                        <input
+                          matInput
+                          formControlName="apiKey"
+                          placeholder="Paste your exchange API key"
+                          autocomplete="off">
+                        <mat-error>API key is required</mat-error>
+                      </mat-form-field>
 
-            <!-- Disconnect action for connected brokers -->
-            <mat-card-actions *ngIf="brokerConnected[broker.type]" align="end">
-              <button
-                mat-stroked-button
-                color="warn"
-                (click)="onBrokerDisconnect(broker)"
-                [disabled]="brokerSubmitting[broker.type]">
-                <mat-icon>link_off</mat-icon>
-                {{ brokerSubmitting[broker.type] ? 'Disconnecting…' : 'Disconnect' }}
-              </button>
-            </mat-card-actions>
+                      <!--
+                        apiSecret is always type="password" — it must be treated as a
+                        secret regardless of what the backend expects.
+                        NEVER log or console.print this value.
+                      -->
+                      <mat-form-field appearance="outline" class="broker-field">
+                        <mat-label>API Secret</mat-label>
+                        <input
+                          matInput
+                          type="password"
+                          formControlName="apiSecret"
+                          placeholder="Paste your exchange API secret"
+                          autocomplete="new-password">
+                        <mat-hint>Sent securely · stored encrypted · never shown again after saving</mat-hint>
+                        <mat-error>API secret is required</mat-error>
+                      </mat-form-field>
 
-          </mat-card>
-        </div><!-- /.broker-grid -->
+                      <mat-form-field appearance="outline" class="broker-field">
+                        <mat-label>Label (optional)</mat-label>
+                        <input
+                          matInput
+                          formControlName="label"
+                          placeholder="e.g. My Main BitUnix Account">
+                      </mat-form-field>
 
-      </mat-card-content>
-    </mat-card>
+                      <div class="broker-card__actions">
+                        <button
+                          mat-flat-button
+                          class="tp-btn-primary"
+                          type="submit"
+                          [disabled]="brokerForms[broker.type].invalid || brokerSubmitting[broker.type]">
+                          <mat-icon aria-hidden="true">link</mat-icon>
+                          {{ brokerSubmitting[broker.type] ? 'Connecting…' : 'Connect' }}
+                        </button>
+                      </div>
 
-  </ng-container>
+                    </form>
+                  }
+
+                  <!-- Not connected + unavailable -->
+                  @if (!brokerConnected[broker.type] && !broker.available) {
+                    <div class="unavailable-hint">
+                      <mat-icon aria-hidden="true">lock_clock</mat-icon>
+                      <span>Not yet available — check back in a future release.</span>
+                    </div>
+                  }
+
+                </div>
+              }
+            </div><!-- /.broker-grid -->
+
+          </section>
+        </div>
+      </mat-tab>
+
+    </mat-tab-group>
+
+  }
 
 </div>

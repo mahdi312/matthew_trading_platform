@@ -1,19 +1,30 @@
-<div class="embed-root" [class.theme-light]="theme() === 'light'">
+<div class="embed-root">
+  <header class="embed-chrome">
+    <span class="brand">
+      <span class="brand-dot" aria-hidden="true"></span>
+      MTP
+    </span>
+    @if (!loading() && !error()) {
+      <span class="meta tp-mono">{{ title() }}</span>
+    }
+  </header>
 
   @if (loading()) {
-    <div aria-live="polite" class="state" role="status">
+    <div class="state">
       <mat-spinner diameter="36"></mat-spinner>
       <p>Loading chart…</p>
     </div>
   } @else if (error()) {
-    <div class="state state--error" role="alert">
+    <div class="state state--error">
       <mat-icon aria-hidden="true">link_off</mat-icon>
-      <p>{{ error() }}</p>
+      <p class="state__title">This chart link is no longer valid</p>
+      <p class="state__body">{{ error() }}</p>
     </div>
   } @else if (bars().length === 0) {
-    <div class="state" role="status">
+    <div class="state">
       <mat-icon aria-hidden="true">show_chart</mat-icon>
-      <p>No chart data available for {{ symbol() }}.</p>
+      <p class="state__title">No data available</p>
+      <p class="state__body">No candles were returned for {{ symbol() }}.</p>
     </div>
   } @else {
     <div class="chart-host">
@@ -25,10 +36,5 @@
     </div>
   }
 
-  <!-- Tiny, unobtrusive attribution — present enough to identify the
-       platform, small enough to never compete with the chart itself. -->
-  <div aria-hidden="true" class="embed-attribution">
-    <span class="embed-attribution__dot"></span>
-    MTP
-  </div>
+  <span class="attribution">Powered by MTP</span>
 </div>

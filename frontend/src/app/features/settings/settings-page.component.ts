@@ -14,22 +14,28 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatDividerModule } from '@angular/material/divider';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatExpansionModule } from '@angular/material/expansion';
 import { HttpErrorResponse } from '@angular/common/http';
 
 import { SettingsApiService } from './settings-api.service';
 import { BrokerLinkApiService } from './broker-link-api.service';
 import { UserProfile, UpdateProfileRequest, NotificationPreferences, UpdateNotificationPreferencesRequest } from './settings.models';
+import { LoadingStateComponent } from '../../shared/loading-state/loading-state.component';
 
 /**
  * Supported brokers shown in the "Connected Accounts" section.
  * BitUnix is the Phase-1 live target; the rest are listed as "coming soon"
  * to give users visibility without pretending they're available.
+ *
+ * NOTE: this is the single source of truth for the broker list on the
+ * Settings screen. Live Trading keeps its own `AVAILABLE_BROKERS` (only
+ * the one currently tradable broker) — both lists are hand-kept in sync
+ * with the backend `BrokerType` enum rather than sharing one array, since
+ * Settings must show brokers that aren't tradable yet ("coming soon") while
+ * Live Trading only ever lists brokers a user can actually place an order
+ * through.
  */
 interface BrokerCard {
   /** Matches BrokerType enum value on the backend (case-insensitive). */
@@ -44,25 +50,43 @@ interface BrokerCard {
   icon:        string;
 }
 
+/** Common IANA timezones, grouped loosely by region for a friendlier select. */
+const TIMEZONES = [
+  'UTC',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'Asia/Tokyo',
+  'Asia/Shanghai',
+  'Asia/Singapore',
+  'Asia/Dubai',
+  'Australia/Sydney',
+];
+
+/** ISO 4217 currencies with their display symbol, most-traded first. */
+const CURRENCIES: { code: string; symbol: string }[] = [
+  { code: 'USD', symbol: '$' },
+  { code: 'EUR', symbol: '€' },
+  { code: 'GBP', symbol: '£' },
+  { code: 'JPY', symbol: '¥' },
+  { code: 'CHF', symbol: 'Fr' },
+  { code: 'AUD', symbol: 'A$' },
+  { code: 'CAD', symbol: 'C$' },
+  { code: 'BTC', symbol: '₿' },
+  { code: 'ETH', symbol: 'Ξ' },
+];
+
 /**
- * SettingsModule — user profile + app settings editor + Connected Accounts.
+ * SettingsModule — user profile + notification preferences + Connected Accounts.
  *
- * Loads the current user's profile from `GET /api/profile` on init,
- * pre-fills the form, and submits updates via `PUT /api/profile`.
- *
- * Editable fields: Display Name, Avatar URL, Timezone, Currency.
- * Read-only fields: Username, Email, Account created date.
- *
- * Notifications section (separate form + API):
- *   GET/PUT /api/profile/preferences — in-app, email, Telegram channel toggles
- *   and optional email / Telegram chat-id overrides.
- *
- * Connected Accounts section:
- *  - One card per supported broker.
- *  - If not connected: shows a form to enter API key + secret (masked).
- *  - If connected: shows status + disconnect action.
- *  - The backend (BrokerLinkController) is currently stubbed (501);
- *    the UI handles this gracefully and warns the user.
+ * Three independent sections, each with its own load/save cycle against a
+ * different backend endpoint — Profile, Notifications, and Connected Accounts.
+ * There is deliberately no single "Save all" — each section gives its own
+ * immediate, scoped feedback.
  *
  * Route: /settings  (behind authGuard)
  */
@@ -81,12 +105,10 @@ interface BrokerCard {
     MatInputModule,
     MatSelectModule,
     MatSlideToggleModule,
-    MatProgressSpinnerModule,
-    MatDividerModule,
+    MatTabsModule,
     MatSnackBarModule,
-    MatChipsModule,
     MatTooltipModule,
-    MatExpansionModule,
+    LoadingStateComponent,
   ],
   templateUrl: './settings-page.component.html',
   styleUrls: ['./settings-page.component.scss'],
@@ -107,7 +129,7 @@ export class SettingsPageComponent implements OnInit {
   readonly notificationsLoading = signal(true);
   readonly notificationsSaving  = signal(false);
   readonly notificationsError   = signal<string | null>(null);
-  readonly notificationPrefs      = signal<NotificationPreferences | null>(null);
+  readonly notificationPrefs    = signal<NotificationPreferences | null>(null);
 
   // ── Form ──────────────────────────────────────────────────────────────────
 
@@ -126,26 +148,15 @@ export class SettingsPageComponent implements OnInit {
     telegramChatId:  [''],
   });
 
-  // ── Currency options ──────────────────────────────────────────────────────
+  // ── Currency / timezone options ──────────────────────────────────────────
 
-  readonly currencies = ['USD', 'EUR', 'GBP', 'JPY', 'BTC', 'ETH'];
+  readonly currencies = CURRENCIES;
+  readonly timezones  = TIMEZONES;
 
-  // ── Timezone options (common subset) ──────────────────────────────────────
-
-  readonly timezones = [
-    'UTC',
-    'America/New_York',
-    'America/Chicago',
-    'America/Denver',
-    'America/Los_Angeles',
-    'Europe/London',
-    'Europe/Paris',
-    'Europe/Berlin',
-    'Asia/Tokyo',
-    'Asia/Shanghai',
-    'Asia/Singapore',
-    'Australia/Sydney',
-  ];
+  /** Live avatar preview URL — mirrors the form field as the user types. */
+  get avatarPreviewUrl(): string {
+    return (this.form.value.avatarUrl ?? '').trim();
+  }
 
   // ── Broker cards ──────────────────────────────────────────────────────────
 
@@ -213,6 +224,9 @@ export class SettingsPageComponent implements OnInit {
    */
   readonly brokerConnected: Record<string, boolean> = {};
 
+  /** Per-broker masked API key, once known from listConnections(). */
+  readonly brokerMaskedKey: Record<string, string | undefined> = {};
+
   /** Whether the broker connection list has been loaded. */
   readonly brokerStatusLoaded = signal(false);
 
@@ -245,7 +259,7 @@ export class SettingsPageComponent implements OnInit {
         this.loading.set(false);
       },
       error: (err) => {
-        this.error.set('Failed to load profile.');
+        this.error.set('Failed to load your profile. Please try again.');
         this.loading.set(false);
         console.error('[Settings] load error', err);
       },
@@ -256,6 +270,8 @@ export class SettingsPageComponent implements OnInit {
   }
 
   private loadNotificationPreferences(): void {
+    this.notificationsLoading.set(true);
+    this.notificationsError.set(null);
     this.api.getNotificationPreferences().subscribe({
       next: (prefs) => {
         this.notificationPrefs.set(prefs);
@@ -297,7 +313,7 @@ export class SettingsPageComponent implements OnInit {
       },
       error: (err) => {
         this.saving.set(false);
-        this.snack.open('Failed to save profile.', 'Close', { duration: 4000 });
+        this.snack.open('Failed to save profile. Please try again.', 'Close', { duration: 4000 });
         console.error('[Settings] save error', err);
       },
     });
@@ -323,8 +339,31 @@ export class SettingsPageComponent implements OnInit {
       },
       error: (err) => {
         this.notificationsSaving.set(false);
-        this.snack.open('Failed to save notification preferences.', 'Close', { duration: 4000 });
+        this.snack.open('Failed to save notification preferences. Please try again.', 'Close', { duration: 4000 });
         console.error('[Settings] notification preferences save error', err);
+      },
+    });
+  }
+
+  /** Retry helper for the profile load error state. */
+  retryLoadProfile(): void {
+    this.error.set(null);
+    this.loading.set(true);
+    this.api.getProfile().subscribe({
+      next: (p) => {
+        this.profile.set(p);
+        this.form.patchValue({
+          displayName: p.displayName ?? '',
+          avatarUrl:   p.avatarUrl ?? '',
+          timezone:    p.timezone ?? 'UTC',
+          currency:    p.currency ?? 'USD',
+        });
+        this.loading.set(false);
+      },
+      error: (err) => {
+        this.error.set('Failed to load your profile. Please try again.');
+        this.loading.set(false);
+        console.error('[Settings] load error', err);
       },
     });
   }
@@ -338,6 +377,7 @@ export class SettingsPageComponent implements OnInit {
         for (const conn of connections) {
           if (conn.brokerType in this.brokerConnected) {
             this.brokerConnected[conn.brokerType] = conn.connected;
+            this.brokerMaskedKey[conn.brokerType] = conn.maskedApiKey;
           }
         }
         this.brokerStatusLoaded.set(true);
@@ -406,8 +446,12 @@ export class SettingsPageComponent implements OnInit {
     });
   }
 
-  /** Revoke a linked broker connection. */
+  /** Revoke a linked broker connection — confirm first, this affects Live Trading. */
   onBrokerDisconnect(broker: BrokerCard): void {
+    if (!confirm(
+      `Disconnect ${broker.label}? You won't be able to place live orders through it from Live Trading until you reconnect.`
+    )) return;
+
     this.brokerSubmitting[broker.type] = true;
     this.brokerApi.revokeConnection(broker.type).subscribe({
       next: (res) => {

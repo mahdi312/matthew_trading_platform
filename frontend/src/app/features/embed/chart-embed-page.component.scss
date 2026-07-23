@@ -1,101 +1,122 @@
+/* ════════════════════════════════════════════════════════════════════════
+   Embed Chart — minimal, chrome-free host for third-party <iframe> embeds.
+
+   Deliberately self-contained: no sidebar, no marquee, no app toolbar.
+   Still draws from the same ink-brass token set as the rest of the app
+   (via styles.scss, loaded globally) so an embedded chart looks like it
+   belongs to this platform rather than a disconnected mini-app — but every
+   rule here is scoped to :host so it can never leak into — or be leaked
+   into by — whatever page embeds it.
+   ════════════════════════════════════════════════════════════════════════ */
+
 :host {
   display: block;
   height: 100vh;
   width: 100%;
 }
 
-/* Chrome-free — no card borders, no padding fighting the embedding page's
-   own layout. Background honors the app's dark theme by default but stays
-   a clean, uncluttered fill (no toolbar, no sidebar, no marquee). */
 .embed-root {
-  --embed-bg: #0A0D12;
-  --embed-fg: #EDEFF3;
-  --embed-muted: #8A93A6;
-  --embed-accent: #D4A24C;
-  --embed-border: rgba(255, 255, 255, 0.08);
-
-  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--embed-bg);
-  color: var(--embed-fg);
+  width: 100%;
+  background: var(--tp-bg-primary);
+  color: var(--tp-text-primary);
   font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  position: relative;
   overflow: hidden;
 }
 
-.embed-root.theme-light {
-  --embed-bg: #F4F6F8;
-  --embed-fg: #1A1F2A;
-  --embed-muted: #5E6878;
-  --embed-accent: #9C6F1A;
-  --embed-border: rgba(15, 20, 25, 0.08);
+/* ── Slim top chrome — symbol/timeframe label + tiny brand mark ─────────── */
+.embed-chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--hairline);
+  flex-shrink: 0;
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--brass-500);
+}
+
+.brand-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brass-500);
+  flex-shrink: 0;
+}
+
+.meta {
+  font-size: 11.5px;
+  color: var(--tp-text-secondary);
+}
+
+/* ── Chart host fills the remaining viewport ─────────────────────────────── */
 .chart-host {
   flex: 1;
   min-height: 0;
+  padding: 2px;
 }
 
-/* ── Loading / error / empty states — centered, plain-language ─────────── */
+/* ── Loading / error / empty states — centered, self-explanatory ────────── */
 .state {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.65rem;
-  padding: 1.5rem;
+  gap: 10px;
+  padding: 24px;
   text-align: center;
-  color: var(--embed-muted);
+  color: var(--tp-text-secondary);
+
+  mat-icon {
+    font-size: 32px;
+    width: 32px;
+    height: 32px;
+    color: var(--paper-600);
+  }
+
+  p { margin: 0; }
 }
 
-.state--error {
-  color: var(--embed-fg);
+.state__title {
+  font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tp-text-primary);
 }
 
-.state--error mat-icon {
-  color: #F0555A;
-}
-
-.state p {
-  margin: 0;
-  font-size: 0.9rem;
-  max-width: 280px;
+.state__body {
+  font-size: 12.5px;
+  max-width: 320px;
   line-height: 1.5;
 }
 
-.state mat-icon {
-  font-size: 2rem;
-  width: 2rem;
-  height: 2rem;
+.state--error mat-icon {
+  color: var(--bear-500);
 }
 
-/* ── Corner attribution mark — small, unobtrusive, always present ──────── */
-.embed-attribution {
+/* ── Tiny corner attribution — present, not competing with the chart ────── */
+.attribution {
   position: absolute;
-  bottom: 8px;
+  bottom: 6px;
   right: 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-family: 'IBM Plex Mono', monospace;
   font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--embed-muted);
-  background: color-mix(in srgb, var(--embed-bg) 70%, transparent);
+  letter-spacing: 0.03em;
+  color: var(--tp-text-muted);
+  opacity: 0.7;
   pointer-events: none;
   user-select: none;
-  z-index: 2;
-}
-
-.embed-attribution__dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--embed-accent);
-  flex-shrink: 0;
 }

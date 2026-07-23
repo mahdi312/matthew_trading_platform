@@ -1,22 +1,24 @@
-import {Component, computed, inject, OnInit, signal,} from '@angular/core';
-import {CommonModule} from '@angular/common';
-import {ActivatedRoute} from '@angular/router';
-import {MatProgressSpinnerModule} from '@angular/material/progress-spinner';
-import {MatIconModule} from '@angular/material/icon';
-import {catchError, of} from 'rxjs';
+import {
+  Component,
+  OnInit,
+  inject,
+  signal,
+  computed,
+} from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { ActivatedRoute } from '@angular/router';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatIconModule } from '@angular/material/icon';
+import { catchError, of } from 'rxjs';
 
-import {CandlestickChartComponent, type OhlcvBar,} from '../../shared/chart-library';
-import {EmbedChartApiService} from './embed-chart-api.service';
+import {
+  CandlestickChartComponent,
+  type OhlcvBar,
+} from '../../shared/chart-library';
+import { EmbedChartApiService } from './embed-chart-api.service';
 
 /**
  * Detachable chart host for third-party iframes / apps.
- *
- * Redesigned per Prompt 14 to be truly chrome-free: no sidebar, no marquee,
- * no toolbar — just the candlestick chart filling the viewport, with a tiny
- * unobtrusive attribution mark tucked into a corner (small enough not to
- * compete with the chart, present enough to identify the platform).
- * The public `/embed/chart` route is intentionally outside the app shell
- * in `app.routes.ts` — this component owns 100% of its own layout.
  *
  * Query params:
  *   - key | embedKey  — secret embed API key (required)
@@ -31,12 +33,6 @@ import {EmbedChartApiService} from './embed-chart-api.service';
  *   src="https://app.example.com/embed/chart?key=YOUR_SECRET&symbol=ETHUSDT&timeframe=1h"
  *   width="100%" height="480" frameborder="0"></iframe>
  * ```
- *
- * A missing/invalid embed key, or a symbol the key isn't permitted to read,
- * renders as a small, centered, plain-language error inside the frame
- * ("This chart link is no longer valid") — whoever embedded this has no
- * console access to debug it, so the message has to be self-explanatory
- * from the rendered output alone.
  */
 @Component({
   selector: 'app-chart-embed-page',
@@ -64,8 +60,7 @@ export class ChartEmbedPageComponent implements OnInit {
   ngOnInit(): void {
     const q = this.route.snapshot.queryParamMap;
     const key = q.get('key') ?? q.get('embedKey') ?? '';
-    const symbolParam = (q.get('symbol') ?? '').trim();
-    const symbol = (symbolParam || 'BTCUSDT').toUpperCase();
+    const symbol = (q.get('symbol') ?? 'BTCUSDT').toUpperCase();
     const timeframe = q.get('timeframe') ?? '1h';
     const theme = (q.get('theme') === 'light' ? 'light' : 'dark') as 'dark' | 'light';
     const limit = Number(q.get('limit') ?? '200') || 200;
@@ -74,10 +69,8 @@ export class ChartEmbedPageComponent implements OnInit {
     this.timeframe.set(timeframe);
     this.theme.set(theme);
 
-    // Missing embed key — self-explanatory, plain-language error; the
-    // person who embedded this frame has no console access to debug it.
     if (!key) {
-      this.error.set('This chart link is no longer valid.');
+      this.error.set('No embed key was provided with this link.');
       this.loading.set(false);
       return;
     }
@@ -86,20 +79,16 @@ export class ChartEmbedPageComponent implements OnInit {
       .getOhlcv(key, symbol, timeframe, limit)
       .pipe(
         catchError((err) => {
-          // Invalid/expired key or a symbol this key isn't permitted to
-          // read both surface as the same plain-language sentence — the
-          // embedder can't distinguish (or fix) the technical cause anyway.
           const msg =
-            err?.status === 401 || err?.status === 403 || err?.status === 404
-              ? 'This chart link is no longer valid.'
-              : 'Unable to load chart data right now.';
+            err?.status === 401 || err?.status === 403
+              ? 'This embed key is invalid or has been revoked.'
+              : 'Could not load market data for this chart right now.';
           this.error.set(msg);
           return of([] as OhlcvBar[]);
         })
       )
       .subscribe((data) => {
-        const bars = this.normalizeBars(data);
-        this.bars.set(bars);
+        this.bars.set(this.normalizeBars(data));
         this.loading.set(false);
       });
   }
