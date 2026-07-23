@@ -1,0 +1,267 @@
+<div class="alerts-root page-shell">
+
+  <!-- ── Page header ─────────────────────────────────────── -->
+  <header class="page-header">
+    <div class="header-left">
+      <mat-icon class="header-icon" aria-hidden="true">notifications</mat-icon>
+      <div>
+        <h1 class="page-title">Alerts</h1>
+        <p class="page-subtitle">Price alert rules — creation, editing, and history</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button mat-icon-button type="button" matTooltip="Refresh" aria-label="Refresh alerts" (click)="loadAlerts()">
+        <mat-icon>refresh</mat-icon>
+      </button>
+      @if (!createOpen()) {
+        <button mat-flat-button class="tp-btn-primary" type="button" (click)="openCreateForm()">
+          <mat-icon aria-hidden="true">add_alert</mat-icon>
+          New Alert
+        </button>
+      }
+    </div>
+  </header>
+
+  <!-- ── Loading ──────────────────────────────────────────── -->
+  @if (loading()) {
+    <app-loading-state variant="card" [rows]="1"/>
+    <app-loading-state variant="rows" [rows]="4" [cols]="3"/>
+  }
+
+  <!-- ── Error ────────────────────────────────────────────── -->
+  @if (error() && !loading()) {
+    <div class="tp-alert" role="alert">
+      <mat-icon aria-hidden="true">error_outline</mat-icon>
+      <span>{{ error() }}</span>
+      <button mat-button type="button" (click)="loadAlerts()">Retry</button>
+    </div>
+  }
+
+  @if (!loading()) {
+
+    <!-- ── Create form (collapsible panel) ────────────────── -->
+    @if (createOpen()) {
+      <section class="create-panel" aria-label="Create a new price alert">
+        <div class="create-panel__header">
+          <h2 class="create-panel__title">
+            <mat-icon aria-hidden="true">add_alert</mat-icon>
+            New Alert
+          </h2>
+          <button mat-icon-button type="button" matTooltip="Cancel" aria-label="Cancel new alert" (click)="closeCreateForm()">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+
+        <form [formGroup]="createForm" (ngSubmit)="onCreateSubmit()" class="alert-form" novalidate>
+
+          <div class="form-row">
+            <app-symbol-search
+              placeholder="Symbol — e.g. BTCUSDT"
+              (symbolSelected)="onCreateSymbolSelected($event)"
+              aria-label="Alert symbol"
+            />
+          </div>
+
+          <div class="form-row form-row--split">
+            <mat-form-field appearance="outline" class="form-field">
+              <mat-label>Condition</mat-label>
+              <mat-select formControlName="condition">
+                @for (c of conditions; track c.value) {
+                  <mat-option [value]="c.value">{{ c.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="form-field">
+              <mat-label>Target Price</mat-label>
+              <input matInput type="number" formControlName="targetValue" placeholder="e.g. 72000" step="any" min="0">
+              @if (createForm.get('targetValue')?.hasError('required') && createForm.get('targetValue')?.touched) {
+                <mat-error>Target price is required</mat-error>
+              }
+              @if (createForm.get('targetValue')?.hasError('min')) {
+                <mat-error>Must be ≥ 0</mat-error>
+              }
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <mat-form-field appearance="outline" class="form-field form-field--wide">
+              <mat-label>Custom message (optional)</mat-label>
+              <input matInput formControlName="message" placeholder="Shown when the alert fires…">
+            </mat-form-field>
+          </div>
+
+          <!-- Live sentence preview — reduces misconfiguration risk -->
+          <div class="preview-row" aria-live="polite">
+            <mat-icon class="preview-icon" aria-hidden="true">visibility</mat-icon>
+            <span class="preview-text">{{ createPreview() }}</span>
+          </div>
+
+          <div class="form-actions">
+            <button
+              mat-flat-button
+              class="tp-btn-primary"
+              type="submit"
+              [disabled]="createForm.invalid || saving()">
+              @if (saving()) {
+                <ng-container>
+                  <mat-icon aria-hidden="true">hourglass_empty</mat-icon>
+                  Creating…
+                </ng-container>
+              } @else {
+                <ng-container>
+                  <mat-icon aria-hidden="true">add</mat-icon>
+                  Create Alert
+                </ng-container>
+              }
+            </button>
+            <button mat-button type="button" (click)="closeCreateForm()">Cancel</button>
+          </div>
+        </form>
+      </section>
+    }
+
+    <!-- ── Active alerts — card grid ──────────────────────── -->
+    <section class="alerts-section" aria-label="Active alerts">
+      <div class="section-header">
+        <h2 class="section-title">
+          <mat-icon aria-hidden="true">notifications_active</mat-icon>
+          Active
+          <span class="count-pill">{{ activeAlerts().length }}</span>
+        </h2>
+      </div>
+
+      @if (activeAlerts().length === 0) {
+        <app-empty-state
+          icon="notifications_none"
+          headline="No active alerts"
+          body="Create a price alert and it'll show up here — you'll be notified the moment it fires."
+          actionLabel="Create your first alert"
+          (action)="openCreateForm()">
+        </app-empty-state>
+      } @else {
+        <div class="alerts-grid" role="list">
+          @for (alert of activeAlerts(); track alert.id) {
+            <div class="alert-card" role="listitem" [class.alert-card--editing]="editingId() === alert.id">
+
+              @if (editingId() !== alert.id) {
+                <!-- ── Display mode ──────────────────────────── -->
+                <div class="alert-card__top">
+                  <span class="alert-card__symbol tp-mono">{{ alert.symbol }}</span>
+                  <span class="status-pill" [class]="statusChipClass(alert)">
+                    <mat-icon aria-hidden="true">{{ statusIcon(alert) }}</mat-icon>
+                    {{ alert.status }}
+                  </span>
+                </div>
+
+                <p class="alert-card__sentence">{{ alertSentence(alert) }}</p>
+
+                @if (alert.message) {
+                  <p class="alert-card__message">
+                    <mat-icon aria-hidden="true">chat_bubble_outline</mat-icon>
+                    {{ alert.message }}
+                  </p>
+                }
+
+                <div class="alert-card__footer">
+                  <span class="alert-card__created text-secondary">Created {{ alert.createdAt | date:'MMM d, y' }}</span>
+                  <div class="alert-card__actions">
+                    <button
+                      mat-icon-button
+                      type="button"
+                      [matTooltip]="alert.status === 'DISABLED' ? 'Re-enable' : 'Disable'"
+                      [attr.aria-label]="(alert.status === 'DISABLED' ? 'Re-enable' : 'Disable') + ' alert for ' + alert.symbol"
+                      (click)="toggleStatus(alert)">
+                      <mat-icon>{{ alert.status === 'DISABLED' ? 'notifications_active' : 'notifications_off' }}</mat-icon>
+                    </button>
+                    <button mat-icon-button type="button" matTooltip="Edit" [attr.aria-label]="'Edit alert for ' + alert.symbol" (click)="startEdit(alert)">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-icon-button type="button" class="delete-btn" matTooltip="Delete" [attr.aria-label]="'Delete alert for ' + alert.symbol" (click)="onDelete(alert)">
+                      <mat-icon>delete_outline</mat-icon>
+                    </button>
+                  </div>
+                </div>
+              } @else {
+                <!-- ── Edit mode ──────────────────────────────── -->
+                <form [formGroup]="editForm" (ngSubmit)="onEditSubmit(alert)" class="edit-form" novalidate>
+                  <mat-form-field appearance="outline" class="edit-field">
+                    <mat-label>Symbol</mat-label>
+                    <input matInput [formControl]="$any(editForm.get('symbol'))">
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="edit-field">
+                    <mat-label>Condition</mat-label>
+                    <mat-select [formControl]="$any(editForm.get('condition'))">
+                      @for (c of conditions; track c.value) {
+                        <mat-option [value]="c.value">{{ c.label }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="edit-field">
+                    <mat-label>Target</mat-label>
+                    <input matInput type="number" step="any" min="0" [formControl]="$any(editForm.get('targetValue'))">
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="edit-field">
+                    <mat-label>Message</mat-label>
+                    <input matInput [formControl]="$any(editForm.get('message'))">
+                  </mat-form-field>
+                  <div class="edit-actions">
+                    <button mat-icon-button type="submit" color="primary" matTooltip="Save" [disabled]="editForm.invalid || saving()" aria-label="Save changes">
+                      <mat-icon>check</mat-icon>
+                    </button>
+                    <button mat-icon-button type="button" matTooltip="Cancel" (click)="cancelEdit()" aria-label="Cancel editing">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </div>
+                </form>
+              }
+            </div>
+          }
+        </div>
+      }
+    </section>
+
+    <!-- ── Fired alerts — history ──────────────────────────── -->
+    @if (firedAlerts().length > 0) {
+      <section class="alerts-section" aria-label="Alert history">
+        <div class="section-header">
+          <h2 class="section-title">
+            <mat-icon aria-hidden="true">history</mat-icon>
+            History — Fired
+            <span class="count-pill count-pill--muted">{{ firedAlerts().length }}</span>
+          </h2>
+        </div>
+
+        <div class="alerts-grid alerts-grid--history" role="list">
+          @for (alert of firedAlerts(); track alert.id) {
+            <div class="alert-card alert-card--fired" role="listitem">
+              <div class="alert-card__top">
+                <span class="alert-card__symbol tp-mono">{{ alert.symbol }}</span>
+                <span class="status-pill" [class]="statusChipClass(alert)">
+                  <mat-icon aria-hidden="true">{{ statusIcon(alert) }}</mat-icon>
+                  FIRED
+                </span>
+              </div>
+              <p class="alert-card__sentence">{{ alertSentence(alert) }}</p>
+              @if (alert.message) {
+                <p class="alert-card__message">
+                  <mat-icon aria-hidden="true">chat_bubble_outline</mat-icon>
+                  {{ alert.message }}
+                </p>
+              }
+              <div class="alert-card__footer">
+                <span class="alert-card__created text-secondary">
+                  Fired {{ alert.firedAt | date:'MMM d, y, h:mm a' }}
+                </span>
+                <button mat-icon-button type="button" class="delete-btn" matTooltip="Delete" [attr.aria-label]="'Delete fired alert for ' + alert.symbol" (click)="onDelete(alert)">
+                  <mat-icon>delete_outline</mat-icon>
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+  }
+</div>

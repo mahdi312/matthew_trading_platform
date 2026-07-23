@@ -1,0 +1,122 @@
+/* ════════════════════════════════════════════════════════════════════════
+   Embed Chart — minimal, chrome-free host for third-party <iframe> embeds.
+
+   Deliberately self-contained: no sidebar, no marquee, no app toolbar.
+   Still draws from the same ink-brass token set as the rest of the app
+   (via styles.scss, loaded globally) so an embedded chart looks like it
+   belongs to this platform rather than a disconnected mini-app — but every
+   rule here is scoped to :host so it can never leak into — or be leaked
+   into by — whatever page embeds it.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:host {
+  display: block;
+  height: 100vh;
+  width: 100%;
+}
+
+.embed-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: var(--tp-bg-primary);
+  color: var(--tp-text-primary);
+  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Slim top chrome — symbol/timeframe label + tiny brand mark ─────────── */
+.embed-chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--hairline);
+  flex-shrink: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--brass-500);
+}
+
+.brand-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brass-500);
+  flex-shrink: 0;
+}
+
+.meta {
+  font-size: 11.5px;
+  color: var(--tp-text-secondary);
+}
+
+/* ── Chart host fills the remaining viewport ─────────────────────────────── */
+.chart-host {
+  flex: 1;
+  min-height: 0;
+  padding: 2px;
+}
+
+/* ── Loading / error / empty states — centered, self-explanatory ────────── */
+.state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  color: var(--tp-text-secondary);
+
+  mat-icon {
+    font-size: 32px;
+    width: 32px;
+    height: 32px;
+    color: var(--paper-600);
+  }
+
+  p { margin: 0; }
+}
+
+.state__title {
+  font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tp-text-primary);
+}
+
+.state__body {
+  font-size: 12.5px;
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+.state--error mat-icon {
+  color: var(--bear-500);
+}
+
+/* ── Tiny corner attribution — present, not competing with the chart ────── */
+.attribution {
+  position: absolute;
+  bottom: 6px;
+  right: 10px;
+  font-size: 9.5px;
+  letter-spacing: 0.03em;
+  color: var(--tp-text-muted);
+  opacity: 0.7;
+  pointer-events: none;
+  user-select: none;
+}

@@ -1,0 +1,232 @@
+<div class="onchain-page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-left">
+      <mat-icon class="header-icon">account_tree</mat-icon>
+      <div>
+        <h1 class="page-title">On-Chain Data</h1>
+        <p class="page-subtitle">NFT collections &amp; DeFi liquidity pools</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <mat-tab-group animationDuration="200ms">
+
+    <!-- ── Tab 1: NFT Collections ─────────────────────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">image</mat-icon>
+        NFT Collections
+        <span class="tab-count" *ngIf="!loadingNft()">{{ nftFiltered().length }}</span>
+      </ng-template>
+
+      <div class="tab-body">
+
+        <!-- Toolbar -->
+        <div class="tab-toolbar">
+          <mat-form-field appearance="outline" class="search-field">
+            <mat-label>Search collections</mat-label>
+            <mat-icon matPrefix>search</mat-icon>
+            <input
+              matInput
+              [ngModel]="nftSearch()"
+              (ngModelChange)="nftSearch.set($event)"
+              placeholder="Name, symbol, chain…">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="chain-field">
+            <mat-label>Chain</mat-label>
+            <mat-select [ngModel]="nftChain()" (ngModelChange)="nftChain.set($event)">
+              <mat-option value="ALL">All chains</mat-option>
+              @for (c of nftChains(); track c) {
+                <mat-option [value]="c">{{ c }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <div class="sort-toggle">
+            <button mat-stroked-button class="sort-btn" [class.sort-btn--active]="nftSort() === 'floor'" (click)="setNftSort('floor')">Floor price</button>
+            <button mat-stroked-button class="sort-btn" [class.sort-btn--active]="nftSort() === 'chain'" (click)="setNftSort('chain')">Chain</button>
+          </div>
+
+          <button mat-icon-button matTooltip="Refresh" (click)="loadNft()">
+            <mat-icon>refresh</mat-icon>
+          </button>
+        </div>
+
+        <!-- Loading -->
+        @if (loadingNft()) {
+          <app-loading-state variant="rows" [rows]="4" [cols]="4"/>
+        }
+
+        <!-- Error -->
+        @if (nftError() && !loadingNft()) {
+          <div class="tp-alert" role="alert">
+            <mat-icon aria-hidden="true">error_outline</mat-icon>
+            <span>{{ nftError() }}</span>
+            <button mat-button type="button" (click)="loadNft()">Retry</button>
+          </div>
+        }
+
+        <!-- Empty -->
+        @if (!loadingNft() && !nftError() && nftFiltered().length === 0) {
+          <app-empty-state
+            icon="image_not_supported"
+            headline="No collections found"
+            body="Try a different search term or chain filter.">
+          </app-empty-state>
+        }
+
+        <!-- Card grid — NFT data is inherently visual, imageUrl deserves a real card -->
+        @if (!loadingNft() && nftFiltered().length > 0) {
+          <div class="nft-grid" role="list">
+            @for (row of nftFiltered(); track row.id) {
+              <div class="nft-card" role="listitem">
+                <div class="nft-card__image-wrap">
+                  @if (row.imageUrl) {
+                    <img [src]="row.imageUrl" class="nft-card__image" [alt]="row.name">
+                  } @else {
+                    <div class="nft-card__image-fallback">
+                      <mat-icon aria-hidden="true">image</mat-icon>
+                    </div>
+                  }
+                  <span class="chain-badge">{{ row.chain }}</span>
+                </div>
+                <div class="nft-card__body">
+                  <div class="nft-card__title">
+                    <strong>{{ row.name }}</strong>
+                    <span class="sub-label">{{ row.symbol }}</span>
+                  </div>
+                  <div class="nft-card__primary-stats">
+                    <div class="stat">
+                      <span class="stat-label">Floor</span>
+                      <span class="stat-value tp-mono">{{ row.floorPrice !== null ? (row.floorPrice | number:'1.2-4') + ' ETH' : '—' }}</span>
+                    </div>
+                    <div class="stat">
+                      <span class="stat-label">Vol 24h</span>
+                      <span class="stat-value tp-mono">{{ usdLabel(row.volume24h) }}</span>
+                    </div>
+                  </div>
+                  <div class="nft-card__secondary-stats">
+                    <span>{{ row.itemCount !== null ? (row.itemCount | number) : 'Not available' }} items</span>
+                    <span>{{ row.ownerCount !== null ? (row.ownerCount | number) : 'Not available' }} owners</span>
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+      </div>
+    </mat-tab>
+
+    <!-- ── Tab 2: DeFi Pools ──────────────────────────────────────────── -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">water</mat-icon>
+        DeFi Pools
+        <span class="tab-count" *ngIf="!loadingDefi()">{{ defiFiltered().length }}</span>
+      </ng-template>
+
+      <div class="tab-body">
+
+        <!-- Toolbar -->
+        <div class="tab-toolbar">
+          <mat-form-field appearance="outline" class="search-field">
+            <mat-label>Search pools</mat-label>
+            <mat-icon matPrefix>search</mat-icon>
+            <input
+              matInput
+              [ngModel]="defiSearch()"
+              (ngModelChange)="defiSearch.set($event)"
+              placeholder="Protocol, token, chain…">
+          </mat-form-field>
+          <div class="sort-toggle">
+            <button mat-stroked-button class="sort-btn" [class.sort-btn--active]="defiSort() === 'tvl'" (click)="setDefiSort('tvl')">TVL</button>
+            <button mat-stroked-button class="sort-btn" [class.sort-btn--active]="defiSort() === 'apy'" (click)="setDefiSort('apy')">APY</button>
+          </div>
+
+          <button mat-icon-button matTooltip="Refresh" (click)="loadDefi()">
+            <mat-icon>refresh</mat-icon>
+          </button>
+        </div>
+
+        <!-- Loading -->
+        @if (loadingDefi()) {
+          <app-loading-state variant="rows" [rows]="5" [cols]="7"/>
+        }
+
+        <!-- Error -->
+        @if (defiError() && !loadingDefi()) {
+          <div class="tp-alert" role="alert">
+            <mat-icon aria-hidden="true">error_outline</mat-icon>
+            <span>{{ defiError() }}</span>
+            <button mat-button type="button" (click)="loadDefi()">Retry</button>
+          </div>
+        }
+
+        <!-- Empty -->
+        @if (!loadingDefi() && !defiError() && defiFiltered().length === 0) {
+          <app-empty-state
+            icon="water_drop"
+            headline="No DeFi pools found"
+            body="Try a different search term.">
+          </app-empty-state>
+        }
+
+        <!-- Table — comparative numeric data reads better as a table than cards -->
+        @if (!loadingDefi() && defiFiltered().length > 0) {
+          <div class="table-wrapper">
+            <table mat-table [dataSource]="defiFiltered()" class="data-table">
+
+              <ng-container matColumnDef="protocol">
+                <th mat-header-cell *matHeaderCellDef>Protocol</th>
+                <td mat-cell *matCellDef="let row"><strong>{{ row.protocol || 'Not available' }}</strong></td>
+              </ng-container>
+
+              <ng-container matColumnDef="chain">
+                <th mat-header-cell *matHeaderCellDef>Chain</th>
+                <td mat-cell *matCellDef="let row">
+                  <span class="chain-badge chain-badge--table">{{ row.chain || 'Not available' }}</span>
+                </td>
+              </ng-container>
+
+              <ng-container matColumnDef="pair">
+                <th mat-header-cell *matHeaderCellDef>Pair</th>
+                <td mat-cell *matCellDef="let row">{{ pairLabel(row) }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="feeTier">
+                <th mat-header-cell *matHeaderCellDef>Fee</th>
+                <td mat-cell *matCellDef="let row" class="number-cell">{{ feeTierLabel(row.feeTier) }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="tvl">
+                <th mat-header-cell *matHeaderCellDef>TVL</th>
+                <td mat-cell *matCellDef="let row" class="number-cell">{{ usdLabel(row.tvl) }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="volume24h">
+                <th mat-header-cell *matHeaderCellDef>Vol 24h</th>
+                <td mat-cell *matCellDef="let row" class="number-cell">{{ usdLabel(row.volume24h) }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="apy">
+                <th mat-header-cell *matHeaderCellDef>APY</th>
+                <td mat-cell *matCellDef="let row" class="apy-cell number-cell">{{ apyLabel(row.apy) }}</td>
+              </ng-container>
+
+              <tr mat-header-row *matHeaderRowDef="defiColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: defiColumns;" class="data-row"></tr>
+            </table>
+          </div>
+        }
+
+      </div>
+    </mat-tab>
+
+  </mat-tab-group>
+
+</div>

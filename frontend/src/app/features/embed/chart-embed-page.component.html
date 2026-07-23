@@ -1,0 +1,40 @@
+<div class="embed-root">
+  <header class="embed-chrome">
+    <span class="brand">
+      <span class="brand-dot" aria-hidden="true"></span>
+      MTP
+    </span>
+    @if (!loading() && !error()) {
+      <span class="meta tp-mono">{{ title() }}</span>
+    }
+  </header>
+
+  @if (loading()) {
+    <div class="state">
+      <mat-spinner diameter="36"></mat-spinner>
+      <p>Loading chart…</p>
+    </div>
+  } @else if (error()) {
+    <div class="state state--error">
+      <mat-icon aria-hidden="true">link_off</mat-icon>
+      <p class="state__title">This chart link is no longer valid</p>
+      <p class="state__body">{{ error() }}</p>
+    </div>
+  } @else if (bars().length === 0) {
+    <div class="state">
+      <mat-icon aria-hidden="true">show_chart</mat-icon>
+      <p class="state__title">No data available</p>
+      <p class="state__body">No candles were returned for {{ symbol() }}.</p>
+    </div>
+  } @else {
+    <div class="chart-host">
+      <app-candlestick-chart
+        [ohlcvData]="bars()"
+        [theme]="theme()"
+        [showToolbar]="false"
+      ></app-candlestick-chart>
+    </div>
+  }
+
+  <span class="attribution">Powered by MTP</span>
+</div>

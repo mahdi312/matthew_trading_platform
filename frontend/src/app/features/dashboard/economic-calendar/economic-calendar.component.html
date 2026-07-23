@@ -1,0 +1,136 @@
+<mat-card class="calendar-card">
+
+  <!-- Header -->
+  <mat-card-header>
+    <mat-icon mat-card-avatar class="cal-header-icon">event_note</mat-icon>
+    <mat-card-title>Economic Calendar</mat-card-title>
+    <mat-card-subtitle>Next 7 days</mat-card-subtitle>
+    <div class="card-header-actions">
+      <button mat-icon-button matTooltip="Refresh" (click)="loadCalendar()" [disabled]="loading()">
+        <mat-icon>refresh</mat-icon>
+      </button>
+    </div>
+  </mat-card-header>
+
+  <!-- Impact filter chips -->
+  <div class="filter-row">
+    <span class="filter-label">Filter:</span>
+    <div class="filter-chips">
+      <button
+        mat-stroked-button
+        class="filter-btn"
+        [class.filter-active]="impactFilter() === ''"
+        (click)="setImpactFilter('')">
+        All
+      </button>
+      <button
+        mat-stroked-button
+        class="filter-btn impact-btn-high"
+        [class.filter-active]="impactFilter() === 'HIGH'"
+        (click)="setImpactFilter('HIGH')">
+        <span class="impact-dot impact-high"></span>
+        High
+      </button>
+      <button
+        mat-stroked-button
+        class="filter-btn"
+        [class.filter-active]="impactFilter() === 'MEDIUM'"
+        (click)="setImpactFilter('MEDIUM')">
+        <span class="impact-dot impact-medium"></span>
+        Medium
+      </button>
+      <button
+        mat-stroked-button
+        class="filter-btn"
+        [class.filter-active]="impactFilter() === 'LOW'"
+        (click)="setImpactFilter('LOW')">
+        <span class="impact-dot impact-low"></span>
+        Low
+      </button>
+    </div>
+  </div>
+
+  <mat-card-content>
+
+    <!-- Loading -->
+    <div *ngIf="loading()" class="cal-loading">
+      <mat-spinner diameter="32"></mat-spinner>
+    </div>
+
+    <!-- Error -->
+    <div *ngIf="error() && !loading()" class="cal-error">
+      <mat-icon color="warn">error_outline</mat-icon>
+      <span>{{ error() }}</span>
+      <button mat-button (click)="loadCalendar()">Retry</button>
+    </div>
+
+    <!-- Empty -->
+    <div *ngIf="!loading() && !error() && events().length === 0" class="cal-empty">
+      <mat-icon>event_available</mat-icon>
+      <span>No events in the next 7 days for the selected filter.</span>
+    </div>
+
+    <!-- Event list -->
+    <div *ngIf="!loading() && !error() && events().length > 0" class="event-list">
+
+      <div
+        *ngFor="let event of events(); trackBy: trackByEventId"
+        class="event-row">
+
+        <!-- Date column -->
+        <div class="event-date">
+          <span class="event-day">
+            {{ event.scheduledAt ? (event.scheduledAt | date:'d') : '—' }}
+          </span>
+          <span class="event-month">
+            {{ event.scheduledAt ? (event.scheduledAt | date:'MMM') : '' }}
+          </span>
+        </div>
+
+        <!-- Impact badge dot -->
+        <span
+          class="impact-dot"
+          [class]="impactClass(event.impactLevel)"
+          [matTooltip]="(event.impactLevel || 'LOW') + ' impact'">
+        </span>
+
+        <!-- Event info -->
+        <div class="event-info">
+          <span class="event-title">{{ event.title }}</span>
+          <span class="event-meta">
+            {{ event.country ?? '' }}
+            <ng-container *ngIf="event.country && event.category"> · </ng-container>
+            {{ event.category ?? '' }}
+            <ng-container *ngIf="!event.isTimeTentative && event.scheduledAt">
+              &nbsp;{{ event.scheduledAt | date:'HH:mm' }} UTC
+            </ng-container>
+          </span>
+        </div>
+
+        <!-- Forecast / actual -->
+        <div class="event-values" *ngIf="event.forecast || event.actual">
+          <span class="val-pair" *ngIf="event.actual">
+            <span class="val-label">Actual</span>
+            <span class="val-num"
+                  [class.surprise-better]="event.surprise === 'BETTER_THAN_EXPECTED'"
+                  [class.surprise-worse]="event.surprise === 'WORSE_THAN_EXPECTED'">
+              {{ event.actual }}
+            </span>
+          </span>
+          <span class="val-pair" *ngIf="event.forecast && !event.actual">
+            <span class="val-label">Fcst</span>
+            <span class="val-num">{{ event.forecast }}</span>
+          </span>
+          <span class="val-pair" *ngIf="event.previous">
+            <span class="val-label">Prev</span>
+            <span class="val-num">{{ event.previous }}</span>
+          </span>
+        </div>
+
+      </div>
+
+    </div>
+
+  </mat-card-content>
+
+</mat-card>

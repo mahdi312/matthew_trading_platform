@@ -1,0 +1,175 @@
+.notification-bell {
+  position: relative;
+  display: inline-block;
+  color: var(--tp-text-primary);
+}
+
+.bell-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--tp-text-secondary);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.bell-button:hover {
+  background: var(--tp-bg-hover);
+  color: var(--tp-text-primary);
+}
+
+.badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--tp-accent-red);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.1rem;
+  text-align: center;
+}
+
+.dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  width: 280px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--tp-bg-card);
+  color: var(--tp-text-primary);
+  border: 1px solid var(--tp-border);
+  border-radius: 10px;
+  box-shadow: var(--tp-shadow);
+  z-index: 1000;
+}
+
+.dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.9rem;
+  font-weight: 600;
+  border-bottom: 1px solid var(--tp-border);
+}
+
+.connection-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--tp-text-muted);
+}
+
+.connection-dot.connected {
+  background: var(--tp-accent-green);
+}
+
+.empty {
+  padding: 0.9rem;
+  margin: 0;
+  color: var(--tp-text-secondary);
+  font-size: 0.85rem;
+}
+
+.recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.recent-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.5rem 0.9rem;
+  border-bottom: 1px solid var(--tp-border);
+  font-size: 0.8rem;
+}
+
+.recent-list li:last-child {
+  border-bottom: none;
+}
+
+.recent-list .symbol {
+  font-weight: 700;
+}
+
+.recent-list .label {
+  color: var(--tp-text-secondary);
+}
+
+.recent-list .values {
+  color: var(--tp-text-muted);
+  font-size: 0.72rem;
+}
+
+.toast-stack {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 2000;
+  max-width: 320px;
+}
+
+.toast {
+  position: relative;
+  padding: 0.75rem 1.75rem 0.75rem 1rem;
+  background: var(--tp-bg-active);
+  color: var(--tp-text-primary);
+  border: 1px solid var(--tp-border);
+  border-radius: 10px;
+  box-shadow: var(--tp-shadow);
+  animation: toast-in 0.2s ease-out;
+}
+
+.toast-headline {
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 0.15rem;
+}
+
+.toast-detail {
+  font-size: 0.75rem;
+  color: var(--tp-text-secondary);
+}
+
+.toast-close {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.5rem;
+  border: none;
+  background: transparent;
+  color: var(--tp-text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.toast-close:hover {
+  color: var(--tp-text-primary);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

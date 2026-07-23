@@ -1,0 +1,41 @@
+<mat-form-field appearance="outline" class="symbol-search-field">
+  <mat-icon matPrefix class="search-icon">search</mat-icon>
+  <mat-label>{{ placeholder }}</mat-label>
+
+  <input
+    matInput
+    [formControl]="searchCtrl"
+    [matAutocomplete]="symbolAuto"
+    [placeholder]="placeholder"
+    autocomplete="off"
+    spellcheck="false"
+  />
+
+  <!-- Spinner shown while both HTTP calls are in-flight -->
+  @if (loading()) {
+    <mat-spinner matSuffix diameter="18" class="search-spinner"></mat-spinner>
+  }
+
+  <mat-autocomplete
+    #symbolAuto="matAutocomplete"
+    [displayWith]="displayFn"
+    (optionSelected)="onOptionSelected($event)"
+    panelWidth="360px"
+  >
+    @for (result of results(); track result.ticker) {
+      <mat-option [value]="result" class="symbol-option">
+        <span class="symbol-ticker">{{ result.ticker }}</span>
+        @if (result.name) {
+          <span class="symbol-name">{{ result.name }}</span>
+        }
+        @if (result.assetClass) {
+          <span class="symbol-class">{{ result.assetClass }}</span>
+        }
+      </mat-option>
+    } @empty {
+      @if (!loading() && (searchCtrl.value?.length ?? 0) >= 1) {
+        <mat-option disabled class="no-results">No results found</mat-option>
+      }
+    }
+  </mat-autocomplete>
+</mat-form-field>

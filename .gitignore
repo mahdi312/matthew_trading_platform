@@ -1,7 +1,9 @@
 HELP.md
 target/
+.env
 .cursor/
 docs/report.html
+scripts/logs/
 
 # Local secrets (T-01) — copy from application.properties.example
 src/main/resources/application-local.properties
@@ -37,3 +39,5 @@ build/
 
 ### VS Code ###
 .vscode/
+
+mvnw

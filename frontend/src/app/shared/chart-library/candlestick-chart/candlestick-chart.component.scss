@@ -1,0 +1,95 @@
+.chart-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  background: var(--tp-bg-primary);
+  border-radius: var(--tp-radius-sm, 6px);
+  overflow: hidden;
+}
+
+// ── Drawing toolbar ────────────────────────────────────────────────────────
+
+.drawing-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  background: var(--tp-bg-secondary);
+  border-bottom: 1px solid var(--tp-border);
+  flex-shrink: 0;
+
+  button {
+    width: 32px;
+    height: 32px;
+    line-height: 32px;
+
+    mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      line-height: 18px;
+    }
+
+    &.active {
+      background: color-mix(in srgb, var(--tp-accent-blue) 20%, transparent);
+      color: var(--tp-accent-blue);
+      border-radius: 4px;
+    }
+  }
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+// ── Drawing hint bar ───────────────────────────────────────────────────────
+
+.drawing-hint {
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  color: var(--tp-accent-yellow);
+  background: color-mix(in srgb, var(--tp-accent-yellow) 10%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--tp-accent-yellow) 22%, transparent);
+  flex-shrink: 0;
+}
+
+// ── ECharts canvas host ────────────────────────────────────────────────────
+
+.chart-container {
+  flex: 1;
+  width: 100%;
+  min-height: 0; // allow flex child to shrink
+  cursor: default;
+
+  &.cursor-crosshair {
+    cursor: crosshair;
+  }
+}
+
+// ── Empty state overlay ────────────────────────────────────────────────────
+
+.empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--tp-text-secondary);
+  pointer-events: none;
+
+  mat-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    opacity: 0.5;
+  }
+
+  span {
+    font-size: 0.875rem;
+  }
+}

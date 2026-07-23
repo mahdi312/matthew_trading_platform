@@ -1,0 +1,206 @@
+<div class="reports-root page-shell">
+
+  <!-- ── Page header ─────────────────────────────────────── -->
+  <header class="page-header">
+    <div class="header-left">
+      <mat-icon class="header-icon" aria-hidden="true">insights</mat-icon>
+      <div>
+        <h1 class="page-title">Reports</h1>
+        <p class="page-subtitle">Yearly performance review</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <!-- Year selector -->
+      <mat-form-field appearance="outline" class="year-field">
+        <mat-label>Year</mat-label>
+        <mat-select [ngModel]="selectedYear()" (ngModelChange)="onYearChange($event)">
+          @for (y of availableYears; track y) {
+            <mat-option [value]="y">{{ y }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <button mat-icon-button type="button" matTooltip="Refresh" aria-label="Refresh report" (click)="loadReport()">
+        <mat-icon>refresh</mat-icon>
+      </button>
+
+      <!-- Export button — spinner replaces the icon while the file generates -->
+      <button
+        mat-flat-button
+        class="tp-btn-primary"
+        type="button"
+        (click)="exportExcel()"
+        [disabled]="exporting() || loading() || !report() || isEmptyYear()">
+        @if (exporting()) {
+          <ng-container>
+            <mat-progress-spinner diameter="16" mode="indeterminate"></mat-progress-spinner>
+            Exporting…
+          </ng-container>
+        } @else {
+          <ng-container>
+            <mat-icon aria-hidden="true">download</mat-icon>
+            Export to Excel
+          </ng-container>
+        }
+      </button>
+    </div>
+  </header>
+
+  <!-- ── Loading ──────────────────────────────────────────── -->
+  @if (loading()) {
+    <app-loading-state variant="kpi" [rows]="5"/>
+    <app-loading-state variant="card" [rows]="1"/>
+  }
+
+  <!-- ── Error ────────────────────────────────────────────── -->
+  @if (error() && !loading()) {
+    <div class="tp-alert" role="alert">
+      <mat-icon aria-hidden="true">error_outline</mat-icon>
+      <span>{{ error() }}</span>
+      <button mat-button type="button" (click)="loadReport()">Retry</button>
+    </div>
+  }
+
+  @if (!loading() && !error() && report()) {
+
+    <!-- ── Empty year — no trades at all ─────────────────── -->
+    @if (isEmptyYear()) {
+      <app-empty-state
+        icon="query_stats"
+        headline="No trades recorded for {{ report()!.year }}"
+        body="Log a few trades in this year and your performance review will appear here — net P&amp;L, win rate, and the monthly breakdown chart.">
+      </app-empty-state>
+    } @else {
+
+      <!-- ── KPI Summary strip ─────────────────────────────── -->
+      <div class="kpi-grid" role="list" aria-label="Yearly performance KPIs">
+
+        <div class="kpi-card" [class.kpi-card--bull]="report()!.netPnl >= 0" [class.kpi-card--bear]="report()!.netPnl < 0" role="listitem">
+          <div class="kpi-card__label">
+            <mat-icon aria-hidden="true">{{ report()!.netPnl >= 0 ? 'trending_up' : 'trending_down' }}</mat-icon>
+            Net P&amp;L
+          </div>
+          <div class="kpi-card__value tp-mono" [class]="pnlClass(report()!.netPnl)">
+            {{ report()!.netPnl | number:'1.2-2' }}
+          </div>
+          <div class="kpi-card__sub">Gross: {{ report()!.grossPnl | number:'1.2-2' }}</div>
+        </div>
+
+        <div class="kpi-card" role="listitem">
+          <div class="kpi-card__label">
+            <mat-icon aria-hidden="true">emoji_events</mat-icon>
+            Win Rate
+          </div>
+          <div class="kpi-card__value tp-mono">{{ report()!.winRate | percent:'1.1-1' }}</div>
+          <div class="kpi-card__sub">
+            <span class="tp-bull">{{ report()!.totalWins }}</span> /
+            <span class="tp-bear">{{ report()!.totalLosses }}</span> of {{ report()!.totalTrades }} trades
+          </div>
+        </div>
+
+        <div class="kpi-card" role="listitem">
+          <div class="kpi-card__label">
+            <mat-icon aria-hidden="true">balance</mat-icon>
+            Avg R:R
+          </div>
+          <div class="kpi-card__value tp-mono">{{ report()!.avgRrr | number:'1.2-2' }}</div>
+          <div class="kpi-card__sub">Risk : reward, averaged</div>
+        </div>
+
+        <div class="kpi-card" role="listitem">
+          <div class="kpi-card__label">
+            <mat-icon aria-hidden="true">south</mat-icon>
+            Max Drawdown
+          </div>
+          <div class="kpi-card__value tp-mono tp-bear">{{ report()!.maxDrawdown | number:'1.2-2' }}</div>
+          <div class="kpi-card__sub">Peak-to-trough decline</div>
+        </div>
+
+        <div class="kpi-card" role="listitem">
+          <div class="kpi-card__label">
+            <mat-icon aria-hidden="true">functions</mat-icon>
+            Sharpe Ratio
+          </div>
+          @if (report()!.sharpeRatio !== null) {
+            <div class="kpi-card__value tp-mono">{{ report()!.sharpeRatio | number:'1.2-2' }}</div>
+            <div class="kpi-card__sub">Risk-adjusted return</div>
+          } @else {
+            <div class="kpi-card__value kpi-card__value--muted">Not enough data</div>
+            <div class="kpi-card__sub">Needs more trade history to compute</div>
+          }
+        </div>
+
+      </div>
+
+      <!-- ── Monthly breakdown — bar chart ─────────────────── -->
+      <div class="panel">
+        <div class="panel__header">
+          <h2 class="panel__title">
+            <mat-icon aria-hidden="true">calendar_month</mat-icon>
+            Monthly Net P&amp;L — {{ report()!.year }}
+          </h2>
+        </div>
+
+        @if (monthlyChartData().length > 0) {
+          <app-bar-chart
+            [data]="monthlyChartData()"
+            [theme]="chartTheme()"
+            valuePrefix=""
+            class="monthly-chart"
+            aria-label="Monthly net P&amp;L bar chart">
+          </app-bar-chart>
+        } @else {
+          <div class="chart-empty">
+            <mat-icon aria-hidden="true">bar_chart</mat-icon>
+            <span>No monthly data yet</span>
+          </div>
+        }
+      </div>
+
+      <!-- ── Monthly breakdown — table ──────────────────────── -->
+      <div class="panel">
+        <div class="panel__header">
+          <h2 class="panel__title">
+            <mat-icon aria-hidden="true">table_rows</mat-icon>
+            Monthly Figures
+          </h2>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Month</th>
+                <th class="number-cell">Trades</th>
+                <th class="number-cell">Wins</th>
+                <th class="number-cell">Losses</th>
+                <th class="number-cell">Win %</th>
+                <th class="number-cell">Gross P&amp;L</th>
+                <th class="number-cell">Net P&amp;L</th>
+                <th class="number-cell">Avg R:R</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of report()!.months; track row.month) {
+                <tr class="data-row">
+                  <td><strong>{{ monthName(row) }}</strong></td>
+                  <td class="number-cell tp-mono">{{ row.trades }}</td>
+                  <td class="number-cell tp-mono tp-bull">{{ row.wins }}</td>
+                  <td class="number-cell tp-mono tp-bear">{{ row.losses }}</td>
+                  <td class="number-cell tp-mono">{{ row.winRate | percent:'1.0-0' }}</td>
+                  <td class="number-cell tp-mono" [class]="pnlClass(row.grossPnl)">{{ row.grossPnl | number:'1.2-2' }}</td>
+                  <td class="number-cell tp-mono" [class]="pnlClass(row.netPnl)">{{ row.netPnl | number:'1.2-2' }}</td>
+                  <td class="number-cell tp-mono">{{ row.avgRrr | number:'1.2-2' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    }
+
+  }
+
+</div>

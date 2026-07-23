@@ -1,0 +1,15 @@
+/* Register-specific overrides — base styles from login-page.component.scss */
+
+.optional-label {
+  font-size: 11px;
+  color: var(--tp-text-muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: 4px;
+}
+
+/* Taller card for more fields */
+.auth-panel {
+  width: min(100%, 440px);
+}

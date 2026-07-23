@@ -1,0 +1,42 @@
+[
+  {
+    "id": "bored-ape-yacht-club",
+    "contract_address": "0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d",
+    "asset_platform_id": "ethereum",
+    "name": "Bored Ape Yacht Club",
+    "symbol": "BAYC",
+    "floor_price": {
+      "native_currency": 12.5,
+      "usd": 25000.0
+    },
+    "market_cap": {
+      "native_currency": 125000.0,
+      "usd": 250000000.0
+    },
+    "volume_24h": {
+      "native_currency": 50.0,
+      "usd": 100000.0
+    },
+    "floor_price_in_usd_24h_percentage_change": -2.5
+  },
+  {
+    "id": "cryptopunks",
+    "contract_address": "0xb47e3cd837ddf8e4c57f05d70ab865de6e193bbb",
+    "asset_platform_id": "ethereum",
+    "name": "CryptoPunks",
+    "symbol": "PUNK",
+    "floor_price": {
+      "native_currency": 40.0,
+      "usd": 80000.0
+    },
+    "market_cap": {
+      "native_currency": 400000.0,
+      "usd": 800000000.0
+    },
+    "volume_24h": {
+      "native_currency": 120.0,
+      "usd": 240000.0
+    },
+    "floor_price_in_usd_24h_percentage_change": 1.8
+  }
+]

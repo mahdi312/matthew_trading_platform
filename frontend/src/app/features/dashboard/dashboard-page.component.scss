@@ -1,0 +1,288 @@
+.dashboard-root {
+  padding: 24px;
+}
+
+/* ── KPI grid ───────────────────────────────────────────── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kpi-card {
+  background: var(--tp-bg-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--tp-radius-md);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color 0.15s ease;
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--brass-500) 30%, var(--hairline));
+  }
+}
+
+/* P&L card colored based on sign */
+.kpi-card--bull {
+  border-color: color-mix(in srgb, var(--bull-500) 30%, var(--hairline));
+  background: color-mix(in srgb, var(--bull-500) 5%, var(--tp-bg-card));
+}
+
+.kpi-card--bear {
+  border-color: color-mix(in srgb, var(--bear-500) 30%, var(--hairline));
+  background: color-mix(in srgb, var(--bear-500) 5%, var(--tp-bg-card));
+}
+
+.kpi-card--active {
+  border-color: color-mix(in srgb, var(--brass-500) 30%, var(--hairline));
+  background: color-mix(in srgb, var(--brass-500) 5%, var(--tp-bg-card));
+}
+
+.kpi-card__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tp-text-secondary);
+
+  mat-icon {
+    font-size: 15px;
+    width: 15px;
+    height: 15px;
+    color: var(--paper-600);
+  }
+}
+
+.kpi-card__value {
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--tp-text-primary);
+  line-height: 1.2;
+  margin-top: 4px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.kpi-card__sub {
+  font-size: 11px;
+  color: var(--tp-text-muted);
+  margin-top: 2px;
+}
+
+/* ── Equity curve panel ─────────────────────────────────── */
+.equity-panel {
+  background: var(--tp-bg-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--tp-radius-md);
+  overflow: hidden;
+}
+
+.equity-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--hairline);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.equity-panel__title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tp-text-primary);
+  margin: 0;
+}
+
+/* Segmented range filter */
+.range-filters {
+  display: flex;
+  gap: 2px;
+  background: var(--tp-bg-secondary);
+  border: 1px solid var(--hairline);
+  border-radius: var(--tp-radius-sm);
+  padding: 2px;
+}
+
+.range-btn {
+  background: none;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--tp-text-secondary);
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+  white-space: nowrap;
+
+  &:hover {
+    color: var(--tp-text-primary);
+    background: var(--tp-bg-hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--brass-500);
+    outline-offset: -1px;
+  }
+}
+
+.range-btn--active {
+  background: var(--brass-500) !important;
+  color: #0A0D12 !important;
+}
+
+.equity-chart {
+  display: block;
+  height: 240px;
+  width: 100%;
+}
+
+.equity-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 160px;
+  color: var(--tp-text-muted);
+  font-size: 13px;
+
+  mat-icon {
+    font-size: 24px;
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* ── Recent trades panel ─────────────────────────────────── */
+.trades-panel {
+  background: var(--tp-bg-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--tp-radius-md);
+  overflow: hidden;
+}
+
+.trades-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.trades-panel__title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tp-text-primary);
+  margin: 0;
+}
+
+.view-all-link {
+  color: var(--brass-500) !important;
+  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  mat-icon { font-size: 15px; width: 15px; height: 15px; }
+}
+
+.trades-table-wrap {
+  overflow-x: auto;
+}
+
+.trades-table {
+  width: 100%;
+}
+
+.trade-row {
+  cursor: default;
+  transition: background 0.12s;
+}
+
+/* Side badge */
+.side-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: var(--tp-radius-sm);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.side-badge--bull {
+  background: color-mix(in srgb, var(--bull-500) 14%, transparent);
+  color: var(--bull-400);
+  border: 1px solid color-mix(in srgb, var(--bull-500) 30%, transparent);
+}
+
+.side-badge--bear {
+  background: color-mix(in srgb, var(--bear-500) 14%, transparent);
+  color: var(--bear-400);
+  border: 1px solid color-mix(in srgb, var(--bear-500) 30%, transparent);
+}
+
+/* Status chip inline */
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--tp-radius-sm);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ── Economic calendar panel ───────────────────────────── */
+.calendar-panel {
+  background: var(--tp-bg-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--tp-radius-md);
+  overflow: hidden;
+}
+
+.calendar-panel__title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tp-text-primary);
+  margin: 0;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.calendar-widget {
+  display: block;
+}
+
+/* Helpers */
+.font-bold { font-weight: 700 !important; }
+.text-secondary { color: var(--tp-text-secondary) !important; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dashboard-root {
+    padding: 16px;
+  }
+}

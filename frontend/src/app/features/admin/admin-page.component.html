@@ -1,0 +1,226 @@
+<div class="admin-page page-shell">
+
+  <!-- Header -->
+  <header class="page-header">
+    <div class="header-left">
+      <mat-icon class="header-icon" aria-hidden="true">admin_panel_settings</mat-icon>
+      <div>
+        <h1 class="page-title">Admin — User Management</h1>
+        <p class="page-subtitle">Manage user accounts, roles, and access</p>
+      </div>
+    </div>
+    <button mat-icon-button type="button" matTooltip="Refresh" aria-label="Refresh users" (click)="loadUsers()">
+      <mat-icon>refresh</mat-icon>
+    </button>
+  </header>
+
+  <!-- Role notice banner -->
+  <div class="role-notice" role="note">
+    <mat-icon aria-hidden="true">security</mat-icon>
+    <span>
+      This area is visible only to <strong>ROLE_ADMIN</strong> users — enforced by
+      <code>adminGuard</code> at the route level, not just a hidden nav link. Mutating
+      actions here affect other people's accounts; every one asks for explicit confirmation.
+    </span>
+  </div>
+
+  <!-- Loading -->
+  @if (loading()) {
+    <app-loading-state variant="rows" [rows]="6" [cols]="6" />
+  }
+
+  <!-- Error -->
+  @if (error() && !loading()) {
+    <div class="tp-alert" role="alert">
+      <mat-icon aria-hidden="true">error_outline</mat-icon>
+      <span>{{ error() }}</span>
+      <button mat-button type="button" (click)="loadUsers()">Retry</button>
+    </div>
+  }
+
+  @if (!loading() && !error()) {
+
+    <!-- Toolbar: search + status filter -->
+    <div class="toolbar">
+      <mat-form-field appearance="outline" class="search-field">
+        <mat-label>Search users</mat-label>
+        <mat-icon matPrefix aria-hidden="true">search</mat-icon>
+        <input
+          matInput
+          [ngModel]="search()"
+          (ngModelChange)="onSearchChange($event)"
+          placeholder="Username, email, display name…">
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="status-filter-field">
+        <mat-label>Status</mat-label>
+        <mat-select [ngModel]="statusFilter()" (ngModelChange)="onStatusFilterChange($event)">
+          <mat-option value="ALL">All statuses</mat-option>
+          @for (s of allStatuses; track s) {
+            <mat-option [value]="s">{{ s }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <span class="user-count">{{ filteredUsers().length }} of {{ usersRaw().length }} user(s)</span>
+    </div>
+
+    @if (usersRaw().length === 0) {
+      <app-empty-state
+        icon="people_outline"
+        headline="No users yet"
+        body="Users will appear here once accounts are registered." />
+    } @else if (filteredUsers().length === 0) {
+      <app-empty-state
+        icon="search_off"
+        headline="No users match these filters"
+        body="Try a different search term or clear the status filter."
+        actionLabel="Clear filters"
+        (action)="clearFilters()" />
+    } @else {
+
+      <!-- Table -->
+      <div class="table-wrapper">
+        <table mat-table [dataSource]="pagedUsers()" class="users-table">
+
+          <!-- Username -->
+          <ng-container matColumnDef="username">
+            <th mat-header-cell *matHeaderCellDef>User</th>
+            <td mat-cell *matCellDef="let row">
+              <div class="user-name-cell">
+                <strong class="tp-mono">{{ row.username }}</strong>
+                @if (row.displayName) {
+                  <span class="display-name">{{ row.displayName }}</span>
+                }
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Email -->
+          <ng-container matColumnDef="email">
+            <th mat-header-cell *matHeaderCellDef>Email</th>
+            <td mat-cell *matCellDef="let row">{{ row.email }}</td>
+          </ng-container>
+
+          <!-- Roles -->
+          <ng-container matColumnDef="roles">
+            <th mat-header-cell *matHeaderCellDef>Roles</th>
+            <td mat-cell *matCellDef="let row">
+              <!-- View mode -->
+              @if (editingId() !== row.id) {
+                <div class="role-chips">
+                  @for (r of row.roles; track r) {
+                    <span class="role-chip">{{ roleLabel(r) }}</span>
+                  }
+                </div>
+              } @else {
+                <!-- Edit mode -->
+                <div class="role-edit-chips" role="group" aria-label="Edit roles">
+                  @for (r of allRoles; track r) {
+                    <button
+                      type="button"
+                      class="role-toggle-chip"
+                      [class.role-toggle-chip--selected]="isRoleSelected(r)"
+                      [attr.aria-pressed]="isRoleSelected(r)"
+                      (click)="toggleEditRole(r)">
+                      @if (isRoleSelected(r)) {
+                        <mat-icon aria-hidden="true">check</mat-icon>
+                      }
+                      {{ roleLabel(r) }}
+                    </button>
+                  }
+                </div>
+              }
+            </td>
+          </ng-container>
+
+          <!-- Status -->
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Status</th>
+            <td mat-cell *matCellDef="let row">
+              <!-- View mode -->
+              @if (editingId() !== row.id) {
+                <span [class]="statusChipClass(row.status)">
+                  <mat-icon aria-hidden="true">{{ statusIcon(row.status) }}</mat-icon>
+                  {{ row.status }}
+                </span>
+              } @else {
+                <!-- Edit mode -->
+                <mat-form-field appearance="outline" class="status-select">
+                  <mat-label>Status</mat-label>
+                  <mat-select [(ngModel)]="editStatus" aria-label="Edit user status">
+                    @for (s of allStatuses; track s) {
+                      <mat-option [value]="s">{{ s }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              }
+            </td>
+          </ng-container>
+
+          <!-- Created -->
+          <ng-container matColumnDef="createdAt">
+            <th mat-header-cell *matHeaderCellDef>Created</th>
+            <td mat-cell *matCellDef="let row">
+              <span class="relative-time" [matTooltip]="row.createdAt | date:'medium'">
+                {{ relativeTime(row.createdAt) }}
+              </span>
+            </td>
+          </ng-container>
+
+          <!-- Last Login -->
+          <ng-container matColumnDef="lastLoginAt">
+            <th mat-header-cell *matHeaderCellDef>Last Login</th>
+            <td mat-cell *matCellDef="let row">
+              <span
+                class="relative-time"
+                [matTooltip]="row.lastLoginAt ? (row.lastLoginAt | date:'medium') : 'Never signed in'">
+                {{ relativeTime(row.lastLoginAt) }}
+              </span>
+            </td>
+          </ng-container>
+
+          <!-- Actions -->
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef></th>
+            <td mat-cell *matCellDef="let row">
+              <div class="action-buttons">
+                <!-- View mode -->
+                @if (editingId() !== row.id) {
+                  <button mat-icon-button type="button" matTooltip="Edit roles / status" [attr.aria-label]="'Edit ' + row.username" (click)="startEdit(row)">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <button mat-icon-button type="button" class="delete-btn" matTooltip="Delete user" [attr.aria-label]="'Delete ' + row.username" (click)="deleteUser(row)">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                } @else {
+                  <!-- Edit mode -->
+                  <button mat-icon-button type="button" class="save-btn" matTooltip="Save" [attr.aria-label]="'Save changes to ' + row.username" (click)="saveEdit(row)">
+                    <mat-icon>check</mat-icon>
+                  </button>
+                  <button mat-icon-button type="button" matTooltip="Cancel" aria-label="Cancel editing" (click)="cancelEdit()">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                }
+              </div>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="columns"></tr>
+          <tr mat-row *matRowDef="let row; columns: columns;" class="user-row"></tr>
+        </table>
+      </div>
+
+      <mat-paginator
+        [length]="filteredUsers().length"
+        [pageIndex]="pageIndex()"
+        [pageSize]="pageSize()"
+        [pageSizeOptions]="[10, 25, 50]"
+        (page)="onPage($event)"
+        aria-label="Select page of users">
+      </mat-paginator>
+
+    }
+
+  }
+</div>

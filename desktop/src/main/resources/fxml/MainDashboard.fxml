@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.mst.matt.tradingplatformapp.controller.MainDashboardController"
+            styleClass="scene-root"
+            prefWidth="1440"
+            prefHeight="900">
+
+    <top>
+        <!-- Header wrapper — always visible, never managed=false -->
+        <VBox visible="true" managed="true" style="-fx-background-color:#161b22;">
+            <HBox styleClass="header-bar" alignment="CENTER_LEFT" spacing="16"
+                  visible="true" managed="true">
+                <Label text="📈 Trading Intelligence Platform" styleClass="header-title"/>
+                <Pane HBox.hgrow="ALWAYS"/>
+
+                <Button fx:id="watchlistMenuBtn" text="📋" styleClass="btn-secondary"
+                        onAction="#onToggleWatchlistMenu"/>
+                <Label text="Profile:" styleClass="label-subtitle"/>
+                <ComboBox fx:id="profileSelector" promptText="Select Profile" prefWidth="180"/>
+                <Button text="+ New" styleClass="btn-secondary" onAction="#onNewProfile"/>
+                <Button text="✏" styleClass="btn-secondary" onAction="#onRenameProfile"/>
+                <Button text="🗑" styleClass="btn-secondary" onAction="#onDeleteProfile"/>
+                <Separator orientation="VERTICAL"/>
+
+                <StackPane>
+                    <Button fx:id="alertBellBtn" text="🔔" styleClass="btn-secondary" onAction="#onOpenAlerts"/>
+                    <Label fx:id="alertCountBadge" text="0" styleClass="alert-badge"
+                           StackPane.alignment="TOP_RIGHT" translateX="8" translateY="-8" visible="false"/>
+                </StackPane>
+                <Button text="⚙" styleClass="btn-secondary" onAction="#onOpenSettings"/>
+                <Button text="👥 Admin" styleClass="btn-secondary" onAction="#onOpenAdminPanel">
+                    <tooltip><Tooltip text="Admin User Management"/></tooltip>
+                </Button>
+                <Button text="↩ Sign Out" styleClass="btn-secondary" onAction="#onLogout"/>
+            </HBox>
+
+            <StackPane fx:id="tickerContainer" prefHeight="36" minHeight="10" maxHeight="36"
+                       visible="true" managed="true"/>
+        </VBox>
+    </top>
+
+    <left>
+        <VBox fx:id="sidebar" styleClass="sidebar sidebar-collapsed" spacing="4"
+              onMouseEntered="#onSidebarEnter" onMouseExited="#onSidebarExit">
+            <padding>
+                <Insets top="16" right="6" bottom="16" left="6"/>
+            </padding>
+
+            <Button fx:id="navDashboard" text="📊" styleClass="nav-item nav-item-active"
+                    onAction="#onNavDashboard"/>
+            <Button fx:id="navChart" text="📈" styleClass="nav-item" onAction="#onNavChart"/>
+            <Button fx:id="navTrades" text="📋" styleClass="nav-item" onAction="#onNavTrades"/>
+            <!-- Fix 6: Updated Analysis tab icon to a magnifying glass for clarity -->
+            <Button fx:id="navAnalysis" text="🔍" styleClass="nav-item" onAction="#onNavAnalysis"/>
+            <Button fx:id="navAlerts" text="🔔" styleClass="nav-item" onAction="#onNavAlerts"/>
+            <Button fx:id="navMixer" text="🎚" styleClass="nav-item" onAction="#onNavMixer"/>
+            <Button fx:id="navPortfolio" text="💼" styleClass="nav-item" onAction="#onNavPortfolio"/>
+            <Button fx:id="navFundamentals" text="📑" styleClass="nav-item" onAction="#onNavFundamentals"/>
+            <!-- CoinGecko discovery tabs -->
+            <Button fx:id="navDefi" text="⛓" styleClass="nav-item" onAction="#onNavDefi"/>
+            <Button fx:id="navNft" text="🖼" styleClass="nav-item" onAction="#onNavNft"/>
+            <Button fx:id="navOnchain" text="🔗" styleClass="nav-item" onAction="#onNavOnchain"/>
+            <!-- AI News & Insights tab -->
+            <Button fx:id="navAiNews" text="🤖" styleClass="nav-item" onAction="#onNavAiNews"/>
+
+            <Pane VBox.vgrow="ALWAYS"/>
+
+            <Separator/>
+            <Button fx:id="navExport" text="📤" styleClass="nav-item" onAction="#onNavExport"/>
+            <Button fx:id="navSettings" text="⚙" styleClass="nav-item" onAction="#onOpenSettings"/>
+        </VBox>
+    </left>
+
+    <center>
+        <!-- Global notification overlay sits on top of the content area -->
+        <StackPane style="-fx-background-color: #0d1117;">
+            <StackPane fx:id="contentArea">
+                <padding>
+                    <Insets top="24" right="24" bottom="24" left="24"/>
+                </padding>
+            </StackPane>
+            <!-- Non-blocking toast notifications (auto-hide 3s, closable).
+                 pickOnBounds=false so transparent areas pass through mouse events.
+                 Only the visible toast pills intercept clicks. -->
+            <StackPane fx:id="globalNotificationOverlay" alignment="BOTTOM_RIGHT"
+                       visible="false" managed="false" pickOnBounds="false"
+                       style="-fx-background-color:transparent; -fx-padding:0 16 16 0;"/>
+        </StackPane>
+    </center>
+
+    <bottom>
+        <HBox spacing="16" alignment="CENTER_LEFT"
+              style="-fx-background-color: #161b22; -fx-border-color: #30363d; -fx-border-width: 1 0 0 0;">
+            <padding>
+                <Insets top="8" right="16" bottom="8" left="16"/>
+            </padding>
+            <Label fx:id="statusLabel" text="● Connected"
+                   style="-fx-text-fill: #3fb950; -fx-font-size: 11px;"/>
+            <Separator orientation="VERTICAL"/>
+            <Label fx:id="lastUpdateLabel" text="Last update: —" styleClass="label-muted"/>
+            <Pane HBox.hgrow="ALWAYS"/>
+            <Label fx:id="versionLabel" text="v1.0.8" styleClass="label-muted"/>
+        </HBox>
+    </bottom>
+
+</BorderPane>

@@ -1,0 +1,632 @@
+:host {
+  display: block;
+}
+
+.ai-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.page-header {
+  display: flex;
+  align-items: center;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.header-icon {
+  font-size: 36px;
+  width: 36px;
+  height: 36px;
+  color: var(--tp-accent-purple);
+}
+
+.page-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--tp-text-primary);
+  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+}
+
+.page-subtitle {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--tp-text-secondary);
+}
+
+/* ── Symbol card ─────────────────────────────────────────────────────────── */
+.symbol-card mat-card-content {
+  padding-bottom: 8px !important;
+}
+
+.symbol-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.symbol-field {
+  width: 200px;
+}
+
+.popular-label {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.popular-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Tabs ────────────────────────────────────────────────────────────────── */
+.ai-tabs {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.tab-icon {
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.tab-content {
+  padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Loading / error / empty ─────────────────────────────────────────────── */
+.loading-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 40px 0;
+
+  .loading-hint {
+    font-size: 13px;
+    opacity: 0.6;
+  }
+}
+
+.error-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+}
+
+.empty-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 0;
+  opacity: 0.4;
+
+  mat-icon {
+    font-size: 56px;
+    width: 56px;
+    height: 56px;
+  }
+}
+
+/* ── AI purpose-built loading sequence ───────────────────────────────────── */
+/* LLM calls are meaningfully slower than everything else in the app — this
+   is a staged skeleton + rotating status line, not a generic spinner,
+   so the user feels the system working rather than frozen. */
+.ai-loading-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px 0 8px;
+}
+
+.ai-loading-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@keyframes ai-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+.ai-skel-line {
+  height: 12px;
+  border-radius: 4px;
+  background: var(--tp-bg-active);
+  animation: ai-pulse 1.5s ease-in-out infinite;
+}
+
+.ai-skel-line--40 { width: 40%; }
+.ai-skel-line--60 { width: 60%; }
+.ai-skel-line--70 { width: 70%; }
+.ai-skel-line--80 { width: 80%; }
+.ai-skel-line--90 { width: 90%; }
+.ai-skel-line--95 { width: 95%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-skel-line { animation: none; opacity: 0.6; }
+}
+
+.ai-loading-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--tp-text-secondary);
+}
+
+.ai-loading-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--tp-accent-purple);
+  animation: ai-pulse 1.5s ease-in-out infinite;
+}
+
+.signal-skel-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--tp-radius-md);
+  border: 1px solid var(--tp-border);
+  background: var(--tp-bg-card);
+}
+
+/* ── AI-unavailable error state — distinct from generic empty state ─────── */
+.ai-error-alert {
+  justify-content: flex-start;
+
+  button {
+    margin-left: auto;
+  }
+}
+
+/* ── Result card ─────────────────────────────────────────────────────────── */
+.result-card {
+  width: 100%;
+}
+
+.symbol-label {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.sentiment-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.confidence-label {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+/* ── Sentiment badge — bull/bear/neutral, reserved for this meaning only ── */
+.sentiment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+}
+
+.sentiment-bullish { background: color-mix(in srgb, var(--bull-500) 18%, transparent); color: var(--bull-400); }
+.sentiment-bearish { background: color-mix(in srgb, var(--bear-500) 18%, transparent); color: var(--bear-400); }
+.sentiment-neutral { background: var(--tp-bg-active); color: var(--tp-text-secondary); }
+
+.confidence-bar-wrap--inline {
+  flex: 1;
+  min-width: 160px;
+  max-width: 260px;
+}
+
+.divider {
+  margin: 12px 0 16px;
+}
+
+.summary-text {
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+/* ── Signal cards ────────────────────────────────────────────────────────── */
+.signals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.signal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--tp-radius-md);
+  border: 1px solid var(--tp-border);
+  border-left: 4px solid transparent;
+  background: var(--tp-bg-card);
+}
+
+.signal-buy  { border-left-color: var(--bull-500); }
+.signal-sell { border-left-color: var(--bear-500); }
+.signal-hold { border-left-color: var(--brass-400); }
+
+.signal-card__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.signal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+
+  mat-icon { font-size: 14px; width: 14px; height: 14px; }
+}
+
+.signal-badge--buy  { background: color-mix(in srgb, var(--bull-500) 18%, transparent); color: var(--bull-400); }
+.signal-badge--sell { background: color-mix(in srgb, var(--bear-500) 18%, transparent); color: var(--bear-400); }
+.signal-badge--hold { background: color-mix(in srgb, var(--brass-400) 18%, transparent); color: var(--brass-300); }
+
+.signal-symbol {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.signal-generated {
+  font-size: 11px;
+  margin-top: -6px;
+}
+
+.reasoning-text {
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 0;
+  opacity: 0.85;
+}
+
+/* ── "why?" reasoning expand toggle — verdict-first, explanation on demand ── */
+.why-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tp-accent-teal);
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+  &:hover { text-decoration: underline; }
+}
+
+/* ── Mini risk/reward strip — target + stop shown together ──────────────── */
+.risk-reward-strip {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rr-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--tp-radius-sm, 6px);
+  background: var(--tp-bg-active);
+  font-size: 12px;
+
+  .meta-icon { font-size: 14px; width: 14px; height: 14px; color: var(--tp-accent-blue); }
+  .stop-icon { color: var(--bear-500); }
+}
+
+.rr-label {
+  opacity: 0.6;
+}
+
+.rr-value {
+  font-weight: 700;
+}
+
+.rr-cell--target .rr-value { color: var(--brass-400); }
+.rr-cell--stop .rr-value   { color: var(--bear-400); }
+
+.confidence-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.conf-label {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.confidence-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--tp-bg-active);
+  overflow: hidden;
+}
+
+.confidence-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--tp-accent-blue), var(--tp-accent-purple));
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.refresh-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ── Critique form ───────────────────────────────────────────────────────── */
+.critique-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+.form-actions {
+  grid-column: 1 / -1;
+}
+
+/* ── Rating badge ────────────────────────────────────────────────────────── */
+.rating-row {
+  margin-bottom: 12px;
+}
+
+.rating-badge {
+  display: inline-block;
+  padding: 6px 18px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.rating-good    { background: color-mix(in srgb, var(--bull-500) 20%, transparent); color: var(--bull-400); }
+.rating-average { background: color-mix(in srgb, var(--brass-400) 20%, transparent); color: var(--brass-300); }
+.rating-poor    { background: color-mix(in srgb, var(--bear-500) 20%, transparent); color: var(--bear-400); }
+
+.critique-text {
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.suggestions h4 {
+  margin: 12px 0 6px;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.suggestion-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+
+    mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      color: var(--brass-400);
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+  }
+}
+
+/* ── Journal hand-off banner ──────────────────────────────────────────────── */
+.handoff-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--tp-radius-md);
+  background: color-mix(in srgb, var(--teal-400) 12%, var(--tp-bg-card));
+  border: 1px solid color-mix(in srgb, var(--teal-400) 30%, var(--tp-border));
+  font-size: 13px;
+
+  mat-icon { color: var(--teal-400); flex-shrink: 0; }
+  button { margin-left: auto; }
+}
+
+/* ── Latest News tab ─────────────────────────────────────────────────────── */
+
+.news-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.news-asset-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.news-filter-label {
+  font-size: 12px;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+.news-cls-btn {
+  font-size: 0.78rem !important;
+  height: 28px !important;
+  padding: 0 12px !important;
+  line-height: 28px !important;
+}
+
+.news-cls-active {
+  border-color: var(--tp-accent-purple) !important;
+  color: var(--tp-accent-purple) !important;
+}
+
+/* ── Article list ────────────────────────────────────────────────────────── */
+.news-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.news-article-row {
+  display: flex;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--tp-border);
+
+  &:last-child { border-bottom: none; }
+
+  &:hover { background: var(--tp-bg-hover); border-radius: 4px; }
+}
+
+.article-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.article-title {
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1.4;
+  text-decoration: none;
+  color: inherit;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 4px;
+
+  &:hover { color: var(--tp-accent-purple); }
+
+  &.no-link { cursor: default; }
+}
+
+.external-link-icon {
+  font-size: 13px !important;
+  width: 13px !important;
+  height: 13px !important;
+  opacity: 0.55;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.article-summary {
+  font-size: 0.8rem;
+  opacity: 0.65;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.article-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.meta-source,
+.meta-date {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.72rem;
+  opacity: 0.5;
+
+  .meta-icon {
+    font-size: 13px;
+    width: 13px;
+    height: 13px;
+  }
+}
+
+.meta-sentiment {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: var(--tp-border);
+
+  &.positive { color: var(--tp-accent-green); background: color-mix(in srgb, var(--tp-accent-green) 14%, transparent); }
+  &.negative { color: var(--tp-accent-red); background: color-mix(in srgb, var(--tp-accent-red) 14%, transparent); }
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .symbol-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .symbol-field { width: 100%; }
+
+  .critique-form {
+    grid-template-columns: 1fr;
+  }
+}

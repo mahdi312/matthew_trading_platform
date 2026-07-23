@@ -1,0 +1,163 @@
+<div class="auth-page">
+  <div class="auth-backdrop" aria-hidden="true">
+    <svg class="auth-backdrop__chart" viewBox="0 0 800 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <g fill="currentColor" opacity="0.055">
+        <rect x="20" y="80"  width="12" height="90" rx="2"/><rect x="25" y="60"  width="2"  height="120" rx="1"/>
+        <rect x="60" y="100" width="12" height="70"  rx="2"/><rect x="65" y="85"  width="2"  height="100" rx="1"/>
+        <rect x="100" y="60" width="12" height="110" rx="2"/><rect x="105" y="40" width="2"  height="140" rx="1"/>
+        <rect x="140" y="90" width="12" height="60"  rx="2"/><rect x="145" y="75" width="2"  height="90"  rx="1"/>
+        <rect x="180" y="70" width="12" height="100" rx="2"/><rect x="185" y="50" width="2"  height="130" rx="1"/>
+        <rect x="220" y="110" width="12" height="50" rx="2"/><rect x="225" y="95"  width="2"  height="80" rx="1"/>
+        <rect x="260" y="50"  width="12" height="130" rx="2"/><rect x="265" y="30"  width="2"  height="160" rx="1"/>
+        <rect x="300" y="80"  width="12" height="80"  rx="2"/><rect x="305" y="65"  width="2"  height="110" rx="1"/>
+        <rect x="340" y="40"  width="12" height="120" rx="2"/><rect x="345" y="20"  width="2"  height="150" rx="1"/>
+        <rect x="380" y="90"  width="12" height="70"  rx="2"/><rect x="385" y="70"  width="2"  height="100" rx="1"/>
+        <rect x="420" y="60"  width="12" height="110" rx="2"/><rect x="425" y="45"  width="2"  height="135" rx="1"/>
+        <rect x="460" y="100" width="12" height="60"  rx="2"/><rect x="465" y="85"  width="2"  height="90"  rx="1"/>
+        <rect x="500" y="70"  width="12" height="90"  rx="2"/><rect x="505" y="55"  width="2"  height="120" rx="1"/>
+        <rect x="540" y="50"  width="12" height="120" rx="2"/><rect x="545" y="30"  width="2"  height="155" rx="1"/>
+        <rect x="580" y="80"  width="12" height="80"  rx="2"/><rect x="585" y="65"  width="2"  height="110" rx="1"/>
+        <rect x="620" y="60"  width="12" height="100" rx="2"/><rect x="625" y="45"  width="2"  height="130" rx="1"/>
+        <rect x="660" y="90"  width="12" height="65"  rx="2"/><rect x="665" y="75"  width="2"  height="95"  rx="1"/>
+        <rect x="700" y="55"  width="12" height="110" rx="2"/><rect x="705" y="35"  width="2"  height="145" rx="1"/>
+        <rect x="740" y="75"  width="12" height="85"  rx="2"/><rect x="745" y="60"  width="2"  height="115" rx="1"/>
+      </g>
+    </svg>
+  </div>
+
+  <section class="auth-panel">
+    <header class="auth-brand" aria-label="Matthew Trading Platform">
+      <span class="auth-brand__mark">MTP</span>
+      <p class="auth-brand__tag">Matthew Trading Platform</p>
+    </header>
+
+    <div class="auth-card">
+      <div class="auth-card__header">
+        <h1 class="auth-card__title">Create account</h1>
+        <p class="auth-card__subtitle">Join the trading platform</p>
+      </div>
+
+      <div class="auth-card__body">
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+
+          <!-- Username -->
+          <div class="form-field" [class.form-field--error]="form.get('username')?.invalid && form.get('username')?.touched">
+            <label class="form-label" for="reg-username">Username</label>
+            <div class="input-wrap">
+              <span class="input-icon" aria-hidden="true"><mat-icon>person_outline</mat-icon></span>
+              <input id="reg-username" class="form-input" type="text" formControlName="username"
+                autocomplete="username" placeholder="Choose a username"
+                [attr.aria-invalid]="form.get('username')?.invalid && form.get('username')?.touched"/>
+            </div>
+            @if (form.get('username')?.invalid && form.get('username')?.touched) {
+              <span class="form-error" role="alert">
+                @if (form.get('username')?.hasError('required')) { Username is required }
+                @else if (form.get('username')?.hasError('minlength')) { At least 3 characters }
+                @else if (form.get('username')?.hasError('maxlength')) { Maximum 80 characters }
+              </span>
+            }
+          </div>
+
+          <!-- Display name -->
+          <div class="form-field" [class.form-field--error]="form.get('displayName')?.invalid && form.get('displayName')?.touched">
+            <label class="form-label" for="reg-display">Display name</label>
+            <div class="input-wrap">
+              <span class="input-icon" aria-hidden="true"><mat-icon>badge</mat-icon></span>
+              <input id="reg-display" class="form-input" type="text" formControlName="displayName"
+                autocomplete="name" placeholder="How you'll appear on the platform"
+                style="padding-left: 40px"/>
+            </div>
+            @if (form.get('displayName')?.invalid && form.get('displayName')?.touched) {
+              <span class="form-error" role="alert">Display name is required</span>
+            }
+          </div>
+
+          <!-- Email (optional) -->
+          <div class="form-field" [class.form-field--error]="form.get('email')?.invalid && form.get('email')?.touched">
+            <label class="form-label" for="reg-email">Email <span class="optional-label">(optional)</span></label>
+            <div class="input-wrap">
+              <span class="input-icon" aria-hidden="true"><mat-icon>email</mat-icon></span>
+              <input id="reg-email" class="form-input" type="email" formControlName="email"
+                autocomplete="email" placeholder="your@email.com"/>
+            </div>
+            @if (form.get('email')?.invalid && form.get('email')?.touched) {
+              <span class="form-error" role="alert">Enter a valid email address</span>
+            }
+          </div>
+
+          <!-- Password -->
+          <div class="form-field" [class.form-field--error]="form.get('password')?.invalid && form.get('password')?.touched">
+            <label class="form-label" for="reg-password">Password</label>
+            <div class="input-wrap">
+              <span class="input-icon" aria-hidden="true"><mat-icon>lock_outline</mat-icon></span>
+              <input id="reg-password" class="form-input" [type]="hidePassword() ? 'password' : 'text'"
+                formControlName="password" autocomplete="new-password" placeholder="Min. 8 characters"
+                [attr.aria-invalid]="form.get('password')?.invalid && form.get('password')?.touched"/>
+              <button class="input-suffix-btn" type="button" (click)="togglePassword()"
+                [attr.aria-label]="hidePassword() ? 'Show password' : 'Hide password'">
+                <mat-icon>{{ hidePassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
+            </div>
+            <!-- Password strength bar -->
+            @if (form.get('password')?.value) {
+              <div class="password-strength" aria-label="Password strength: {{ strengthLabel() }}">
+                <div class="strength-bar" role="presentation">
+                  @for (i of [1,2,3,4]; track i) {
+                    <div class="strength-segment"
+                      [class]="passwordStrength() >= i ? 'strength-segment strength-segment--filled-' + Math.min(passwordStrength(), 4) : 'strength-segment'">
+                    </div>
+                  }
+                </div>
+                <span class="strength-label">{{ strengthLabel() }}</span>
+              </div>
+            }
+            @if (form.get('password')?.invalid && form.get('password')?.touched) {
+              <span class="form-error" role="alert">At least 8 characters required</span>
+            }
+          </div>
+
+          <!-- Confirm password -->
+          <div class="form-field"
+            [class.form-field--error]="(form.hasError('passwordMismatch') || form.get('confirmPassword')?.invalid) && form.get('confirmPassword')?.touched">
+            <label class="form-label" for="reg-confirm">Confirm password</label>
+            <div class="input-wrap">
+              <span class="input-icon" aria-hidden="true"><mat-icon>lock_outline</mat-icon></span>
+              <input id="reg-confirm" class="form-input" [type]="hideConfirm() ? 'password' : 'text'"
+                formControlName="confirmPassword" autocomplete="new-password" placeholder="Repeat password"/>
+              <button class="input-suffix-btn" type="button" (click)="toggleConfirm()"
+                [attr.aria-label]="hideConfirm() ? 'Show password' : 'Hide password'">
+                <mat-icon>{{ hideConfirm() ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
+            </div>
+            @if (form.hasError('passwordMismatch') && form.get('confirmPassword')?.touched) {
+              <span class="form-error" role="alert">Passwords don't match</span>
+            }
+          </div>
+
+          <!-- Server-side error -->
+          @if (errorMessage()) {
+            <div class="auth-server-error" role="alert" aria-live="assertive">
+              <mat-icon aria-hidden="true">error_outline</mat-icon>
+              <span>{{ errorMessage() }}</span>
+            </div>
+          }
+
+          <!-- Submit -->
+          <button class="submit-btn" type="submit" [disabled]="form.invalid || loading()" [attr.aria-busy]="loading()">
+            @if (loading()) {
+              <span class="submit-spinner" aria-label="Creating account"></span>
+              Creating account…
+            } @else {
+              Create account
+            }
+          </button>
+        </form>
+      </div>
+
+      <div class="auth-card__footer">
+        Already have an account?
+        <a routerLink="/login" class="auth-link">Sign in</a>
+      </div>
+    </div>
+  </section>
+</div>

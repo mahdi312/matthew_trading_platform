@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: mtp
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: frontend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: mtp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: mtp/frontend:latest
+          ports:
+            - containerPort: 80
+          env:
+            - name: GATEWAY_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: mtp-shared-config
+                  key: GATEWAY_BASE_URL

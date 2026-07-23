@@ -1,0 +1,213 @@
+:host { display: block; }
+
+.admin-page {
+  max-width: 1200px;
+  padding: 24px 16px 48px;
+}
+
+/* ── Role notice ─────────────────────────────────────────────────────────── */
+.role-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--tp-radius-md);
+  background: var(--tp-bg-card);
+  border: 1px solid var(--hairline);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--tp-text-secondary);
+
+  mat-icon {
+    color: var(--brass-500);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+}
+
+code {
+  background: var(--tp-bg-active);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--brass-400);
+}
+
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.search-field { flex: 0 0 300px; }
+.status-filter-field { flex: 0 0 160px; }
+
+.user-count {
+  font-size: 12px;
+  color: var(--tp-text-secondary);
+  margin-left: auto;
+}
+
+/* ── Table ───────────────────────────────────────────────────────────────── */
+.table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--tp-radius-md);
+}
+
+.users-table {
+  width: 100%;
+  min-width: 820px;
+}
+
+.user-row:hover { background: var(--tp-bg-hover); }
+
+/* User name cell */
+.user-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.display-name {
+  font-size: 11px;
+  color: var(--tp-text-secondary);
+}
+
+/* Role chips (view mode) */
+.role-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--tp-bg-active);
+  color: var(--tp-text-secondary);
+  border: 1px solid var(--hairline);
+}
+
+/* Role toggle chips (edit mode) */
+.role-edit-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.role-toggle-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--tp-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+
+  mat-icon { font-size: 13px; width: 13px; height: 13px; }
+
+  &:hover {
+    border-color: var(--brass-500);
+    color: var(--tp-text-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--brass-500);
+    outline-offset: 2px;
+  }
+
+  &.role-toggle-chip--selected {
+    background: color-mix(in srgb, var(--brass-500) 18%, var(--tp-bg-card));
+    color: var(--brass-400);
+    border-color: color-mix(in srgb, var(--brass-500) 40%, transparent);
+  }
+}
+
+/* Status chips — neutral traffic-light set, deliberately NOT bull/bear
+   (these aren't gains/losses, they're account states) */
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+
+  mat-icon { font-size: 14px; width: 14px; height: 14px; }
+}
+
+.status-chip--active {
+  background: color-mix(in srgb, var(--teal-400) 16%, var(--tp-bg-card));
+  color: var(--teal-400);
+  border: 1px solid color-mix(in srgb, var(--teal-400) 35%, transparent);
+}
+
+.status-chip--pending {
+  background: var(--tp-bg-active);
+  color: var(--tp-text-muted);
+  border: 1px solid var(--hairline);
+}
+
+.status-chip--suspended {
+  /* Distinct from --tp-bear (loss color) — uses the dedicated
+     --tp-status-warn token so it never visually collides with P&L
+     loss meaning used elsewhere in the app. */
+  background: color-mix(in srgb, var(--tp-status-warn) 18%, var(--tp-bg-card));
+  color: var(--tp-status-warn-light);
+  border: 1px solid color-mix(in srgb, var(--tp-status-warn) 40%, transparent);
+}
+
+/* Status select in edit mode */
+.status-select {
+  width: 150px;
+
+  ::ng-deep .mat-mdc-form-field-subscript-wrapper { display: none; }
+}
+
+/* Relative time */
+.relative-time {
+  font-size: 12.5px;
+  color: var(--tp-text-secondary);
+  cursor: default;
+  border-bottom: 1px dotted var(--tp-border);
+}
+
+/* Action buttons */
+.action-buttons {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+}
+
+.delete-btn:hover { color: var(--bear-500) !important; }
+.save-btn:hover { color: var(--bull-500) !important; }
+
+mat-paginator {
+  border-top: none;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .search-field { flex: 1 1 100%; }
+  .status-filter-field { flex: 1 1 auto; }
+  .user-count { margin-left: 0; flex: 1 1 100%; }
+}

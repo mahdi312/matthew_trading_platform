@@ -1,0 +1,251 @@
+:host {
+  display: block;
+  height: 100%;
+}
+
+.watchlist-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--tp-bg-card);
+  color: var(--tp-text-primary);
+}
+
+.watchlist-panel--drawer {
+  border-left: none;
+  height: 100%;
+}
+
+.watchlist-header {
+  /* Shell already shows a Tools / Watchlist tab — keep a compact title row */
+  padding: 10px 12px 8px 16px;
+}
+
+.watchlist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 12px 12px 16px;
+  border-bottom: 1px solid var(--tp-border);
+  flex-shrink: 0;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.watchlist-icon {
+  color: var(--tp-accent-orange);
+  flex-shrink: 0;
+}
+
+.title-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.subtitle {
+  font-size: 11px;
+  color: var(--tp-text-secondary);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.add-symbol-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--tp-border);
+  flex-shrink: 0;
+
+  .watchlist-search {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.col-labels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 8px 16px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tp-text-muted);
+  flex-shrink: 0;
+
+  span:last-child {
+    text-align: right;
+  }
+}
+
+.watchlist-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.watchlist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 12px;
+}
+
+.watchlist-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px 10px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--tp-border);
+  outline: none;
+  transition: background 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--tp-bg-hover);
+  }
+
+  &:hover .remove-btn,
+  &:focus-within .remove-btn {
+    opacity: 1;
+  }
+}
+
+.row-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.row-ticker {
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-class {
+  align-self: flex-start;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 4px;
+
+  &.crypto-badge {
+    background: color-mix(in srgb, var(--tp-accent-orange) 20%, transparent);
+    color: var(--tp-accent-orange);
+  }
+  &.stock-badge {
+    background: color-mix(in srgb, var(--tp-accent-blue) 20%, transparent);
+    color: var(--tp-accent-blue);
+  }
+  &.forex-badge {
+    background: color-mix(in srgb, var(--tp-accent-green) 20%, transparent);
+    color: var(--tp-accent-green);
+  }
+}
+
+.row-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+
+  &.up .row-price,
+  &.up .row-change {
+    color: var(--tp-accent-green);
+  }
+
+  &.down .row-price,
+  &.down .row-change {
+    color: var(--tp-accent-red);
+  }
+
+  &.flat .row-price,
+  &.flat .row-change {
+    color: var(--tp-text-secondary);
+  }
+}
+
+.row-price {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tp-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.row-change {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tp-text-secondary);
+}
+
+.price-pending {
+  color: var(--tp-text-muted);
+}
+
+.remove-btn {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  color: var(--tp-text-secondary) !important;
+}
+
+.center-spinner {
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: var(--tp-text-secondary);
+  text-align: center;
+
+  mat-icon {
+    font-size: 36px;
+    width: 36px;
+    height: 36px;
+    opacity: 0.5;
+  }
+
+  span {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+}

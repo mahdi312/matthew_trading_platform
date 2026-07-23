@@ -1,0 +1,27 @@
+server:
+  port: 8888
+
+spring:
+  application:
+    name: config-service
+  cloud:
+    config:
+      server:
+        native:
+          # Serve configuration files straight from the local filesystem
+          # (no git repo required for local dev). Real per-service YAML files
+          # are added to /infra/config-repo in a later step.
+          search-locations: file:../config-repo
+        default-label: main
+  profiles:
+    active: native
+
+eureka:
+  client:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
